@@ -22,4 +22,8 @@ export {
   STAKE_DIVISOR,
   staked,
 } from "./bank.js";
+export type { Called } from "./casino.js";
+export { readCasino } from "./casino.js";
+export type { Paid, Placed } from "./bets.js";
+export { settle, toBets } from "./bets.js";
 export { TWO_UP } from "./listing.js";
