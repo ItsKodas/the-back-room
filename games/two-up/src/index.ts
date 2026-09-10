@@ -24,6 +24,10 @@ export {
 } from "./bank.js";
 export type { Called } from "./casino.js";
 export { readCasino } from "./casino.js";
+export type { Decided } from "./school.js";
+export { HEADS_TO_WIN, readSchool } from "./school.js";
+export type { Centre, Cover } from "./centre.js";
+export { covered, payouts, uncovered } from "./centre.js";
 export type { Paid, Placed } from "./bets.js";
 export { settle, toBets } from "./bets.js";
 export { TWO_UP } from "./listing.js";
