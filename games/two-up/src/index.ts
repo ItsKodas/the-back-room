@@ -8,4 +8,18 @@
 
 export type { Face, Outcome } from "./coins.js";
 export { ODDS_LIMIT, readFaces, toss } from "./coins.js";
+export type { Bet, BetOn } from "./bank.js";
+export {
+  CHIPS,
+  FIVE_ODDS_PAYS,
+  FUN_BANK,
+  FUN_PURSE,
+  headroom,
+  MIN_CHIP,
+  needed,
+  on,
+  owed,
+  STAKE_DIVISOR,
+  staked,
+} from "./bank.js";
 export { TWO_UP } from "./listing.js";
