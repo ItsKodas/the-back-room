@@ -21,8 +21,11 @@ import type { GameListing } from "./catalogue.js";
  * goes into a pot and one of the players takes it, so the chips never leave
  * the table and there is nothing for a bank to do.
  *
- * Poker was on this list and has been built; its listing lives in its own
- * package now, beside the rules, the way the other three do.
+ * Poker was on this list and has been built; so has Two-up, which had to make
+ * the bank argument twice over — once for a casino school paying from its own
+ * bank, and once for a traditional school that needs no bank because the chips
+ * never leave the ring. Both listings live in their own packages now, beside
+ * their rules, the way the others do.
  */
 export const COMING: readonly GameListing[] = [
   {
@@ -82,17 +85,6 @@ export const COMING: readonly GameListing[] = [
     open: false,
     mark: { text: "CRAPS", accentAt: 0 },
     theme: { wall: "#1a1610", felt: "#33280f", accent: "#c08a1e", accentHi: "#ffd166" },
-  },
-  {
-    id: "two-up",
-    name: "Two-up",
-    blurb: "Two coins in the air. Heads or tails, and nothing in between.",
-    shape: "table",
-    minSeats: 1,
-    maxSeats: 8,
-    open: false,
-    mark: { text: "TWO-UP", accentAt: 0 },
-    theme: { wall: "#141618", felt: "#232a2e", accent: "#8a9299", accentHi: "#dfe6ea" },
   },
   {
     id: "scribble",
