@@ -63,6 +63,25 @@ export function payouts(
     out.set(seatId, (out.get(seatId) ?? 0) + chips);
   };
 
+  /*
+   * What each cover actually contested, and what of it overshot.
+   *
+   * The table refuses a cover past the centre, so in a running game every chip
+   * here is contested and `spare` is always nought. It is worked out anyway,
+   * because this function's promise — what goes out equals what came in — is
+   * the one thing in this file that has to hold without trusting anybody.
+   * Doubling a raw cover on a cloth that had somehow over-covered would mint
+   * the difference out of nothing, which is precisely the failure a school
+   * with no bank cannot have. Chips that overshot were contested by nothing,
+   * so they simply come back.
+   */
+  let room = centre.chips;
+  const shares = covers.map((one) => {
+    const contested = Math.min(one.chips, room);
+    room -= contested;
+    return { seatId: one.seatId, contested, spare: one.chips - contested };
+  });
+
   if (decided === "oddedOut") {
     // Nobody won, so nobody pays. Every chip goes back where it came from.
     give(centre.seatId, centre.chips);
@@ -74,17 +93,24 @@ export function payouts(
 
   if (decided === "spinner") {
     give(centre.seatId, centre.chips + matched);
+    /*
+     * Only what overshot, and only if any did. A coverer who lost is not in
+     * this map at all rather than in it for nought — the felt reads an absence
+     * as "you were in and you lost", and a nought as "you were paid nothing",
+     * which are different sentences.
+     */
+    for (const one of shares) {
+      if (one.spare > 0) {
+        give(one.seatId, one.spare);
+      }
+    }
     return out;
   }
 
   give(centre.seatId, loose);
-  /*
-   * Doubled where it was matched. The covers cannot exceed the centre, so
-   * every chip in the ring's side was contested and every one of them is paid
-   * — which is why this needs no pro-rata arithmetic beyond the doubling.
-   */
-  for (const one of covers) {
-    give(one.seatId, one.chips * 2);
+  /* Doubled where it was contested, returned where it overshot. */
+  for (const one of shares) {
+    give(one.seatId, one.contested * 2 + one.spare);
   }
   return out;
 }

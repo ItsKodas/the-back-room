@@ -74,4 +74,23 @@ describe("paying a finished round", () => {
     expect(paid.get("b")).toBe(4);
     expect(paid.get("spin")).toBe(0);
   });
+
+  it("returns what overshot instead of doubling it", () => {
+    /*
+     * The second lock on the door `uncovered` already guards. The table
+     * refuses a cover past the centre, so this should be unreachable — but
+     * doubling a raw cover here would mint the difference, and a school with
+     * no bank behind it has nowhere for minted chips to come from. Three
+     * staked against a centre of two: one chip contested, one overshot.
+     */
+    const small: Centre = { seatId: "spin", chips: 2 };
+    const covers = [cover("a", 3)];
+    const inPot = small.chips + covered(covers);
+    for (const decided of ["spinner", "ring", "oddedOut"] as const) {
+      const out = [...payouts(small, covers, decided).values()].reduce((sum, one) => sum + one, 0);
+      expect(out).toBe(inPot);
+    }
+    // Contested doubled, overshot returned: 2 x 2 + 1.
+    expect(payouts(small, covers, "ring").get("a")).toBe(5);
+  });
 });
