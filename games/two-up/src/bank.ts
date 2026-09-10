@@ -101,19 +101,31 @@ export function needed(bets: readonly Bet[]): number {
  * Floored, because half a chip of headroom is no headroom.
  */
 export function headroom(bank: number, bets: readonly Bet[], which: BetOn): number {
-  const room = Math.max(0, bank);
+  /*
+   * The raw bank, not a clamped one, and the difference is a real overdraw.
+   *
+   * Clamping a negative bank to nought here reads like defensive tidying and
+   * is the opposite: it hands the arithmetic a bank richer than the one that
+   * exists, while the chips already on the cloth go on counting in full. At
+   * bank -1 with 50 on each side and 1 on the side bet, the clamped version
+   * offers a chip on heads that leaves the table owing 102 against 101 — which
+   * is precisely the thing this file exists to make impossible.
+   *
+   * The result is floored at nought instead. A negative bank then produces no
+   * headroom at all, which is the honest answer.
+   */
   const heads = on(bets, "heads");
   const tails = on(bets, "tails");
   const odds = on(bets, "fiveOdds");
   if (which === "fiveOdds") {
     return Math.max(
       0,
-      Math.floor((room + heads + tails - FIVE_ODDS_PAYS * odds) / FIVE_ODDS_PAYS),
+      Math.floor((bank + heads + tails - FIVE_ODDS_PAYS * odds) / FIVE_ODDS_PAYS),
     );
   }
   const mine = which === "heads" ? heads : tails;
   const other = which === "heads" ? tails : heads;
-  return Math.max(0, Math.floor(room + other + odds - mine));
+  return Math.max(0, Math.floor(bank + other + odds - mine));
 }
 
 /**

@@ -78,7 +78,7 @@ describe("what a side can still take", () => {
      * still able to pay the worst outcome — and one chip more must not.
      */
     const sides: BetOn[] = ["heads", "tails", "fiveOdds"];
-    for (const bank of [0, 25, 500, 10_000, 250_000]) {
+    for (const bank of [-1, 0, 25, 500, 10_000, 250_000]) {
       for (const h of [0, 100, 5_000]) {
         for (const t of [0, 100, 5_000]) {
           for (const f of [0, 25, 400]) {
@@ -109,6 +109,19 @@ describe("what a side can still take", () => {
   it("never goes negative on a bank that is already overdrawn", () => {
     expect(headroom(-500, [], "heads")).toBe(0);
     expect(headroom(-500, [], "fiveOdds")).toBe(0);
+  });
+
+  it("offers nothing on an overdrawn bank, even where the cloth looks matched", () => {
+    /*
+     * The case a clamped bank gets wrong, and it is an overdraw rather than a
+     * rounding difference. Fifty on each side needs no bank, so the position is
+     * legal even at -1 — but the side bet's chip is not covered, and a version
+     * that clamped the bank to nought before the arithmetic would offer a chip
+     * on heads that leaves the table owing 102 against 101.
+     */
+    const down = [bet("heads", 50), bet("tails", 50), bet("fiveOdds", 1)];
+    expect(owed(down)).toBeLessThanOrEqual(-1 + staked(down));
+    expect(headroom(-1, down, "heads")).toBe(0);
   });
 });
 
