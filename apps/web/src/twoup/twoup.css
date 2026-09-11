@@ -282,14 +282,25 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tu__coin,
+  /*
+   * A media query adds no specificity of its own, so silencing an animation
+   * here takes repeating the exact selector that started it — a shorter form
+   * loses the cascade to the rule it means to override rather than beating
+   * it. `.tu__coin--flying .tu__coin-spin` is (0,2,0) and
+   * `.tu__coin:not(.tu__coin--flying) .tu__coin-wobble` is (0,3,0) — `:not()`
+   * contributes its argument's own specificity — so neither yields to a bare
+   * `.tu__coin-spin` / `.tu__coin-wobble` written here, whatever the source
+   * order. Only the exact selector wins.
+   */
+  .tu__coin--flying,
+  .tu__coin--flying .tu__coin-spin,
+  .tu__coin:not(.tu__coin--flying) .tu__coin-spin,
+  .tu__coin:not(.tu__coin--flying) .tu__coin-wobble,
   .tu__coin-face {
     animation: none;
-    transition: opacity 300ms ease;
   }
-  .tu__coin-spin,
-  .tu__coin-wobble {
-    animation: none;
+  .tu__coin-face {
+    transition: opacity 300ms ease;
   }
   /*
    * Blank as well as edge-on. `.tu__coin-spin`'s own base pose already holds
