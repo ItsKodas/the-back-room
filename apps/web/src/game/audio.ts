@@ -1471,8 +1471,17 @@ export function tossCoins(options: {
       level.gain.setValueCurveAtTime(curve, now, duration);
       // Damped rather than left to hold at the curve's last value: a real
       // strike's ring is cut short by the impact, not switched off later.
-      level.gain.setValueAtTime(curve[points - 1] ?? 0, now + duration);
-      level.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.03);
+      const DAMP_AFTER = 0.005;
+      /*
+       * Strictly after the curve, never on its edge. A curve owns
+       * [start, start + duration] and any automation inside that span throws
+       * NotSupportedError — an uncaught one, which takes the page with it.
+       * Scheduling at exactly `now + duration` lands on the boundary and is a
+       * coin toss in itself: it threw on the second voice and not the first,
+       * because floating point put one just inside the span.
+       */
+      level.gain.setValueAtTime(curve[points - 1] ?? 0, now + duration + DAMP_AFTER);
+      level.gain.exponentialRampToValueAtTime(0.0001, now + duration + DAMP_AFTER + 0.03);
       const panner = audio.createStereoPanner();
       panner.pan.value = voice.pan;
       level.connect(panner).connect(bus);
