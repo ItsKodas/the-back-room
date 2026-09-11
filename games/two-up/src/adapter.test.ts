@@ -2,6 +2,8 @@ import type { GameDeps } from "@backroom/core";
 import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { twoUpAdapter } from "./adapter.js";
+import { needed } from "./bank.js";
+import { toBets } from "./bets.js";
 import type { Table } from "./table.js";
 
 /** A store that remembers balances, so a test can assert on real movement. */
@@ -66,13 +68,23 @@ describe("a chip going down at a casino table", () => {
     ).rejects.toThrow(/bank/i);
   });
 
-  it("takes a matched chip against an empty bank", async () => {
+  it("takes a matched chip a bank could not have covered on its own", async () => {
     /*
-     * The table working on its first night. Nothing in the bank, but a hundred
-     * is already on tails, so a hundred on heads is riskless.
+     * Two coins land one way or the other, so equal money on each side pays
+     * one and keeps the other — between them they need no bank at all.
+     *
+     * The bank holds exactly a hundred, which covers the first chip and
+     * nothing more. The second hundred goes down against the first rather than
+     * against the bank, and once both are on the cloth the table is asking the
+     * bank for nothing.
+     *
+     * It is a hundred and not nought because the FIRST chip has no matching
+     * money behind it yet, and a chip nothing covers is a chip the bank has to
+     * cover. An earlier version of this test seeded nought and expected both
+     * to land, which the arithmetic in bank.ts correctly refuses.
      */
     const { deps } = purse({ u0: 1_000, u1: 1_000 });
-    const { bank } = bankOf(0);
+    const { bank, read } = bankOf(100);
     const adapter = twoUpAdapter({ bank });
     const table = adapter.create("ABCD", { ruleset: "casino" });
     sit(table, "s0", "u0");
@@ -80,6 +92,46 @@ describe("a chip going down at a casino table", () => {
     await adapter.act(table, "s0", { type: "place", on: "tails", chips: 100 }, deps);
     await adapter.act(table, "s1", { type: "place", on: "heads", chips: 100 }, deps);
     expect(table.onCloth).toBe(200);
+    /* Matched, so the cloth asks nothing of the bank. */
+    expect(needed(toBets(table.placed))).toBe(0);
+    /* And every chip staked is in the bank, which is where a payout comes from. */
+    expect(read()).toBe(300);
+  });
+
+  it("pays a seat that stood up before the coins were read", async () => {
+    /*
+     * The chips do not leave with the player. A ring has no bank to absorb an
+     * unpaid win, so a departed seat that is owed something and not paid is
+     * chips destroyed — the mirror image of minting them, and the one thing
+     * this school's arithmetic exists to rule out.
+     *
+     * Three at the table so removing one still leaves a ring; the spinner
+     * throws tails, so the two coverers are the ones owed.
+     */
+    const { held, deps } = purse({ u0: 5_000, u1: 5_000, u2: 5_000 });
+    const total = () => (held["u0"] ?? 0) + (held["u1"] ?? 0) + (held["u2"] ?? 0);
+    const before = total();
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("RING", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    sit(table, "s2", "u2");
+    const spinner = table.spinnerId ?? "s0";
+    await adapter.act(table, spinner, { type: "centre", chips: 1_000 }, deps);
+    const ring = table.seats.filter((one) => one.id !== spinner).map((one) => one.id);
+    await adapter.act(table, ring[0] as string, { type: "cover", chips: 600 }, deps);
+    await adapter.act(table, ring[1] as string, { type: "cover", chips: 400 }, deps);
+
+    table.removeSeat(ring[0] as string);
+
+    table.closeCovering();
+    table.throwCoins(spinner, () => 0.9);
+    table.land();
+    table.read(() => 0.9);
+    expect(table.decided).toBe("ring");
+    await adapter.settle(table, deps);
+
+    expect(total()).toBe(before);
   });
 
   it("gives a chip back out of the bank when it is taken off the cloth", async () => {

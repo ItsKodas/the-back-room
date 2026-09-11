@@ -386,14 +386,30 @@ export function twoUpAdapter(
         }
         table.owing = null;
         for (const [seatId, chips] of owing) {
-          const seat = table.seats.find((one) => one.id === seatId);
-          if (seat === undefined || chips <= 0) {
+          if (chips <= 0) {
             continue;
           }
-          await pay(table, seat, chips, deps);
-          if (!table.forFun && seat.userId !== null) {
+          /*
+           * Paid whether or not they are still standing at the table.
+           *
+           * A seat can leave in the middle of a round and what the coins
+           * decided it was owed does not leave with it. Skipping a departed
+           * seat looks like tidiness and is destruction: in a ring there is no
+           * bank to absorb an unpaid win, so those chips simply stop existing,
+           * which is the mirror image of minting them.
+           *
+           * This is a deliberate divergence from the wheel, which pays nobody
+           * who has stood up. Its argument is about the stake — already in the
+           * bank, so nothing is owed — and that argument does not reach a
+           * payout the coins have already decided, nor a school with no bank
+           * behind it at all.
+           */
+          const here = table.seats.find((one) => one.id === seatId);
+          const userId = here?.userId ?? table.accountOf(seatId);
+          await pay(table, { id: seatId, userId }, chips, deps);
+          if (!table.forFun && userId !== null) {
             const staked = table.stakedIn(seatId);
-            await deps.record(seat.userId, {
+            await deps.record(userId, {
               shared: { games: 1, wins: chips > staked ? 1 : 0, chipsWon: chips - staked },
               game: TWO_UP.id,
               add: { rounds: 1 },
@@ -407,20 +423,19 @@ export function twoUpAdapter(
         return;
       }
       for (const [seatId, paid] of table.paid) {
-        const seat = table.seats.find((one) => one.id === seatId);
-        if (seat === undefined) {
-          continue;
-        }
-        await pay(table, seat, paid.back, deps);
+        /* Same rule as the ring above: a decided payout is theirs, seated or not. */
+        const here = table.seats.find((one) => one.id === seatId);
+        const userId = here?.userId ?? table.accountOf(seatId);
+        await pay(table, { id: seatId, userId }, paid.back, deps);
         /*
          * Play money is paid but never recorded. A for-fun table touches no
          * account, so a win there is not a win anybody's profile should claim —
          * and a guest has no account to write one on either way.
          */
-        if (table.forFun || seat.userId === null) {
+        if (table.forFun || userId === null) {
           continue;
         }
-        await deps.record(seat.userId, {
+        await deps.record(userId, {
           shared: {
             games: 1,
             wins: paid.back > paid.staked ? 1 : 0,

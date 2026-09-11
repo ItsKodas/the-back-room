@@ -151,6 +151,26 @@ export class Table {
   spinnerId: string | null = null;
   private previous = new Map<string, Placed[]>();
 
+  /**
+   * Which account each seat belonged to, kept for the length of a round.
+   *
+   * A seat can leave in the middle of a round — `leavesMidHand` is true here —
+   * and what it is owed does not leave with it. Once `Seating.remove` has run,
+   * the seat was the only record of whose account it was, so settlement would
+   * have nobody to pay and the chips would simply cease to exist. In a ring
+   * that is the economy losing chips outright, which is the mirror image of
+   * minting them and no better.
+   *
+   * Pruned when the next round opens rather than when a seat leaves, because
+   * the round that owes somebody is the round they were in.
+   */
+  private accounts = new Map<string, string | null>();
+
+  /** The account behind a seat, whether or not the seat is still occupied. */
+  accountOf(seatId: string): string | null {
+    return this.accounts.get(seatId) ?? null;
+  }
+
   housed = 0;
   forFun = false;
   private readonly purses = new Map<string, number>();
@@ -213,6 +233,7 @@ export class Table {
    */
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
+    this.accounts.set(seat.id, identity?.userId ?? null);
     /*
      * Whoever sits down first has the kip until it passes.
      *
@@ -822,6 +843,12 @@ export class Table {
     this.owing = null;
     for (const seat of this.seats) {
       seat.waiting = false;
+    }
+    const here = new Set(this.seats.map((seat) => seat.id));
+    for (const seatId of [...this.accounts.keys()]) {
+      if (!here.has(seatId)) {
+        this.accounts.delete(seatId);
+      }
     }
     this.spinnerId = this.nextSpinner();
     this.phase = this.school === "casino" ? "betting" : "centre";
