@@ -391,6 +391,7 @@ Measured by tracing every place roulette appears outside its own package:
 - `apps/web/src/room/TileArt.tsx` — the room tile
 - `apps/web/vite.config.ts` — `optimizeDeps.exclude`; the comment there records
   that omitting a game cost two rounds of debugging a blank page
+- `apps/web/src/admin/Admin.tsx` — the admin's own `BANKS` list. **Missed by the survey above, found while wiring the server:** a bank an admin cannot float stays at zero, and a game with an empty bank offers a stake of nothing, so the door would have opened onto a table that could never take a chip. `apps/web/src/admin/Admin.test.tsx` is what forces it.
 - `apps/web/src/style/Gallery.tsx` — the mockup
 - `scripts/sync-audio.mjs` — the `coins` group
 
