@@ -31,3 +31,15 @@ export { covered, payouts, uncovered } from "./centre.js";
 export type { Paid, Placed } from "./bets.js";
 export { settle, toBets } from "./bets.js";
 export { TWO_UP } from "./listing.js";
+export type { Phase, School, SeatView, TableView } from "./table.js";
+export {
+  FLIGHT_MS,
+  HISTORY,
+  KIP_MS,
+  LAST_CALL_MS,
+  MIN_FOR_RING,
+  READ_MS,
+  SETTLE_MS,
+  Table,
+  WINDOWS,
+} from "./table.js";
