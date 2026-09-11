@@ -1,5 +1,6 @@
 import type { BotMove, GameAdapter, GameDeps } from "@backroom/core";
 import { seatLimit, TableError } from "@backroom/core";
+import { botBet, thinkingTime } from "./bot.js";
 import { headroom, type BetOn, MIN_CHIP, staked } from "./bank.js";
 import { toBets } from "./bets.js";
 import { TWO_UP } from "./listing.js";
@@ -499,12 +500,89 @@ export function twoUpAdapter(
     /**
      * What a seated bot wants to do next.
      *
-     * A stub: this game has no bots yet, and a table playing for chips must
-     * never get one whatever arrives later, which is the check that stays.
+     * Bots exist to make a for-fun table worth sitting at on your own. They
+     * are dealt in at play-money tables and refused at every other kind, which
+     * is what the `forFun` check below enforces: a chips table may never get a
+     * bot, however one arrives later, because a bot at a table playing for
+     * chips would be a button that mints.
+     *
+     * A table playing for chips has no need for distraction, so both schools
+     * only move on their own clocks — nobody presses start, and nobody moves on
+     * anybody else's button. Bots are noise at a table like that, which is why
+     * they are a for-fun feature entirely.
      */
     botMove(table): BotMove | null {
       if (!table.forFun) {
         return null;
+      }
+
+      /*
+       * The casino school bets during "betting"; the traditional school has a
+       * centre window and a covering window, neither of which takes more chips
+       * in the last 5 seconds of its own timer.
+       */
+      const canAct =
+        !table.lastCall &&
+        ((table.school === "casino" && table.phase === "betting") ||
+          (table.school === "school" && (table.phase === "centre" || table.phase === "covering")));
+
+      if (!canAct) {
+        return null;
+      }
+
+      for (const seat of table.seats) {
+        if (!seat.isBot || seat.waiting) {
+          continue;
+        }
+
+        /*
+         * Count existing piles: a pile is one entry in placed for this seat.
+         * For the traditional school, count entries in covers instead.
+         */
+        let pileCount = 0;
+        if (table.school === "casino") {
+          pileCount = table.placed.filter((one) => one.seatId === seat.id).length;
+        } else {
+          pileCount = table.covers.filter((one) => one.seatId === seat.id).length;
+          /*
+           * If this bot is the spinner and no centre is set, count that as an
+           * entry too so it doesn't spam centres.
+           */
+          if (table.centre?.seatId === seat.id) {
+            pileCount += 1;
+          }
+        }
+
+        const purse = table.purseFor(seat.id);
+        const bet = botBet(seat.skill ?? "normal", pileCount, purse);
+        if (bet === null) {
+          continue;
+        }
+
+        return {
+          seatId: seat.id,
+          delayMs: thinkingTime(),
+          play: () => {
+            try {
+              if (table.school === "casino") {
+                table.place(seat.id, bet.on, bet.chips);
+              } else {
+                /*
+                 * In the traditional school, a bot bets by setting a centre (if
+                 * it is the spinner and no centre is set) or covering it (if one
+                 * is already set).
+                 */
+                if (table.phase === "centre") {
+                  table.setCentre(seat.id, bet.chips);
+                } else if (table.phase === "covering") {
+                  table.cover(seat.id, bet.chips);
+                }
+              }
+            } catch {
+              // The window shut while it was thinking. Nothing to do.
+            }
+          },
+        };
       }
       return null;
     },

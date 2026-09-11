@@ -8,6 +8,7 @@
 
 export type { Face, Outcome } from "./coins.js";
 export { ODDS_LIMIT, readFaces, toss } from "./coins.js";
+export { botBet, thinkingTime } from "./bot.js";
 export type { Bet, BetOn } from "./bank.js";
 export {
   CHIPS,
