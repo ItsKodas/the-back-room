@@ -18,7 +18,7 @@ const source = join(root, "assets", "audio", "raw");
 const target = join(root, "apps", "web", "public", "audio");
 
 /** Folders we mirror, in the order the game cares about them. */
-const GROUPS = ["dice", "cards", "chips", "slots", "ui", "stingers", "ambience"];
+const GROUPS = ["dice", "cards", "coins", "chips", "slots", "ui", "stingers", "ambience"];
 const PLAYABLE = new Set([".mp3", ".ogg", ".wav", ".m4a", ".webm"]);
 
 async function filesIn(folder) {

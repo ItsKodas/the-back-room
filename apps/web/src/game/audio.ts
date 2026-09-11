@@ -55,11 +55,21 @@ export type Cue =
    * and the number the ball finally sat down in.
    */
   | "noMoreBets"
-  | "numberUp";
+  | "numberUp"
+  /*
+   * The coins. Everything continuous about a toss — the kip, the ring, the
+   * clacks, the settle — is scheduled in one go by `tossCoins`, the same way
+   * the wheel's hum and roll and clatter never became cues of their own; the
+   * one moment around it is the boxer's call, once the coins are down.
+   */
+  | "headsUp"
+  | "tailsUp"
+  | "oddsUp";
 
 interface Manifest {
   dice?: string[];
   cards?: string[];
+  coins?: string[];
   chips?: string[];
   slots?: string[];
   ui?: string[];
@@ -726,6 +736,26 @@ export function play(
       tone({ frequency: 930, duration: 0.22, type: "sine", gain: 0.1, delay: 0.07 });
       return;
 
+    /*
+     * The boxer's call, once the coins are down — three different figures
+     * rather than one reused three times, so which one played is legible by
+     * ear alone. Heads rises, tails falls to answer it, and odds — neither —
+     * is the one that doesn't resolve: the same note three times, unsettled.
+     */
+    case "headsUp":
+      tone({ frequency: 660, duration: 0.1, type: "sine", gain: 0.12 });
+      tone({ frequency: 990, duration: 0.22, type: "sine", gain: 0.1, delay: 0.07 });
+      return;
+    case "tailsUp":
+      tone({ frequency: 520, duration: 0.1, type: "sine", gain: 0.12 });
+      tone({ frequency: 347, duration: 0.22, type: "sine", gain: 0.1, delay: 0.07 });
+      return;
+    case "oddsUp":
+      tone({ frequency: 600, duration: 0.08, type: "triangle", gain: 0.1 });
+      tone({ frequency: 600, duration: 0.08, type: "triangle", gain: 0.1, delay: 0.1 });
+      tone({ frequency: 600, duration: 0.16, type: "triangle", gain: 0.1, delay: 0.2 });
+      return;
+
     case "sayCheck":
       /*
        * Two knuckles on the table, which is what a check actually is. Noise
@@ -1285,6 +1315,253 @@ export function spinWheel(options: {
     }
     const at = context.currentTime;
     const end = at + 0.1;
+    bus.gain.cancelScheduledValues(at);
+    bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), at);
+    bus.gain.exponentialRampToValueAtTime(0.0001, end);
+    for (const node of stop) {
+      try {
+        node.stop(end + 0.02);
+      } catch {
+        // Already stopped, or never started. Neither is worth a fuss.
+      }
+    }
+  };
+}
+
+/**
+ * The rise and fall of one coin, echoing `height()` in `twoup/toss.ts`.
+ *
+ * Reproduced rather than imported: this file stays free of any one game's own
+ * curve module, the same way `spinWheel` above invents its own roll and
+ * clatter shapes rather than reaching into roulette's `spin.ts` — `tossCoins`
+ * is hooked up to the coins' actual flight by the numbers its caller hands
+ * in (`landings`, `rattle`), not by pulling in the function that drew them.
+ * The formula itself — `4t(1-t)` — is the whole of what is borrowed, and it
+ * cannot drift out of step with the felt because there is only one way to
+ * write a parabola that is nought at both ends and one in the middle.
+ */
+function arcHeight(t: number): number {
+  const at = Math.min(1, Math.max(0, t));
+  return 4 * at * (1 - at);
+}
+
+/**
+ * How long a settled coin's rattle plays for, matching `twoup.css`'s
+ * `tu-wobble` animation.
+ *
+ * `rattle()` (Task 10) hands back shares of that window, not a duration — it
+ * is a curve, not a clock, the same as every other shape in `toss.ts` — so
+ * this is the one number that has to live here instead: `toss.ts` doesn't
+ * carry a span of its own to borrow, and 420 is the wobble's actual length,
+ * not a guess at it.
+ */
+const WOBBLE_MS = 420;
+
+/**
+ * A short one-shot noise burst, filtered, with its own start time, connected
+ * straight to the bus a caller hands in.
+ *
+ * Built inline rather than through the `noise()` helper above for the same
+ * reason `spinWheel`'s own clicks are: `noise()` starts immediately and
+ * always speaks to `master`, and everything here is scheduled ahead of the
+ * moment it plays and has to fade with the rest of its own toss.
+ */
+function burst(
+  audio: AudioContext,
+  bus: GainNode,
+  when: number,
+  duration: number,
+  frequency: number,
+  gain: number,
+  q: number,
+): AudioBufferSourceNode {
+  const frames = Math.max(4, Math.floor(audio.sampleRate * duration));
+  const buf = audio.createBuffer(1, frames, audio.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let index = 0; index < frames; index += 1) {
+    data[index] = (Math.random() * 2 - 1) * (1 - index / frames) ** 2;
+  }
+  const source = audio.createBufferSource();
+  source.buffer = buf;
+  const band = audio.createBiquadFilter();
+  band.type = "bandpass";
+  band.frequency.value = frequency;
+  band.Q.value = q;
+  const level = audio.createGain();
+  level.gain.value = gain;
+  source.connect(band).connect(level).connect(bus);
+  source.start(when);
+  return source;
+}
+
+/**
+ * The whole of a coin toss, as one scheduled sound.
+ *
+ * Placeholders for `coinClack`, the same way every voice in `spinWheel` is:
+ * synthesised because there was nothing to sample yet, and easy to replace
+ * because nothing about the toss's timings lives anywhere else — see
+ * `landings` and `rattle` in `twoup/toss.ts`, which this schedules against
+ * rather than against a second set of numbers.
+ *
+ * Four voices, in the order they happen: the kip that flicks the coins up,
+ * the ring the two of them carry through the air, the clack of each landing
+ * (sampled the moment there is anything to sample — see `samples.coins`),
+ * and the rattle of each settling flat.
+ */
+export function tossCoins(options: {
+  /** How long the coins are in the air. */
+  flightMs: number;
+  /** When each coin lands, as shares of the flight — `landings()`. */
+  landings: readonly number[];
+  /** When the settling coin knocks, as shares of its own wobble — `rattle()`. */
+  rattle: readonly number[];
+}): () => void {
+  if (context === null || master === null || muted || volume === 0) {
+    return () => {};
+  }
+  // Captured locally: `context` is narrowed here, but not inside the
+  // `forEach` closures below — a nested function is a boundary TypeScript
+  // won't carry a mutable outer binding's narrowing across.
+  const audio = context;
+  const now = audio.currentTime;
+  const seconds = options.flightMs / 1000;
+
+  const stop: Array<{ stop(when: number): void }> = [];
+  const bus = audio.createGain();
+  bus.gain.value = 1;
+  bus.connect(master);
+
+  /*
+   * The kip: wood flicking the coins into the air. A rising sweep because
+   * that is the sound of the kip itself accelerating through them, cut dead
+   * rather than faded — the kip lets go, it doesn't decay.
+   */
+  {
+    const duration = 0.12;
+    const frames = Math.floor(context.sampleRate * duration);
+    const buf = context.createBuffer(1, frames, context.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let index = 0; index < frames; index += 1) {
+      data[index] = Math.random() * 2 - 1;
+    }
+    const source = context.createBufferSource();
+    source.buffer = buf;
+    const band = context.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = 2.2;
+    band.frequency.setValueAtTime(450, now);
+    band.frequency.linearRampToValueAtTime(2600, now + duration);
+    const level = context.createGain();
+    level.gain.setValueAtTime(0.13, now);
+    level.gain.setValueAtTime(0.13, now + duration - 0.01);
+    level.gain.setValueAtTime(0.0001, now + duration);
+    source.connect(band).connect(level).connect(bus);
+    source.start(now);
+    stop.push(source);
+  }
+
+  /*
+   * The ring: two struck-disc voices, one per coin, panned apart and detuned
+   * a few cents from each other so the pair reads as two objects rather than
+   * one. Each voice's own envelope runs across only that coin's own flight —
+   * `landings()`'s two shares, not the whole toss — because the coin that
+   * lands first stops ringing first. `1 : 1.59 : 2.14` is a strike's own
+   * spectrum: a flat disc is not a harmonic series, so integer ratios would
+   * read as a bell or a chime rather than as metal.
+   */
+  {
+    const ratios = [1, 1.59, 2.14];
+    const partialGain = [0.022, 0.011, 0.006];
+    const baseFrequency = 2200;
+    const voices: Array<{ pan: number; cents: number }> = [
+      { pan: -0.16, cents: -4 },
+      { pan: 0.16, cents: 4 },
+    ];
+
+    voices.forEach((voice, index) => {
+      const share = options.landings[index] ?? 1;
+      const duration = Math.max(0.05, seconds * share);
+      const points = 32;
+      const curve = new Float32Array(points);
+      for (let sample = 0; sample < points; sample += 1) {
+        const t = sample / (points - 1);
+        // Quietest at the apex, per `arcHeight`, loudest at either end —
+        // very quiet throughout, the way CLAUDE.md asks anything that has to
+        // live under twenty presses to be.
+        curve[sample] = 0.09 + 0.28 * (1 - arcHeight(t));
+      }
+      const level = audio.createGain();
+      level.gain.setValueCurveAtTime(curve, now, duration);
+      // Damped rather than left to hold at the curve's last value: a real
+      // strike's ring is cut short by the impact, not switched off later.
+      level.gain.setValueAtTime(curve[points - 1] ?? 0, now + duration);
+      level.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.03);
+      const panner = audio.createStereoPanner();
+      panner.pan.value = voice.pan;
+      level.connect(panner).connect(bus);
+
+      ratios.forEach((ratio, partial) => {
+        const osc = audio.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = baseFrequency * ratio;
+        osc.detune.value = voice.cents;
+        const partialLevel = audio.createGain();
+        partialLevel.gain.value = partialGain[partial] ?? 0.01;
+        osc.connect(partialLevel).connect(level);
+        osc.start(now);
+        osc.stop(now + duration + 0.05);
+        stop.push(osc);
+      });
+    });
+  }
+
+  /*
+   * The clack: each coin's own impact, at `landings()`'s own times. A sample
+   * the moment there is one to reach for — a coin on wood is exactly the
+   * physical sound CLAUDE.md asks to be recorded rather than synthesised —
+   * and a short resonant noise burst until then.
+   */
+  for (const share of options.landings) {
+    const when = now + seconds * share;
+    const url = pick(samples.coins);
+    const clip = url === null ? undefined : decoded.get(url);
+    if (clip !== undefined) {
+      const source = context.createBufferSource();
+      source.buffer = clip;
+      source.playbackRate.value = 0.94 + Math.random() * 0.12;
+      const level = context.createGain();
+      level.gain.value = 0.8;
+      source.connect(level).connect(bus);
+      source.start(when);
+      stop.push(source);
+      continue;
+    }
+    stop.push(burst(context, bus, when, 0.05, 1500, 0.17, 9));
+  }
+
+  /*
+   * The rattle: each coin's own settle, independently — two coins flatten at
+   * two different moments, and a single shared rattle would read as one
+   * heavy thing rather than two coins. `rattle()`'s shares accelerate as
+   * they die (see its own doc comment); that acceleration is reproduced here
+   * only by walking the same array in order, never by a second rhythm.
+   */
+  for (const landing of options.landings) {
+    const landedAt = now + seconds * landing;
+    for (const t of options.rattle) {
+      const when = landedAt + (WOBBLE_MS / 1000) * t;
+      const duration = 0.018 * (1 - t) + 0.004;
+      const gain = 0.05 * (1 - t) ** 1.6;
+      stop.push(burst(context, bus, when, duration, 2100, gain, 5));
+    }
+  }
+
+  return () => {
+    if (context === null) {
+      return;
+    }
+    const at = context.currentTime;
+    const end = at + 0.08;
     bus.gain.cancelScheduledValues(at);
     bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), at);
     bus.gain.exponentialRampToValueAtTime(0.0001, end);
