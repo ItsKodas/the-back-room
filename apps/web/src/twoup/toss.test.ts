@@ -81,7 +81,13 @@ describe("two coins landing", () => {
     const [first, second] = landings(0.06);
     expect(second - first).toBeCloseTo(0.06, 6);
     expect(first).toBeLessThan(1);
-    expect(second).toBeLessThanOrEqual(1);
+    /*
+     * The second coin lands at exactly the end, not merely by the end. The
+     * flight's length is what the table waits, so the last coin down has to be
+     * the last thing that happens — and `<= 1` would pass just as happily on a
+     * pair that both landed early and left the table listening to silence.
+     */
+    expect(second).toBeCloseTo(1, 6);
   });
 });
 

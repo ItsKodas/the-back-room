@@ -83,8 +83,9 @@ export function easing(profile: Profile): string {
  * A parabola, because gravity is one. It is worth saying that this is not a
  * curve anybody chose: the hang at the top — which is the whole feeling of a
  * toss, and what a real ring is shouting through — falls out of the arithmetic
- * rather than being dialled in. A coin spends about a third of its flight in
- * the top fifth of it, and nothing had to be tuned to make that true.
+ * rather than being dialled in. A coin spends nearly half its flight in the top
+ * fifth of it — 4t(1-t) is at or above 0.8 across t in [0.276, 0.724], which is
+ * 44.7% — and nothing had to be tuned to make that true.
  */
 export function height(t: number): number {
   const at = Math.min(1, Math.max(0, t));
