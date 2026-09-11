@@ -6,6 +6,21 @@ import { needed } from "./bank.js";
 import { toBets } from "./bets.js";
 import type { Table } from "./table.js";
 
+/**
+ * A bot at a for-fun table.
+ *
+ * `Table` has no `addBot`; a bot is a seat like any other with `isBot` and
+ * `skill` set on it. A fresh seat is `waiting: true` here whatever the table's
+ * history — `Table.status` never reports "lobby" — so `beginRound()` is what
+ * deals it in, exactly as the brief's note says.
+ */
+const sitBot = (table: Table, id: string, skill: "easy" | "normal" | "hard" = "normal") => {
+  const seat = table.join(id, id, null);
+  seat.isBot = true;
+  seat.skill = skill;
+  return seat;
+};
+
 /** A store that remembers balances, so a test can assert on real movement. */
 function purse(start: Record<string, number>) {
   const held = { ...start };
@@ -227,6 +242,62 @@ describe("who may sit at a table playing for chips", () => {
       // and the table agree that a chips table has none.
       expect(adapter.botMove?.(table) ?? null).toBeNull();
     }
+  });
+});
+
+describe("a bot's own chip at a for-fun table", () => {
+  it("pays for the chip it puts down", () => {
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("ABCD", { ruleset: "casino", forFun: true });
+    const seat = sitBot(table, "bot0");
+    // A fresh seat is `waiting: true`; beginRound deals it into the round.
+    table.beginRound();
+
+    const move = adapter.botMove?.(table) ?? null;
+    expect(move).not.toBeNull();
+
+    const purseBefore = table.purseFor(seat.id);
+    const bankBefore = table.funBank;
+    move?.play();
+
+    const chips = table.staked(seat.id);
+    expect(chips).toBeGreaterThan(0);
+    expect(purseBefore - table.purseFor(seat.id)).toBe(chips);
+    expect(table.funBank - bankBefore).toBe(chips);
+  });
+});
+
+describe("a bot's moves in a for-fun ring", () => {
+  it("is never offered a cover it cannot make", () => {
+    /*
+     * One bot only, and it is the spinner. A second, non-spinner bot would
+     * also be a legal candidate to cover, and picking it up first (an
+     * accident of seat order) would hide the bug rather than exercise it —
+     * the spinner covering its own centre is the one move that must never be
+     * offered, whatever else is at the table.
+     */
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("RING", { ruleset: "school", forFun: true });
+    sitBot(table, "bot0");
+    table.beginRound();
+
+    const spinnerId = table.spinnerId;
+    expect(spinnerId).not.toBeNull();
+    if (spinnerId === null) {
+      return;
+    }
+    table.setCentre(spinnerId, 500);
+    expect(table.phase).toBe("covering");
+
+    for (let at = 0; at < 20; at += 1) {
+      const move = adapter.botMove?.(table) ?? null;
+      if (move === null) {
+        continue;
+      }
+      expect(move.seatId).not.toBe(spinnerId);
+      move.play();
+    }
+    expect(table.covers.some((one) => one.seatId === spinnerId)).toBe(false);
   });
 });
 

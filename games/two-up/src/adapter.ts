@@ -3,6 +3,7 @@ import { seatLimit, TableError } from "@backroom/core";
 import { botBet, thinkingTime } from "./bot.js";
 import { headroom, type BetOn, MIN_CHIP, staked } from "./bank.js";
 import { toBets } from "./bets.js";
+import { uncovered } from "./centre.js";
 import { TWO_UP } from "./listing.js";
 import { FLIGHT_MS, KIP_MS, READ_MS, SETTLE_MS, Table, type School, WINDOWS } from "./table.js";
 
@@ -17,6 +18,33 @@ export interface Bank {
 /** A message naming a fourth side cannot be built; this only rules out nonsense off the wire. */
 function betOn(value: unknown): value is BetOn {
   return value === "heads" || value === "tails" || value === "fiveOdds";
+}
+
+/**
+ * Whether a bot may act on this table right now.
+ *
+ * Roulette's one betting window lets its loop take the first bot it finds; a
+ * ring cannot, because only the spinner may set a centre and the spinner may
+ * never cover their own. Offering an ineligible bot is silent — the table's
+ * refusal is swallowed by `play()` — so without this gate the loop below picks
+ * the same stuck seat every scheduling cycle and a bot that could actually act
+ * is never reached.
+ */
+function mayAct(table: Table, seatId: string): boolean {
+  if (table.school === "casino") {
+    return table.phase === "betting";
+  }
+  if (table.phase === "centre") {
+    return seatId === table.spinnerId;
+  }
+  if (table.phase === "covering") {
+    return (
+      table.centre !== null &&
+      seatId !== table.centre.seatId &&
+      uncovered(table.centre, table.covers) >= MIN_CHIP
+    );
+  }
+  return false;
 }
 
 /**
@@ -130,6 +158,33 @@ export function twoUpAdapter(
       await bank?.add(chips);
     }
     return true;
+  };
+
+  /**
+   * A bot paying for its own chip.
+   *
+   * Synchronous, and it can be, which is the whole reason it is not `stake`
+   * above: `play()` cannot await, and on this path there is no account and no
+   * store to await. A bot only ever plays at a for-fun table, where the purse
+   * and the bank are both fields on the table.
+   *
+   * Without it the felt carries a chip nobody paid for, and settlement then
+   * pays the bot as though it had — the same conservation break the rest of
+   * this package is built to rule out, wearing play money as a disguise.
+   */
+  const stakeFun = (table: Table, seatId: string, chips: number): boolean => {
+    if (table.purseFor(seatId) < chips) {
+      return false;
+    }
+    table.movePurse(seatId, -chips);
+    table.funBank += chips;
+    return true;
+  };
+
+  /** The same movement backwards, for a chip the table then refused. */
+  const refundFun = (table: Table, seatId: string, chips: number): void => {
+    table.funBank -= chips;
+    table.movePurse(seatId, chips);
   };
 
   /** Chips out of the bank, if this is the casino school, and back to the player. */
@@ -531,7 +586,7 @@ export function twoUpAdapter(
       }
 
       for (const seat of table.seats) {
-        if (!seat.isBot || seat.waiting) {
+        if (!seat.isBot || seat.waiting || !mayAct(table, seat.id)) {
           continue;
         }
 
@@ -559,27 +614,39 @@ export function twoUpAdapter(
           continue;
         }
 
+        /*
+         * A cover offered past what is left would only be refused by the
+         * table, so it is capped here instead — the difference between a bot
+         * that stalls the window bidding for chips it cannot place and one
+         * that quietly takes what is left.
+         */
+        const room =
+          table.school === "school" && table.phase === "covering" && table.centre !== null
+            ? uncovered(table.centre, table.covers)
+            : Number.MAX_SAFE_INTEGER;
+        const chips = Math.min(bet.chips, room);
+        if (chips < MIN_CHIP) {
+          continue;
+        }
+
         return {
           seatId: seat.id,
           delayMs: thinkingTime(),
           play: () => {
+            if (!stakeFun(table, seat.id, chips)) {
+              return;
+            }
             try {
               if (table.school === "casino") {
-                table.place(seat.id, bet.on, bet.chips);
+                table.place(seat.id, bet.on, chips);
+              } else if (table.phase === "centre") {
+                table.setCentre(seat.id, chips);
               } else {
-                /*
-                 * In the traditional school, a bot bets by setting a centre (if
-                 * it is the spinner and no centre is set) or covering it (if one
-                 * is already set).
-                 */
-                if (table.phase === "centre") {
-                  table.setCentre(seat.id, bet.chips);
-                } else if (table.phase === "covering") {
-                  table.cover(seat.id, bet.chips);
-                }
+                table.cover(seat.id, chips);
               }
             } catch {
-              // The window shut while it was thinking. Nothing to do.
+              // The window shut while it was thinking. Give the chips back.
+              refundFun(table, seat.id, chips);
             }
           },
         };
