@@ -43,3 +43,5 @@ export {
   Table,
   WINDOWS,
 } from "./table.js";
+export type { Bank } from "./adapter.js";
+export { twoUpAdapter } from "./adapter.js";
