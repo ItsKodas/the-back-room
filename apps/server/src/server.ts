@@ -36,6 +36,7 @@ import {
 } from "@backroom/game-slots";
 import type { Die } from "@backroom/rules";
 import { TIPS } from "@backroom/game-tips";
+import { STAKE_DIVISOR as TWO_UP_DIVISOR, TWO_UP, twoUpAdapter } from "@backroom/game-two-up";
 
 import type {
   Ack,
@@ -95,7 +96,14 @@ import { Avatars, Cards } from "./og.js";
  */
 const CATALOGUE = COMING.reduce(
   (catalogue, game) => catalogue.add(game),
-  new Catalogue().add(GREED).add(BLACKJACK).add(SLOTS).add(POKER).add(TIPS).add(ROULETTE),
+  new Catalogue()
+    .add(GREED)
+    .add(BLACKJACK)
+    .add(SLOTS)
+    .add(POKER)
+    .add(TIPS)
+    .add(ROULETTE)
+    .add(TWO_UP),
 );
 
 
@@ -856,6 +864,24 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         },
       }) as GameAdapter<PlayTable>,
     ],
+    [
+      TWO_UP.id,
+      twoUpAdapter({
+        /*
+         * The coins, from the same source the reels come from. A table hands
+         * every watcher its whole result every throw, which over an evening is
+         * exactly the run of observations needed to recover Math.random's
+         * state — and then the next throw is not a question.
+         */
+        random: spinRandom,
+        /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
+        bank: {
+          holds: () => store.bank("two-up"),
+          add: (amount: number) => store.bankAdd("two-up", amount),
+          take: (amount: number) => store.bankTake("two-up", amount),
+        },
+      }) as GameAdapter<PlayTable>,
+    ],
   ]);
 
   /**
@@ -1021,6 +1047,15 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
        */
       case "roulette":
         return Math.max(0, Math.floor(Math.max(0, bank) / ROULETTE_DIVISOR));
+      /*
+       * The worst a lone chip can do here: five odds, at thirty to one. A real
+       * table is capped far more finely — every chip is measured against the
+       * whole cloth as it lands, and matched money needs no bank at all — but
+       * this route answers "what could the bank take at all", and that is the
+       * side bet.
+       */
+      case "two-up":
+        return Math.max(0, Math.floor(Math.max(0, bank) / TWO_UP_DIVISOR));
     }
   }
 

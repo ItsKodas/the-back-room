@@ -25,6 +25,7 @@
     "socket.io": "^4.8.1",
     "tsx": "^4.23.13",
     "@backroom/game-slots": "*",
-    "@backroom/game-tips": "*"
+    "@backroom/game-tips": "*",
+    "@backroom/game-two-up": "*"
   }
 }
