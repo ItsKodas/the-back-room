@@ -169,6 +169,36 @@ describe("the kip", () => {
     table.closeBetting();
     expect(table.spinnerId).toBe("s1");
   });
+
+  it("passes the kip by who held it, not by where they sat", () => {
+    const table = seated("casino", 3);
+    const spun: Array<string | null> = [];
+    const throwIt = () => {
+      table.place("s2", "heads", 100);
+      table.closeBetting();
+      spun.push(table.spinnerId);
+      table.boxerThrows(() => 0.1);
+      table.land();
+      table.read(() => 0.1);
+    };
+
+    throwIt();
+    table.beginRound();
+    throwIt();
+    expect(spun).toEqual(["s0", "s1"]);
+
+    /*
+     * s0 leaves while s1 holds the kip. Every later seat's index has just
+     * shifted down by one, so a table that counted positions would hand the
+     * kip straight back to s1 and skip s2 — the hazard
+     * `packages/core/src/seating.ts` warns callers about, on a table that
+     * declares mid-round departure supported.
+     */
+    table.removeSeat("s0");
+    table.beginRound();
+    throwIt();
+    expect(spun[2]).toBe("s2");
+  });
 });
 
 describe("a casino round with odds in it", () => {

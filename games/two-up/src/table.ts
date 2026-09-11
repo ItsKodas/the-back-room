@@ -149,8 +149,6 @@ export class Table {
   owing: Map<string, number> | null = null;
   history: Outcome[] = [];
   spinnerId: string | null = null;
-  /** Whose turn with the kip it is next, as an index into the seats. */
-  private kipAt = 0;
   private previous = new Map<string, Placed[]>();
 
   housed = 0;
@@ -358,12 +356,7 @@ export class Table {
     if (this.phase !== "centre") {
       return;
     }
-    const playing = this.seats.filter((seat) => seat.connected);
-    if (playing.some((seat) => seat.id === this.spinnerId)) {
-      return;
-    }
-    this.kipAt = playing.length === 0 ? 0 : this.kipAt % playing.length;
-    this.spinnerId = playing[this.kipAt]?.id ?? null;
+    this.spinnerId = this.holdsTheKip();
   }
 
   // ----------------------------------------------------------- the chips
@@ -699,9 +692,7 @@ export class Table {
       this.restartClock();
       return;
     }
-    const playing = this.seats.filter((seat) => seat.connected);
-    this.kipAt = playing.length === 0 ? 0 : this.kipAt % playing.length;
-    this.spinnerId = playing[this.kipAt]?.id ?? null;
+    this.spinnerId = this.holdsTheKip();
     this.phase = "kip";
     this.restartClock();
     this.lastEvent = "No more bets.";
@@ -832,15 +823,53 @@ export class Table {
     for (const seat of this.seats) {
       seat.waiting = false;
     }
-    const playing = this.seats.filter((seat) => seat.connected);
-    if (playing.length > 0) {
-      this.kipAt = (this.kipAt + 1) % playing.length;
-      this.spinnerId = playing[this.kipAt]?.id ?? null;
-    } else {
-      this.spinnerId = null;
-    }
+    this.spinnerId = this.nextSpinner();
     this.phase = this.school === "casino" ? "betting" : "centre";
     this.restartClock();
+  }
+
+  /**
+   * Who takes the kip after whoever has it, found by identity.
+   *
+   * By identity and never by index, which is the whole of this method. An
+   * index into the seats is a number that means somebody different the moment
+   * anybody leaves, and `Seating.remove` says so in as many words: removing a
+   * seat shifts every later seat's index out from under whatever the game is
+   * using to track turn order. Counting positions here put the spinner who
+   * had just thrown straight back on the kip and skipped the seat behind them
+   * — which is not cosmetic, because going round is the only thing the kip is
+   * for.
+   *
+   * A spinner who has already gone leaves no position to advance from, so the
+   * kip starts again at the top rather than guessing where they would have
+   * been standing.
+   */
+  private nextSpinner(): string | null {
+    const playing = this.seats.filter((seat) => seat.connected);
+    if (playing.length === 0) {
+      return null;
+    }
+    const at = playing.findIndex((seat) => seat.id === this.spinnerId);
+    return playing[(at + 1) % playing.length]?.id ?? null;
+  }
+
+  /**
+   * Whoever holds the kip now, without passing it on.
+   *
+   * The counterpart to {@link nextSpinner}, and the reason both exist: a
+   * window shutting names the seat that already has the kip, and only a
+   * finished round passes it. Doing either job with the other is how the kip
+   * comes to skip every second player.
+   */
+  private holdsTheKip(): string | null {
+    const playing = this.seats.filter((seat) => seat.connected);
+    if (playing.length === 0) {
+      return null;
+    }
+    if (playing.some((seat) => seat.id === this.spinnerId)) {
+      return this.spinnerId;
+    }
+    return playing[0]?.id ?? null;
   }
 
   // ------------------------------------------------------------ the view
