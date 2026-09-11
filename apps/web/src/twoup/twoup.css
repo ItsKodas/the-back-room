@@ -183,6 +183,12 @@
  * which is why the rocks below get sharper rather than gentler as they die
  * down: a disc coming down flat rattles faster and faster as it flattens,
  * it does not ease into stillness.
+ *
+ * Its length is `--wobble-ms`, read from `WOBBLE_MS` in `toss.ts` rather than
+ * written here — the scheduler in `game/audio.ts` needs the same number, and
+ * a duration in both places is two numbers that agree until somebody tunes
+ * one. The literal below is only the fallback for a coin rendered without the
+ * custom property.
  */
 .tu__coin-wobble {
   position: absolute;
@@ -191,7 +197,7 @@
 }
 
 .tu__coin:not(.tu__coin--flying) .tu__coin-wobble {
-  animation: tu-wobble 420ms var(--wobble-ease, ease-out) both;
+  animation: tu-wobble var(--wobble-ms, 420ms) var(--wobble-ease, ease-out) both;
 }
 
 @keyframes tu-wobble {

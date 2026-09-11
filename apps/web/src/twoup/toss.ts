@@ -123,6 +123,16 @@ export const SPIN: Profile = { free: 0.95, keep: 0.99, tail: 1.05 };
 export const WOBBLE: Profile = { free: 0.05, keep: 0.6, tail: 0.55 };
 
 /**
+ * How long a landed coin rattles before it is still.
+ *
+ * Here rather than in the stylesheet because the ear needs it too, and a
+ * duration written in both places is two numbers that agree until somebody
+ * tunes one. The felt reads it as a custom property and the scheduler is
+ * handed it; neither owns it.
+ */
+export const WOBBLE_MS = 420;
+
+/**
  * When each coin lands, as shares of the flight.
  *
  * Two moments and not one. Two coins thrown from the same kip do not land

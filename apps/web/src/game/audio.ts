@@ -1329,35 +1329,6 @@ export function spinWheel(options: {
 }
 
 /**
- * The rise and fall of one coin, echoing `height()` in `twoup/toss.ts`.
- *
- * Reproduced rather than imported: this file stays free of any one game's own
- * curve module, the same way `spinWheel` above invents its own roll and
- * clatter shapes rather than reaching into roulette's `spin.ts` — `tossCoins`
- * is hooked up to the coins' actual flight by the numbers its caller hands
- * in (`landings`, `rattle`), not by pulling in the function that drew them.
- * The formula itself — `4t(1-t)` — is the whole of what is borrowed, and it
- * cannot drift out of step with the felt because there is only one way to
- * write a parabola that is nought at both ends and one in the middle.
- */
-function arcHeight(t: number): number {
-  const at = Math.min(1, Math.max(0, t));
-  return 4 * at * (1 - at);
-}
-
-/**
- * How long a settled coin's rattle plays for, matching `twoup.css`'s
- * `tu-wobble` animation.
- *
- * `rattle()` (Task 10) hands back shares of that window, not a duration — it
- * is a curve, not a clock, the same as every other shape in `toss.ts` — so
- * this is the one number that has to live here instead: `toss.ts` doesn't
- * carry a span of its own to borrow, and 420 is the wobble's actual length,
- * not a guess at it.
- */
-const WOBBLE_MS = 420;
-
-/**
  * A short one-shot noise burst, filtered, with its own start time, connected
  * straight to the bus a caller hands in.
  *
@@ -1399,9 +1370,11 @@ function burst(
  *
  * Placeholders for `coinClack`, the same way every voice in `spinWheel` is:
  * synthesised because there was nothing to sample yet, and easy to replace
- * because nothing about the toss's timings lives anywhere else — see
- * `landings` and `rattle` in `twoup/toss.ts`, which this schedules against
- * rather than against a second set of numbers.
+ * because nothing about the toss's own numbers lives anywhere else — every
+ * curve here (`height`, `wobbleMs`, `landings`, `rattle`) is an argument from
+ * `twoup/toss.ts` rather than a copy of it, the same reason `spinWheel`'s
+ * `ticks` is an argument rather than a reach into `roulette/spin.ts`. This
+ * file stays free of any one game's own curve module.
  *
  * Four voices, in the order they happen: the kip that flicks the coins up,
  * the ring the two of them carry through the air, the clack of each landing
@@ -1411,6 +1384,10 @@ function burst(
 export function tossCoins(options: {
   /** How long the coins are in the air. */
   flightMs: number;
+  /** How long a landed coin rattles before it is still. */
+  wobbleMs: number;
+  /** The coin's height over its flight, nought on the felt and one at the apex. */
+  height: (t: number) => number;
   /** When each coin lands, as shares of the flight — `landings()`. */
   landings: readonly number[];
   /** When the settling coin knocks, as shares of its own wobble — `rattle()`. */
@@ -1485,10 +1462,10 @@ export function tossCoins(options: {
       const curve = new Float32Array(points);
       for (let sample = 0; sample < points; sample += 1) {
         const t = sample / (points - 1);
-        // Quietest at the apex, per `arcHeight`, loudest at either end —
+        // Quietest at the apex, per `options.height`, loudest at either end —
         // very quiet throughout, the way CLAUDE.md asks anything that has to
         // live under twenty presses to be.
-        curve[sample] = 0.09 + 0.28 * (1 - arcHeight(t));
+        curve[sample] = 0.09 + 0.28 * (1 - options.height(t));
       }
       const level = audio.createGain();
       level.gain.setValueCurveAtTime(curve, now, duration);
@@ -1549,7 +1526,7 @@ export function tossCoins(options: {
   for (const landing of options.landings) {
     const landedAt = now + seconds * landing;
     for (const t of options.rattle) {
-      const when = landedAt + (WOBBLE_MS / 1000) * t;
+      const when = landedAt + (options.wobbleMs / 1000) * t;
       const duration = 0.018 * (1 - t) + 0.004;
       const gain = 0.05 * (1 - t) ** 1.6;
       stop.push(burst(context, bus, when, duration, 2100, gain, 5));

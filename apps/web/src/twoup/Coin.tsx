@@ -1,6 +1,6 @@
 import type { Face } from "@backroom/game-two-up";
 import type { CSSProperties } from "react";
-import { FLIGHT, SPIN, WOBBLE, easing, landings } from "./toss.js";
+import { FLIGHT, SPIN, WOBBLE, WOBBLE_MS, easing, landings } from "./toss.js";
 import "./twoup.css";
 
 /**
@@ -198,6 +198,7 @@ export function Coin({
     "--flight-ease": FLIGHT_EASE,
     "--tumble-ease": TUMBLE_EASE,
     "--wobble-ease": WOBBLE_EASE,
+    "--wobble-ms": `${WOBBLE_MS}ms`,
   } as CSSProperties;
 
   const label = flying

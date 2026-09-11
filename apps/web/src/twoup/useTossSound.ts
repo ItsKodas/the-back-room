@@ -1,6 +1,7 @@
 import type { Outcome } from "@backroom/game-two-up";
 import { useEffect, useRef } from "react";
 import { play, tossCoins } from "../game/audio.js";
+import { WOBBLE_MS, height } from "./toss.js";
 
 /**
  * The sound of a toss, tied to the toss itself.
@@ -9,6 +10,11 @@ import { play, tossCoins } from "../game/audio.js";
  * `useSpinSound` is: the sound and the animation have to start from the same
  * event and run exactly as long as the coins are actually in the air, or the
  * two can only drift apart.
+ *
+ * `height` and `WOBBLE_MS` come from `toss.ts` here rather than from the
+ * caller, alongside `landings`/`rattle` in `shape` — all four are the same
+ * numbers the felt animates against, handed to `tossCoins` as arguments
+ * rather than let it keep its own copies.
  */
 export function useTossSound(
   flying: boolean,
@@ -31,7 +37,7 @@ export function useTossSound(
     if (!flying) {
       return;
     }
-    end.current = tossCoins({ flightMs, ...held.current });
+    end.current = tossCoins({ flightMs, wobbleMs: WOBBLE_MS, height, ...held.current });
     return () => {
       end.current?.();
       end.current = null;
