@@ -1,0 +1,304 @@
+/*
+ * The coin.
+ *
+ * Imported by Coin.tsx rather than by a felt — TwoUp.tsx doesn't exist until
+ * Task 13, and a stylesheet nothing loads for three tasks is exactly the
+ * orphan CLAUDE.md warns about. The felt's own rules join this file there.
+ *
+ * Sized from `--coin-size` throughout rather than in fixed pixels, so the
+ * same rules serve the room tile at 40px and the felt at whatever a phone or
+ * a desk gives it — set the variable on an ancestor to resize the coin.
+ */
+
+.tu__coins {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: calc(var(--coin-size, 64px) * 0.55);
+}
+
+.tu__coin {
+  --coin-size: 64px;
+  /* A real coin's thickness is nowhere near this share of its diameter —
+     this one is fattened on purpose, because the whole point of drawing the
+     edge at all is for it to read at a fortieth the size a real coin would
+     need to. A true-to-life edge would vanish at 40px. */
+  --coin-thickness: calc(var(--coin-size) * 0.16);
+  --coin-radius: calc(var(--coin-size) / 2);
+  /* One segment's share of the rim's circumference, nudged wide so
+     neighbouring segments overlap rather than leaving a hairline gap between
+     flat faces standing in for a curve. */
+  --coin-edge-chord: calc(var(--coin-size) * 3.14159 / 20 * 1.08);
+  --coin-rise: calc(var(--coin-size) * 2.1);
+
+  position: relative;
+  width: var(--coin-size);
+  aspect-ratio: 1;
+  /* Generous depth, or the milled edge — deliberately fattened above —
+     starts to fisheye at the rim instead of reading as a cylinder. */
+  perspective: calc(var(--coin-size) * 14);
+  transform: rotateZ(var(--coin-drift, 0deg));
+}
+
+.tu__coin--flying {
+  animation: tu-flight var(--flight-ms, 2600ms) var(--flight-ease, linear) var(--coin-delay, 0ms) both;
+}
+
+/*
+ * The rise and fall.
+ *
+ * `height()` (Task 10) is a parabola, not a monotonic curve, so it cannot be
+ * expressed as a two-point `easing()` timing function the way the tumble and
+ * the wobble are — there is no single "how far through" to ease. These stops
+ * are `height()` sampled every 5%, which is what borrowing `FLIGHT`'s own
+ * progress (linear, by construction — see toss.ts) for the sampling actually
+ * buys: time and progress are the same number, so the stops can be written
+ * straight from the formula instead of tuned by eye.
+ *
+ * The per-coin drift travels in every stop's `transform` rather than sitting
+ * on the element as a separate declaration, because this animation already
+ * owns the property — a second, unanimated `transform` on the same element
+ * would simply be replaced by this one for as long as it runs.
+ */
+@keyframes tu-flight {
+  0%,
+  100% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(0);
+  }
+  5% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.19));
+  }
+  10% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.36));
+  }
+  15% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.51));
+  }
+  20% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.64));
+  }
+  25% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.75));
+  }
+  30% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.84));
+  }
+  35% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.91));
+  }
+  40% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.96));
+  }
+  45% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.99));
+  }
+  50% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -1));
+  }
+  55% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.99));
+  }
+  60% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.96));
+  }
+  65% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.91));
+  }
+  70% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.84));
+  }
+  75% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.75));
+  }
+  80% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.64));
+  }
+  85% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.51));
+  }
+  90% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.36));
+  }
+  95% {
+    transform: rotateZ(var(--coin-drift, 0deg)) translateY(calc(var(--coin-rise) * -0.19));
+  }
+}
+
+/*
+ * The tumble.
+ *
+ * A single two-point animation, not a multi-stop one like the flight above —
+ * `SPIN` (Task 10) is already a monotonic velocity curve start to finish, so
+ * `easing()` can describe the whole thing as one timing function, the same
+ * way the wheel's rim and ball do.
+ *
+ * Lives on `.tu__coin-spin`, one layer in from `.tu__coin`, because the rise
+ * and the tumble are two different motions on two different clocks — see
+ * CLAUDE.md's "one motion per thing." Composing them on a single element's
+ * `transform` would mean writing out every combination of the two curves as
+ * keyframe stops instead of letting each own its own timing function.
+ */
+.tu__coin-spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  /* Edge-on: the pose while nothing else says otherwise, and — because it is
+     also what `prefers-reduced-motion` falls back to once the tumble's
+     keyframes are switched off — the pose "a coin in the air" actually
+     renders as when there is no motion left to read it by. */
+  transform: rotateX(90deg);
+}
+
+/*
+ * Landed: the tumble is over, so the coin simply sits at the angle it ended
+ * on rather than still carrying an animation that would otherwise have
+ * nothing left to run toward. True under both motion preferences — reduced
+ * motion has no separate "final pose" rule to write, because this is already
+ * it.
+ */
+.tu__coin:not(.tu__coin--flying) .tu__coin-spin {
+  transform: rotateX(var(--coin-to, 0deg));
+}
+
+.tu__coin--flying .tu__coin-spin {
+  animation: tu-tumble var(--flight-ms, 2600ms) var(--tumble-ease, linear) var(--coin-delay, 0ms) both;
+}
+
+@keyframes tu-tumble {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(var(--coin-to, 0deg));
+  }
+}
+
+/*
+ * The settle.
+ *
+ * Plays once, the moment `.tu__coin--flying` is lifted — CSS starts an
+ * animation whenever the rule granting it newly matches, so landing is what
+ * triggers this rather than anything timed by hand. `WOBBLE` (Task 10) is the
+ * one curve in this building that is yanked to a halt rather than eased out,
+ * which is why the rocks below get sharper rather than gentler as they die
+ * down: a disc coming down flat rattles faster and faster as it flattens,
+ * it does not ease into stillness.
+ */
+.tu__coin-wobble {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.tu__coin:not(.tu__coin--flying) .tu__coin-wobble {
+  animation: tu-wobble 420ms var(--wobble-ease, ease-out) both;
+}
+
+@keyframes tu-wobble {
+  0%,
+  100% {
+    transform: rotateX(0deg);
+  }
+  22% {
+    transform: rotateX(9deg);
+  }
+  46% {
+    transform: rotateX(-6deg);
+  }
+  66% {
+    transform: rotateX(3.5deg);
+  }
+  82% {
+    transform: rotateX(-1.5deg);
+  }
+}
+
+/*
+ * The faces.
+ *
+ * A darker recessed field between the rim and the device (drawn in the SVG
+ * itself) is what keeps the device from reading as pasted on rather than
+ * struck into the metal — see Coin.tsx's `CoinFace`.
+ *
+ * Positioned by a plain `translateZ` for the front face and a static 180°
+ * turn for the back one, the classic two-sided-card construction — the
+ * device drawn once on each does not need mirroring, because the whole
+ * point of `backface-visibility: hidden` is that only the face pointing at
+ * the viewer is ever the one shown.
+ */
+.tu__coin-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  backface-visibility: hidden;
+  opacity: 1;
+}
+
+.tu__coin-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.tu__coin-face--heads {
+  transform: translateZ(calc(var(--coin-thickness) / 2));
+}
+
+.tu__coin-face--tails {
+  transform: rotateX(180deg) translateZ(calc(var(--coin-thickness) / 2));
+}
+
+/*
+ * The rim.
+ *
+ * Twenty flat faces standing round the edge rather than a single curved
+ * surface, because CSS has no curved surfaces — only flat ones it can stand
+ * at an angle. Each one is `rotateZ` to its own position round the circle,
+ * then `rotateY(90deg)` to turn a flat, viewer-facing rectangle into one
+ * standing on its side, then pushed out to the rim by `translateZ`. That
+ * order matters: `translateZ` moves the segment out along its *own*,
+ * not-yet-rotated axis, so it has to run last for the push to end up
+ * pointing outward once the rotations are applied to it.
+ *
+ * `rotateY(90deg)` rather than `rotateX` for that reorientation — despite
+ * the coin's own flip being a tumble around a horizontal axis — because the
+ * two questions are independent: this fixed turn only has to point a flat
+ * segment's normal out to the rim of a disc that (before the tumble is
+ * applied) lies face-on to the viewer, and `rotateX(90deg)` here traces a
+ * loop through the coin's own centre instead of around its boundary. Once
+ * built, the whole rim turns rigidly with `.tu__coin-spin`'s tumble,
+ * whatever axis that runs on.
+ */
+.tu__coin-edge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--coin-thickness);
+  height: var(--coin-edge-chord);
+  margin: calc(var(--coin-edge-chord) / -2) 0 0 calc(var(--coin-thickness) / -2);
+  background: var(--tu-copper-edge);
+  transform: rotateZ(var(--edge-angle)) rotateY(90deg) translateZ(var(--coin-radius));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tu__coin,
+  .tu__coin-face {
+    animation: none;
+    transition: opacity 300ms ease;
+  }
+  .tu__coin-spin,
+  .tu__coin-wobble {
+    animation: none;
+  }
+  /*
+   * Blank as well as edge-on. `.tu__coin-spin`'s own base pose already holds
+   * the coin edge-on once its animation is switched off (see above) — this
+   * is the other half of "never invent a fact": with no tumble left to blur
+   * the two faces together, the face itself has to stop rendering rather
+   * than sit there, readable, a full flight before the result is due.
+   */
+  .tu__coin--flying .tu__coin-face {
+    opacity: 0;
+  }
+}

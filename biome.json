@@ -54,7 +54,8 @@
       "includes": [
         "apps/web/src/game/Table.tsx",
         "apps/web/src/roulette/History.tsx",
-        "apps/web/src/style/RouletteMockup.tsx"
+        "apps/web/src/style/RouletteMockup.tsx",
+        "apps/web/src/twoup/Coin.tsx"
       ],
       "linter": {
         "rules": {
