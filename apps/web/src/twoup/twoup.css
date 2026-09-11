@@ -287,6 +287,463 @@
   transform: rotateZ(var(--edge-angle)) rotateY(90deg) translateZ(var(--coin-radius));
 }
 
+/*
+ * The felt.
+ *
+ * Everything from here down is `TwoUp.tsx`'s own — the ring, the kip, the
+ * board and the bottom rail. `Coin.tsx`'s rules above load whether or not
+ * this file's other half exists yet (see the note at the top of this file);
+ * this half is the reason it now can.
+ */
+
+.tu {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--gr-space-4);
+  width: 100%;
+}
+
+.tu__standing {
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--gr-color-ink);
+  min-height: 1.6em;
+}
+
+.tu__standing--last {
+  color: var(--gr-color-chip);
+}
+
+.tu__standing--shut {
+  color: var(--gr-color-ink-dim);
+  text-transform: uppercase;
+}
+
+.tu__watching {
+  margin: 0;
+  text-align: center;
+  color: var(--gr-color-ink-dim);
+  font-size: var(--gr-text-sm);
+}
+
+/*
+ * The camera going up with the coins.
+ *
+ * Not a real camera: the felt takes a scale, a lift and a dimming while the
+ * coins are in the air, and comes back as they fall. It reads as a push-in and
+ * it costs no layout, which is what keeps it honest at 375px — a cinematic
+ * moment that reflowed the table would be a cinematic moment that broke it.
+ *
+ * The ring never leaves the frame. Other people's bets are half the reason to
+ * watch this table, and a shot that hid them would be a better second and a
+ * worse game.
+ *
+ * `--flight-ms`/`--flight-ease` arrive as an inline style from `TwoUp.tsx`,
+ * built from the same `FLIGHT_MS`/`easing(FLIGHT)` the coins themselves rise
+ * on — so the push-in takes exactly as long as the flight it is announcing.
+ */
+.tu__felt {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--gr-space-4);
+  padding: var(--gr-space-5) var(--gr-space-3);
+  background: var(--gr-color-felt);
+  border-radius: var(--gr-radius-md);
+  box-shadow: var(--gr-well);
+  transition:
+    transform var(--flight-ms) var(--flight-ease),
+    filter var(--flight-ms) var(--flight-ease);
+}
+.tu__felt--away {
+  transform: scale(0.88) translateY(4%);
+  filter: brightness(0.5) blur(2px);
+}
+
+/* Where the coins float, laid over the ring rather than beside it — a real
+   toss happens over the kip, not next to it. */
+.tu__toss {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- the ring */
+
+.tu__ring {
+  display: grid;
+  justify-items: center;
+  gap: var(--gr-space-4);
+  width: 100%;
+}
+
+.tu__ring--holding {
+  padding: var(--gr-space-6) 0;
+}
+
+.tu__holding {
+  margin: 0;
+  text-align: center;
+  color: var(--gr-color-ink-dim);
+  font-size: var(--gr-text-base);
+}
+
+/* ----------------------------------------------------------------- the kip */
+
+.tu__kip {
+  background: none;
+  border: none;
+  padding: var(--gr-space-2);
+  display: grid;
+  justify-items: center;
+  gap: var(--gr-space-1);
+  cursor: pointer;
+  color: var(--gr-color-ink-dim);
+  min-height: 44px;
+}
+
+.tu__kip:disabled {
+  cursor: default;
+}
+
+.tu__kip-art {
+  width: min(60cqw, 180px);
+  height: auto;
+  transition: transform 220ms ease-out;
+  transform-origin: 50% 100%;
+}
+
+/* Pressed: the paddle tips back, as it would carrying the coins it is about
+   to throw. This player's own fact, so it fires on the press rather than
+   waiting for the table to agree. */
+.tu__kip--swung .tu__kip-art {
+  transform: rotate(-14deg) translateY(-4%);
+}
+
+/* Lit: nothing has happened yet, but it is this player's kip to press. */
+.tu__kip--idle.tu__kip--lit .tu__kip-art {
+  filter: drop-shadow(0 0 6px var(--gr-color-neon));
+}
+
+.tu__kip-board {
+  fill: var(--tu-boards);
+}
+
+.tu__kip-lip {
+  fill: color-mix(in srgb, var(--tu-boards) 60%, black);
+}
+
+/* Blank once the coins have left — nothing is resting on the kip during a
+   throw, the same "never invent a fact" the coins themselves keep. */
+.tu__kip--thrown .tu__kip-coin {
+  opacity: 0;
+}
+
+.tu__kip-coin {
+  fill: var(--tu-copper);
+  stroke: var(--tu-copper-edge);
+  stroke-width: 1.5;
+}
+
+.tu__kip-label {
+  font-size: var(--gr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* -------------------------------------------------------------- the spots */
+
+.tu__spots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gr-space-3);
+  justify-content: center;
+  width: 100%;
+}
+
+.tu__spot,
+.tu__act {
+  min-height: 52px;
+  min-width: 96px;
+  padding: var(--gr-space-2) var(--gr-space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.tu__spot:hover:not(:disabled),
+.tu__act:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.tu__spot:disabled,
+.tu__act:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tu__spot-name,
+.tu__act-name {
+  font-size: var(--gr-text-base);
+  line-height: 1.1;
+}
+
+.tu__spot-pays,
+.tu__act-note {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gr-color-ink-faint);
+}
+
+.tu__spot-mine {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.tu__centre {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gr-space-1);
+}
+
+.tu__centre-label {
+  font-size: var(--gr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gr-color-ink-faint);
+}
+
+.tu__centre-empty {
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+/* ---------------------------------------------------------------- the board */
+
+.tu__board {
+  display: flex;
+  gap: var(--gr-space-1);
+  list-style: none;
+  margin: 0;
+  padding: var(--gr-space-1) 0;
+}
+
+.tu__past {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: var(--gr-text-xs);
+  font-weight: 700;
+  color: var(--gr-color-ink-dim);
+  border: 1px solid color-mix(in srgb, var(--gr-color-ink) 20%, transparent);
+}
+
+.tu__past--heads,
+.tu__past--tails {
+  color: var(--gr-color-ink-lit);
+  border-color: var(--gr-color-ink-dim);
+}
+
+.tu__past--odds {
+  color: var(--gr-color-chip);
+  border-color: var(--gr-color-chip-dim);
+}
+
+.tu__past--latest {
+  border-width: 2px;
+}
+
+/* ----------------------------------------------------------------- the rail */
+
+/*
+ * Sticky to the bottom of the viewport rather than the page: the rail is
+ * what a thumb reaches for mid-round, and a phone that has to scroll down to
+ * find it first is a phone that misses the window.
+ */
+.tu__rail {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  gap: var(--gr-space-3);
+  justify-items: center;
+  padding: var(--gr-space-3) var(--gr-space-2) var(--gr-space-4);
+  background: color-mix(in srgb, var(--gr-color-night) 92%, transparent);
+  border-top: var(--gr-edge-soft);
+  backdrop-filter: blur(6px);
+}
+
+.tu__tray {
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+.tu__chip {
+  background: none;
+  border: none;
+  width: clamp(38px, 5cqw, 62px);
+  padding: 2px;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0.55;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.tu__chip:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.tu__chip svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.tu__chip--picked {
+  opacity: 1;
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 2px var(--gr-color-chip);
+}
+
+.tu__chip:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.tu__acts {
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tu__note {
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.tu__note-figure {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------- the seats */
+
+.tu__seats {
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tu__seat {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-1);
+  padding: 4px var(--gr-space-2);
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.25);
+  border: var(--gr-edge-soft);
+  font-size: var(--gr-text-sm);
+}
+
+.tu__seat--you {
+  border-color: var(--gr-color-neon);
+}
+
+.tu__seat--spinner {
+  box-shadow: 0 0 0 1px var(--gr-color-chip) inset;
+}
+
+.tu__seat--away {
+  opacity: 0.45;
+}
+
+.tu__seat-name {
+  color: var(--gr-color-ink);
+}
+
+.tu__seat-down {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+}
+
+.tu__seat-up {
+  color: var(--gr-color-good);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tu__seat-up--down {
+  color: var(--gr-color-ink-faint);
+}
+
+/* ------------------------------------------------------------- the lobby */
+
+.tu__window {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-1);
+}
+
+.tu__window-label {
+  font-size: var(--gr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gr-color-ink-faint);
+}
+
+.tu__window-row {
+  display: flex;
+  gap: var(--gr-space-2);
+}
+
+.tu__window-pick {
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--gr-space-1) var(--gr-space-2);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  cursor: pointer;
+}
+
+.tu__window-pick--on {
+  border-color: var(--gr-color-neon);
+  color: var(--gr-color-ink-lit);
+}
+
 @media (prefers-reduced-motion: reduce) {
   /*
    * A media query adds no specificity of its own, so silencing an animation
@@ -317,5 +774,23 @@
    */
   .tu__coin--flying .tu__coin-face {
     opacity: 0;
+  }
+
+  /*
+   * The felt and the kip, the same way: nothing here starts with `animation:
+   * tu-` so `motion.css.test.ts` cannot find it on its own, but CLAUDE.md's
+   * rule is about motion, not about the one property name that test greps
+   * for. Both are `transition:`s, so silencing them takes `none` on the exact
+   * selector that declared the transition, same as everywhere else in this
+   * block.
+   */
+  .tu__felt,
+  .tu__felt--away,
+  .tu__kip-art {
+    transition: none;
+  }
+  .tu__felt--away {
+    transform: none;
+    filter: none;
   }
 }
