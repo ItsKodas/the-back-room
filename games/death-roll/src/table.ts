@@ -223,6 +223,15 @@ export class Table implements PlayTable {
 
   disconnect(seatId: string): void {
     this.seating.disconnect(seatId);
+    /*
+     * Stood down only between games: mid-game readiness is irrelevant, and
+     * `finish()` resets it anyway. A ready button must not keep charging
+     * somebody who has gone — left ready, they would still be dealt in and
+     * anted by the very next countdown or all-ready deal.
+     */
+    if (this.game === null) {
+      this.readiness.set(seatId, false, this.seatIds(), Date.now());
+    }
   }
 
   reconnect(seatId: string): Seat {

@@ -114,6 +114,71 @@ describe("dealing a game", () => {
     expect(table.game?.players).toEqual(["bob", "cat"]);
   });
 
+  it("refunds a player who leaves while another's refund from the same deal is still in flight, and never deals a ghost", async () => {
+    // The window I1 closes: a refund is itself an await, and who is left can
+    // change again while it runs. cat's take triggers ada's departure; ada's
+    // refund is rigged to trigger bob's, right in the middle of paying it back.
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const took = vi.fn(async (userId: string) => {
+      if (userId === "u-cat") {
+        table.removeSeat("ada");
+      }
+      return true;
+    });
+    const gave = vi.fn(async (userId: string) => {
+      if (userId === "u-ada") {
+        table.removeSeat("bob");
+      }
+    });
+    const deps = {
+      take: took,
+      give: gave,
+      record: vi.fn(async () => {}),
+      finished: vi.fn(async () => {}),
+    } as unknown as GameDeps;
+
+    await deal(game, table, deps);
+
+    expect(table.game?.players ?? []).not.toContain("bob");
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(gave).toHaveBeenCalledWith("u-bob", 500);
+    expect(sum(took.mock.calls)).toBe(sum(gave.mock.calls) + table.view(null).pot);
+  });
+
+  it("takes no extra antes if a second deal is asked for and paid out while the first is still draining", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const took = vi.fn(async () => {
+      await gate;
+      return true;
+    });
+    const deps = {
+      take: took,
+      give: vi.fn(async () => {}),
+      record: vi.fn(async () => {}),
+      finished: vi.fn(async () => {}),
+    } as unknown as GameDeps;
+
+    table.askForGame(Date.now());
+    const first = game.payOut?.(table, deps);
+
+    table.askForGame(Date.now());
+    const second = await game.payOut?.(table, deps);
+
+    expect(second).toBe(false);
+
+    release();
+    await first;
+
+    expect(took).toHaveBeenCalledTimes(2);
+    expect(table.game?.players).toEqual(["ada", "bob"]);
+  });
+
   it("does nothing, and says so, when no game was asked for", async () => {
     const game = deathRollAdapter({ roll: () => 500 });
     const table = seated(game, "ada", "bob");
@@ -135,6 +200,39 @@ describe("dealing a game", () => {
     await deal(game, table, deps);
 
     expect(during).toBeNull();
+  });
+});
+
+describe("disconnecting", () => {
+  it("does not charge or deal a ready player who disconnects before their ante is taken", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, took } = spy();
+    table.askForGame(Date.now());
+
+    table.disconnect("cat");
+
+    expect(await game.payOut?.(table, deps)).toBe(true);
+    expect(took).toHaveBeenCalledTimes(2);
+    expect(took).toHaveBeenCalledWith("u-ada", 500);
+    expect(took).toHaveBeenCalledWith("u-bob", 500);
+    expect(table.game?.players).toEqual(["ada", "bob"]);
+    expect(table.view(null).seats.find((seat) => seat.id === "cat")?.short).toBe(false);
+  });
+
+  it("asks for nobody once the countdown ends, if a disconnect leaves fewer than two still ready", () => {
+    const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+    const table = game.create("ABCDE", { buyIn: 500, maxSeats: 6 }) as Table;
+    for (const name of ["ada", "bob", "cat"]) {
+      table.join(name, name, who(`u-${name}`));
+    }
+    table.setReady("ada", true, 0);
+    table.setReady("bob", true, 0);
+
+    table.disconnect("bob");
+    table.askForGame(20_000);
+
+    expect(table.pending).toBe(false);
   });
 });
 
@@ -235,6 +333,34 @@ describe("settling", () => {
     expect(finished).not.toHaveBeenCalled();
     const purses = ["ada", "bob", "cat"].map((name) => table.purseFor(name));
     expect(purses.reduce((a, b) => a + b, 0)).toBe(30_000);
+  });
+
+  it("pays the winner in full even though they called to leave mid-game, and drops their seat only once the felt clears", async () => {
+    const draws = [1, 1];
+    const game = deathRollAdapter({ roll: () => draws.shift() as number });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, gave } = spy();
+    await deal(game, table, deps);
+
+    await game.act(table, "ada", { type: "pass" }, deps);
+    await game.act(table, "bob", { type: "roll" }, deps);
+    table.nextRound();
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
+
+    expect(game.isSettled(table)).toBe(true);
+    const winnerId = table.game?.winnerId as string;
+    const pot = table.view(null).pot;
+
+    table.removeSeat(winnerId);
+    expect(table.seats.map((seat) => seat.id)).toContain(winnerId);
+
+    await game.settle(table, deps);
+
+    expect(table.seats.map((seat) => seat.id)).toContain(winnerId);
+    expect(gave).toHaveBeenCalledWith(`u-${winnerId}`, pot);
+
+    table.finish();
+    expect(table.seats.map((seat) => seat.id)).not.toContain(winnerId);
   });
 });
 

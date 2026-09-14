@@ -116,7 +116,14 @@ export function deathRollAdapter(
     const short: string[] = [];
     for (const seatId of wanted) {
       const seat = table.seats.find((one) => one.id === seatId);
-      if (seat === undefined) {
+      /*
+       * A seat gone, or only disconnected, is not charged, dealt, or marked
+       * short. A deliberate leave only disconnects — the room reaps the seat
+       * itself later — and a disconnected seat whose ready survived to be
+       * queued for this deal must still not be anted while they are gone. Bots
+       * are always connected, so this never sits one of them out.
+       */
+      if (seat === undefined || !seat.connected) {
         continue;
       }
       table.topUp(seat.id);
@@ -141,21 +148,31 @@ export function deathRollAdapter(
     }
 
     /*
-     * Only now is it safe to ask who is still here. A seat that is not in a game
-     * is dropped the moment its player leaves, which is the state for every
-     * await above — so a player can go between antes, and dealing them in would
-     * put a ghost in the turn order whose win nobody could be paid.
+     * Only now is it safe to ask who is still here — and it stays unsafe for as
+     * long as a refund is in flight. A seat that is not in a game is dropped the
+     * moment its player leaves, which is the state for every await above and
+     * every await a refund itself takes, so a player can go between antes or
+     * *during the refund of somebody who already went*. Re-checked until a pass
+     * finds nobody gone, with nothing awaited between that pass and the deal
+     * below — otherwise a ghost could still reach the turn order, and a ghost
+     * that won would be a pot nobody could be paid.
      */
-    const here = funded.filter((seat) => table.seats.some((one) => one.id === seat.id));
-    const gone = funded.filter((seat) => !here.includes(seat));
-    if (gone.length > 0) {
+    let here = funded;
+    for (;;) {
+      const stillHere = here.filter((seat) => table.seats.some((one) => one.id === seat.id));
+      if (stillHere.length === here.length) {
+        here = stillHere;
+        break;
+      }
+      const gone = here.filter((seat) => !stillHere.includes(seat));
       try {
         await refundAll(table, gone, deps);
       } catch (error) {
         table.failDeal("The table could not take the antes, so nobody was dealt.");
-        await refundAll(table, here, deps);
+        await refundAll(table, stillHere, deps);
         throw error;
       }
+      here = stillHere;
     }
 
     table.noteShorts(short);

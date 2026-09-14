@@ -187,6 +187,19 @@ describe("a deal that falls short", () => {
   });
 });
 
+describe("disconnecting", () => {
+  it("stands a ready player's ready down when they disconnect between games", () => {
+    // A ready button must not keep charging somebody who has gone: the
+    // countdown or an all-ready deal must not still pick them.
+    const table = seated("ada", "bob");
+    readyAll(table);
+
+    table.disconnect("ada");
+
+    expect(table.readiness.isReady("ada")).toBe(false);
+  });
+});
+
 describe("bots", () => {
   it("refuses one at a table playing for chips", () => {
     const table = seated("ada");
