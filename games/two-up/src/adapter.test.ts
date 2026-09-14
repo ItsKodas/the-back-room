@@ -501,3 +501,319 @@ describe("what a client is refused", () => {
     expect(table.phase).toBe("spinning");
   });
 });
+
+describe("a two-up table called off", () => {
+  it("hands a casino chip back out of the bank", async () => {
+    const { held, deps } = purse({ u0: 1_000 });
+    const { bank, read } = bankOf(100_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+
+    await adapter.void?.(table, deps);
+
+    expect(held["u0"]).toBe(1_000);
+    expect(read()).toBe(100_000);
+  });
+
+  it("returns a casino chip to somebody who leaves while bets are open", async () => {
+    const { held, deps } = purse({ u0: 1_000 });
+    const { bank, read } = bankOf(100_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+
+    table.removeSeat("s0");
+    await adapter.payOut?.(table, deps);
+
+    expect(held["u0"]).toBe(1_000);
+    expect(read()).toBe(100_000);
+  });
+
+  it("still pays a casino chip whose seat left once the window had shut", async () => {
+    const { held, deps } = purse({ u0: 1_000 });
+    const { bank } = bankOf(100_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+    table.closeBetting();
+    table.removeSeat("s0");
+    table.boxerThrows(() => 0.1);
+    table.land();
+    table.read(() => 0.1);
+
+    await adapter.settle(table, deps);
+
+    expect(held["u0"]).toBe(1_100);
+  });
+
+  it("keeps the escrow and the cloth in step as chips go on and come off", async () => {
+    const { bank } = bankOf(1_000_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    const { deps } = purse({ u0: 5_000 });
+
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 200 }, deps);
+    await adapter.act(table, "s0", { type: "place", on: "tails", chips: 100 }, deps);
+    expect(table.escrow.total).toBe(table.onCloth);
+    await adapter.act(table, "s0", { type: "take", on: "heads", chips: 50 }, deps);
+    expect(table.escrow.total).toBe(table.onCloth);
+    await adapter.act(table, "s0", { type: "undo" }, deps);
+    expect(table.escrow.total).toBe(table.onCloth);
+    await adapter.act(table, "s0", { type: "clear" }, deps);
+    expect(table.escrow.total).toBe(0);
+  });
+
+  it("gives back a chip the table refused after it was paid for", async () => {
+    const { bank, read } = bankOf(1_000_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    const { held, deps } = purse({ u0: 1_000 });
+    // The window shuts while the account is being charged.
+    const shutting: GameDeps = {
+      ...deps,
+      take: async (userId, amount) => {
+        const ok = await deps.take(userId, amount);
+        table.closeBetting();
+        return ok;
+      },
+    };
+    sit(table, "s1", "u1");
+    // Somebody else's chip, so the cloth is not empty and the window really shuts.
+    await adapter.act(table, "s1", { type: "place", on: "heads", chips: 25 }, purse({ u1: 100 }).deps);
+
+    await expect(
+      adapter.act(table, "s0", { type: "place", on: "heads", chips: 200 }, shutting),
+    ).rejects.toThrow();
+
+    expect(held["u0"]).toBe(1_000);
+    expect(read()).toBe(1_000_025);
+    expect(table.escrow.total).toBe(25);
+  });
+
+  it("stops holding the bank's chips for a table that has been called off", async () => {
+    const { bank } = bankOf(1_000_000);
+    const adapter = twoUpAdapter({ bank });
+    const closed = adapter.create("ABCD", { ruleset: "casino" });
+    sit(closed, "s0", "u0");
+    const other = adapter.create("EFGH", { ruleset: "casino" });
+    const { deps } = purse({ u0: 1_000 });
+    await adapter.act(closed, "s0", { type: "place", on: "heads", chips: 200 }, deps);
+
+    await adapter.void?.(closed, deps);
+
+    const { ledgerOf } = await import("@backroom/core");
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+  });
+
+  it("hands back a ring's centre and covers before the coins decide", async () => {
+    const { held, deps } = purse({ u0: 1_000, u1: 1_000 });
+    const adapter = twoUpAdapter();
+    const table = adapter.create("ABCD", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    table.beginRound();
+    const spinner = table.spinnerId as string;
+    const other = spinner === "s0" ? "s1" : "s0";
+    await adapter.act(table, spinner, { type: "centre", chips: 200 }, deps);
+    await adapter.act(table, other, { type: "cover", chips: 150 }, deps);
+    expect(table.escrow.total).toBe(350);
+
+    await adapter.void?.(table, deps);
+
+    expect(held).toEqual({ u0: 1_000, u1: 1_000 });
+  });
+
+  it("does not hold a cover the table refused", async () => {
+    const { deps } = purse({ u0: 1_000, u1: 1_000 });
+    const adapter = twoUpAdapter();
+    const table = adapter.create("ABCD", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    table.beginRound();
+    const spinner = table.spinnerId as string;
+    await adapter.act(table, spinner, { type: "centre", chips: 200 }, deps);
+    await expect(adapter.act(table, spinner, { type: "cover", chips: 100 }, deps)).rejects.toThrow();
+    expect(table.escrow.total).toBe(200);
+  });
+
+  it("has nothing to hand back once a ring's coins have decided it", async () => {
+    const { held, deps } = purse({ u0: 5_000, u1: 5_000 });
+    const adapter = twoUpAdapter();
+    const table = adapter.create("ABCD", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    await adapter.act(table, "s0", { type: "centre", chips: 1_000 }, deps);
+    await adapter.act(table, "s1", { type: "cover", chips: 1_000 }, deps);
+    table.closeCovering();
+    table.throwCoins("s0", () => 0.9);
+    table.land();
+    table.read(() => 0.9);
+    expect(table.escrow.total).toBe(0);
+    await adapter.settle(table, deps);
+
+    expect(await adapter.void?.(table, deps)).toEqual([]);
+    expect(held["u0"] + held["u1"]).toBe(10_000);
+  });
+});
+
+/** A gate a test opens by hand, and a signal for when something reached it. */
+function gate() {
+  let open = () => {};
+  let reached = () => {};
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  const arrived = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  return { open, reached, opened, arrived };
+}
+
+describe("a two-up table's chips while the economy is being awaited", () => {
+  it("lets a leaver's chip ride when another bet leans on it for cover", async () => {
+    /*
+     * Heads went down against a bank of 100; tails was then allowed to lean on
+     * heads. Refunding heads to a seat that stood up would leave tails owed 400
+     * out of a bank of 300 — the same take-back `giveBack` refuses.
+     */
+    const { held, deps } = purse({ u0: 1_000, u1: 1_000 });
+    const { bank, read } = bankOf(100);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+    await adapter.act(table, "s1", { type: "place", on: "tails", chips: 200 }, deps);
+
+    table.removeSeat("s0");
+    await adapter.payOut?.(table, deps);
+
+    expect(table.staked("s0")).toBe(100);
+    expect(held["u0"]).toBe(900);
+    expect(read()).toBe(400);
+
+    table.closeBetting();
+    table.boxerThrows(() => 0.9);
+    table.land();
+    table.read(() => 0.9);
+    expect(table.called).toBe("tails");
+    await adapter.settle(table, deps);
+    expect(held["u1"]).toBe(1_200);
+  });
+
+  it("pays a departed winner even when the next round opens mid-payment", async () => {
+    const { held, deps } = purse({ u0: 1_000, u1: 1_000 });
+    const { bank: inner } = bankOf(100_000);
+    const first = gate();
+    let taken = 0;
+    const bank = {
+      ...inner,
+      take: async (amount: number) => {
+        taken += 1;
+        if (taken === 1) {
+          first.reached();
+          await first.opened;
+        }
+        return inner.take(amount);
+      },
+    };
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s1", "u1");
+    sit(table, "s0", "u0");
+    await adapter.act(table, "s1", { type: "place", on: "heads", chips: 100 }, deps);
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+    table.closeBetting();
+    table.removeSeat("s0");
+    table.boxerThrows(() => 0.1);
+    table.land();
+    table.read(() => 0.1);
+
+    const settling = adapter.settle(table, deps);
+    await first.arrived;
+    table.beginRound();
+    first.open();
+    await settling;
+
+    expect(held["u1"]).toBe(1_100);
+    expect(held["u0"]).toBe(1_100);
+  });
+
+  it("pays a ring's departed winner even when the next round opens mid-payment", async () => {
+    const { held, deps: plain } = purse({ u0: 5_000, u1: 5_000, u2: 5_000 });
+    const first = gate();
+    let given = 0;
+    const deps: GameDeps = {
+      ...plain,
+      give: async (userId, amount) => {
+        given += 1;
+        if (given === 1) {
+          first.reached();
+          await first.opened;
+        }
+        await plain.give(userId, amount);
+      },
+    };
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("RING", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    sit(table, "s2", "u2");
+    await adapter.act(table, "s0", { type: "centre", chips: 1_000 }, deps);
+    await adapter.act(table, "s1", { type: "cover", chips: 600 }, deps);
+    await adapter.act(table, "s2", { type: "cover", chips: 400 }, deps);
+    table.removeSeat("s2");
+    table.closeCovering();
+    table.throwCoins("s0", () => 0.9);
+    table.land();
+    table.read(() => 0.9);
+    expect(table.decided).toBe("ring");
+
+    const settling = adapter.settle(table, deps);
+    await first.arrived;
+    table.beginRound();
+    first.open();
+    await settling;
+
+    expect((held["u0"] ?? 0) + (held["u1"] ?? 0) + (held["u2"] ?? 0)).toBe(15_000);
+    expect(held["u2"]).toBe(5_400);
+  });
+
+  it("hands back only what the escrow still held when a void lands inside a take-back", async () => {
+    const { held, deps } = purse({ u0: 1_000 });
+    const { bank: inner, read } = bankOf(100_000);
+    let reading: ReturnType<typeof gate> | null = null;
+    const bank = {
+      ...inner,
+      holds: async () => {
+        if (reading !== null) {
+          reading.reached();
+          await reading.opened;
+        }
+        return inner.holds();
+      },
+    };
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+
+    const hold = gate();
+    reading = hold;
+    const clearing = adapter.act(table, "s0", { type: "clear" }, deps);
+    await hold.arrived;
+    const voiding = adapter.void?.(table, deps);
+    reading = null;
+    hold.open();
+    await Promise.all([clearing, voiding]);
+
+    expect(held["u0"]).toBe(1_000);
+    expect(read()).toBe(100_000);
+  });
+});

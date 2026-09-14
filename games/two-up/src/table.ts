@@ -1,4 +1,11 @@
-import { type Seat, type SeatIdentity, Seating, type TableStatus, TableError } from "@backroom/core";
+import {
+  Escrow,
+  type Seat,
+  type SeatIdentity,
+  Seating,
+  type TableStatus,
+  TableError,
+} from "@backroom/core";
 import { type BetOn, FUN_BANK, FUN_PURSE, MIN_CHIP } from "./bank.js";
 import { type Paid, type Placed, settle } from "./bets.js";
 import { type Called, readCasino } from "./casino.js";
@@ -152,6 +159,23 @@ export class Table {
   private previous = new Map<string, Placed[]>();
 
   /**
+   * Every chip staked into this round by the account it came from, until the
+   * coins decide it: a casino cloth, or a ring's centre and covers.
+   */
+  readonly escrow = new Escrow();
+
+  /**
+   * Casino seats that stood up while bets were open, their chips still on the
+   * cloth until the adapter has asked whether they can come off.
+   *
+   * Asked there rather than here because the question is the bank's: a chip
+   * another bet leans on for cover stays, exactly as a take-back would, and
+   * this class cannot read the bank. Emptied when the window shuts, since from
+   * then on whatever is still down rides.
+   */
+  readonly leaving = new Set<string>();
+
+  /**
    * Which account each seat belonged to, kept for the length of a round.
    *
    * A seat can leave in the middle of a round — `leavesMidHand` is true here —
@@ -218,9 +242,10 @@ export class Table {
   /**
    * Standing up mid-round is honoured there and then.
    *
-   * Nothing is owed to a seat that leaves and nothing waits for it: the coins
-   * do not need them to come down, and holding the seat would be holding it
-   * for nothing.
+   * Nothing is kept from a seat that leaves and nothing waits for it: casino
+   * chips down while bets are open come back, and chips that are riding — a
+   * closed casino cloth, a ring's centre or covers — are paid to their account
+   * whatever the coins do. Holding the seat would be holding it for nothing.
    */
   readonly leavesMidHand = true;
 
@@ -234,6 +259,8 @@ export class Table {
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
     this.accounts.set(seat.id, identity?.userId ?? null);
+    // Back before their chips were asked about, so those chips are theirs to manage again.
+    this.leaving.delete(seat.id);
     /*
      * Whoever sits down first has the kip until it passes.
      *
@@ -251,13 +278,19 @@ export class Table {
   removeSeat(seatId: string): void {
     this.seating.remove(seatId);
     /*
-     * Their chips on the cloth go with them, and the centre and the covers do
-     * not. A casino stake is already in the bank, so there is nothing to hand
-     * back; a ring's chips are contested by the people still standing there,
-     * and a cover pulled out from under a centre halfway through a run would
-     * refund a bet that had already been matched.
+     * Nothing comes off the felt here. Casino chips down while bets are open
+     * go back to a leaver unless another bet leans on them for cover, and that
+     * is the bank's question, so the seat is noted in `leaving` for the
+     * adapter to answer. Chips still down when the window shuts ride, and what
+     * the coins decide is paid to their account whether they watch or not.
+     *
+     * A ring's centre and covers always stay: they are contested by the people
+     * still standing there, and a cover pulled out from under a centre halfway
+     * through a run would refund a bet that had already been matched.
      */
-    this.placed = this.placed.filter((one) => one.seatId !== seatId);
+    if (this.school === "casino" && this.phase === "betting" && this.staked(seatId) > 0) {
+      this.leaving.add(seatId);
+    }
     this.previous.delete(seatId);
     this.roomChanged();
   }
@@ -543,6 +576,8 @@ export class Table {
   /** A chip down. Refuses exactly what {@link check} refuses. */
   place(seatId: string, on: BetOn, chips: number): void {
     this.check(seatId, on, chips);
+    // Bots only place at for-fun tables, so they never reach the hold.
+    this.hold(seatId, chips);
     const already = this.placed.find((one) => one.seatId === seatId && one.on === on);
     if (already === undefined) {
       this.placed.push({ seatId, on, chips });
@@ -550,6 +585,20 @@ export class Table {
       this.placed = this.placed.map((one) =>
         one === already ? { ...one, chips: one.chips + chips } : one,
       );
+    }
+  }
+
+  /**
+   * Records a stake against the account that paid it.
+   *
+   * The last thing before the felt changes, after every check, so a refusal
+   * from this table always means nothing was held — and whoever paid for the
+   * chip can give back all of it without asking the escrow.
+   */
+  private hold(seatId: string, chips: number): void {
+    const userId = this.seats.find((seat) => seat.id === seatId)?.userId ?? null;
+    if (!this.forFun && userId !== null && !this.escrow.hold(userId, chips)) {
+      throw new TableError("This table is closing.");
     }
   }
 
@@ -622,6 +671,7 @@ export class Table {
     if (seatId !== this.spinnerId) {
       throw new TableError("Only the spinner may set the centre.");
     }
+    this.hold(seatId, chips);
     this.centre = { seatId, chips };
     this.phase = "covering";
     this.restartClock();
@@ -649,6 +699,7 @@ export class Table {
     if (chips > left) {
       throw new TableError(`Only ${left} of the centre is left to cover.`);
     }
+    this.hold(seatId, chips);
     const already = this.covers.find((one) => one.seatId === seatId);
     if (already === undefined) {
       this.covers.push({ seatId, chips });
@@ -709,6 +760,8 @@ export class Table {
     if (this.phase !== "betting") {
       return;
     }
+    // Whatever a leaver still has down is riding now, not waiting to be handed back.
+    this.leaving.clear();
     if (this.placed.length === 0) {
       this.restartClock();
       return;
@@ -817,6 +870,9 @@ export class Table {
       this.decided = decided;
       this.owing = this.centre === null ? new Map() : payouts(this.centre, this.covers, decided);
     }
+    // The coins have called it, so the stakes now belong to the result rather
+    // than to the accounts that put them down: a void from here hands back nothing.
+    this.escrow.settle();
     this.phase = "settled";
     this.deadline = Date.now() + SETTLE_MS;
     this.lastEvent = this.throws[this.throws.length - 1] ?? null;
@@ -841,6 +897,7 @@ export class Table {
     this.decided = null;
     this.paid = null;
     this.owing = null;
+    this.leaving.clear();
     for (const seat of this.seats) {
       seat.waiting = false;
     }

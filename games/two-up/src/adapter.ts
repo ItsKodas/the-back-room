@@ -136,6 +136,11 @@ export function twoUpAdapter(
    * until that is paid, and nothing after.
    */
   const owing = (table: Table): number => {
+    // A called-off table owes nothing, and an act queued behind the void
+    // would otherwise put its reservation back on the way out of `serially`.
+    if (table.escrow.closed) {
+      return 0;
+    }
     const waiting = unpaid.get(table);
     let total = waiting?.back ?? 0;
     if (table.paid === null) {
@@ -306,32 +311,83 @@ export function twoUpAdapter(
   };
 
   /**
-   * Chips back off the cloth, unless the bets left behind would lose their cover.
+   * Chips off the cloth, unless the bets left behind would lose their cover.
    *
    * A chip coming off comes out of the bank, and what it leaves does not get
    * cheaper for it: heads went down against the bank, tails was then allowed
    * to lean on heads, and taking heads back leaves tails owed more than the
    * bank holds. So it is refused — but only when it makes the shortfall worse,
    * so a bank drained from outside never traps anybody's chips on a cloth.
+   *
+   * Returns what came off, or null with the cloth put back. The cloth is read
+   * only once the bank has been, so no await sits between looking at the
+   * chips, lifting them and putting them back: a cloth copied before the await
+   * could be restored over whatever changed during it.
+   *
+   * One implementation for a take-back and for a seat that left, because the
+   * cover a chip gives does not depend on why it is coming off.
    */
-  const giveBack = async (
-    table: Table,
-    seat: { id: string; userId: string | null },
-    lift: () => void,
-    deps: GameDeps,
-  ): Promise<void> => {
-    const before = [...table.placed];
+  const lift = async (table: Table, move: () => void): Promise<number | null> => {
     const floor = await base(table);
-    lift();
+    const before = [...table.placed];
+    move();
     const off = staked(toBets(before)) - staked(toBets(table.placed));
     if (banked(table)) {
       const short = (bets: readonly Bet[]) => owed(bets) - staked(bets) - floor;
       if (short(toBets(table.placed)) > Math.max(0, short(toBets(before)))) {
+        // Nothing has been released from the escrow yet, so putting the
+        // cloth back is all it takes to leave the two in step.
         table.placed = before;
-        throw new TableError("That chip is covering another bet. It stays for this round.");
+        return null;
       }
     }
-    await pay(table, seat, off, deps);
+    return off;
+  };
+
+  /** Chips that came off the cloth, back to the account that put them there. */
+  const payBack = async (
+    table: Table,
+    seat: { id: string; userId: string | null },
+    off: number,
+    deps: GameDeps,
+  ): Promise<void> => {
+    if (table.forFun || seat.userId === null) {
+      await pay(table, seat, off, deps);
+      return;
+    }
+    /*
+     * What the escrow actually lets go of, never the nominal drop: a void
+     * ahead of this in the bank's queue may already have handed these chips
+     * back, and paying them again would pay them twice.
+     */
+    const back = table.escrow.release(seat.userId, off);
+    await pay(table, seat, back, deps);
+  };
+
+  /** A seat's own chips back off the cloth, or a refusal if another bet leans on them. */
+  const giveBack = async (
+    table: Table,
+    seat: { id: string; userId: string | null },
+    move: () => void,
+    deps: GameDeps,
+  ): Promise<void> => {
+    const off = await lift(table, move);
+    if (off === null) {
+      throw new TableError("That chip is covering another bet. It stays for this round.");
+    }
+    await payBack(table, seat, off, deps);
+  };
+
+  /**
+   * Whose account a payout goes to, seated or not.
+   *
+   * A decided payout does not leave with the seat. Called before any await,
+   * because `beginRound` prunes the accounts of departed seats on its own
+   * clock, and a lookup made after one could find nobody.
+   */
+  const payee = (table: Table, seatId: string): { id: string; userId: string | null } => {
+    const here = table.seats.find((one) => one.id === seatId);
+    return { id: seatId, userId: here?.userId ?? table.accountOf(seatId) };
   };
 
   return {
@@ -409,7 +465,20 @@ export function twoUpAdapter(
                     : "You do not have the chips for that.",
                 );
               }
-              table.place(seatId, on, chips);
+              /*
+               * And straight back out if the cloth refuses it now. Taking the
+               * chips is an await, and the table does not stand still for it:
+               * last call can arrive, the window can shut on its own clock, the
+               * seat can go, the table can be called off. The chips are in the
+               * bank by then, so they come out the way a take-back does — in
+               * full, because a refused place never reached the escrow.
+               */
+              try {
+                table.place(seatId, on, chips);
+              } catch (error) {
+                await pay(table, seat, chips, deps);
+                throw error;
+              }
               return;
             }
 
@@ -451,7 +520,13 @@ export function twoUpAdapter(
                 if (!(await stake(table, seat, one.chips, deps))) {
                   return;
                 }
-                table.place(seatId, one.on, one.chips);
+                // The same await as a single chip, and the same way back out.
+                try {
+                  table.place(seatId, one.on, one.chips);
+                } catch {
+                  await pay(table, seat, one.chips, deps);
+                  return;
+                }
               }
               return;
             }
@@ -503,6 +578,7 @@ export function twoUpAdapter(
               table.cover(seatId, chips);
             }
           } catch (error) {
+            // In full: the table holds only after its last check, so a refusal held nothing.
             await pay(table, seat, chips, deps);
             throw error;
           }
@@ -515,17 +591,55 @@ export function twoUpAdapter(
     },
 
     /**
-     * Reads what the store's bank holds, so the view can show a cap.
+     * Hands back chips left down by somebody who stood up while bets were
+     * open, and reads what the store's bank holds so the view can show a cap.
      *
-     * Casino chips tables only. A ring never banks anything at all — every
-     * chip it moves goes straight from one account to another — so there is
-     * nothing here for it to refresh, and a for-fun table's bank is exact
-     * from the moment it exists.
+     * Both belong here because this hook runs on every broadcast. Leaving is
+     * synchronous, so the table can only note who left; whether their chips
+     * can come off, and what the bank holds, are questions for the store,
+     * which neither leaving nor building a view can await.
+     *
+     * The cap is casino chips tables only. A ring never banks anything at all
+     * — every chip it moves goes straight from one account to another — so
+     * there is nothing here for it to refresh, and a for-fun table's bank is
+     * exact from the moment it exists.
      *
      * Less what the other casino tables on this bank could owe, so the felt
      * greys out what the refusal would. Showing only; `place` asks again.
      */
-    async payOut(table) {
+    async payOut(table, deps) {
+      if (table.leaving.size > 0) {
+        await serially(table, async () => {
+          for (const seatId of [...table.leaving]) {
+            // Out of the set before the first await, so two broadcasts cannot
+            // both hand it back — and skipped if a join or a shut window
+            // already took it out.
+            if (!table.leaving.delete(seatId)) {
+              continue;
+            }
+            const seat = payee(table, seatId);
+            let off: number | null;
+            try {
+              off = await lift(table, () => {
+                // Unless they sat back down while the bank was read, when the chips are theirs to manage.
+                if (!table.seats.some((one) => one.id === seatId)) {
+                  table.clear(seatId);
+                }
+              });
+            } catch (error) {
+              // The window shut while the bank was read, so the chips ride.
+              if (error instanceof TableError) {
+                continue;
+              }
+              throw error;
+            }
+            // Refused chips stay down and ride; `settle` pays them to the account.
+            if (off !== null) {
+              await payBack(table, seat, off, deps);
+            }
+          }
+        });
+      }
       if (!table.forFun && table.school === "casino") {
         const elsewhere = ledger?.owedElsewhere(table) ?? 0;
         table.housed = (await holds(table)) - elsewhere;
@@ -574,18 +688,19 @@ export function twoUpAdapter(
           if (seatId === undefined || players.has(seatId)) {
             continue;
           }
-          const seated = table.seats.find((one) => one.id === seatId);
           players.set(seatId, {
-            userId: seated?.userId ?? table.accountOf(seatId),
+            userId: payee(table, seatId).userId,
             staked: table.stakedIn(seatId),
           });
         }
-        for (const [seatId, chips] of owing) {
+        const payees = [...owing].map(([seatId, chips]) => ({ seat: payee(table, seatId), chips }));
+        for (const { seat, chips } of payees) {
           if (chips <= 0) {
             continue;
           }
           /*
-           * Paid whether or not they are still standing at the table.
+           * Paid whether or not they are still standing at the table, to the
+           * account resolved above before anything was awaited.
            *
            * A seat can leave in the middle of a round and what the coins
            * decided it was owed does not leave with it. Skipping a departed
@@ -599,9 +714,7 @@ export function twoUpAdapter(
            * payout the coins have already decided, nor a school with no bank
            * behind it at all.
            */
-          const here = table.seats.find((one) => one.id === seatId);
-          const userId = here?.userId ?? table.accountOf(seatId);
-          await pay(table, { id: seatId, userId }, chips, deps);
+          await pay(table, seat, chips, deps);
         }
 
         /* Play money is paid but never recorded, for the same reason as the casino. */
@@ -636,15 +749,15 @@ export function twoUpAdapter(
       if (round === null || table.called === null) {
         return;
       }
+      /* Same rule as the ring above: resolved now, and paid seated or not. */
+      const payees = [...round].map(([seatId, paid]) => ({ seat: payee(table, seatId), paid }));
       if (banked(table)) {
         unpaid.set(table, { round, back: backOf(round) });
       }
       await serially(table, async () => {
-        for (const [seatId, paid] of round) {
-          /* Same rule as the ring above: a decided payout is theirs, seated or not. */
-          const here = table.seats.find((one) => one.id === seatId);
-          const userId = here?.userId ?? table.accountOf(seatId);
-          await pay(table, { id: seatId, userId }, paid.back, deps);
+        for (const { seat, paid } of payees) {
+          const { userId } = seat;
+          await pay(table, seat, paid.back, deps);
           /*
            * Play money is paid but never recorded. A for-fun table touches no
            * account, so a win there is not a win anybody's profile should claim —
@@ -667,6 +780,25 @@ export function twoUpAdapter(
         paidOut.add(round);
         unpaid.delete(table);
       });
+    },
+
+    /**
+     * Calls the table off: every chip still staked, back to whoever put it
+     * there, and this table's claim on the bank released.
+     *
+     * One path for both schools, because `pay` already knows a ring has no
+     * bank: a casino chip comes out of the bank and a ring's goes straight back
+     * to its account.
+     */
+    async void(table, deps) {
+      const owed = table.escrow.close();
+      await serially(table, async () => {
+        for (const one of owed) {
+          await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+        }
+      });
+      ledger?.release(table);
+      return owed;
     },
 
     /**
