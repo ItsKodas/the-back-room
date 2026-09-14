@@ -55,11 +55,89 @@ export interface PublicPlayer {
   accentColor: number | null;
 }
 
+/**
+ * The columns a board may be ordered by.
+ *
+ * A win rate is not among them, and will not be. It is a ratio of two stored
+ * numbers, so there is no index for it — and a player with one lucky hand sits
+ * at a hundred percent forever, which makes a board of people who have played
+ * once. Every row prints its rate; no column sorts by it.
+ */
+export const LEADER_SORTS = ["chips", "net", "staked", "games", "wins"] as const;
+export type LeaderSort = (typeof LEADER_SORTS)[number];
+
+/**
+ * A player as the board prints them.
+ *
+ * Deliberately not `PublicPlayer`. That type exists to carry no balance and
+ * this one exists to carry one, so they are two types rather than one with a
+ * flag — nothing that asks who somebody is should ever start being told what
+ * they hold because a field was added in the wrong place.
+ */
+export interface LeaderRow {
+  id: string;
+  name: string;
+  avatar: string | null;
+  accentColor: number | null;
+  chips: number;
+  stats: ProfileStats;
+}
+
+export interface LeaderBoard {
+  rows: LeaderRow[];
+  /** The viewer's own standing, wherever they finished. Null if nobody asked. */
+  you: { row: LeaderRow; rank: number } | null;
+  total: number;
+}
+
+/** The figure a sort orders by, read off one row. */
+export function leaderValue(row: { chips: number; stats: ProfileStats }, sort: LeaderSort): number {
+  switch (sort) {
+    case "chips":
+      return row.chips;
+    case "net":
+      return row.stats.chipsWon;
+    case "staked":
+      return row.stats.chipsStaked;
+    case "games":
+      return row.stats.games;
+    case "wins":
+      return row.stats.wins;
+  }
+}
+
+export function toLeaderRow(profile: {
+  id: string;
+  name: string;
+  avatar: string | null;
+  accentColor: number | null;
+  chips: number;
+  stats: ProfileStats;
+}): LeaderRow {
+  return {
+    id: profile.id,
+    name: profile.name,
+    avatar: profile.avatar,
+    accentColor: profile.accentColor,
+    chips: profile.chips,
+    // Copied rather than handed out, for the same reason `toProfile` copies it.
+    stats: { ...profile.stats },
+  };
+}
+
 /** What every game can answer about a player, whatever the game is. */
 export interface ProfileStats {
   games: number;
   wins: number;
   chipsWon: number;
+  /**
+   * Chips put on the felt, win or lose.
+   *
+   * Not the opposite of `chipsWon`, which is a net: somebody who turns over a
+   * million chips and finishes level has done something, and the net says they
+   * did nothing. A free round stakes nothing, because nothing was staked.
+   */
+  chipsStaked: number;
 }
 
 /**
@@ -261,6 +339,20 @@ export interface Store {
   findPlayers(prefix: string, limit: number): Promise<PublicPlayer[]>;
 
   /**
+   * Who is ahead.
+   *
+   * The one route in the building that publishes balances, which is the exact
+   * opposite of what `PublicPlayer` above exists to refuse — see the design
+   * doc for why that exception is allowed and how it is kept narrow.
+   *
+   * Rows and the viewer's own standing come back together because a rank is a
+   * position in the whole collection rather than a property of a row: a caller
+   * that asked for a page and then went looking for itself would be answering
+   * a different question from the one the page answered.
+   */
+  leaderboard(input: { sort: LeaderSort; limit: number; you: string | null }): Promise<LeaderBoard>;
+
+  /**
    * Moves chips from one account to another, and writes it down.
    *
    * One method rather than two `adjustChips` calls, because a debit that
@@ -311,7 +403,7 @@ export interface Store {
 export const STARTING_CHIPS = 10_000;
 
 export function emptyStats(): ProfileStats {
-  return { games: 0, wins: 0, chipsWon: 0 };
+  return { games: 0, wins: 0, chipsWon: 0, chipsStaked: 0 };
 }
 
 export class MemoryStore implements Store {
@@ -537,6 +629,43 @@ export class MemoryStore implements Store {
         avatar: person.avatar,
         accentColor: person.accentColor,
       }));
+  }
+
+  async leaderboard({
+    sort,
+    limit,
+    you,
+  }: {
+    sort: LeaderSort;
+    limit: number;
+    you: string | null;
+  }): Promise<LeaderBoard> {
+    const everyone = [...this.people.values()].map(toLeaderRow).sort((a, b) => {
+      const apart = leaderValue(b, sort) - leaderValue(a, sort);
+      // Id as the tiebreak, so two players on the same figure do not swap
+      // places between one poll and the next and make the board animate a
+      // reorder that never happened. This only has to be stable within this
+      // store, not match Mongo's `_id: 1` tiebreak row for row — the design's
+      // Stability clause is about the rank number the two stores agree on,
+      // and a rank is shared by everyone tied on it, so which of them sits
+      // first inside a tie is not a fact either store promises the other.
+      return apart !== 0 ? apart : a.id.localeCompare(b.id);
+    });
+    const mine = you === null ? null : (everyone.find((row) => row.id === you) ?? null);
+    return {
+      rows: everyone.slice(0, limit),
+      you:
+        mine === null
+          ? null
+          : {
+              row: mine,
+              // One more than however many are strictly ahead, so everybody on
+              // the same figure shares a rank and the next one down skips.
+              rank:
+                everyone.filter((row) => leaderValue(row, sort) > leaderValue(mine, sort)).length + 1,
+            },
+      total: everyone.length,
+    };
   }
 
   async sentSince(userId: string, since: number): Promise<number> {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAccount } from "../game/useAccount.js";
 import { Navbar } from "../nav/Navbar.js";
+import { Standings } from "./Standings.js";
 import { TileArt } from "./TileArt.js";
 // Every room's colours, because the tiles below are dressed in them.
 import "@backroom/game-greed/theme.css";
@@ -85,6 +86,13 @@ export function Room() {
           </div>
         </>
       ) : null}
+
+      {/* After the machines and before the bar: a board of balances is still
+          money, so it sits where the gradient is still about money alone. */}
+      <p className="room__label">Who's ahead</p>
+      <div className="room__few">
+        <Standings />
+      </div>
 
       {/* Between the machines and the back, because the page reads as a
           gradient: money and people, then money alone, then nothing at risk,

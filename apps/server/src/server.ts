@@ -76,6 +76,7 @@ import type { AuthConfig } from "./auth.js";
 import { mountAuth, readAuthConfig } from "./auth.js";
 import { friendlyRedirect } from "./domains.js";
 import { EMOTE_UPLOAD_PATH, emoteUrls, mountEmotes } from "./emotes.js";
+import { mountLeaderboard } from "./leaderboard.js";
 import { mountTransfers } from "./transfers.js";
 import { wireTips } from "./tips.js";
 import { inject, pageFor } from "./meta.js";
@@ -398,6 +399,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   const tauntBudgets = new Map<string, Budget>();
   /** Searching for somebody and paying them, budgeted by account. */
   const sendBudgets = new Map<string, Budget>();
+  /** Asking who is ahead, budgeted by account. */
+  const boardBudgets = new Map<string, Budget>();
   /**
    * The emotes this server has seen thrown, by id.
    *
@@ -992,6 +995,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     },
     tellChips,
     withinBudget: (id, max, windowMs) => withinBudget(sendBudgets, id, max, windowMs),
+  });
+  mountLeaderboard(app, {
+    store,
+    whoIs: async (request) => {
+      const profile = await whoIs(request as express.Request);
+      return profile === null ? null : { id: profile.id };
+    },
+    withinBudget: (id, max, windowMs) => withinBudget(boardBudgets, id, max, windowMs),
   });
 
   app.get("/api/admin/codes", requireAdmin, (_request, response) => {
@@ -2459,7 +2470,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
 
           const cost = wasFree ? 0 : stake;
           await deps.record(userId, {
-            shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost },
+            shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost, chipsStaked: cost },
             game: SLOTS.id,
             add: { spins: 1, staked: cost, jackpots: jackpot ? 1 : 0 },
             // A best spin is a maximum, and only the machine knows that.

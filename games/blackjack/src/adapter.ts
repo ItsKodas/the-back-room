@@ -551,6 +551,7 @@ export function blackjackAdapter(
             games: 1,
             wins: seat.back > seat.out ? 1 : 0,
             chipsWon: seat.back - seat.out,
+            chipsStaked: seat.out,
           },
           game: BLACKJACK.id,
           add: {

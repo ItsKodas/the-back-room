@@ -353,7 +353,18 @@ export function deathRollAdapter(
         }
         const net = duel.netFor(seat.id);
         await deps.record(seat.userId, {
-          shared: { games: 1, wins: net > 0 ? 1 : 0, chipsWon: net },
+          shared: {
+            games: 1,
+            wins: net > 0 ? 1 : 0,
+            chipsWon: net,
+            /*
+             * The ante plus whatever this seat spent passing. A pass is chips
+             * on the felt rather than a fee — the winner takes the loser's
+             * passes inside the pot — so it is staked like the ante is, and
+             * the figure is not either seat's net.
+             */
+            chipsStaked: duel.ante + duel.spentBy(seat.id),
+          },
           game: DEATH_ROLL.id,
           add: { duels: 1, passes: duel.hasPassed(seat.id) ? 1 : 0 },
           max: { pot: duel.pot },

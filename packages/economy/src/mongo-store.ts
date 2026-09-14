@@ -14,10 +14,12 @@ import { judgeSend, leftToSend, SEND_WINDOW_MS } from "./transfers.js";
 import type { SendResult, Transfer } from "./transfers.js";
 import type { BankName, PublicPlayer } from "./store.js";
 import type { Model } from "mongoose";
-import { STARTING_CHIPS, emptyJarRecord, emptyStats } from "./store.js";
+import { STARTING_CHIPS, emptyJarRecord, emptyStats, leaderValue, toLeaderRow } from "./store.js";
 import type {
   GameRecord,
   JarRecord,
+  LeaderBoard,
+  LeaderSort,
   Profile,
   ProfileStats,
   StatBump,
@@ -42,6 +44,7 @@ const statsSchema = new mongoose.Schema<ProfileStats>(
     games: { type: Number, default: 0 },
     wins: { type: Number, default: 0 },
     chipsWon: { type: Number, default: 0 },
+    chipsStaked: { type: Number, default: 0 },
   },
   { _id: false },
 );
@@ -76,6 +79,26 @@ const userSchema = new mongoose.Schema<UserDoc>(
   },
   { timestamps: true },
 );
+
+/*
+ * One index per column the board can be ordered by. The board reads the whole
+ * collection sorted; without these that is a scan on every poll, and the page
+ * polls every ten seconds for everybody looking at it.
+ */
+userSchema.index({ chips: -1 });
+userSchema.index({ "stats.chipsWon": -1 });
+userSchema.index({ "stats.chipsStaked": -1 });
+userSchema.index({ "stats.games": -1 });
+userSchema.index({ "stats.wins": -1 });
+
+/** Where each of the board's columns actually lives on a user document. */
+const LEADER_FIELDS: Record<LeaderSort, string> = {
+  chips: "chips",
+  net: "stats.chipsWon",
+  staked: "stats.chipsStaked",
+  games: "stats.games",
+  wins: "stats.wins",
+};
 
 const gameSchema = new mongoose.Schema<GameRecord>(
   {
@@ -320,6 +343,7 @@ function toProfile(doc: UserDoc): Profile {
       games: doc.stats?.games ?? 0,
       wins: doc.stats?.wins ?? 0,
       chipsWon: doc.stats?.chipsWon ?? 0,
+      chipsStaked: doc.stats?.chipsStaked ?? 0,
     },
     byGame: structuredClone(doc.byGame ?? {}),
     // Copied field by field, for the same reason stats is: a live Mongoose
@@ -696,6 +720,44 @@ export class MongoStore implements Store {
       avatar: doc.avatar,
       accentColor: doc.accentColor,
     }));
+  }
+
+  async leaderboard({
+    sort,
+    limit,
+    you,
+  }: {
+    sort: LeaderSort;
+    limit: number;
+    you: string | null;
+  }): Promise<LeaderBoard> {
+    const field = LEADER_FIELDS[sort];
+    const docs = await this.users
+      .find({})
+      // `_id` as the tiebreak, so equal figures come back in the same order on
+      // every poll and the page does not animate a reorder that never happened.
+      .sort({ [field]: -1, _id: 1 })
+      .limit(limit)
+      .lean<Array<UserDoc & { _id: mongoose.Types.ObjectId }>>();
+    const rows = docs.map((doc) => toLeaderRow(toProfile(doc)));
+    const total = await this.users.estimatedDocumentCount();
+
+    if (you === null || !mongoose.Types.ObjectId.isValid(you)) {
+      return { rows, you: null, total };
+    }
+    const mine = await this.users.findById(you).lean<UserDoc & { _id: mongoose.Types.ObjectId }>();
+    if (mine === null) {
+      return { rows, you: null, total };
+    }
+    const row = toLeaderRow(toProfile(mine));
+    /*
+     * A count of who is strictly ahead, so everybody on the same figure shares
+     * a rank. A document written before `chipsStaked` existed has no such
+     * field and so matches no `$gt` — which is the right answer, because a
+     * missing figure is a zero and nothing here is ever staked less than none.
+     */
+    const ahead = await this.users.countDocuments({ [field]: { $gt: leaderValue(row, sort) } });
+    return { rows, you: { row, rank: ahead + 1 }, total };
   }
 
   async sentSince(userId: string, since: number): Promise<number> {

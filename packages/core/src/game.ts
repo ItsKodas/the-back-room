@@ -183,7 +183,7 @@ export interface GameDeps {
 
 /** The shape of a stats update, without the economy package having to be here. */
 export interface StatBumpLike {
-  shared?: { games?: number; wins?: number; chipsWon?: number };
+  shared?: { games?: number; wins?: number; chipsWon?: number; chipsStaked?: number };
   game?: string;
   add?: Record<string, number>;
   max?: Record<string, number>;

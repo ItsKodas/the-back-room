@@ -427,6 +427,37 @@ describe("settling", () => {
     expect(took).not.toHaveBeenCalled();
   });
 
+  it("stakes the ante and every pass bought on top of it", async () => {
+    /*
+     * A pass is chips on the felt, not a fee: the winner takes the loser's
+     * passes inside the pot. So what a seat staked is its ante plus whatever
+     * it spent passing, which is not the same as the net either of them ends
+     * up with — the whole reason the board keeps the two figures apart.
+     */
+    const rolls = [743, 1];
+    const game = deathRollAdapter({ roll: () => rolls.shift() as number });
+    const table = seated(game);
+    const { deps, took } = spy();
+    await deal(game, table, deps);
+    const passer = table.view(null).toRoll as string;
+
+    await game.act(table, passer, { type: "pass" }, deps);
+    const price = took.mock.calls.at(-1)?.[1] as number;
+    const second = table.view(null).toRoll as string;
+    await game.act(table, second, { type: "roll" }, deps);
+    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
+    await game.settle(table, deps);
+
+    const staked = (seatId: string) =>
+      (deps.record as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call) => call[0] === (seatId === "ada" ? "u1" : "u2"),
+      )?.[1]?.shared?.chipsStaked;
+
+    expect(price).toBeGreaterThan(0);
+    expect(staked(passer)).toBe(500 + price);
+    expect(staked(passer === "ada" ? "bob" : "ada")).toBe(500);
+  });
+
   it("hands out exactly what it was handed, passes and all", async () => {
     /*
      * The rule the whole building rests on, checked as arithmetic: the pot in

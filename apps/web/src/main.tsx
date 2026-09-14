@@ -22,6 +22,7 @@ import "./taunt/taunt.css";
  */
 import "./net/net.css";
 import "./tips/tips.css";
+import "./leaderboard/leaderboard.css";
 
 const container = document.getElementById("root");
 if (container === null) {
