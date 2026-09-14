@@ -66,6 +66,12 @@ export function Log() {
   // A failed "Load older" does not touch `entries` — the page already shown
   // stays put — so this is its own flag rather than reusing `failed`.
   const [olderFailed, setOlderFailed] = useState(false);
+  // Guards a second press while the first page is still in flight: two
+  // requests for the same `before` both append, and the page comes back
+  // twice. Checked and set before the fetch goes out, not after it lands, so
+  // a second press arriving before the first response does too is refused
+  // rather than merely discouraged.
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     void adminGet<{ entries: LogEntry[] }>("/api/admin/log").then((body) => {
@@ -76,21 +82,27 @@ export function Log() {
   }, []);
 
   const older = () => {
+    if (loadingMore) {
+      return;
+    }
     const last = entries?.at(-1);
     if (last === undefined) {
       return;
     }
     setOlderFailed(false);
-    void adminGet<{ entries: LogEntry[] }>(`/api/admin/log?before=${last.at}`).then((body) => {
-      if (body === null) {
-        // The server's refusal, not a quiet stop: the entries already on
-        // screen are kept exactly as they were.
-        setOlderFailed(true);
-        return;
-      }
-      setEntries((current) => [...(current ?? []), ...body.entries]);
-      setMore(body.entries.length === PAGE);
-    });
+    setLoadingMore(true);
+    void adminGet<{ entries: LogEntry[] }>(`/api/admin/log?before=${last.at}`)
+      .then((body) => {
+        if (body === null) {
+          // The server's refusal, not a quiet stop: the entries already on
+          // screen are kept exactly as they were.
+          setOlderFailed(true);
+          return;
+        }
+        setEntries((current) => [...(current ?? []), ...body.entries]);
+        setMore(body.entries.length === PAGE);
+      })
+      .finally(() => setLoadingMore(false));
   };
 
   return (
@@ -115,8 +127,8 @@ export function Log() {
       )}
       {more ? (
         <div className="desk__buttons">
-          <button type="button" className="btn btn--ghost btn--small" onClick={older}>
-            Load older
+          <button type="button" className="btn btn--ghost btn--small" disabled={loadingMore} onClick={older}>
+            {loadingMore ? "Loading…" : "Load older"}
           </button>
         </div>
       ) : null}

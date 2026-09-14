@@ -105,3 +105,46 @@ describe("the log tab, when loading older entries fails", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(50);
   });
 });
+
+describe("the log tab, pressed twice before the first answer lands", () => {
+  it("does not duplicate the older page", async () => {
+    const first = Array.from({ length: 50 }, (_, index) => entry({ id: `n${index}`, at: 2000 - index }));
+    const calls: string[] = [];
+    // The older-page request is held open until the test releases it, so
+    // both clicks land while it is still outstanding — a guard that only
+    // works "eventually" would still let the second click through.
+    let releaseOlder: (() => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        if (url.includes("before=")) {
+          return new Promise((resolve) => {
+            releaseOlder = () =>
+              resolve({
+                ok: true,
+                status: 200,
+                json: async () => ({ entries: [entry({ id: "old", at: 10, note: "the oldest" })] }),
+              });
+          });
+        }
+        return { ok: true, status: 200, json: async () => ({ entries: first }) };
+      }),
+    );
+
+    render(<Log />);
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(50));
+
+    const button = screen.getByRole("button", { name: "Load older" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(calls.filter((url) => url.includes("before=")).length).toBe(1);
+
+    releaseOlder?.();
+    await waitFor(() => expect(screen.getByText("the oldest")).toBeTruthy());
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(51);
+    expect(calls.filter((url) => url.includes("before=")).length).toBe(1);
+  });
+});
