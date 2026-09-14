@@ -5,8 +5,8 @@ import { chipsSentence } from "./dialogs.js";
 import { Players } from "./Players.js";
 
 const ROWS = [
-  { id: "u1", name: "Ada", avatar: null, accentColor: null, chips: 12_000, games: 4, createdAt: 1 },
-  { id: "u2", name: "Bo", avatar: null, accentColor: null, chips: 900, games: 1, createdAt: 2 },
+  { id: "u1", name: "Ada", avatar: null, accentColor: null, chips: 12_000, rounds: 4, createdAt: 1 },
+  { id: "u2", name: "Bo", avatar: null, accentColor: null, chips: 900, rounds: 1, createdAt: 2 },
 ];
 
 const posted: Array<{ url: string; body: unknown }> = [];
@@ -43,6 +43,14 @@ describe("what a chips dialog says it will do", () => {
 });
 
 describe("the players tab", () => {
+  it("shows rounds singular for one and plural otherwise", async () => {
+    stubFetch();
+    render(<Players />);
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    expect(screen.getByText(/4 rounds · joined/)).toBeTruthy();
+    expect(screen.getByText(/1 round · joined/)).toBeTruthy();
+  });
+
   it("raises the action bar with how many are selected", async () => {
     stubFetch();
     render(<Players />);

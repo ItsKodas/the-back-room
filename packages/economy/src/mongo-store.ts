@@ -983,7 +983,7 @@ export class MongoStore implements Store {
     const [docs, total] = await Promise.all([
       this.users
         .find(filter)
-        .select("name avatar accentColor chips stats.games createdAt")
+        .select("name avatar accentColor chips stats.rounds createdAt")
         .sort({ chips: -1, _id: 1 })
         .skip(Math.max(0, offset))
         .limit(Math.min(limit, 100))
@@ -998,7 +998,7 @@ export class MongoStore implements Store {
         avatar: doc.avatar,
         accentColor: doc.accentColor,
         chips: doc.chips,
-        games: doc.stats?.games ?? 0,
+        rounds: doc.stats?.rounds ?? 0,
         createdAt: doc.createdAt instanceof Date ? doc.createdAt.getTime() : 0,
       })),
     };

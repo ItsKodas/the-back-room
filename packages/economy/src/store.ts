@@ -280,7 +280,8 @@ export interface AdminUserRow {
   avatar: string | null;
   accentColor: number | null;
   chips: number;
-  games: number;
+  /** Contests won or lost, not every chip movement — see `ProfileStats.rounds`. */
+  rounds: number;
   createdAt: number;
 }
 
@@ -927,7 +928,7 @@ export class MemoryStore implements Store {
         avatar: person.avatar,
         accentColor: person.accentColor,
         chips: person.chips,
-        games: person.stats.games,
+        rounds: person.stats.rounds,
         createdAt: this.joined.get(person.id) ?? 0,
       })),
     };

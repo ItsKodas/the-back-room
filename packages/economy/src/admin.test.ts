@@ -47,12 +47,12 @@ describe("listing players for the admin", () => {
     expect(found.total).toBe(2);
   });
 
-  it("carries games played and when they joined", async () => {
+  it("carries rounds played and when they joined", async () => {
     const store = new MemoryStore();
     const [ada] = await people(store, ["Ada"]);
-    await store.bumpStats(ada.id, { shared: { games: 3 } });
+    await store.bumpStats(ada.id, { shared: { rounds: 3 } });
     const [row] = (await store.listUsers({ query: "", offset: 0, limit: 50 })).rows;
-    expect(row.games).toBe(3);
+    expect(row.rounds).toBe(3);
     expect(row.createdAt).toBeGreaterThan(0);
   });
 });
@@ -111,12 +111,12 @@ describe("resetting players", () => {
     const store = new MemoryStore();
     const [ada] = await people(store, ["Ada"]);
     await store.adjustChips(ada.id, 777);
-    await store.bumpStats(ada.id, { shared: { games: 4, wins: 2 }, game: "greed", add: { farkles: 3 } });
+    await store.bumpStats(ada.id, { shared: { rounds: 4, roundsWon: 2 }, game: "greed", add: { farkles: 3 } });
 
     await store.resetUsers({ target: { ids: [ada.id] }, parts: ["stats"] });
     const after = await store.get(ada.id);
     expect(after?.chips).toBe(STARTING_CHIPS + 777);
-    expect(after?.stats).toEqual({ games: 0, wins: 0, chipsWon: 0, chipsStaked: 0 });
+    expect(after?.stats).toEqual({ rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 });
     expect(after?.byGame).toEqual({});
 
     await store.resetUsers({ target: { ids: [ada.id] }, parts: ["balance"] });

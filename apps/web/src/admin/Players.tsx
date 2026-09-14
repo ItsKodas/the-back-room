@@ -10,7 +10,7 @@ interface Row {
   avatar: string | null;
   accentColor: number | null;
   chips: number;
-  games: number;
+  rounds: number;
   createdAt: number;
 }
 
@@ -128,7 +128,7 @@ export function Players() {
                 <span className="desk__name">{row.name}</span>
                 <span className="desk__chips code__chips">{fmt(row.chips)}</span>
                 <span className="desk__meta">
-                  {fmt(row.games)} games · joined {joined(row.createdAt)}
+                  {fmt(row.rounds)} {row.rounds === 1 ? "round" : "rounds"} · joined {joined(row.createdAt)}
                 </span>
               </li>
             ))}

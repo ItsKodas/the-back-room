@@ -562,7 +562,7 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
      * name is what keeps this assertion about the player this test made,
      * rather than about how many other "Ada"s came before it.
      */
-    it("lists by name prefix with games and a join date", async () => {
+    it("lists by name prefix with rounds and a join date", async () => {
       const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const ada = await store.upsertDiscordUser({
         discordId: `listed-${unique}`,
@@ -570,21 +570,21 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
         avatar: null,
         accentColor: null,
       });
-      await store.bumpStats(ada.id, { shared: { games: 2 } });
+      await store.bumpStats(ada.id, { shared: { rounds: 2 } });
       const found = await store.listUsers({ query: ada.name, offset: 0, limit: 100 });
       const row = found.rows.find((one) => one.id === ada.id);
-      expect(row?.games).toBe(2);
+      expect(row?.rounds).toBe(2);
       expect(row?.createdAt).toBeGreaterThan(0);
     });
 
     it("resets the chosen parts and keeps the player", async () => {
       const ada = await newPlayer();
       await store.adjustChips(ada.id, 500);
-      await store.bumpStats(ada.id, { shared: { wins: 1 }, game: "greed", add: { farkles: 1 } });
+      await store.bumpStats(ada.id, { shared: { roundsWon: 1 }, game: "greed", add: { farkles: 1 } });
       await store.resetUsers({ target: { ids: [ada.id] }, parts: ["stats"] });
       const after = await store.get(ada.id);
       expect(after?.chips).toBe(STARTING_CHIPS + 500);
-      expect(after?.stats.wins).toBe(0);
+      expect(after?.stats.roundsWon).toBe(0);
       expect(after?.byGame).toEqual({});
       expect(after?.discordId).toBe(ada.discordId);
     });
