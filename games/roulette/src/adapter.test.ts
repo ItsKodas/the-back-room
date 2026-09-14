@@ -274,6 +274,57 @@ describe("a roulette table's money", () => {
     expect(watching.deps.record).not.toHaveBeenCalled();
   });
 
+  it("makes a bot pay for the chip it puts down at a for-fun table", () => {
+    /*
+     * A bot plays through the table directly, not through `act`, so nothing
+     * about `act` paying for a chip reaches it. Without its own stake the chip
+     * lands paid for by nobody, and settlement then pays the bot out of the
+     * table's bank as though it had put the chip in.
+     */
+    const game = rouletteAdapter({ pick: () => 0 });
+    const table = game.create("ABCDE", { forFun: true }) as Table;
+    const seat = table.join("b1", "Bot", null);
+    seat.isBot = true;
+    seat.skill = "normal";
+    // A seat that sits down mid-window waits for the next one.
+    table.beginBetting();
+
+    const move = game.botMove?.(table) ?? null;
+    expect(move).not.toBeNull();
+    const purseBefore = table.purseFor("b1");
+    const bankBefore = table.funBank;
+    move?.play();
+
+    const chips = table.staked("b1");
+    expect(chips).toBeGreaterThan(0);
+    expect(purseBefore - table.purseFor("b1")).toBe(chips);
+    expect(table.funBank - bankBefore).toBe(chips);
+  });
+
+  it("gives a bot its chip back when the table refuses it", () => {
+    const game = rouletteAdapter({ pick: () => 0 });
+    const table = game.create("ABCDE", { forFun: true }) as Table;
+    const seat = table.join("b1", "Bot", null);
+    seat.isBot = true;
+    seat.skill = "normal";
+    table.beginBetting();
+
+    const move = game.botMove?.(table) ?? null;
+    expect(move).not.toBeNull();
+    const purseBefore = table.purseFor("b1");
+    const bankBefore = table.funBank;
+    /*
+     * It thought right through last call. Not `closeBetting`: an empty cloth
+     * does not close, it just gives the window another round.
+     */
+    table.deadline = Date.now();
+    move?.play();
+
+    expect(table.staked("b1")).toBe(0);
+    expect(table.purseFor("b1")).toBe(purseBefore);
+    expect(table.funBank).toBe(bankBefore);
+  });
+
   it("waits on its own clock, one phase at a time", () => {
     const game = rouletteAdapter({ pick: () => 1, window: 1_000 });
     const table = game.create("ABCDE", { forFun: true }) as Table;

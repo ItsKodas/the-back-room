@@ -102,6 +102,32 @@ export function rouletteAdapter(
     return true;
   };
 
+  /**
+   * A bot paying for its own chip.
+   *
+   * Synchronous, which is the whole reason it is not `stake` above: `play()`
+   * cannot await, and on this path there is nothing to await. A bot only ever
+   * plays at a for-fun table, where the purse and the bank are both fields on
+   * the table.
+   *
+   * Without it the cloth carries a chip nobody paid for, and settlement then
+   * pays the bot out of the table's bank as though it had.
+   */
+  const stakeFun = (table: Table, seatId: string, chips: number): boolean => {
+    if (table.purseFor(seatId) < chips) {
+      return false;
+    }
+    table.movePurse(seatId, -chips);
+    table.funBank += chips;
+    return true;
+  };
+
+  /** The same movement backwards, for a chip the table then refused. */
+  const refundFun = (table: Table, seatId: string, chips: number): void => {
+    table.funBank -= chips;
+    table.movePurse(seatId, chips);
+  };
+
   /** Chips out of the bank and back to the player. */
   const pay = async (
     table: Table,
@@ -376,10 +402,14 @@ export function rouletteAdapter(
           seatId: seat.id,
           delayMs: thinkingTime(),
           play: () => {
+            if (!stakeFun(table, seat.id, bet.chips)) {
+              return;
+            }
             try {
               table.place(seat.id, bet.spotId, bet.chips);
             } catch {
-              // The window shut while it was thinking. Nothing to do.
+              // The window shut while it was thinking. Give the chips back.
+              refundFun(table, seat.id, bet.chips);
             }
           },
         };
