@@ -382,7 +382,8 @@ Test-first, as before. The tests carrying the weight:
 at the end.
 
 **Web**
-- The rail at desktop width and the grid at 375px.
+- The rail at desktop width and the grid at 375px. These are checked on a real
+  screen rather than in the unit tests, since jsdom does not lay anything out.
 - Pass is absent on a roll passed to you.
 - The ready screen and the countdown.
 - A ready press shows at once and is given up on refusal.
