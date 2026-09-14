@@ -330,12 +330,13 @@
 }
 
 /*
- * The camera going up with the coins.
+ * The felt, and the camera that looks past it at the coins.
  *
- * Not a real camera: the felt takes a scale, a lift and a dimming while the
- * coins are in the air, and comes back as they fall. It reads as a push-in and
- * it costs no layout, which is what keeps it honest at 375px — a cinematic
- * moment that reflowed the table would be a cinematic moment that broke it.
+ * Not a real camera: while the coins are in the air the table around them
+ * drops back, and comes forward again as they land. What drops back and what
+ * stays sharp is set out beside `.tu__felt--away` below. It costs no layout,
+ * which is what keeps it honest at 375px — a cinematic moment that reflowed
+ * the table would be a cinematic moment that broke it.
  *
  * The ring never leaves the frame. Other people's bets are half the reason to
  * watch this table, and a shot that hid them would be a better second and a
@@ -354,13 +355,24 @@
   background: var(--gr-color-felt);
   border-radius: var(--gr-radius-md);
   box-shadow: var(--gr-well);
-  transition:
-    transform var(--flight-ms) var(--flight-ease),
-    filter var(--flight-ms) var(--flight-ease);
+  transition: box-shadow var(--flight-ms) var(--flight-ease);
 }
+/*
+ * The camera, aimed at the coins rather than at the table.
+ *
+ * While the coins are up, everything on the felt that is not a coin drops
+ * back: the kip and the betting spots blur and darken, and the cloth beneath
+ * them dims. The coins do not. They are the one thing on the table worth
+ * reading for those two seconds, and a filter on the felt itself would reach
+ * them too, because a filter applies to everything inside the element it is
+ * set on. So the blur goes on the ring, the coins' own layer is left alone,
+ * and the cloth is dimmed with an inset shadow, which paints beneath every
+ * child rather than over it.
+ *
+ * Still transforms and filters only, never layout, so nothing moves at 375px.
+ */
 .tu__felt--away {
-  transform: scale(0.88) translateY(4%);
-  filter: brightness(0.5) blur(2px);
+  box-shadow: var(--gr-well), inset 0 0 0 100vmax rgb(0 0 0 / 0.38);
 }
 
 /* Where the coins float, laid over the ring rather than beside it — a real
@@ -381,6 +393,13 @@
   justify-items: center;
   gap: var(--gr-space-4);
   width: 100%;
+  transition:
+    transform var(--flight-ms) var(--flight-ease),
+    filter var(--flight-ms) var(--flight-ease);
+}
+.tu__felt--away .tu__ring {
+  transform: scale(0.96);
+  filter: brightness(0.45) blur(3px);
 }
 
 .tu__ring--holding {
@@ -786,11 +805,18 @@
    */
   .tu__felt,
   .tu__felt--away,
+  .tu__ring,
   .tu__kip-art {
     transition: none;
   }
-  .tu__felt--away {
+  /*
+   * The ring still blurs and darkens here, but at once rather than as a
+   * transition, and without shrinking. Dropping back is a change of state, not
+   * a motion, and it is what tells a player the coins are the thing to watch.
+   * The selector repeats the one that set the transform, for the specificity
+   * reason given at the top of this block.
+   */
+  .tu__felt--away .tu__ring {
     transform: none;
-    filter: none;
   }
 }

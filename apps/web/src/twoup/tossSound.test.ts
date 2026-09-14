@@ -18,10 +18,15 @@ const calls = vi.hoisted(() => ({
   tossCoins: [] as unknown[],
   stopped: 0,
   played: [] as string[],
+  /** Set to make the next toss fail the way a browser's audio engine can. */
+  explode: false,
 }));
 vi.mock("../game/audio.js", () => ({
   tossCoins: (options: unknown) => {
     calls.tossCoins.push(options);
+    if (calls.explode) {
+      throw new DOMException("setValueAtTime overlaps setValueCurveAtTime", "NotSupportedError");
+    }
     return () => {
       calls.stopped += 1;
     };
@@ -37,6 +42,7 @@ beforeEach(() => {
   calls.tossCoins.length = 0;
   calls.stopped = 0;
   calls.played.length = 0;
+  calls.explode = false;
 });
 
 describe("useTossSound", () => {
@@ -100,5 +106,19 @@ describe("useCalledSound", () => {
     rerender({ outcome: null, flying: true });
     rerender({ outcome: "heads", flying: false });
     expect(calls.played).toEqual(["headsUp", "headsUp"]);
+  });
+});
+
+describe("a toss whose sound fails", () => {
+  it("costs the table its sound, never the table itself", () => {
+    /*
+     * The app has no error boundary, so an exception out of an effect unmounts
+     * the whole page. That is how an audio engine refusing one scheduled event
+     * made a live table vanish mid-toss. Sound is the one part of a toss the
+     * game can do without; losing it must not lose the felt.
+     */
+    calls.explode = true;
+    expect(() => renderHook(() => useTossSound(true, 1_500, shape))).not.toThrow();
+    expect(calls.tossCoins).toHaveLength(1);
   });
 });

@@ -1469,22 +1469,28 @@ export function tossCoins(options: {
       }
       const level = audio.createGain();
       level.gain.setValueCurveAtTime(curve, now, duration);
-      // Damped rather than left to hold at the curve's last value: a real
-      // strike's ring is cut short by the impact, not switched off later.
-      const DAMP_AFTER = 0.005;
       /*
-       * Strictly after the curve, never on its edge. A curve owns
-       * [start, start + duration] and any automation inside that span throws
-       * NotSupportedError — an uncaught one, which takes the page with it.
-       * Scheduling at exactly `now + duration` lands on the boundary and is a
-       * coin toss in itself: it threw on the second voice and not the first,
-       * because floating point put one just inside the span.
+       * The damp lives on a node of its own, and never on `level`.
+       *
+       * A curve owns [start, start + duration] on its parameter, and any other
+       * automation inside that span throws NotSupportedError, uncaught, which
+       * takes the whole felt down mid-toss. Worse, a curve whose start has
+       * already passed is clamped forward to currentTime, so on a busy frame
+       * the curve really begins later than the `now` captured at the top of
+       * this function. A damp worked out from that `now` can then land inside
+       * it however much margin it is given: an earlier version added 5ms and
+       * still crashed whenever building the toss took longer than that.
+       *
+       * On its own parameter the damp cannot overlap anything, whatever time
+       * it is by now. The ring is still cut short by the impact rather than
+       * left to hold at the curve's last value.
        */
-      level.gain.setValueAtTime(curve[points - 1] ?? 0, now + duration + DAMP_AFTER);
-      level.gain.exponentialRampToValueAtTime(0.0001, now + duration + DAMP_AFTER + 0.03);
+      const cut = audio.createGain();
+      cut.gain.setValueAtTime(1, now + duration);
+      cut.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.03);
       const panner = audio.createStereoPanner();
       panner.pan.value = voice.pan;
-      level.connect(panner).connect(bus);
+      level.connect(cut).connect(panner).connect(bus);
 
       ratios.forEach((ratio, partial) => {
         const osc = audio.createOscillator();
