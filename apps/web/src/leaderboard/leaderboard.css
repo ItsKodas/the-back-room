@@ -191,8 +191,9 @@
 .standings {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: var(--gr-space-2);
-  padding: var(--gr-space-3);
+  padding: var(--gr-space-2) var(--gr-space-3);
   min-height: 44px;
   border: var(--gr-edge-soft);
   border-radius: var(--gr-radius-sm);
@@ -217,9 +218,19 @@
   color: var(--gr-color-ink-dim);
 }
 
-.standings__top {
+.standings__head {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--gr-space-2);
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+/* Three across at every width: a name is truncated before a place wraps. */
+.standings__top {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--gr-space-2);
   list-style: none;
   margin: 0;
@@ -229,16 +240,22 @@
 .standings__place {
   display: flex;
   align-items: center;
-  gap: var(--gr-space-2);
+  gap: var(--gr-space-1);
   min-width: 0;
 }
 
 .standings__place b {
-  width: 1.2rem;
   flex: none;
   font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
   color: var(--gr-color-ink-dim);
-  text-align: right;
+}
+
+.standings__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
 }
 
 .standings__face {
@@ -256,23 +273,19 @@
 }
 
 .standings__name {
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--gr-text-sm);
 }
 
 .standings__chips {
-  flex: none;
   font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
   color: var(--gr-color-chip-hi);
 }
 
 .standings__you {
-  margin: 0;
-  padding-top: var(--gr-space-2);
-  border-top: 1px solid var(--gr-color-smoke-lit);
-  font-size: var(--gr-text-sm);
-  color: var(--gr-color-ink-dim);
+  flex: none;
+  white-space: nowrap;
 }

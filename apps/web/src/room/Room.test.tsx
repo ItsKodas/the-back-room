@@ -75,7 +75,7 @@ function show() {
 }
 
 describe("the room's groups", () => {
-  it("puts a bar game in its own group, between the machines and the back", async () => {
+  it("keeps the games you sit at in order: tables, machines, then the back", async () => {
     stubFetch();
     show();
 
@@ -83,14 +83,26 @@ describe("the room's groups", () => {
       expect(screen.getByText("In the back")).toBeTruthy();
     });
 
-    const labels = screen.getAllByText(
-      /^(At the tables|Against the wall|At the bar|In the back)$/,
-    );
+    const labels = screen.getAllByText(/^(At the tables|Against the wall|In the back)$/);
     expect(labels.map((node) => node.textContent)).toEqual([
       "At the tables",
       "Against the wall",
-      "At the bar",
       "In the back",
     ]);
+  });
+
+  it("puts the board and the bar in a strip above the tables, not in a section of their own", async () => {
+    stubFetch();
+    const { container } = show();
+
+    const jar = await screen.findByRole("link", { name: /The Tip Jar/ });
+    const front = container.querySelector(".room__front");
+    expect(front?.contains(jar)).toBe(true);
+    expect(front?.querySelector(".standings")).toBeTruthy();
+    // A tile or a cabinet is a game you sit down at; the jar is neither.
+    expect(jar.classList.contains("cabinet")).toBe(false);
+
+    const tables = screen.getByText("At the tables");
+    expect(front?.compareDocumentPosition(tables)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 });

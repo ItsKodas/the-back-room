@@ -125,7 +125,7 @@ function TailDevice() {
  * real coin's field is stamped lower than both — without it the device looks
  * pasted on rather than struck into the metal.
  */
-function CoinFace({ tail }: { tail: boolean }) {
+export function CoinFace({ tail }: { tail: boolean }) {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
       <circle cx="50" cy="50" r="49" fill="var(--tu-copper)" />

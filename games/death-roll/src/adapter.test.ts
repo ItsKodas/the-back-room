@@ -392,6 +392,12 @@ describe("settling", () => {
     expect(sum(gave.mock.calls)).toBe(1_550);
     const record = finished.mock.calls[0]?.[0] as { players: { net: number }[] };
     expect(record.players.reduce((total, one) => total + one.net, 0)).toBe(0);
+
+    // A whole game is one round on the board for each player, however many
+    // rounds of the number it took, and exactly one of them won it.
+    const shared = (deps.record as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[1]?.shared);
+    expect(shared.map((one) => one?.rounds)).toEqual([1, 1, 1]);
+    expect(shared.filter((one) => one?.roundsWon === 1)).toHaveLength(1);
   });
 
   it("records no game and no stats as though the pot were paid, when paying the winner fails", async () => {

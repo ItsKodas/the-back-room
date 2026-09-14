@@ -89,7 +89,7 @@ function signedIn(): Account {
       avatar: null,
       accentColor: null,
       chips: 5_000,
-      stats: { games: 0, wins: 0, chipsWon: 0 },
+      stats: { rounds: 0, roundsWon: 0, chipsWon: 0 },
       byGame: {},
     },
     available: true,

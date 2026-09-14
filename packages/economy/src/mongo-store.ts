@@ -41,8 +41,8 @@ interface UserDoc {
 
 const statsSchema = new mongoose.Schema<ProfileStats>(
   {
-    games: { type: Number, default: 0 },
-    wins: { type: Number, default: 0 },
+    rounds: { type: Number, default: 0 },
+    roundsWon: { type: Number, default: 0 },
     chipsWon: { type: Number, default: 0 },
     chipsStaked: { type: Number, default: 0 },
   },
@@ -88,16 +88,18 @@ const userSchema = new mongoose.Schema<UserDoc>(
 userSchema.index({ chips: -1 });
 userSchema.index({ "stats.chipsWon": -1 });
 userSchema.index({ "stats.chipsStaked": -1 });
-userSchema.index({ "stats.games": -1 });
-userSchema.index({ "stats.wins": -1 });
+userSchema.index({ "stats.rounds": -1 });
+userSchema.index({ "stats.roundsWon": -1 });
 
 /** Where each of the board's columns actually lives on a user document. */
 const LEADER_FIELDS: Record<LeaderSort, string> = {
   chips: "chips",
   net: "stats.chipsWon",
   staked: "stats.chipsStaked",
-  games: "stats.games",
-  wins: "stats.wins",
+  // The keys stay `games` and `wins` so a link to the board keeps working; the
+  // figures behind them are rounds, which a slot spin does not count as.
+  games: "stats.rounds",
+  wins: "stats.roundsWon",
 };
 
 const gameSchema = new mongoose.Schema<GameRecord>(
@@ -340,8 +342,8 @@ function toProfile(doc: UserDoc): Profile {
      * back through it by accident.
      */
     stats: {
-      games: doc.stats?.games ?? 0,
-      wins: doc.stats?.wins ?? 0,
+      rounds: doc.stats?.rounds ?? 0,
+      roundsWon: doc.stats?.roundsWon ?? 0,
       chipsWon: doc.stats?.chipsWon ?? 0,
       chipsStaked: doc.stats?.chipsStaked ?? 0,
     },

@@ -82,7 +82,7 @@ describe("the leaderboard route", () => {
     const store = new MemoryStore();
     const ada = await player(store, "d1", "Ada");
     const bram = await player(store, "d2", "Bram");
-    await store.bumpStats(bram.id, { shared: { games: 1, wins: 0, chipsWon: -900, chipsStaked: 900 } });
+    await store.bumpStats(bram.id, { shared: { rounds: 1, roundsWon: 0, chipsWon: -900, chipsStaked: 900 } });
     const url = await start(store, ada.id);
     const answer = await get(`${url}/api/leaderboard?sort=staked`);
     const rows = answer.body["rows"] as Array<{ id: string }>;

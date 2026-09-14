@@ -171,7 +171,10 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
     await migrated.close();
 
     expect(person?.byGame["greed"]).toEqual({ bestTurn: 3050, farkles: 62, hotDice: 11 });
-    expect(person?.stats).toEqual({ games: 9, wins: 4, chipsWon: 1200, chipsStaked: 0 });
+    // The old games/wins pair is left on the document and read by nothing: it
+    // had slot spins mixed into it that could not be separated back out, so a
+    // round count starts from nothing rather than inheriting them.
+    expect(person?.stats).toEqual({ rounds: 0, roundsWon: 0, chipsWon: 1200, chipsStaked: 0 });
     expect(person?.chips).toBe(7000);
   });
 
@@ -412,13 +415,29 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
       await store.adjustChips(rich.id, 5_000);
       await store.adjustChips(poor.id, -5_000);
 
+      /*
+       * The database is shared and never emptied, so "rich" is not the top of
+       * the board: every earlier run left a player on exactly the same figure,
+       * the tiebreak is the older _id, and the second run on any database
+       * failed. What holds whatever else is in there is that the page is the
+       * top of it, and that these three rank in the order they were paid.
+       */
+      const richChips = (await store.get(rich.id))?.chips ?? 0;
       const board = await store.leaderboard({ sort: "chips", limit: 1, you: poor.id });
       expect(board.rows).toHaveLength(1);
-      expect(board.rows[0]?.id).toBe(rich.id);
+      expect(board.rows[0]?.chips).toBeGreaterThanOrEqual(richChips);
       expect(board.you?.row.id).toBe(poor.id);
-      // Two players hold more than this one, whatever else is in the database.
-      expect(board.you?.rank).toBeGreaterThanOrEqual(3);
-      expect(middle.id).not.toBe(rich.id);
+
+      const rankOf = async (id: string) =>
+        (await store.leaderboard({ sort: "chips", limit: 1, you: id })).you?.rank ?? 0;
+      const [first, second, third] = await Promise.all([
+        rankOf(rich.id),
+        rankOf(middle.id),
+        rankOf(poor.id),
+      ]);
+      expect(first).toBeGreaterThan(0);
+      expect(second).toBeGreaterThan(first);
+      expect(third).toBeGreaterThan(second);
     });
   });
 
