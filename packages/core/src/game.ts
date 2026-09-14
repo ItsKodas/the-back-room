@@ -1,4 +1,5 @@
 import type { GameListing } from "./catalogue.js";
+import type { Stake } from "./escrow.js";
 import type { Seat, SeatIdentity, TableStatus } from "./types.js";
 
 /**
@@ -134,6 +135,20 @@ export interface GameAdapter<T extends PlayTable = PlayTable> {
    */
   // biome-ignore lint/suspicious/noConfusingVoidType: void is what lets a game that returns nothing satisfy this at all — boolean is the opt-in
   payOut?(table: T, deps: GameDeps): Promise<void | boolean>;
+
+  /**
+   * Calls off the hand in progress and gives back every chip committed to it.
+   *
+   * For a table that is closing — nobody left, the server stopping, an admin
+   * closing it. The room settles a round that is already decided before it
+   * calls this, so what is refunded here is only ever a round with no result:
+   * void never rewrites an outcome. Every chip goes back to the account it
+   * came from, through the bank it went into, and a banked table leaves the
+   * bank's book.
+   *
+   * Returns what it refunded.
+   */
+  void?(table: T, deps: GameDeps): Promise<Stake[]>;
 
   /**
    * The seats that just won, asked once a table is settled.

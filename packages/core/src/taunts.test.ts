@@ -185,4 +185,17 @@ describe("Taunts", () => {
       expect(taunts.resolve("ABCDE", ["seat-b"])).toEqual({ paid: [], burned: [] });
     });
   });
+
+  describe("a table called off before anybody won", () => {
+    it("hands every taunt back and empties the pool", () => {
+      const taunts = new Taunts();
+      const one = { id: "t1", emoteId: "e", chips: 40, fromSeatId: "a", fromUserId: "u1", fromName: "Ada", atSeatId: "b", atUserId: "u2", atName: "Bo", at: 0 };
+      const two = { ...one, id: "t2", chips: 60 };
+      taunts.add("ROOM1", one);
+      taunts.add("ROOM1", two);
+      expect(taunts.refund("ROOM1")).toEqual([one, two]);
+      expect(taunts.at("ROOM1")).toEqual([]);
+      expect(taunts.refund("ROOM1")).toEqual([]);
+    });
+  });
 });
