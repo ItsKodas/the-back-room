@@ -458,8 +458,8 @@ export function rouletteAdapter(
           await pay(table, seat, paid.back, deps);
           await deps.record(seat.userId, {
             shared: {
-              games: 1,
-              wins: paid.back > paid.staked ? 1 : 0,
+              rounds: 1,
+              roundsWon: paid.back > paid.staked ? 1 : 0,
               chipsWon: paid.back - paid.staked,
               chipsStaked: paid.staked,
             },

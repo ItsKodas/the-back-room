@@ -8,13 +8,13 @@ const row = (id: string, chips: number, stats: Partial<BoardRow["stats"]> = {}):
   avatar: null,
   accentColor: null,
   chips,
-  stats: { games: 0, wins: 0, chipsWon: 0, chipsStaked: 0, ...stats },
+  stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0, ...stats },
 });
 
 describe("what a board says", () => {
   it("calls nobody's win rate a nothing-over-nothing", () => {
-    expect(winRate({ games: 0, wins: 0, chipsWon: 0, chipsStaked: 0 })).toBe(0);
-    expect(winRate({ games: 4, wins: 1, chipsWon: 0, chipsStaked: 0 })).toBe(25);
+    expect(winRate({ rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 })).toBe(0);
+    expect(winRate({ rounds: 4, roundsWon: 1, chipsWon: 0, chipsStaked: 0 })).toBe(25);
   });
 
   it("gives everybody on the same figure the same rank, and skips after a tie", () => {

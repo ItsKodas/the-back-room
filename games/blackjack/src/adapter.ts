@@ -613,8 +613,8 @@ export function blackjackAdapter(
           }
           await deps.record(seat.userId, {
             shared: {
-              games: 1,
-              wins: seat.back > seat.out ? 1 : 0,
+              rounds: 1,
+              roundsWon: seat.back > seat.out ? 1 : 0,
               chipsWon: seat.back - seat.out,
               chipsStaked: seat.out,
             },

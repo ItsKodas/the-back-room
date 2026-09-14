@@ -93,8 +93,8 @@ function Signed({
   /** The balance after chips have moved, so the purse follows without a reload. */
   onChips: (chips: number) => void;
 }) {
-  const { games, wins, chipsWon } = profile.stats;
-  const rate = games === 0 ? 0 : Math.round((wins / games) * 100);
+  const { rounds, roundsWon, chipsWon } = profile.stats;
+  const rate = rounds === 0 ? 0 : Math.round((roundsWon / rounds) * 100);
 
   return (
     <div className="profile">
@@ -139,8 +139,8 @@ function Signed({
       <div className="profile__figures">
         {/* Shared first: these are the four things every game can answer. */}
         <div className="figures">
-          <Figure value={fmt(games)} label="games played" />
-          <Figure value={fmt(wins)} label="won" />
+          <Figure value={fmt(rounds)} label="games played" />
+          <Figure value={fmt(roundsWon)} label="won" />
           <Figure value={`${chipsWon >= 0 ? "+" : ""}${fmt(chipsWon)}`} label="chips won" money />
           <Figure value={`${rate}%`} label="win rate" />
         </div>

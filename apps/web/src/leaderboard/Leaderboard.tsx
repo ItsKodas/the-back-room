@@ -110,8 +110,8 @@ function BoardTable({
       )}
 
       <p className="board__note">
-        Chips staked has only been counted since the board opened, so it starts at nothing for
-        everybody.
+        Chips staked, and wins and losses, have only been counted since the board opened, so they
+        start at nothing for everybody. Slot spins count toward chips but not toward a W–L.
       </p>
     </div>
   );
@@ -119,7 +119,7 @@ function BoardTable({
 
 function Row({ row, rank, mine }: { row: BoardRow; rank: number; mine: boolean }) {
   const rate = winRate(row.stats);
-  const losses = row.stats.games - row.stats.wins;
+  const losses = row.stats.rounds - row.stats.roundsWon;
 
   return (
     <div className={`board__row${mine ? " board__row--you" : ""}`} data-id={row.id}>
@@ -141,7 +141,7 @@ function Row({ row, rank, mine }: { row: BoardRow; rank: number; mine: boolean }
         </span>
         <span className="board__figure">
           <b>
-            {row.stats.wins}–{losses}
+            {row.stats.roundsWon}–{losses}
           </b>
           <small>W–L</small>
         </span>

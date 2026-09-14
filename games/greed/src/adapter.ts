@@ -181,8 +181,8 @@ export function greedAdapter(
       }
       await deps.record(seat.userId, {
         shared: {
-          games: 1,
-          wins: seat.won ? 1 : 0,
+          rounds: 1,
+          roundsWon: seat.won ? 1 : 0,
           chipsWon: seat.got - buyIn,
           chipsStaked: buyIn,
         },

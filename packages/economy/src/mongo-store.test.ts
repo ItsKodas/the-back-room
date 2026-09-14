@@ -171,7 +171,10 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
     await migrated.close();
 
     expect(person?.byGame["greed"]).toEqual({ bestTurn: 3050, farkles: 62, hotDice: 11 });
-    expect(person?.stats).toEqual({ games: 9, wins: 4, chipsWon: 1200, chipsStaked: 0 });
+    // The old games/wins pair is left on the document and read by nothing: it
+    // had slot spins mixed into it that could not be separated back out, so a
+    // round count starts from nothing rather than inheriting them.
+    expect(person?.stats).toEqual({ rounds: 0, roundsWon: 0, chipsWon: 1200, chipsStaked: 0 });
     expect(person?.chips).toBe(7000);
   });
 

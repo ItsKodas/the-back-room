@@ -577,7 +577,7 @@ describe("the machine played for nothing", () => {
     await play(client, 250);
     const profile = await store.get(userId);
     expect(profile?.byGame["slots"]).toBeUndefined();
-    expect(profile?.stats.games).toBe(0);
+    expect(profile?.stats.rounds).toBe(0);
   });
 });
 
@@ -844,6 +844,25 @@ describe("the free spins", () => {
     // The triggering spin staked once; the free spin it paid for staked nothing.
     const profile = await store.get(userId);
     expect(profile?.stats.chipsStaked).toBe(stake);
+  });
+
+  it("puts its chips on the record but never a round won or lost", async () => {
+    /*
+     * A machine is played a spin every couple of seconds, so counting spins as
+     * rounds buried every hand a player had ever played under tens of thousands
+     * of "losses" — a W–L of 1,203–32,367. The money is real and counts; the
+     * spin is not a contest, so it is not a round.
+     */
+    const stake = 10;
+    const { client, store, userId } = await openMachine({ bank: 5_000_000, chips: 100_000 });
+    for (let i = 0; i < 5; i += 1) {
+      expect((await spin(client, stake)).ok).toBe(true);
+    }
+
+    const profile = await store.get(userId);
+    expect(profile?.stats.rounds).toBe(0);
+    expect(profile?.stats.roundsWon).toBe(0);
+    expect(profile?.stats.chipsStaked).toBe(stake * 5);
   });
 
   it("counts them down and stops", async () => {
