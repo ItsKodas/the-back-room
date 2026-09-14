@@ -156,10 +156,16 @@ export function deathRollAdapter(
      * finds nobody gone, with nothing awaited between that pass and the deal
      * below — otherwise a ghost could still reach the turn order, and a ghost
      * that won would be a pot nobody could be paid.
+     *
+     * Gone includes disconnected. Leave at this table only disconnects, and
+     * the seat lingers until the room reaps it, so a seat still being there is
+     * not the player still being there — the same test the first pass uses.
      */
     let here = funded;
     for (;;) {
-      const stillHere = here.filter((seat) => table.seats.some((one) => one.id === seat.id));
+      const stillHere = here.filter((seat) =>
+        table.seats.some((one) => one.id === seat.id && one.connected),
+      );
       if (stillHere.length === here.length) {
         here = stillHere;
         break;
@@ -268,6 +274,17 @@ export function deathRollAdapter(
       }
       try {
         return await antesIn(table, wanted, deps);
+      } catch (error) {
+        /*
+         * Every throw out of `antesIn` comes after `failDeal`, so the table has
+         * already changed — readies stood down, a reason on the felt — and the
+         * room only sends that when this answers true. Answered here rather
+         * than by the room rebroadcasting on any payOut failure: the banked
+         * games read the store in payOut on every broadcast, and a store that
+         * stayed down would turn that into a loop.
+         */
+        console.error(`death roll ${table.code}: the deal fell through`, error);
+        return true;
       } finally {
         table.draining = false;
       }
@@ -435,7 +452,10 @@ export function deathRollAdapter(
       if (table.pending || table.draining) {
         return null;
       }
-      const seated = table.seats.map((seat) => seat.id);
+      // Only the players still here: a seat held after Leave is not ready and
+      // is not coming back for this deal, so it must not hold the rest to the
+      // countdown.
+      const seated = table.present();
       const now = Date.now();
       if (seated.length >= 2 && table.readiness.count(seated) === seated.length) {
         return { key: "deal", ms: 0, run: () => table.askForGame(Date.now()) };

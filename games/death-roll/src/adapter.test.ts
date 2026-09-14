@@ -80,22 +80,35 @@ describe("dealing a game", () => {
     expect(table.view(null).readyCount).toBe(0);
   });
 
-  it("hands back everything taken when the store fails partway through", async () => {
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game, "ada", "bob", "cat");
-    const { deps, gave } = spy(async (userId) => {
-      if (userId === "u-cat") {
-        throw new Error("store down");
-      }
-      return true;
-    });
+  it("hands back everything taken when the store fails partway through, and says the table changed", async () => {
+    /*
+     * Answered rather than thrown: the room only sends the state again when
+     * payOut says it moved something, so a throw here left every screen on
+     * a deal that had already fallen through — ready still lit, no reason.
+     */
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const game = deathRollAdapter({ roll: () => 500 });
+      const table = seated(game, "ada", "bob", "cat");
+      const { deps, gave } = spy(async (userId) => {
+        if (userId === "u-cat") {
+          throw new Error("store down");
+        }
+        return true;
+      });
 
-    await expect(deal(game, table, deps)).rejects.toThrow("store down");
+      expect(await deal(game, table, deps)).toBe(true);
 
-    expect(table.game).toBeNull();
-    expect(gave).toHaveBeenCalledWith("u-ada", 500);
-    expect(gave).toHaveBeenCalledWith("u-bob", 500);
-    expect(table.draining).toBe(false);
+      expect(table.game).toBeNull();
+      expect(gave).toHaveBeenCalledWith("u-ada", 500);
+      expect(gave).toHaveBeenCalledWith("u-bob", 500);
+      expect(table.draining).toBe(false);
+      expect(table.view(null).lastEvent).toMatch(/could not take the antes/);
+      expect(table.view(null).readyCount).toBe(0);
+      expect(logged).toHaveBeenCalled();
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("refunds a player who stood up while the antes were being taken, and deals without them", async () => {
@@ -220,6 +233,75 @@ describe("disconnecting", () => {
     expect(table.view(null).seats.find((seat) => seat.id === "cat")?.short).toBe(false);
   });
 
+  it("refunds and does not deal a funded player who presses Leave while a later ante is being taken", async () => {
+    /*
+     * Leave only disconnects at this table — the room reaps the seat later —
+     * so a seat that is still there is not the same as a player who is.
+     */
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, gave } = spy(async (userId) => {
+      if (userId === "u-cat") {
+        table.disconnect("ada");
+      }
+      return true;
+    });
+
+    await deal(game, table, deps);
+
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(table.game?.players).toEqual(["bob", "cat"]);
+    expect(table.view(null).pot).toBe(1_000);
+  });
+
+  it("refunds everybody when a Leave mid-deal leaves fewer than two funded", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
+    const { deps, took, gave } = spy(async (userId) => {
+      if (userId === "u-bob") {
+        table.disconnect("ada");
+      }
+      return true;
+    });
+
+    await deal(game, table, deps);
+
+    expect(table.game).toBeNull();
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(gave).toHaveBeenCalledWith("u-bob", 500);
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls));
+  });
+
+  it("deals at once when everybody still here is ready, rather than waiting out the countdown on a player who left", () => {
+    const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+    const table = seated(game, "ada", "bob", "cat");
+
+    table.disconnect("cat");
+
+    const pause = game.pause?.(table);
+    expect(pause).toMatchObject({ key: "deal", ms: 0 });
+    pause?.run();
+    expect(table.takePending()).toEqual(["ada", "bob"]);
+  });
+
+  it("still runs a countdown if a player who left comes back before the deal", () => {
+    // Guards the change above: with the leaver no longer counted, nothing is
+    // counting down, so their return has to start one or the table stalls.
+    const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+    const table = game.create("ABCDE", { buyIn: 500, maxSeats: 6 }) as Table;
+    for (const name of ["ada", "bob", "cat"]) {
+      table.join(name, name, who(`u-${name}`));
+    }
+    table.disconnect("cat");
+    // Everybody present is ready, so no countdown starts while cat is away.
+    table.setReady("ada", true, Date.now());
+    table.setReady("bob", true, Date.now());
+
+    table.reconnect("cat");
+
+    expect(game.pause?.(table)?.key).toBe("countdown");
+  });
+
   it("asks for nobody once the countdown ends, if a disconnect leaves fewer than two still ready", () => {
     const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
     const table = game.create("ABCDE", { buyIn: 500, maxSeats: 6 }) as Table;
@@ -310,6 +392,29 @@ describe("settling", () => {
     expect(sum(gave.mock.calls)).toBe(1_550);
     const record = finished.mock.calls[0]?.[0] as { players: { net: number }[] };
     expect(record.players.reduce((total, one) => total + one.net, 0)).toBe(0);
+  });
+
+  it("records no game and no stats as though the pot were paid, when paying the winner fails", async () => {
+    const game = deathRollAdapter({ roll: () => 1 });
+    const table = seated(game, "ada", "bob");
+    const record = vi.fn(async () => {});
+    const finished = vi.fn(async () => {});
+    const deps = {
+      take: vi.fn(async () => true),
+      give: vi.fn(async () => {
+        throw new Error("store down");
+      }),
+      record,
+      finished,
+    } as unknown as GameDeps;
+    await deal(game, table, deps);
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
+    expect(game.isSettled(table)).toBe(true);
+
+    await expect(game.settle(table, deps)).rejects.toThrow("store down");
+
+    expect(record).not.toHaveBeenCalled();
+    expect(finished).not.toHaveBeenCalled();
   });
 
   it("never touches an account at a table playing for nothing, over a whole game", async () => {

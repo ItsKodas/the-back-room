@@ -165,6 +165,15 @@ export class Table implements PlayTable {
   }
 
   /**
+   * The seats readiness is counted against: everybody seated who is still
+   * connected. Leave only disconnects here, and a held seat that still
+   * counted would keep "everybody ready" from ever being true.
+   */
+  present(): string[] {
+    return this.seats.filter((seat) => seat.connected).map((seat) => seat.id);
+  }
+
+  /**
    * A seat at the table.
    *
    * A chips table insists on knowing who you are; a for-fun one does not. And
@@ -175,7 +184,7 @@ export class Table implements PlayTable {
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
     seat.waiting = this.game !== null;
-    this.readiness.sync(this.seatIds(), Date.now());
+    this.readiness.sync(this.present(), Date.now());
     return seat;
   }
 
@@ -193,7 +202,7 @@ export class Table implements PlayTable {
     }
     const seat = this.seating.addBot(id, name, skill);
     seat.waiting = this.game !== null;
-    this.readiness.set(id, true, this.seatIds(), Date.now());
+    this.readiness.set(id, true, this.present(), Date.now());
     return seat;
   }
 
@@ -218,7 +227,7 @@ export class Table implements PlayTable {
     this.seating.remove(seatId);
     this.purses.delete(seatId);
     this.shorts.delete(seatId);
-    this.readiness.drop(seatId, this.seatIds(), Date.now());
+    this.readiness.drop(seatId, this.present(), Date.now());
   }
 
   disconnect(seatId: string): void {
@@ -230,7 +239,7 @@ export class Table implements PlayTable {
      * anted by the very next countdown or all-ready deal.
      */
     if (this.game === null) {
-      this.readiness.set(seatId, false, this.seatIds(), Date.now());
+      this.readiness.set(seatId, false, this.present(), Date.now());
     }
   }
 
@@ -238,7 +247,16 @@ export class Table implements PlayTable {
     // Coming back cancels a held removal: a player on a bad line should not be
     // stood up at the end of a game they are still playing.
     this.leaving.delete(seatId);
-    return this.seating.reconnect(seatId);
+    const seat = this.seating.reconnect(seatId);
+    /*
+     * Readiness is counted only over players present, so while they were gone
+     * the rest may have been "everybody ready" with no countdown running. Their
+     * return makes that untrue, and without a sync nothing would deal.
+     */
+    if (this.game === null) {
+      this.readiness.sync(this.present(), Date.now());
+    }
+    return seat;
   }
 
   watch(socketId: string): void {
@@ -276,7 +294,7 @@ export class Table implements PlayTable {
     if (seat.isBot) {
       return;
     }
-    this.readiness.set(seatId, ready, this.seatIds(), now);
+    this.readiness.set(seatId, ready, this.present(), now);
   }
 
   get pending(): boolean {
@@ -294,7 +312,7 @@ export class Table implements PlayTable {
     if (this.wanted !== null || this.draining || this.game !== null) {
       return;
     }
-    const ready = this.readiness.dealable(this.seatIds(), now);
+    const ready = this.readiness.dealable(this.present(), now);
     if (ready !== null) {
       this.wanted = ready;
     }
@@ -320,7 +338,7 @@ export class Table implements PlayTable {
     this.shorts.clear();
     for (const seatId of seatIds) {
       this.shorts.add(seatId);
-      this.readiness.set(seatId, false, this.seatIds(), Date.now());
+      this.readiness.set(seatId, false, this.present(), Date.now());
     }
     if (seatIds.length > 0) {
       const names = seatIds.map((seatId) => this.seating.find(seatId)?.name ?? "Somebody");
@@ -342,7 +360,7 @@ export class Table implements PlayTable {
   }
 
   private readyBots(): void {
-    const seated = this.seatIds();
+    const seated = this.present();
     for (const seat of this.seats) {
       if (seat.isBot) {
         this.readiness.set(seat.id, true, seated, Date.now());
@@ -523,7 +541,7 @@ export class Table implements PlayTable {
       lastOut: round?.outId ?? null,
       winnerIds: winner === null ? [] : [winner],
       countdownEndsAt: game === null ? this.readiness.countdownEndsAt : null,
-      readyCount: game === null ? this.readiness.count(seated) : 0,
+      readyCount: game === null ? this.readiness.count(this.present()) : 0,
       waitingFor: game === null && seated.length < 2 ? "players" : null,
       lastEvent: this.lastEvent,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,

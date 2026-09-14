@@ -4,16 +4,16 @@ import type { TableView } from "@backroom/game-death-roll";
 import type { Ack, ClientToServer, ServerToClient } from "@backroom/shared";
 import type { Socket } from "socket.io-client";
 import { io as connect } from "socket.io-client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
 
 /**
- * A whole duel, over two sockets, with the balances checked at both ends.
+ * A whole game, over three sockets, with the balances checked at both ends.
  *
  * The unit tests prove the arithmetic; this proves the wiring — that a table
- * of this game can actually be opened, that the antes leave the two accounts,
- * and that everything taken comes back to one of them.
+ * of this game can actually be opened, that the antes leave every account
+ * dealt in, and that everything taken comes back to one of them.
  */
 
 /*
@@ -217,7 +217,7 @@ describe("a death roll table over sockets", () => {
     }
   }, 20_000);
 
-  it("takes nothing from anybody while nobody is ready", async () => {
+  it("takes nothing from anybody while nobody is ready, though the same table deals as soon as both are", async () => {
     const { store, port, ids } = await startRoom(["Ada", "Bo"]);
     const host = await client(port);
     const ack = await open_(host, "Ada", { buyIn: 500 });
@@ -228,12 +228,57 @@ describe("a death roll table over sockets", () => {
     await join(bo, "Bo", ack.code);
     await stateWhere(host, (view) => view.seats.length === 2);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    /*
+     * The wait is only meaningful if a table that could deal would have dealt
+     * inside it — so the second half of this test presses ready and requires
+     * the deal within the same span. Two seated and nobody ready runs exactly
+     * the path an all-ready table deals through, with a zero-length pause, so
+     * a table that stopped consulting readiness fails the first half.
+     */
+    const WINDOW_MS = 1_000;
+    await new Promise((resolve) => setTimeout(resolve, WINDOW_MS));
 
     expect((await store.get(ids[0] as string))?.chips).toBe(STARTING_CHIPS);
     expect((await store.get(ids[1] as string))?.chips).toBe(STARTING_CHIPS);
-    expect(host.latest?.phase).toBe("waiting");
-    expect(host.latest?.pot).toBe(0);
+    expect(host.seen.every((view) => view.phase === "waiting" && view.pot === 0)).toBe(true);
+
+    await Promise.all([ready(host), ready(bo)]);
+    const playing = await stateWhere(host, (view) => view.phase === "playing", WINDOW_MS);
+    expect(playing.pot).toBe(1_000);
+  });
+
+  it("tells every screen a deal fell through when the store fails while taking the antes", async () => {
+    const { store, port, ids } = await startRoom(["Ada", "Bo"]);
+    const host = await client(port);
+    const ack = await open_(host, "Ada", { buyIn: 500 });
+    if (!ack.ok) {
+      throw new Error("create failed");
+    }
+    const bo = await client(port);
+    await join(bo, "Bo", ack.code);
+    await stateWhere(bo, (view) => view.seats.length === 2);
+
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    store.adjustChips = async () => {
+      throw new Error("store down");
+    };
+    try {
+      await Promise.all([ready(host), ready(bo)]);
+
+      // Waited for as an event rather than a sleep: without the rebroadcast
+      // this state is never sent at all.
+      const failed = await stateWhere(
+        bo,
+        (view) => /could not take the antes/.test(view.lastEvent ?? ""),
+      );
+      expect(failed.phase).toBe("waiting");
+      expect(failed.readyCount).toBe(0);
+      expect(failed.seats.every((seat) => !seat.ready)).toBe(true);
+    } finally {
+      logged.mockRestore();
+    }
+    expect((await store.get(ids[0] as string))?.chips).toBe(STARTING_CHIPS);
+    expect((await store.get(ids[1] as string))?.chips).toBe(STARTING_CHIPS);
   });
 
   it("refuses a bot at a table playing for chips", async () => {
