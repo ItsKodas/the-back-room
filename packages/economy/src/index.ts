@@ -10,6 +10,7 @@ export {
   BANKS,
   LEADER_SORTS,
   MemoryStore,
+  RESET_PARTS,
   STARTING_CHIPS,
   emptyJarRecord,
   emptyStats,
@@ -17,6 +18,11 @@ export {
   toLeaderRow,
 } from "./store.js";
 export type {
+  AdminLogEntry,
+  AdminLogKind,
+  AdminTarget,
+  AdminUserRow,
+  BalanceOp,
   BankName,
   GameRecord,
   JarRecord,
@@ -26,6 +32,7 @@ export type {
   Profile,
   ProfileStats,
   PublicPlayer,
+  ResetPart,
   StatBump,
   Store,
 } from "./store.js";

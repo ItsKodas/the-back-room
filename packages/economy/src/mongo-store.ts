@@ -16,6 +16,8 @@ import type { BankName, PublicPlayer } from "./store.js";
 import type { Model } from "mongoose";
 import { STARTING_CHIPS, emptyJarRecord, emptyStats, leaderValue, toLeaderRow } from "./store.js";
 import type {
+  AdminLogEntry,
+  AdminUserRow,
   GameRecord,
   JarRecord,
   LeaderBoard,
@@ -909,6 +911,36 @@ export class MongoStore implements Store {
       { $set: { retired: true } },
     );
     return result.modifiedCount > 0;
+  }
+
+  // Task 3 replaces every stub below with a real implementation.
+
+  async listUsers(): Promise<{ rows: AdminUserRow[]; total: number }> {
+    throw new Error("listUsers is not implemented for Mongo yet");
+  }
+
+  async adjustBalances(): Promise<{ affected: number; moved: number }> {
+    throw new Error("adjustBalances is not implemented for Mongo yet");
+  }
+
+  async resetUsers(): Promise<{ affected: number }> {
+    throw new Error("resetUsers is not implemented for Mongo yet");
+  }
+
+  async bankEmpty(): Promise<number> {
+    throw new Error("bankEmpty is not implemented for Mongo yet");
+  }
+
+  async deleteEmote(): Promise<boolean> {
+    throw new Error("deleteEmote is not implemented for Mongo yet");
+  }
+
+  async logAdmin(): Promise<AdminLogEntry> {
+    throw new Error("logAdmin is not implemented for Mongo yet");
+  }
+
+  async adminLog(): Promise<AdminLogEntry[]> {
+    throw new Error("adminLog is not implemented for Mongo yet");
   }
 
   async close(): Promise<void> {

@@ -242,6 +242,69 @@ export function emptyJarRecord(): JarRecord {
   };
 }
 
+/**
+ * Who an admin action is aimed at.
+ *
+ * Everybody is its own shape rather than a very long list, because "every
+ * player" has to include the one who signs up between the admin loading the
+ * page and pressing the button.
+ */
+export type AdminTarget = { all: true } | { ids: string[] };
+
+/** What a reset can wipe, each on its own so an admin chooses. */
+export const RESET_PARTS = ["balance", "stats", "jar", "history"] as const;
+export type ResetPart = (typeof RESET_PARTS)[number];
+
+export type BalanceOp = "add" | "remove" | "set";
+
+/**
+ * A player as the admin desk lists them.
+ *
+ * Its own type rather than `LeaderRow`, for the reason `LeaderRow` is not
+ * `PublicPlayer`: what the desk may see is decided here, not inherited.
+ */
+export interface AdminUserRow {
+  id: string;
+  name: string;
+  avatar: string | null;
+  accentColor: number | null;
+  chips: number;
+  games: number;
+  createdAt: number;
+}
+
+export type AdminLogKind =
+  | "add"
+  | "remove"
+  | "set"
+  | "reset"
+  | "float"
+  | "empty-banks"
+  | "delete-emote";
+
+/**
+ * One thing an admin did.
+ *
+ * Grants are chips nobody won, so every one is written down with who did it —
+ * the same reason a code is revoked rather than deleted. `amount` is what
+ * actually moved, not what was asked for.
+ */
+export interface AdminLogEntry {
+  id: string;
+  at: number;
+  by: string;
+  byName: string;
+  kind: AdminLogKind;
+  amount: number;
+  affected: number;
+  target: "all" | string[];
+  /** What a reset wiped. Null for everything else. */
+  parts: ResetPart[] | null;
+  /** The bank floated or the emote deleted. Null for everything else. */
+  subject: string | null;
+  note: string;
+}
+
 export interface Store {
   readonly kind: "memory" | "mongo";
   upsertDiscordUser(input: {
@@ -396,6 +459,41 @@ export interface Store {
   /** Stops an emote being offered, without deleting what it was. */
   retireEmote(id: string): Promise<boolean>;
 
+  /** Players for the admin desk, richest first, optionally by name prefix. */
+  listUsers(input: {
+    query: string;
+    offset: number;
+    limit: number;
+  }): Promise<{ rows: AdminUserRow[]; total: number }>;
+
+  /**
+   * Adds, removes or sets balances. Removal stops at zero rather than
+   * refusing, and `moved` is the net chips that actually moved.
+   */
+  adjustBalances(input: {
+    target: AdminTarget;
+    op: BalanceOp;
+    amount: number;
+  }): Promise<{ affected: number; moved: number }>;
+
+  /**
+   * Wipes the chosen parts of players, keeping the players.
+   *
+   * The document and its id stay, which is what keeps a reset player signed
+   * in: a session holds nothing but that id.
+   */
+  resetUsers(input: { target: AdminTarget; parts: readonly ResetPart[] }): Promise<{ affected: number }>;
+
+  /** Sets a bank to zero, returning what it held. */
+  bankEmpty(which: BankName): Promise<number>;
+
+  /** Removes an emote and its files for good. */
+  deleteEmote(id: string): Promise<boolean>;
+
+  logAdmin(entry: Omit<AdminLogEntry, "id" | "at">): Promise<AdminLogEntry>;
+  /** Newest first; `before` is an `at` to page back from. */
+  adminLog(input: { limit: number; before: number | null }): Promise<AdminLogEntry[]>;
+
   close(): Promise<void>;
 }
 
@@ -429,6 +527,9 @@ export class MemoryStore implements Store {
     string,
     { image: EmoteAsset; sound: EmoteAsset | null }
   >();
+  /** When each profile was made, which the profile itself does not carry. */
+  private readonly joined = new Map<string, number>();
+  private readonly adminEntries: AdminLogEntry[] = [];
 
   async bank(which: BankName): Promise<number> {
     return this.house.get(which) ?? 0;
@@ -474,6 +575,7 @@ export class MemoryStore implements Store {
       byGame: {},
       jar: emptyJarRecord(),
     };
+    this.joined.set(profile.id, Date.now());
     this.people.set(profile.id, profile);
     return profile;
   }
@@ -781,6 +883,139 @@ export class MemoryStore implements Store {
     }
     emote.retired = true;
     return true;
+  }
+
+  /** The profiles an admin action reaches. Unknown ids are simply not there. */
+  private targeted(target: AdminTarget): Profile[] {
+    if ("all" in target) {
+      return [...this.people.values()];
+    }
+    return [...new Set(target.ids)]
+      .map((id) => this.people.get(id))
+      .filter((one): one is Profile => one !== undefined);
+  }
+
+  async listUsers({
+    query,
+    offset,
+    limit,
+  }: {
+    query: string;
+    offset: number;
+    limit: number;
+  }): Promise<{ rows: AdminUserRow[]; total: number }> {
+    const wanted = query.trim().toLowerCase();
+    const matching = [...this.people.values()]
+      .filter((person) => person.name.toLowerCase().startsWith(wanted))
+      .sort((a, b) => b.chips - a.chips || a.id.localeCompare(b.id));
+    return {
+      total: matching.length,
+      rows: matching.slice(offset, offset + Math.min(limit, 100)).map((person) => ({
+        id: person.id,
+        name: person.name,
+        avatar: person.avatar,
+        accentColor: person.accentColor,
+        chips: person.chips,
+        games: person.stats.games,
+        createdAt: this.joined.get(person.id) ?? 0,
+      })),
+    };
+  }
+
+  async adjustBalances({
+    target,
+    op,
+    amount,
+  }: {
+    target: AdminTarget;
+    op: BalanceOp;
+    amount: number;
+  }): Promise<{ affected: number; moved: number }> {
+    const reached = this.targeted(target);
+    let moved = 0;
+    for (const profile of reached) {
+      const before = profile.chips;
+      profile.chips =
+        op === "add" ? before + amount : op === "remove" ? Math.max(0, before - amount) : amount;
+      moved += profile.chips - before;
+    }
+    return { affected: reached.length, moved };
+  }
+
+  async resetUsers({
+    target,
+    parts,
+  }: {
+    target: AdminTarget;
+    parts: readonly ResetPart[];
+  }): Promise<{ affected: number }> {
+    const reached = this.targeted(target);
+    const ids = new Set(reached.map((profile) => profile.id));
+    for (const profile of reached) {
+      if (parts.includes("balance")) {
+        profile.chips = STARTING_CHIPS;
+      }
+      if (parts.includes("stats")) {
+        profile.stats = emptyStats();
+        profile.byGame = {};
+      }
+      if (parts.includes("jar")) {
+        profile.jar = emptyJarRecord();
+      }
+    }
+    if (parts.includes("history")) {
+      this.forgetHistory(ids);
+    }
+    return { affected: reached.length };
+  }
+
+  private forgetHistory(ids: Set<string>): void {
+    const kept = this.ledger.filter((one) => !ids.has(one.fromId) && !ids.has(one.toId));
+    this.ledger.splice(0, this.ledger.length, ...kept);
+
+    for (const claim of [...this.redeemed]) {
+      const split = claim.lastIndexOf(":");
+      const code = claim.slice(0, split);
+      if (ids.has(claim.slice(split + 1))) {
+        this.redeemed.delete(claim);
+        const record = this.codes.get(code);
+        if (record !== undefined) {
+          record.redemptions = Math.max(0, record.redemptions - 1);
+        }
+      }
+    }
+
+    const games = this.games
+      .map((game) => ({
+        ...game,
+        players: game.players.filter((player) => player.userId === null || !ids.has(player.userId)),
+      }))
+      // A record nobody signed in is still in says nothing about anybody.
+      .filter((game) => game.players.some((player) => player.userId !== null));
+    this.games.splice(0, this.games.length, ...games);
+  }
+
+  async bankEmpty(which: BankName): Promise<number> {
+    const held = this.house.get(which) ?? 0;
+    this.house.set(which, 0);
+    return held;
+  }
+
+  async deleteEmote(id: string): Promise<boolean> {
+    this.emoteFiles.delete(id);
+    return this.emotes.delete(id);
+  }
+
+  async logAdmin(entry: Omit<AdminLogEntry, "id" | "at">): Promise<AdminLogEntry> {
+    const written: AdminLogEntry = { ...entry, id: randomUUID(), at: Date.now() };
+    this.adminEntries.unshift(written);
+    return written;
+  }
+
+  async adminLog({ limit, before }: { limit: number; before: number | null }): Promise<AdminLogEntry[]> {
+    return this.adminEntries
+      .filter((entry) => before === null || entry.at < before)
+      .slice(0, limit);
   }
 
   async close(): Promise<void> {
