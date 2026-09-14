@@ -570,3 +570,133 @@ describe("a roulette table called off", () => {
     expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
   });
 });
+
+/**
+ * A bank that stops on its next read or payout until a test lets it go.
+ *
+ * What a store on the other side of a network does anyway: the table carries
+ * on with its own clock while the answer is on its way, and these tests are
+ * about what it gets up to in the meantime.
+ */
+const gated = (start: number) => {
+  const inner = purse(start);
+  let stall: { on: "holds" | "take"; hit: () => void; open: Promise<void> } | null = null;
+  const pause = async (on: "holds" | "take") => {
+    if (stall?.on !== on) {
+      return;
+    }
+    const stopped = stall;
+    stall = null;
+    stopped.hit();
+    await stopped.open;
+  };
+  return {
+    bank: {
+      holds: async () => {
+        await pause("holds");
+        return inner.bank.holds();
+      },
+      add: inner.bank.add,
+      take: async (amount: number) => {
+        await pause("take");
+        return inner.bank.take(amount);
+      },
+    },
+    held: inner.held,
+    stallNext(on: "holds" | "take") {
+      let hit = () => {};
+      let open = () => {};
+      const reached = new Promise<void>((resolve) => {
+        hit = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      stall = { on, hit, open: gate };
+      return { reached, open };
+    },
+  };
+};
+
+describe("a roulette table's money while the store takes its time", () => {
+  const BLACK = "even:2-4-6-8-10-11-13-15-17-20-22-24-26-28-29-31-33-35";
+
+  it("leaves a leaver's chips riding when they are covering somebody else's bet", async () => {
+    /*
+     * Red went down against a bank of 1,000 and black was allowed to lean on
+     * it. Handing red back because its owner stood up would leave black owed
+     * 4,000 by a bank holding 2,000 — the same movement a take-back is refused.
+     */
+    const { bank, held: inBank } = purse(1_000);
+    const game = rouletteAdapter({ bank, pick: () => 2 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    table.join("s2", "Bram", who("u2"));
+    const { held, deps } = wallet({ u1: 1_000, u2: 2_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 1_000 }, deps);
+    await game.act(table, "s2", { type: "place", spotId: BLACK, chips: 2_000 }, deps);
+
+    table.removeSeat("s1");
+    await game.payOut?.(table, deps);
+
+    expect(table.onSpot("s1", RED)).toBe(1_000);
+    expect(held["u1"]).toBe(0);
+    expect(inBank()).toBe(4_000);
+
+    // It rides, and black is paid in full.
+    table.closeBetting();
+    table.land();
+    await game.settle(table, deps);
+    expect(held["u2"]).toBe(4_000);
+  });
+
+  it.each([
+    { type: "take", spotId: RED, chips: 200 },
+    { type: "clear" },
+  ])("pays a take-back ($type) only what a void has not already handed back", async (move) => {
+    const { bank, held: inBank, stallNext } = gated(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+
+    // The take-back is waiting on the bank when the table is called off.
+    const { reached, open } = stallNext("holds");
+    const taking = game.act(table, "s1", move, deps);
+    await reached;
+    const voiding = game.void?.(table, deps);
+    open();
+    await taking.catch(() => {});
+    await voiding;
+
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_000);
+  });
+
+  it("pays somebody who left even when the cloth is swept while settling waits on the bank", async () => {
+    const { bank, stallNext } = gated(1_000_000);
+    // Position 1 on the wheel is 32, which is red.
+    const game = rouletteAdapter({ bank, pick: () => 1 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s2", "Bram", who("u2"));
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000, u2: 1_000 });
+    // Bram's first, so his payout is the one the store is slow on.
+    await game.act(table, "s2", { type: "place", spotId: RED, chips: 100 }, deps);
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    table.closeBetting();
+    table.removeSeat("s1");
+    table.land();
+
+    const { reached, open } = stallNext("take");
+    const settling = game.settle(table, deps);
+    await reached;
+    table.beginBetting();
+    open();
+    await settling;
+
+    expect(held["u1"]).toBe(1_200);
+    expect(held["u2"]).toBe(1_100);
+  });
+});

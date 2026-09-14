@@ -186,6 +186,16 @@ export class Table {
   }
 
   /**
+   * Seats that stood up while bets were open, with their chips still down.
+   *
+   * Whether those chips can come back is the bank's question, not this
+   * class's — they may be what covers somebody else's bet — so the adapter
+   * answers it on the next broadcast. Cleared once the window shuts, because
+   * whatever is still on the cloth by then rides.
+   */
+  readonly leaving = new Set<string>();
+
+  /**
    * What the store's bank holds, for a table playing for chips.
    *
    * Kept by the adapter, because it is a question for the store and building a
@@ -247,9 +257,9 @@ export class Table {
    * Standing up mid-spin is honoured there and then.
    *
    * Nothing is kept from a seat that leaves, and the wheel does not need them
-   * to finish: chips down while bets are open come back, and chips riding once
-   * the window has shut are paid to their account whatever the ball does.
-   * Holding the seat would be holding it for nothing.
+   * to finish: chips down while bets are open come back unless another bet is
+   * leaning on them, and chips that ride are paid to their account whatever
+   * the ball does. Holding the seat would be holding it for nothing.
    */
   readonly leavesMidHand = true;
 
@@ -263,22 +273,22 @@ export class Table {
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
     this.accounts.set(seat.id, identity?.userId ?? null);
+    // Back before their chips were handed back, so those chips are theirs to play again.
+    this.leaving.delete(seat.id);
     return seat;
   }
   removeSeat(seatId: string): void {
-    const userId = this.accountOf(seatId);
     this.seating.remove(seatId);
     this.previous.delete(seatId);
     /*
-     * While bets are open their chips are still theirs to take back, so they
-     * go back. Once the window has shut the chips ride: the ball is in, and
-     * what it decides is paid to their account whether they watch or not.
+     * Nothing comes off the cloth here, even while bets are open. Handing the
+     * chips back is the same movement as a take-back and has to pass the same
+     * cover check, which needs the bank, and leaving is synchronous — so the
+     * seat is noted and the adapter settles it on the next broadcast. Once the
+     * window has shut, whatever is still down rides and is paid to the account.
      */
     if (this.phase === "betting") {
-      this.placed = this.placed.filter((one) => one.seatId !== seatId);
-      if (userId !== null && !this.forFun) {
-        this.escrow.refund(userId);
-      }
+      this.leaving.add(seatId);
     }
   }
   disconnect(seatId: string): void {
@@ -506,6 +516,8 @@ export class Table {
     if (this.phase !== "betting") {
       return;
     }
+    // Anybody who left and has not been handed their chips yet is too late: they ride.
+    this.leaving.clear();
     if (this.placed.length === 0) {
       this.deadline = Date.now() + this.window;
       return;
@@ -572,6 +584,7 @@ export class Table {
   /** The cloth is swept and the next window opens. */
   beginBetting(): void {
     this.placed = [];
+    this.leaving.clear();
     this.paid = null;
     this.pocket = null;
     this.phase = "betting";
