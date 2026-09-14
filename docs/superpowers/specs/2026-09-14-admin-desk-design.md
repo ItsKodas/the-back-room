@@ -60,7 +60,8 @@ Added to the `Store` interface and implemented in both `MemoryStore` and
   - `jar` — the tip jar record cleared;
   - `history` — the player's transfers (either side), code redemptions, and
     their entry in stored game records removed. Other players in those games
-    keep their own entries; a game record left with no players is deleted.
+    keep their own entries; a game record left with no signed-in player in it
+    (bots and guests do not count) is deleted.
     Removing redemptions is what makes a used code redeemable again, and the
     code's redemption count drops with it.
   The user document itself, its id, Discord id, name and avatar are kept, so
@@ -84,6 +85,9 @@ Added to the `Store` interface and implemented in both `MemoryStore` and
 | `POST /api/admin/emotes/:id/delete` | — | `{ ok: true }`, 404 if no such emote |
 
 - `emptyBanks` is only accepted with `{ all: true }`.
+- The building parses JSON at 8KB, and 500 ids is about 13.5KB, so the chips
+  and reset routes carry their own 64KB parser and are excluded from the small
+  one — the same arrangement the emote upload already has.
 - A note is optional, trimmed, at most 120 characters.
 - Bank floats (`POST /api/admin/bank`) and emote deletions are logged too.
 - "Seated" means a non-bot seat with that user id at any live room, connected
