@@ -22,7 +22,7 @@ export { Duel } from "./duel.js";
 export type { Phase, SeatView, TableView } from "./table.js";
 export { Table } from "./table.js";
 export type { Choice } from "./bot.js";
-export { decide, thinkingTime } from "./bot.js";
+export { choose, decide, thinkingTime, WARINESS } from "./bot.js";
 export {
   ANTE,
   CEILINGS,

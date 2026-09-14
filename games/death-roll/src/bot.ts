@@ -1,5 +1,5 @@
 import type { BotSkill } from "@backroom/core";
-import { worthPassing } from "./odds.js";
+import { roundFor, worthPassing } from "./odds.js";
 
 /**
  * Somebody to duel at a table playing for nothing.
@@ -57,4 +57,58 @@ export function decide(options: {
 export function thinkingTime(skill: BotSkill): number {
   const base = { easy: 1_800, normal: 1_300, hard: 800 }[skill];
   return base + Math.floor(Math.random() * 600);
+}
+
+/**
+ * How wary each skill is of spending a pass, as a multiple of the real price.
+ *
+ * A hard bot values surviving a round at exactly what it is worth, so it plays
+ * the solver's move. A normal one values it at less, which raises the bar a
+ * pass has to clear: it waits longer than it should, the way a player who has
+ * worked out that passing is for the endgame without working out where the
+ * endgame starts. An easy bot never passes at all.
+ */
+export const WARINESS = { normal: 2.5, hard: 1 } as const;
+
+/**
+ * What a bot does on its turn.
+ *
+ * @param players How many are still in this round.
+ * @param toAct The bot's position in the round's turn order.
+ * @param holders Who still holds a pass this round, by position.
+ * @param passedTo Whether the roll reached the bot by a pass — which means it
+ * must roll.
+ * @param margin The real price of a pass as survival, from `passMargin`.
+ * @param random Only consulted in a state with no fixed right answer, where
+ * good play is to pass some of the time. Math.random is fine there: bots only
+ * ever sit at tables playing for nothing.
+ */
+export function choose(options: {
+  skill: BotSkill;
+  players: number;
+  ceiling: number;
+  toAct: number;
+  holders: number;
+  passedTo: boolean;
+  margin: number;
+  canAfford: boolean;
+  random?: () => number;
+}): Choice {
+  const { skill, players, ceiling, toAct, holders, passedTo, margin, canAfford } = options;
+  if (skill === "easy" || !canAfford) {
+    return "roll";
+  }
+  const chance = roundFor(players, margin * WARINESS[skill]).passChance(
+    ceiling,
+    toAct,
+    holders,
+    passedTo,
+  );
+  if (chance <= 0) {
+    return "roll";
+  }
+  if (chance >= 1) {
+    return "pass";
+  }
+  return (options.random ?? Math.random)() < chance ? "pass" : "roll";
 }
