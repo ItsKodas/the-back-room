@@ -1,6 +1,5 @@
 import type { AddressInfo } from "node:net";
 import { MemoryStore, STARTING_CHIPS } from "@backroom/economy";
-import { DEAL_MS } from "@backroom/game-death-roll";
 import type { TableView } from "@backroom/game-death-roll";
 import type { Ack, ClientToServer, ServerToClient } from "@backroom/shared";
 import type { Socket } from "socket.io-client";
@@ -155,65 +154,85 @@ function join(socket: Client, name: string, code: string): Promise<Ack> {
   return new Promise((resolve) => socket.emit("lobby:join", { name, code }, resolve));
 }
 
+/** Says this seat is in for the next game. */
+function ready(socket: Client): Promise<void> {
+  return new Promise((resolve) =>
+    socket.emit("game:action", { type: "ready", ready: true }, () => resolve()),
+  );
+}
+
 describe("a death roll table over sockets", () => {
-  it("opens, deals itself once two people are at it, and pays the winner", async () => {
-    // A roller that always returns 1, so the first roll ends the duel and
-    // the test does not depend on chance.
-    const { store, port, ids } = await startRoom(["Ada", "Bo"], { roll: () => 1 });
-    const ada = ids[0] as string;
-    const bo = ids[1] as string;
+  it("deals three players once they are all ready, and pays the last one standing", async () => {
+    // A roller that always returns 1, so every roll puts somebody out.
+    const { store, port, ids } = await startRoom(["Ada", "Bo", "Cy"], { roll: () => 1 });
+    const accounts = new Map<string, string>();
 
     const host = await client(port);
     const ack = await open_(host, "Ada", { buyIn: 500, ceiling: 1_000 });
-    expect(ack.ok).toBe(true);
     if (!ack.ok) {
       throw new Error("create failed");
     }
+    const bo = await client(port);
+    const cy = await client(port);
+    await join(bo, "Bo", ack.code);
+    await join(cy, "Cy", ack.code);
+    accounts.set(host.id as string, ids[0] as string);
+    accounts.set(bo.id as string, ids[1] as string);
+    accounts.set(cy.id as string, ids[2] as string);
+    const sockets = new Map([
+      [host.id as string, host],
+      [bo.id as string, bo],
+      [cy.id as string, cy],
+    ]);
 
-    const guest = await client(port);
-    const joined = await join(guest, "Bo", ack.code);
-    expect(joined.ok).toBe(true);
+    await Promise.all([ready(host), ready(bo), ready(cy)]);
 
-    // Both antes are on the felt the moment the table can seat a duel.
-    const dueling = await stateWhere(host, (view) => view.phase === "dueling");
-    expect(dueling.pot).toBe(1_000);
-    expect((await store.get(ada))?.chips).toBe(STARTING_CHIPS - 500);
-    expect((await store.get(bo))?.chips).toBe(STARTING_CHIPS - 500);
+    // Antes go on at the deal and not before.
+    const playing = await stateWhere(host, (view) => view.phase === "playing");
+    expect(playing.pot).toBe(1_500);
+    for (const account of accounts.values()) {
+      expect((await store.get(account))?.chips).toBe(STARTING_CHIPS - 500);
+    }
 
-    // Whoever the table says is to roll, rolls — and with the roller fixed
-    // at 1, that roll ends the duel and that seat loses it.
-    const hostSeatId = host.id;
-    const guestSeatId = guest.id;
-    const roller = dueling.toRoll === hostSeatId ? host : guest;
-    expect([hostSeatId, guestSeatId]).toContain(dueling.toRoll);
+    const first = playing.toRoll as string;
+    await new Promise<void>((resolve) =>
+      sockets.get(first)?.emit("game:action", { type: "roll" }, () => resolve()),
+    );
 
-    await new Promise<void>((resolve) => roller.emit("game:action", { type: "roll" }, () => resolve()));
+    // The felt shows who went out, then the next round starts at 100.
+    const second = await stateWhere(host, (view) => view.round === 2 && view.toRoll !== null, 8_000);
+    expect(second.ceiling).toBe(100);
+    const next = second.toRoll as string;
+    await new Promise<void>((resolve) =>
+      sockets.get(next)?.emit("game:action", { type: "roll" }, () => resolve()),
+    );
 
-    const over = await stateWhere(host, (view) => view.phase === "over");
-    expect(over.loserId).toBe(dueling.toRoll);
+    const over = await stateWhere(host, (view) => view.phase === "over", 8_000);
+    const winner = over.winnerIds[0] as string;
+    expect([first, next]).not.toContain(winner);
 
-    const loserAccount = over.loserId === hostSeatId ? ada : bo;
-    const winnerAccount = over.loserId === hostSeatId ? bo : ada;
+    for (const [seatId, account] of accounts) {
+      const expected = seatId === winner ? STARTING_CHIPS + 1_000 : STARTING_CHIPS - 500;
+      await expect.poll(async () => (await store.get(account))?.chips).toBe(expected);
+    }
+  }, 20_000);
 
-    // Settling is asynchronous, so wait for the chips rather than assume them.
-    await expect.poll(async () => (await store.get(loserAccount))?.chips).toBe(STARTING_CHIPS - 500);
-    await expect.poll(async () => (await store.get(winnerAccount))?.chips).toBe(STARTING_CHIPS + 500);
-  });
-
-  it("takes nothing from anybody while it waits for a second player", async () => {
-    const { store, port, ids } = await startRoom(["Ada"]);
-    const ada = ids[0] as string;
-
+  it("takes nothing from anybody while nobody is ready", async () => {
+    const { store, port, ids } = await startRoom(["Ada", "Bo"]);
     const host = await client(port);
     const ack = await open_(host, "Ada", { buyIn: 500 });
-    expect(ack.ok).toBe(true);
-    await stateWhere(host, (view) => view.seats.length === 1);
+    if (!ack.ok) {
+      throw new Error("create failed");
+    }
+    const bo = await client(port);
+    await join(bo, "Bo", ack.code);
+    await stateWhere(host, (view) => view.seats.length === 2);
 
-    // Long enough for the deal pause to have fired twice over, if it were
-    // ever going to fire with only one person seated.
-    await new Promise((resolve) => setTimeout(resolve, DEAL_MS * 2 + 300));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    expect((await store.get(ada))?.chips).toBe(STARTING_CHIPS);
+    expect((await store.get(ids[0] as string))?.chips).toBe(STARTING_CHIPS);
+    expect((await store.get(ids[1] as string))?.chips).toBe(STARTING_CHIPS);
+    expect(host.latest?.phase).toBe("waiting");
     expect(host.latest?.pot).toBe(0);
   });
 

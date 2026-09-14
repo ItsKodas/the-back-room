@@ -411,27 +411,3 @@ export function roundFor(players: number, margin: number): RoundSolution {
   }
   return solution;
 }
-
-/*
- * The duel's old one-shot pass arithmetic, kept only until Task 6.
- *
- * `bot.ts`'s `decide` still reads `worthPassing`, and the old adapter still
- * calls `decide`, so removing these now would break the build between tasks.
- * They are wrong in the way the six-seat spec explains — they ignore a pass
- * being handed straight back — and Task 6 deletes all three with their tests.
- */
-
-/** What handing the roll back was once reckoned worth, in chips. Deleted in Task 6. */
-export function passGain(ceiling: number, ante: number): number {
-  return 4 * ante * edge(ceiling);
-}
-
-/** The price weighted by the chance of paying it. Deleted in Task 6. */
-export function passCost(ceiling: number, price: number): number {
-  return price * (1 - lossOdds(ceiling));
-}
-
-/** The old myopic pass test. Deleted in Task 6. */
-export function worthPassing(ceiling: number, ante: number, price: number): boolean {
-  return passGain(ceiling, ante) > passCost(ceiling, price);
-}

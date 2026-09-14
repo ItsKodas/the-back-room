@@ -1,37 +1,41 @@
-import type {
-  BotSkill,
-  PlayTable,
-  Seat,
-  SeatIdentity,
-  TableStatus,
-} from "@backroom/core";
+import type { BotSkill, PlayTable, Seat, SeatIdentity, TableStatus } from "@backroom/core";
 import { Seating, TableError } from "@backroom/core";
-import type { Passed, Rolled } from "./duel.js";
-import { Duel } from "./duel.js";
-import { FUN_PURSE, passPrice, TURN_MS } from "./listing.js";
+import { Game } from "./game.js";
+import { COUNTDOWN_MS, FUN_PURSE, passPrice, RESET_CEILING, TURN_MS } from "./listing.js";
+import { Readiness } from "./ready.js";
+import type { Passed, Rolled } from "./round.js";
 
 /**
  * A death roll table.
  *
- * What makes it different from every other table in the building: its state
- * change *is* the money. A duel cannot start until both antes are in, and
- * nothing starts one but a clock — so the table cannot simply begin and let
- * `settle` catch the chips up the way a card table does. It asks instead, and
- * the adapter answers on the next broadcast. See `askForDuel` below.
+ * Two to six seats, a ready button, and one game at a time. What makes it
+ * unlike every other table in the building is still that its state change is
+ * the money: a game cannot start until the antes are in, and nothing starts one
+ * but the table's own clock — so the table asks for a game and the adapter
+ * answers, on the next broadcast, once it has taken them.
  */
 
-export type Phase = "waiting" | "dueling" | "over";
+export type Phase = "waiting" | "playing" | "over";
 
 export interface SeatView {
   id: string;
   name: string;
   connected: boolean;
+  /** Sat down while a game was running, and waiting for the next one. */
   waiting: boolean;
   isBot: boolean;
   avatar: string | null;
   accentColor: number | null;
-  /** Whether this seat has spent its one pass this duel. */
+  /** In for the next game. Only meaningful between games. */
+  ready: boolean;
+  /** Dealt into the game on the felt. */
+  inGame: boolean;
+  /** Gone out of the game on the felt. */
+  out: boolean;
+  /** Has spent their pass in the round on the felt. */
   passed: boolean;
+  /** Could not cover the ante at the last deal, and sat the game out. */
+  short: boolean;
   /** Play money left, at a for-fun table. Null anywhere else. */
   purse: number | null;
 }
@@ -43,26 +47,37 @@ export interface TableView {
   watching: number;
   forFun: boolean;
   maxSeats: number;
-  /** What a duel here is played for. The same figure for fun or for chips. */
   ante: number;
-  /** Where a duel here starts. */
   opening: number;
   passPrice: number;
-  /** The number being rolled against. The opening figure between duels. */
+  /** The number being rolled against; the opening figure between games. */
   ceiling: number;
   pot: number;
   toRoll: string | null;
   turnEndsAt: number | null;
+  /** The seat a roll was passed to, while it is still theirs to roll. */
+  passedTo: string | null;
+  /** Everybody dealt into this game in turn order; between games, everybody seated. */
+  order: readonly string[];
+  /** Everybody still in, in the round on the felt's turn order. Empty between games. */
+  alive: readonly string[];
+  /** Which round this is, from one. Zero between games. */
+  round: number;
+  /** How many rounds this game lasts. Zero between games. */
+  rounds: number;
   lastRoll: Rolled | null;
   lastPass: Passed | null;
-  /** Every roll of the duel on the felt, oldest first. */
+  /** Every roll of the round on the felt, oldest first. */
   history: readonly Rolled[];
-  loserId: string | null;
+  /** Who went out at the end of the round on the felt, while that is still up. */
+  lastOut: string | null;
   winnerIds: readonly string[];
-  /** Why the table is not dealing, when it is not. */
-  waitingFor: "opponent" | "funds" | null;
-  /** Whose ante was refused, when that is why it is waiting. */
-  shortId: string | null;
+  /** When the countdown deals, between games, if one is running. */
+  countdownEndsAt: number | null;
+  /** How many seated players are ready, between games. */
+  readyCount: number;
+  /** Why the table cannot deal at all: fewer than two people sitting at it. */
+  waitingFor: "players" | null;
   lastEvent: string | null;
   /** This seat, or null for somebody only watching. */
   you: SeatView | null;
@@ -73,29 +88,37 @@ export class Table implements PlayTable {
   readonly opening: number;
   readonly ante: number;
   readonly passPrice: number;
+  readonly readiness: Readiness;
 
   forFun = false;
   lastEvent: string | null = null;
-  duel: Duel | null = null;
+  game: Game | null = null;
   turnEndsAt: number | null = null;
-  shortId: string | null = null;
+  /**
+   * Whether somebody is taking the antes right now.
+   *
+   * Draining the queue stops one request being answered twice, but for the
+   * whole of the taking — real writes to a real store — the table looks idle,
+   * and a deal armed in that window would take a second set of antes. This is
+   * how the table says the work has been handed over but is not finished.
+   */
+  draining = false;
 
   private readonly seating: Seating;
   private readonly turnMs: number;
   private readonly purses = new Map<string, number>();
-  /** Who rolls first next duel, so the disadvantage alternates. */
-  private nextFirst: string | null = null;
-  /** Who rolled first this duel, so the next one can hand it to the other. */
-  private startedWith: string | null = null;
-  /** A duel the table wants started, waiting on somebody to take the antes. */
-  private wanted: string[] | null = null;
-  /** Seats that asked to go while a duel was running, dropped when it clears. */
+  private readonly shorts = new Set<string>();
+  /** Players in the game who asked to go while it was running, dropped when it clears. */
   private readonly leaving = new Set<string>();
+  /** Seats the table wants dealt, waiting on somebody to take their antes. */
+  private wanted: string[] | null = null;
+  /** Who opened the last game's first round, so the next game's opener moves on. */
+  private lastOpener: string | null = null;
 
   constructor(
     code: string,
     maxSeats: number,
-    options: { opening: number; ante: number; turnMs?: number },
+    options: { opening: number; ante: number; turnMs?: number; countdownMs?: number },
   ) {
     this.code = code;
     this.seating = new Seating(maxSeats);
@@ -103,6 +126,7 @@ export class Table implements PlayTable {
     this.ante = options.ante;
     this.passPrice = passPrice(options.ante);
     this.turnMs = options.turnMs ?? TURN_MS;
+    this.readiness = new Readiness(options.countdownMs ?? COUNTDOWN_MS);
   }
 
   // ------------------------------------------------------------- the room
@@ -127,69 +151,62 @@ export class Table implements PlayTable {
   }
 
   /**
-   * Standing up mid-duel cannot be honoured there and then.
+   * Standing up mid-game cannot be honoured there and then, for a player in it.
    *
-   * There are chips on the felt and the duel has to play out and settle before
-   * anybody can be paid, so the seat is held and the player is treated as
-   * dropped — blackjack's answer, for blackjack's reason. Their turns roll on
-   * the clock, and the seat goes once the duel is cleared away.
+   * Their ante is in the pot and the game has to play out and settle before
+   * anybody can be paid — and a winner whose seat had gone would be a pot paid
+   * to nobody. So the seat is held, their turns roll on the clock, and it goes
+   * when the felt clears.
    */
   readonly leavesMidHand = false;
+
+  private seatIds(): string[] {
+    return this.seats.map((seat) => seat.id);
+  }
 
   /**
    * A seat at the table.
    *
-   * A chips table insists on knowing who you are; a for-fun one does not,
-   * because nobody signs in to play for nothing.
+   * A chips table insists on knowing who you are; a for-fun one does not. And
+   * somebody who sits down while a game is running waits for the next one:
+   * dealing them into a game already under way would be dealing them a stake in
+   * rounds they never played.
    */
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
-    /*
-     * Dealt in immediately rather than made to wait for the next duel. Every
-     * other game seats a latecomer as a spectator because a table mid-hand has
-     * a game in progress they cannot join; here the table has exactly two
-     * seats and a second player arriving is the thing the table is waiting
-     * for, so making them wait would mean it never deals at all.
-     */
-    seat.waiting = false;
+    seat.waiting = this.game !== null;
+    this.readiness.sync(this.seatIds(), Date.now());
     return seat;
   }
 
   /**
-   * Sits a bot down opposite you.
+   * Sits a bot down.
    *
-   * Only ever at a table playing for nothing. Chips are only won from real
-   * people: a bot has no account to take them from and none to pay them to, so
-   * a duel won against one at a table paying real chips would be chips out of
-   * thin air. The same reason every other game in the building refuses one.
+   * Only at a table playing for nothing: a bot has no account to take chips
+   * from or pay them to, so a game won against one at a chips table would be
+   * chips out of thin air. And always ready — nobody is going to press the
+   * button for it.
    */
   addBot(id: string, name: string, skill: BotSkill): Seat {
     if (!this.forFun) {
       throw new TableError("Bots only sit at tables playing for fun.");
     }
     const seat = this.seating.addBot(id, name, skill);
-    // Dealt in at once, for the reason `join` gives.
-    seat.waiting = false;
+    seat.waiting = this.game !== null;
+    this.readiness.set(id, true, this.seatIds(), Date.now());
     return seat;
   }
 
   /**
    * Standing somebody up, or promising to.
    *
-   * The room reaps a seat once its player has been gone for a minute and a
-   * half, whatever the table happens to be doing — and an absent player burns
-   * a full turn clock every turn, so a duel outlives that grace routinely.
-   * Honouring it there and then would break what `leavesMidHand: false`
-   * promises: there are chips on the felt, the duel has to play out and settle
-   * before anybody can be paid, and a winner whose seat had already gone would
-   * be both antes paid to nobody. So it is held and carried out by `finish`.
-   *
-   * Not blackjack's outright refusal, which it can afford because its seats
-   * are only given up in its lobby. This table has no lobby and exactly two
-   * seats, so a refusal would leak them and leave nobody able to sit down.
+   * The room reaps a seat once its player has been gone a minute and a half,
+   * whatever the table is doing. A player in the game on the felt is held until
+   * it clears, for the reason `leavesMidHand` gives. Anybody else — a player
+   * waiting for the next game — has nothing on the felt and goes at once.
    */
   removeSeat(seatId: string): void {
-    if (this.duel !== null) {
+    if (this.game?.players.includes(seatId)) {
       this.leaving.add(seatId);
       return;
     }
@@ -200,29 +217,25 @@ export class Table implements PlayTable {
     this.leaving.delete(seatId);
     this.seating.remove(seatId);
     this.purses.delete(seatId);
-    if (this.nextFirst === seatId) {
-      this.nextFirst = null;
-    }
-    if (this.shortId === seatId) {
-      this.shortId = null;
-    }
+    this.shorts.delete(seatId);
+    this.readiness.drop(seatId, this.seatIds(), Date.now());
   }
+
   disconnect(seatId: string): void {
     this.seating.disconnect(seatId);
   }
+
   reconnect(seatId: string): Seat {
-    /*
-     * Coming back cancels a held removal. The room reaps on a timer that has
-     * already fired by the time somebody on a bad line gets their socket back,
-     * and a player sitting in a duel they are playing should not be stood up
-     * the moment it ends for having once been slow.
-     */
+    // Coming back cancels a held removal: a player on a bad line should not be
+    // stood up at the end of a game they are still playing.
     this.leaving.delete(seatId);
     return this.seating.reconnect(seatId);
   }
+
   watch(socketId: string): void {
     this.seating.watch(socketId);
   }
+
   unwatch(socketId: string): void {
     this.seating.unwatch(socketId);
   }
@@ -230,31 +243,31 @@ export class Table implements PlayTable {
   // ------------------------------------------------------------- the game
 
   get phase(): Phase {
-    if (this.duel === null) {
+    if (this.game === null) {
       return "waiting";
     }
-    return this.duel.over ? "over" : "dueling";
-  }
-
-  /** Two people at the table, both of them in the game. */
-  get ready(): boolean {
-    const playing = this.seats.filter((seat) => !seat.waiting);
-    return playing.length === 2;
+    return this.game.over ? "over" : "playing";
   }
 
   /**
-   * Asks for a duel, without starting one.
+   * A player saying they are in for the next game, or no longer.
    *
-   * Taking an ante is asynchronous and this is called from a timer, which is
-   * synchronous — so the table records that it wants a duel and the adapter
-   * takes the antes on the next broadcast. Separating the two is what lets the
-   * money be moved before any of the game state is.
+   * Only between games. Pressing it moves no chips: antes go on at the deal and
+   * at no other moment, so a table waiting with people ready is still a table
+   * holding nobody's stake.
    */
-  askForDuel(): void {
-    if (this.wanted !== null || !this.ready || this.duel !== null) {
+  setReady(seatId: string, ready: boolean, now: number): void {
+    const seat = this.seating.find(seatId);
+    if (seat === undefined) {
+      throw new TableError("You are not at this table.");
+    }
+    if (this.game !== null) {
+      throw new TableError("You can get ready once this game is over.");
+    }
+    if (seat.isBot) {
       return;
     }
-    this.wanted = this.seats.filter((seat) => !seat.waiting).map((seat) => seat.id);
+    this.readiness.set(seatId, ready, this.seatIds(), now);
   }
 
   get pending(): boolean {
@@ -262,24 +275,23 @@ export class Table implements PlayTable {
   }
 
   /**
-   * Whether somebody is taking the antes right now.
+   * Asks for a game, without starting one.
    *
-   * Draining the queue is what stops one request being answered twice, but it
-   * leaves a window it cannot cover on its own: for the whole of the taking —
-   * two real writes to a real store, on somebody else's connection — the table
-   * looks exactly like one with nothing pending and two people sat at it, so
-   * the deal clock arms again and a second attempt takes two more antes for a
-   * duel that only ever holds one pair of them. This is how the table says the
-   * work has been handed over but is not finished.
+   * Taking an ante is asynchronous and this is called from a timer, which is
+   * not — so the table records who it wants dealt and the adapter takes their
+   * antes on the next broadcast.
    */
-  draining = false;
+  askForGame(now: number): void {
+    if (this.wanted !== null || this.draining || this.game !== null) {
+      return;
+    }
+    const ready = this.readiness.dealable(this.seatIds(), now);
+    if (ready !== null) {
+      this.wanted = ready;
+    }
+  }
 
-  /**
-   * Takes the request off the queue.
-   *
-   * Called before the adapter's first await, so that asking often is
-   * exactly-once rather than a way to charge somebody twice.
-   */
+  /** Takes the request off the queue, before the adapter's first await. */
   takePending(): string[] | null {
     const wanted = this.wanted;
     this.wanted = null;
@@ -290,106 +302,138 @@ export class Table implements PlayTable {
   }
 
   /**
-   * Notes that somebody could not cover their ante, for the felt to say so.
+   * Notes who could not cover the ante, and stands their ready down.
    *
-   * Returns whether this is news. A table retries a refused ante on a timer,
-   * and a player who is still short is not a new fact — telling everybody
-   * again on each retry would be a table talking to itself.
+   * They sit this game out, and they are the only ones who do: a player who
+   * cannot pay no longer stops a table full of people who can.
    */
-  noteShort(seatId: string | null): boolean {
-    if (this.shortId === seatId) {
-      return false;
+  noteShorts(seatIds: readonly string[]): void {
+    this.shorts.clear();
+    for (const seatId of seatIds) {
+      this.shorts.add(seatId);
+      this.readiness.set(seatId, false, this.seatIds(), Date.now());
     }
-    this.shortId = seatId;
-    this.lastEvent =
-      seatId === null
-        ? null
-        : `${this.seating.find(seatId)?.name ?? "Somebody"} is short of the ante.`;
-    return true;
+    if (seatIds.length > 0) {
+      const names = seatIds.map((seatId) => this.seating.find(seatId)?.name ?? "Somebody");
+      this.lastEvent = `${names.join(", ")} could not cover the ante.`;
+    }
   }
 
   /**
-   * Notes a duel abandoned because one of its two seats went while the antes
-   * were being taken.
+   * A deal that fell through: everybody's ready is stood down and the felt says
+   * why.
    *
-   * Not a short ante, so it clears that note rather than adding to it: both
-   * players covered their stake and both have it back. What the table is
-   * waiting for now is the player itself, which `waitingFor` works out on its
-   * own — this only says why the felt went quiet.
+   * The table does not try again on its own. There is nothing to spin: the next
+   * attempt happens when people press ready again.
    */
-  noteLeft(name: string): void {
-    this.shortId = null;
-    this.lastEvent = `${name} left before the duel began.`;
+  failDeal(reason: string): void {
+    this.readiness.clear();
+    this.readyBots();
+    this.lastEvent = reason;
+  }
+
+  private readyBots(): void {
+    const seated = this.seatIds();
+    for (const seat of this.seats) {
+      if (seat.isBot) {
+        this.readiness.set(seat.id, true, seated, Date.now());
+      }
+    }
   }
 
   /**
-   * Deals a duel, with the pot already paid for.
+   * Deals a game, with every ante already in.
    *
-   * Never called before the antes are in. The pot it opens with is the two
-   * antes, and if that is not true the table has minted chips.
-   *
-   * @param players The two seats the antes actually came off. Passed in rather
-   * than worked out here, because whoever took the antes has already answered
-   * "who is in this duel" and asking it twice is two sources of truth for the
-   * one question the money rests on — taking an ante is an await, and the
-   * table is free to move while it runs.
+   * @param players The seats the antes actually came off, in seat order. Passed
+   * in rather than worked out here, because whoever took the antes has already
+   * answered "who is in this game" and the money rests on that one answer.
    */
-  begin(first?: string, players?: readonly string[]): void {
-    const playing =
-      players ?? this.seats.filter((seat) => !seat.waiting).map((seat) => seat.id);
-    const [a, b] = playing;
-    if (a === undefined || b === undefined) {
-      throw new TableError("A duel needs two people.");
+  begin(players: readonly string[]): void {
+    if (this.game !== null) {
+      throw new TableError("A game is already running.");
     }
-    const rolls = first ?? this.nextFirst ?? a;
-    this.duel = new Duel(a, b, rolls, this.opening, this.ante, this.passPrice);
-    this.startedWith = this.duel.toRoll;
-    this.shortId = null;
+    if (players.length < 2) {
+      throw new TableError("A game needs two people.");
+    }
+    this.game = new Game(players, this.nextOpener(players), {
+      ante: this.ante,
+      opening: this.opening,
+      passPrice: this.passPrice,
+      resetCeiling: RESET_CEILING,
+    });
+    this.lastOpener = this.game.opener;
+    this.readiness.clear();
+    this.touchClock();
+  }
+
+  /**
+   * Who opens the first round: the next player dealt in after whoever opened
+   * the last game.
+   *
+   * The player to act is the underdog, so who opens is worth something, and
+   * moving it round the table is the only version of that which is even over an
+   * evening.
+   */
+  private nextOpener(players: readonly string[]): string {
+    const seated = this.seatIds();
+    const from = this.lastOpener === null ? -1 : seated.indexOf(this.lastOpener);
+    if (from !== -1) {
+      for (let step = 1; step <= seated.length; step += 1) {
+        const seatId = seated[(from + step) % seated.length] as string;
+        if (players.includes(seatId)) {
+          return seatId;
+        }
+      }
+    }
+    return players[0] as string;
+  }
+
+  /** Starts the next round, once the felt has shown who went out. */
+  nextRound(): void {
+    if (this.game === null || !this.game.betweenRounds) {
+      return;
+    }
+    this.game.nextRound();
     this.lastEvent = null;
     this.touchClock();
   }
 
-  /** Clears the felt and puts the table back to waiting for the next duel. */
+  /** Clears the felt and puts the table back to waiting for the next game. */
   finish(): void {
-    const done = this.duel;
-    if (done !== null && this.startedWith !== null) {
-      /*
-       * The other one starts the next duel. Taken from who *began* this duel
-       * rather than from who lost it: the roller is the underdog, so the turn
-       * is worth something, and handing it to the winner would mean a player
-       * who keeps winning keeps taking the disadvantage while a first roller
-       * who wins simply rolls first again. Alternating is the only version of
-       * this that is even over an evening.
-       */
-      this.nextFirst = done.other(this.startedWith);
+    if (this.game === null) {
+      return;
     }
-    this.startedWith = null;
-    this.duel = null;
+    this.game = null;
     this.turnEndsAt = null;
+    this.lastEvent = null;
+    this.shorts.clear();
+    for (const seat of this.seats) {
+      seat.waiting = false;
+    }
+    this.readiness.clear();
+    this.readyBots();
     /*
-     * And now anybody who asked to go while it was running. Last, after the
-     * felt is clear: the room settles a duel the moment it ends and only
-     * clears it some seconds later, so by here the pot has been paid to a seat
-     * that was still at the table to be paid.
+     * Anybody who asked to go during the game, last: the room settles a game
+     * the moment it ends and only clears it some seconds later, so by here the
+     * pot has been paid to a seat that was still there to be paid.
      */
     for (const seatId of [...this.leaving]) {
       this.drop(seatId);
     }
   }
 
-  /** Puts the clock on whoever is to act now, or takes it away. */
+  /** Puts the clock on whoever is to act, or takes it away. */
   touchClock(): void {
+    const game = this.game;
     this.turnEndsAt =
-      this.duel === null || this.duel.over ? null : Date.now() + this.turnMs;
+      game === null || game.over || game.round.over ? null : Date.now() + this.turnMs;
   }
 
   // ------------------------------------------------------------ play money
 
   /**
-   * This seat's play money.
-   *
-   * Only meaningful at a for-fun table. Everywhere else a seat's limit is
-   * their account, which this class cannot see and has no business seeing.
+   * This seat's play money. Only meaningful at a for-fun table; everywhere else
+   * a seat's limit is their account, which this class has no business seeing.
    */
   purseFor(seatId: string): number {
     if (!this.forFun) {
@@ -408,13 +452,7 @@ export class Table implements PlayTable {
     this.purses.set(seatId, this.purseFor(seatId) + by);
   }
 
-  /**
-   * Fills a purse that cannot cover the next ante.
-   *
-   * Play money, so running dry should cost somebody a moment rather than their
-   * evening — and a for-fun table that stops dealing is one nobody sits at
-   * twice. Returns whether it actually had to.
-   */
+  /** Fills a play purse that cannot cover the next ante. Returns whether it had to. */
   topUp(seatId: string): boolean {
     if (!this.forFun || this.purseFor(seatId) >= this.ante) {
       return false;
@@ -426,6 +464,8 @@ export class Table implements PlayTable {
   // ----------------------------------------------------------- the picture
 
   private seatView(seat: Seat): SeatView {
+    const game = this.game;
+    const round = game?.round ?? null;
     return {
       id: seat.id,
       name: seat.name,
@@ -434,15 +474,21 @@ export class Table implements PlayTable {
       isBot: seat.isBot,
       avatar: seat.avatar,
       accentColor: seat.accentColor,
-      passed: this.duel?.hasPassed(seat.id) ?? false,
+      ready: this.readiness.isReady(seat.id),
+      inGame: game?.players.includes(seat.id) ?? false,
+      out: game?.out.includes(seat.id) ?? false,
+      passed: (round?.order.includes(seat.id) ?? false) && !(round?.holdsPass(seat.id) ?? true),
+      short: this.shorts.has(seat.id),
       purse: this.forFun ? this.purseFor(seat.id) : null,
     };
   }
 
   view(forSeatId: string | null): TableView {
     const seats = this.seats.map((seat) => this.seatView(seat));
-    const duel = this.duel;
-    const winner = duel?.winnerId ?? null;
+    const game = this.game;
+    const round = game?.round ?? null;
+    const seated = this.seatIds();
+    const winner = game?.winnerId ?? null;
     return {
       code: this.code,
       phase: this.phase,
@@ -453,34 +499,25 @@ export class Table implements PlayTable {
       ante: this.ante,
       opening: this.opening,
       passPrice: this.passPrice,
-      /*
-       * The opening figure between duels rather than nothing, because that is
-       * what the next duel will be rolled against and the felt should show the
-       * number it is about to come down from.
-       */
-      ceiling: duel?.ceiling ?? this.opening,
-      pot: duel?.pot ?? 0,
-      toRoll: duel === null || duel.over ? null : duel.toRoll,
+      ceiling: round?.ceiling ?? this.opening,
+      pot: game?.pot ?? 0,
+      toRoll: round !== null && !round.over ? round.toRoll : null,
       turnEndsAt: this.turnEndsAt,
-      lastRoll: duel?.lastRoll ?? null,
-      lastPass: duel?.lastPass ?? null,
-      history: duel?.history ?? [],
-      loserId: duel?.loserId ?? null,
+      passedTo: round?.passedTo ?? null,
+      order: game?.players ?? seated,
+      alive: round?.order ?? [],
+      round: game?.roundNumber ?? 0,
+      rounds: game?.rounds ?? 0,
+      lastRoll: round?.lastRoll ?? null,
+      lastPass: round?.lastPass ?? null,
+      history: round?.history ?? [],
+      lastOut: round?.outId ?? null,
       winnerIds: winner === null ? [] : [winner],
-      waitingFor: this.waitingFor(),
-      shortId: this.shortId,
+      countdownEndsAt: game === null ? this.readiness.countdownEndsAt : null,
+      readyCount: game === null ? this.readiness.count(seated) : 0,
+      waitingFor: game === null && seated.length < 2 ? "players" : null,
       lastEvent: this.lastEvent,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,
     };
-  }
-
-  private waitingFor(): "opponent" | "funds" | null {
-    if (this.duel !== null) {
-      return null;
-    }
-    if (this.shortId !== null) {
-      return "funds";
-    }
-    return this.ready ? null : "opponent";
   }
 }

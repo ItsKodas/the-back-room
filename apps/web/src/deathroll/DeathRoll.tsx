@@ -71,10 +71,10 @@ export function DeathRoll() {
               table: {
                 code: state.code,
                 onLeave: table.leave,
-                // Asked while a duel is running, because the ante is already
+                // Asked while a game is running, because the ante is already
                 // in the pot and standing up gives it up. Not asked once it
                 // has ended: nothing more is owed to a seat that leaves then.
-                confirm: state.phase === "dueling",
+                confirm: state.phase === "playing",
               },
             }
           : {})}
@@ -110,7 +110,7 @@ export function Felt({
   seatId: string | null;
 }) {
   const mine = state.you;
-  const myTurn = state.phase === "dueling" && seatId !== null && state.toRoll === seatId;
+  const myTurn = state.phase === "playing" && seatId !== null && state.toRoll === seatId;
   const intent = useIntent(state, seatId, table.act, table.error);
   useDuelSound(state, seatId);
   // A pass's chips only ever need to land once, right as they are pressed —
@@ -139,7 +139,9 @@ export function Felt({
           <Falling value={shown} rolling={intent.rolling} />
         </div>
 
-        {state.phase === "dueling" ? (
+        {state.phase === "playing" &&
+        state.alive.length === 2 &&
+        state.seats.every((seat) => !seat.inGame || seat.passed) ? (
           <p className="dr__odds">
             {(lossOdds(state.ceiling) * 100).toFixed(1)}% chance of losing this roll
           </p>
@@ -154,7 +156,7 @@ export function Felt({
           rather than waited for, so a pass lands on the pot the moment it is
           pressed.
         */}
-        {state.phase === "dueling" && state.pot + intent.pending > 0 ? (
+        {state.phase === "playing" && state.pot + intent.pending > 0 ? (
           <p className="dr__pot">
             <span
               className={`dr__pot-figure${state.forFun ? "" : " dr__pot-figure--chip"}${
@@ -167,6 +169,19 @@ export function Felt({
           </p>
         ) : null}
       </div>
+
+      {state.phase === "waiting" && mine !== null ? (
+        <div className="dr__controls">
+          <button
+            type="button"
+            className="btn dr__roll"
+            disabled={table.busy}
+            onClick={() => table.act({ type: "ready", ready: !mine.ready })}
+          >
+            {mine.ready ? "Not ready" : "I'm ready"}
+          </button>
+        </div>
+      ) : null}
 
       {mine === null || !myTurn ? null : (
         <Controls state={state} intent={intent} passed={mine.passed} />
@@ -261,31 +276,20 @@ function nameOf(state: TableView, seatId: string): string {
  */
 function Standing({ state }: { state: TableView }) {
   if (state.phase === "waiting") {
-    if (state.waitingFor === "funds") {
-      return (
-        <p className="dr__standing" role="status">
-          {nameOf(state, state.shortId ?? "")} is short of the ante.
-        </p>
-      );
-    }
     return (
       <p className="dr__standing" role="status">
-        Waiting for an opponent.
+        {state.waitingFor === "players"
+          ? "Waiting for players."
+          : `${state.readyCount} of ${state.seats.length} ready.`}
       </p>
     );
   }
 
   if (state.phase === "over") {
-    const { loserId, lastRoll, winnerIds } = state;
-    if (loserId === null || lastRoll === null) {
-      return null;
-    }
-    const loser = nameOf(state, loserId);
-    const winner = winnerIds.length === 0 ? null : nameOf(state, winnerIds[0]);
+    const winner = state.winnerIds.length === 0 ? null : nameOf(state, state.winnerIds[0] as string);
     return (
       <p className="dr__standing" role="status">
-        {loser} rolled a {lastRoll.result} out of {lastRoll.from}
-        {winner === null ? "." : ` — ${winner} takes the pot.`}
+        {winner === null ? "" : `${winner} takes the pot.`}
       </p>
     );
   }
@@ -389,7 +393,7 @@ function Bots({ table, state }: { table: Table; state: TableView }) {
 /** The two seats in the duel, whichever of them have arrived yet. */
 function Seats({ state, seatId }: { state: TableView; seatId: string | null }) {
   const slots: (TableView["seats"][number] | null)[] = [...state.seats];
-  while (slots.length < 2) {
+  while (slots.length < state.maxSeats) {
     slots.push(null);
   }
 

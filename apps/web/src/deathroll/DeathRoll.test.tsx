@@ -23,12 +23,16 @@ const seat = (over: Partial<SeatView> & { id: string; name: string }): SeatView 
   accentColor: null,
   passed: false,
   purse: null,
+  ready: false,
+  inGame: true,
+  out: false,
+  short: false,
   ...over,
 });
 
 const view = (over: Partial<TableView> = {}): TableView => ({
   code: "ABCDE",
-  phase: "dueling",
+  phase: "playing",
   seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })],
   watching: 0,
   forFun: false,
@@ -40,13 +44,19 @@ const view = (over: Partial<TableView> = {}): TableView => ({
   pot: 1_000,
   toRoll: "s1",
   turnEndsAt: null,
+  passedTo: null,
+  order: ["s1", "s2"],
+  alive: ["s1", "s2"],
+  round: 1,
+  rounds: 1,
   lastRoll: null,
   lastPass: null,
   history: [],
-  loserId: null,
+  lastOut: null,
   winnerIds: [],
+  countdownEndsAt: null,
+  readyCount: 0,
   waitingFor: null,
-  shortId: null,
   lastEvent: null,
   you: seat({ id: "s1", name: "Ada" }),
   ...over,
@@ -63,17 +73,17 @@ const stub = () => {
 };
 
 describe("the death roll felt", () => {
-  it("says it is waiting for an opponent, and offers nothing to press", () => {
+  it("says it is waiting for players, and offers nothing to press", () => {
     const state = view({
       phase: "waiting",
-      waitingFor: "opponent",
+      waitingFor: "players",
       pot: 0,
       toRoll: null,
       seats: [seat({ id: "s1", name: "Ada" })],
       you: seat({ id: "s1", name: "Ada" }),
     });
     render(<Felt table={stub().table} state={state} seatId="s1" />);
-    expect(screen.getByText(/waiting for an opponent/i)).toBeTruthy();
+    expect(screen.getByText(/Waiting for players\./)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Roll/ })).toBeNull();
   });
 
@@ -83,7 +93,16 @@ describe("the death roll felt", () => {
   });
 
   it("shows the odds under it, so the moment to pass is visible", () => {
-    render(<Felt table={stub().table} state={view({ ceiling: 10 })} seatId="s1" />);
+    // The odds line only holds for two players with nobody left holding a
+    // pass — both have already spent theirs.
+    const state = view({
+      ceiling: 10,
+      seats: [
+        seat({ id: "s1", name: "Ada", passed: true }),
+        seat({ id: "s2", name: "Bram", passed: true }),
+      ],
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
     expect(screen.getByText(/50\.9%/)).toBeTruthy();
   });
 
@@ -98,18 +117,15 @@ describe("the death roll felt", () => {
     expect(screen.queryByRole("button", { name: /Pass/i })).toBeNull();
   });
 
-  it("says who lost, and on what", () => {
+  it("says who takes the pot", () => {
     const state = view({
       phase: "over",
       toRoll: null,
-      loserId: "s1",
       winnerIds: ["s2"],
       lastRoll: { seatId: "s1", from: 9, result: 1 },
     });
     render(<Felt table={stub().table} state={state} seatId="s1" />);
-    // "Ada" is also the name on her own seat, so this checks the sentence
-    // that actually says what happened rather than any mention of her name.
-    expect(screen.getByText(/^Ada rolled a 1 out of 9/)).toBeTruthy();
+    expect(screen.getByText(/Bram takes the pot\./)).toBeTruthy();
   });
 
   it("says a for-fun table is a for-fun table", () => {
@@ -138,7 +154,7 @@ describe("the death roll felt", () => {
     const state = view({
       forFun: true,
       phase: "waiting",
-      waitingFor: "opponent",
+      waitingFor: "players",
       pot: 0,
       toRoll: null,
       seats: [seat({ id: "s1", name: "Ada", purse: 10_000 })],
@@ -160,7 +176,7 @@ describe("the death roll felt", () => {
      */
     const state = view({
       phase: "waiting",
-      waitingFor: "opponent",
+      waitingFor: "players",
       pot: 0,
       toRoll: null,
       seats: [seat({ id: "s1", name: "Ada" })],

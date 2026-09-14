@@ -13,8 +13,8 @@ import { PATIENCE_MS, useIntent } from "./useIntent.js";
  * somebody played from another continent. Every test here holds the reply.
  */
 
-/** A duel with two seats, holding whatever this test needs it to hold. */
-function dueling(overrides: Partial<TableView> = {}): TableView {
+/** A game with two seats, holding whatever this test needs it to hold. */
+function playing(overrides: Partial<TableView> = {}): TableView {
   const seat = (id: string, name: string) => ({
     id,
     name,
@@ -25,10 +25,14 @@ function dueling(overrides: Partial<TableView> = {}): TableView {
     accentColor: null,
     passed: false,
     purse: null,
+    ready: false,
+    inGame: true,
+    out: false,
+    short: false,
   });
   return {
     code: "ABCDE",
-    phase: "dueling",
+    phase: "playing",
     seats: [seat("ada", "Ada"), seat("bram", "Bram")],
     watching: 0,
     forFun: false,
@@ -40,13 +44,19 @@ function dueling(overrides: Partial<TableView> = {}): TableView {
     pot: 1_000,
     toRoll: "ada",
     turnEndsAt: null,
+    passedTo: null,
+    order: ["ada", "bram"],
+    alive: ["ada", "bram"],
+    round: 1,
+    rounds: 1,
     lastRoll: null,
     lastPass: null,
     history: [],
-    loserId: null,
+    lastOut: null,
     winnerIds: [],
+    countdownEndsAt: null,
+    readyCount: 0,
     waitingFor: null,
-    shortId: null,
     lastEvent: null,
     you: seat("ada", "Ada"),
     ...overrides,
@@ -60,7 +70,7 @@ afterEach(() => {
 describe("pressing roll", () => {
   it("starts the number tumbling before the server has answered", () => {
     const act_ = vi.fn();
-    const { result } = renderHook(() => useIntent(dueling(), "ada", act_, null));
+    const { result } = renderHook(() => useIntent(playing(), "ada", act_, null));
 
     act(() => result.current.roll());
 
@@ -74,13 +84,13 @@ describe("pressing roll", () => {
     const act_ = vi.fn();
     const { result, rerender } = renderHook(
       ({ state }: { state: TableView }) => useIntent(state, "ada", act_, null),
-      { initialProps: { state: dueling() } },
+      { initialProps: { state: playing() } },
     );
 
     act(() => result.current.roll());
     expect(result.current.rolling).toBe(true);
 
-    rerender({ state: dueling({ ceiling: 743 }) });
+    rerender({ state: playing({ ceiling: 743 }) });
 
     expect(result.current.rolling).toBe(false);
   });
@@ -94,7 +104,7 @@ describe("pressing roll", () => {
      */
     const act_ = vi.fn();
     const { result, rerender } = renderHook(
-      ({ error }: { error: string | null }) => useIntent(dueling(), "ada", act_, error),
+      ({ error }: { error: string | null }) => useIntent(playing(), "ada", act_, error),
       { initialProps: { error: null as string | null } },
     );
 
@@ -111,7 +121,7 @@ describe("pressing roll", () => {
     // old ack-plus-grace timer would have fired must change nothing.
     vi.useFakeTimers();
     const act_ = vi.fn();
-    const { result } = renderHook(() => useIntent(dueling(), "ada", act_, null));
+    const { result } = renderHook(() => useIntent(playing(), "ada", act_, null));
 
     act(() => result.current.roll());
     expect(result.current.rolling).toBe(true);
@@ -126,7 +136,7 @@ describe("pressing roll", () => {
     // a reply that never arrives at all, not a refusal.
     vi.useFakeTimers();
     const act_ = vi.fn();
-    const { result } = renderHook(() => useIntent(dueling(), "ada", act_, null));
+    const { result } = renderHook(() => useIntent(playing(), "ada", act_, null));
 
     act(() => result.current.roll());
     expect(result.current.rolling).toBe(true);
@@ -142,7 +152,7 @@ describe("pressing pass", () => {
     // The stake is the player's own number, so it may be shown at once —
     // unlike a roll, which is the server's to know.
     const act_ = vi.fn();
-    const { result } = renderHook(() => useIntent(dueling(), "ada", act_, null));
+    const { result } = renderHook(() => useIntent(playing(), "ada", act_, null));
 
     act(() => result.current.pass());
 
@@ -161,7 +171,7 @@ describe("pressing pass", () => {
      */
     vi.useFakeTimers();
     const act_ = vi.fn();
-    const { result } = renderHook(() => useIntent(dueling(), "ada", act_, null));
+    const { result } = renderHook(() => useIntent(playing(), "ada", act_, null));
 
     act(() => result.current.pass());
     expect(result.current.pending).toBe(50);
@@ -178,7 +188,7 @@ describe("pressing pass", () => {
     // table says so, whatever a slow write elsewhere might otherwise suggest.
     const act_ = vi.fn();
     const { result, rerender } = renderHook(
-      ({ error }: { error: string | null }) => useIntent(dueling(), "ada", act_, error),
+      ({ error }: { error: string | null }) => useIntent(playing(), "ada", act_, error),
       { initialProps: { error: null as string | null } },
     );
 

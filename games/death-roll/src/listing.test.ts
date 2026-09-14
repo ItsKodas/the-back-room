@@ -38,10 +38,11 @@ describe("what a host may choose", () => {
 });
 
 describe("how the room lists it", () => {
-  it("is open, and a duel", () => {
+  it("is open, and seats two to six", () => {
     expect(DEATH_ROLL.open).toBe(true);
     expect(DEATH_ROLL.minSeats).toBe(2);
-    expect(DEATH_ROLL.maxSeats).toBe(2);
+    expect(DEATH_ROLL.maxSeats).toBe(6);
+    expect(DEATH_ROLL.blurb).toBe("Halve the number or pay. Roll a one and you're out.");
   });
 
   it("keeps the colours the sign was painted in", () => {

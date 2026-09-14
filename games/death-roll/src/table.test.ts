@@ -1,313 +1,211 @@
 import { TableError } from "@backroom/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Table } from "./table.js";
 
 const who = (userId: string) => ({ userId, avatar: null, accentColor: null });
 
-/** A chips table with two people at it, ready to be dealt. */
-const seated = () => {
-  const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-  table.join("ada", "Ada", who("u1"));
-  table.join("bob", "Bob", who("u2"));
+/** A chips table with these people sat at it. */
+const seated = (...names: string[]) => {
+  const table = new Table("ABCDE", 6, { opening: 1_000, ante: 500, countdownMs: 20_000 });
+  for (const name of names) {
+    table.join(name, name, who(`u-${name}`));
+  }
   return table;
 };
 
-describe("a table waiting for an opponent", () => {
-  it("is not ready with one player at it", () => {
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-    table.join("ada", "Ada", who("u1"));
+const readyAll = (table: Table, now = 0) => {
+  for (const seat of table.seats) {
+    table.setReady(seat.id, true, now);
+  }
+};
 
-    expect(table.ready).toBe(false);
-    expect(table.phase).toBe("waiting");
-    expect(table.duel).toBeNull();
+describe("a table waiting for players", () => {
+  it("says it needs players until two are sat down", () => {
+    const table = seated("ada");
+    expect(table.view("ada").waitingFor).toBe("players");
+
+    table.join("bob", "bob", who("u-bob"));
+
+    expect(table.view("ada").waitingFor).toBeNull();
   });
 
-  it("says what it is waiting for", () => {
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-    table.join("ada", "Ada", who("u1"));
+  it("takes no stake for being ready", () => {
+    // Waiting never costs anybody a stake: ready moves nothing.
+    const table = seated("ada", "bob");
+    readyAll(table);
 
-    expect(table.view("ada").waitingFor).toBe("opponent");
+    expect(table.game).toBeNull();
+    expect(table.view(null).pot).toBe(0);
+    expect(table.view(null).readyCount).toBe(2);
+  });
+});
+
+describe("dealing", () => {
+  it("asks for everybody at once when everybody is ready", () => {
+    const table = seated("ada", "bob", "cat");
+    readyAll(table);
+
+    table.askForGame(0);
+
+    expect(table.takePending()).toEqual(["ada", "bob", "cat"]);
+    expect(table.draining).toBe(true);
+    expect(table.takePending()).toBeNull();
   });
 
-  it("holds with the felt untouched — no pot, no ceiling coming down", () => {
-    /*
-     * The rule in CLAUDE.md in so many words: waiting never costs anybody a
-     * stake, and a table that holds must hold with the felt untouched. There
-     * is nothing on the felt to clear because nothing was ever put there.
-     */
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-    table.join("ada", "Ada", who("u1"));
+  it("waits out the countdown when somebody is not ready, then asks for the ready ones", () => {
+    const table = seated("ada", "bob", "cat");
+    table.setReady("ada", true, 0);
+    table.setReady("bob", true, 1_000);
+
+    table.askForGame(20_999);
+    expect(table.pending).toBe(false);
+
+    table.askForGame(21_000);
+    expect(table.takePending()).toEqual(["ada", "bob"]);
+  });
+
+  it("deals the players given, with the clock armed and ready stood down", () => {
+    const table = seated("ada", "bob", "cat");
+    readyAll(table);
+
+    table.begin(["ada", "bob", "cat"]);
+
+    expect(table.phase).toBe("playing");
+    expect(table.view(null).pot).toBe(1_500);
+    expect(table.view(null).rounds).toBe(2);
+    expect(table.turnEndsAt).not.toBeNull();
+    expect(table.view(null).readyCount).toBe(0);
+  });
+
+  it("moves the first roll on to the next player dealt in, game after game", () => {
+    const table = seated("ada", "bob", "cat");
+    table.begin(["ada", "bob", "cat"]);
+    expect(table.view(null).toRoll).toBe("ada");
+    table.game?.roll("ada", () => 1);
+    table.game?.nextRound();
+    table.game?.roll(table.game.round.toRoll, () => 1);
+    table.finish();
+
+    table.begin(["ada", "bob", "cat"]);
+
+    expect(table.view(null).toRoll).toBe("bob");
+  });
+});
+
+describe("during a game", () => {
+  it("seats a latecomer for the next game and refuses their ready until then", () => {
+    const table = seated("ada", "bob");
+    table.begin(["ada", "bob"]);
+
+    const late = table.join("cat", "cat", who("u-cat"));
+
+    expect(late.waiting).toBe(true);
+    expect(() => table.setReady("cat", true, 0)).toThrow(TableError);
+  });
+
+  it("holds the seat of a player in the game until the felt clears", () => {
+    const table = seated("ada", "bob");
+    table.begin(["ada", "bob"]);
+
+    table.removeSeat("bob");
+    expect(table.seats.map((seat) => seat.id)).toContain("bob");
+
+    table.game?.roll("ada", () => 1);
+    table.finish();
+    expect(table.seats.map((seat) => seat.id)).not.toContain("bob");
+  });
+
+  it("lets a player waiting for the next game leave at once", () => {
+    const table = seated("ada", "bob");
+    table.begin(["ada", "bob"]);
+    table.join("cat", "cat", who("u-cat"));
+
+    table.removeSeat("cat");
+
+    expect(table.seats.map((seat) => seat.id)).not.toContain("cat");
+  });
+
+  it("shows who is out, who has passed, and who is still in", () => {
+    const table = seated("ada", "bob", "cat");
+    table.begin(["ada", "bob", "cat"]);
+    table.game?.pass("ada");
+    table.game?.roll("bob", () => 1);
+
     const view = table.view("ada");
 
-    expect(view.pot).toBe(0);
-    expect(view.ceiling).toBe(1_000);
-    expect(view.toRoll).toBeNull();
-  });
+    expect(view.lastOut).toBe("bob");
+    expect(view.seats.find((seat) => seat.id === "bob")?.out).toBe(true);
+    expect(view.seats.find((seat) => seat.id === "ada")?.passed).toBe(true);
+    expect(view.order).toEqual(["ada", "bob", "cat"]);
+    expect(view.alive).toEqual(["ada", "bob", "cat"]);
 
-  it("becomes ready when the second player sits down", () => {
-    const table = seated();
+    table.nextRound();
 
-    expect(table.ready).toBe(true);
-    expect(table.view("ada").waitingFor).toBeNull();
-  });
-
-  it("refuses a third seat", () => {
-    const table = seated();
-
-    expect(() => table.join("cat", "Cat", who("u3"))).toThrow();
+    expect(table.view("ada").alive).toEqual(["ada", "cat"]);
+    expect(table.view("ada").ceiling).toBe(100);
+    expect(table.view("ada").round).toBe(2);
   });
 });
 
-describe("the queue that gets a duel started", () => {
-  it("hands the pending pair over exactly once", () => {
-    /*
-     * The adapter drains this before its first await, which is what makes a
-     * broadcast asking often into taking the antes exactly once rather than a
-     * way to charge somebody twice.
-     */
-    const table = seated();
-
-    table.askForDuel();
-
-    expect(table.takePending()).toEqual(["ada", "bob"]);
-    expect(table.takePending()).toBeNull();
-  });
-
-  it("is empty until somebody asks", () => {
-    const table = seated();
-
-    expect(table.takePending()).toBeNull();
-  });
-});
-
-describe("a duel at the table", () => {
-  it("starts with the pot already funded and the opening ceiling up", () => {
-    const table = seated();
-
-    table.begin("ada");
-
-    expect(table.phase).toBe("dueling");
-    expect(table.view("ada").pot).toBe(1_000);
-    expect(table.view("ada").ceiling).toBe(1_000);
-    expect(table.view("ada").toRoll).toBe("ada");
-  });
-
-  it("alternates who rolls first between duels", () => {
-    // The roller is the underdog, so who goes first is worth something — tiny
-    // at a thousand, a third of the ante at two. Alternating costs nothing and
-    // means an evening is even however short the duels are.
-    const table = seated();
-
-    table.begin("ada");
-    table.duel?.roll("ada", () => 1);
-    table.finish();
-    table.begin();
-
-    expect(table.view("ada").toRoll).toBe("bob");
-
-    table.duel?.roll("bob", () => 1);
-    table.finish();
-    table.begin();
-
-    expect(table.view("ada").toRoll).toBe("ada");
-  });
-
-  it("alternates even when the player who rolled first wins", () => {
-    /*
-     * The case that separates real alternation from "the winner rolls first".
-     * Ada opens, survives, and Bob rolls the 1 — so Ada won without ever being
-     * handed the disadvantage back. Bob must open the next one.
-     */
-    const table = seated();
-
-    table.begin("ada");
-    table.duel?.roll("ada", () => 500);
-    table.duel?.roll("bob", () => 1);
-    table.finish();
-    table.begin();
-
-    expect(table.view("ada").toRoll).toBe("bob");
-  });
-
-  it("goes back to waiting when the duel is cleared away", () => {
-    const table = seated();
-    table.begin("ada");
-    table.duel?.roll("ada", () => 1);
-
-    expect(table.phase).toBe("over");
+describe("after a game", () => {
+  it("stands everybody's ready down and lets the latecomer in", () => {
+    const table = seated("ada", "bob");
+    readyAll(table);
+    table.begin(["ada", "bob"]);
+    table.join("cat", "cat", who("u-cat"));
+    table.game?.roll("ada", () => 1);
 
     table.finish();
 
     expect(table.phase).toBe("waiting");
-    expect(table.view("ada").pot).toBe(0);
-  });
-
-  it("puts a clock on the turn and moves it with the turn", () => {
-    vi.useFakeTimers();
-    try {
-      const table = seated();
-      table.begin("ada");
-      const first = table.turnEndsAt;
-      expect(first).toBe(Date.now() + 30_000);
-
-      vi.advanceTimersByTime(5_000);
-      table.duel?.roll("ada", () => 500);
-      table.touchClock();
-
-      expect(table.turnEndsAt).toBe(Date.now() + 30_000);
-      expect(table.turnEndsAt as number).toBeGreaterThan(first as number);
-      expect(table.view("bob").toRoll).toBe("bob");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("takes the clock away once the duel is over", () => {
-    const table = seated();
-    table.begin("ada");
-    table.duel?.roll("ada", () => 1);
-    table.touchClock();
-
-    expect(table.turnEndsAt).toBeNull();
+    expect(table.view(null).readyCount).toBe(0);
+    expect(table.seats.every((seat) => !seat.waiting)).toBe(true);
   });
 });
 
-describe("standing up", () => {
-  it("keeps a seat the room reaps mid-duel until the felt clears", () => {
-    /*
-     * The room reaps a seat a minute and a half after its player drops,
-     * whatever the table is doing, and an absent player burns a whole turn
-     * clock every turn — so a duel outlives that grace as a matter of course.
-     * Honouring it there and then would leave the pot with nobody to pay it
-     * to, which is both antes gone at a table with no bank behind it.
-     */
-    const table = seated();
-    table.begin("ada");
+describe("a deal that falls short", () => {
+  it("sits out whoever could not pay, and stands their ready down", () => {
+    const table = seated("ada", "bob", "cat");
+    readyAll(table);
 
-    table.removeSeat("bob");
+    table.noteShorts(["cat"]);
 
-    expect(table.seats.map((seat) => seat.id)).toEqual(["ada", "bob"]);
-    table.duel?.roll("ada", () => 1);
-    table.finish();
-    expect(table.seats.map((seat) => seat.id)).toEqual(["ada"]);
+    expect(table.view(null).seats.find((seat) => seat.id === "cat")?.short).toBe(true);
+    expect(table.readiness.isReady("cat")).toBe(false);
+    expect(table.lastEvent).toMatch(/could not cover/);
   });
 
-  it("keeps somebody who comes back before the duel ends", () => {
-    // The reaping timer has already fired by the time a bad line gets its
-    // socket back; being slow once should not stand you up at the end.
-    const table = seated();
-    table.begin("ada");
-    table.disconnect("bob");
-    table.removeSeat("bob");
+  it("stands everybody down when the deal fails, and does not retry by itself", () => {
+    const table = seated("ada", "bob");
+    readyAll(table);
 
-    table.reconnect("bob");
-    table.duel?.roll("ada", () => 1);
-    table.finish();
+    table.failDeal("No deal.");
 
-    expect(table.seats.map((seat) => seat.id)).toEqual(["ada", "bob"]);
-  });
-
-  it("gives the seat up once the duel is cleared", () => {
-    const table = seated();
-    table.begin("ada");
-    table.duel?.roll("ada", () => 1);
-    table.finish();
-    table.removeSeat("bob");
-
-    expect(table.seats.map((seat) => seat.id)).toEqual(["ada"]);
-    expect(table.ready).toBe(false);
+    expect(table.view(null).readyCount).toBe(0);
+    table.askForGame(99_999);
+    expect(table.pending).toBe(false);
   });
 });
 
-describe("who may sit down", () => {
-  it("refuses a bot at a table playing for chips", () => {
-    // The line the whole economy rests on: a bot at a chips table is a button
-    // somebody holds down. Refused by the table, not hidden by the client.
-    const table = seated();
-
+describe("bots", () => {
+  it("refuses one at a table playing for chips", () => {
+    const table = seated("ada");
     expect(() => table.addBot("bot:1", "Bot", "normal")).toThrow(TableError);
-    expect(table.seats).toHaveLength(2);
   });
 
-  it("seats one at a table playing for nothing", () => {
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
+  it("seats one ready at a table playing for nothing, and readies it again after a game", () => {
+    const table = new Table("ABCDE", 6, { opening: 1_000, ante: 500 });
     table.forFun = true;
     table.join("ada", "Ada", null);
 
-    const bot = table.addBot("bot:1", "Bot", "normal");
+    table.addBot("bot:1", "Bot", "normal");
+    expect(table.readiness.isReady("bot:1")).toBe(true);
 
-    expect(bot.isBot).toBe(true);
-    expect(bot.waiting).toBe(false);
-    expect(table.ready).toBe(true);
-  });
-});
+    table.begin(["ada", "bot:1"]);
+    table.game?.roll("ada", () => 1);
+    table.finish();
 
-describe("a table playing for nothing", () => {
-  it("hands each seat a purse and takes it back when the table closes", () => {
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-    table.forFun = true;
-    table.join("ada", "Ada", null);
-
-    expect(table.purseFor("ada")).toBe(10_000);
-    expect(table.view("ada").you?.purse).toBe(10_000);
-  });
-
-  it("lets a guest with no account sit down", () => {
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-    table.forFun = true;
-
-    expect(() => table.join("ada", "Ada", null)).not.toThrow();
-  });
-
-  it("insists on knowing who you are at a table playing for chips", () => {
-    const table = new Table("ABCDE", 2, { opening: 1_000, ante: 500 });
-
-    expect(() => table.join("ada", "Ada", null)).toThrow();
-  });
-
-  it("shows no purse at a table playing for chips", () => {
-    const table = seated();
-
-    expect(table.view("ada").you?.purse).toBeNull();
-  });
-});
-
-describe("when an ante can't be covered", () => {
-  it("reports a short ante once, not on every retry", () => {
-    const table = seated();
-
-    expect(table.noteShort("bob")).toBe(true);
-    expect(table.noteShort("bob")).toBe(false);
-    expect(table.view("ada").waitingFor).toBe("funds");
-    expect(table.noteShort(null)).toBe(true);
-    expect(table.view("ada").waitingFor).toBeNull();
-  });
-});
-
-describe("what the felt is told", () => {
-  it("shows both seats to everybody and the pass only to its owner's seat", () => {
-    const table = seated();
-    table.begin("ada");
-    table.duel?.pass("ada");
-    const view = table.view("bob");
-
-    expect(view.seats).toHaveLength(2);
-    expect(view.seats.find((seat) => seat.id === "ada")?.passed).toBe(true);
-    expect(view.seats.find((seat) => seat.id === "bob")?.passed).toBe(false);
-  });
-
-  it("tells a watcher everything and gives them no seat of their own", () => {
-    const table = seated();
-    table.begin("ada");
-
-    expect(table.view(null).you).toBeNull();
-    expect(table.view(null).ceiling).toBe(1_000);
-  });
-
-  it("carries the price of a pass so the felt never has to work it out", () => {
-    const table = seated();
-
-    expect(table.view("ada").passPrice).toBe(50);
-    expect(table.view("ada").ante).toBe(500);
+    expect(table.readiness.isReady("bot:1")).toBe(true);
+    expect(table.readiness.isReady("ada")).toBe(false);
   });
 });
