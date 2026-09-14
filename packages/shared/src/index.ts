@@ -22,6 +22,8 @@ export {
   type TableState,
   type SeatView,
   type ServerToClient,
+  type TableClosed,
+  type TableClosedReason,
   type SpinFace,
   type SpinNews,
   type SpinLine,

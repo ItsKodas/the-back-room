@@ -148,7 +148,7 @@ export interface GameAdapter<T extends PlayTable = PlayTable> {
    *
    * Returns what it refunded.
    */
-  void?(table: T, deps: GameDeps): Promise<Stake[]>;
+  void(table: T, deps: GameDeps): Promise<Stake[]>;
 
   /**
    * The seats that just won, asked once a table is settled.

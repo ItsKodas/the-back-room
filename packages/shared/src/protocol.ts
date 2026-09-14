@@ -366,6 +366,14 @@ export type TapResult =
   | { ok: true; paid: number; balance: number; jar: JarView }
   | { ok: false; error: string; jar: JarView };
 
+/** Why a table stopped existing. */
+export type TableClosedReason = "empty" | "shutdown" | "admin";
+
+export interface TableClosed {
+  code: string;
+  reason: TableClosedReason;
+}
+
 export interface ServerToClient {
   /** Somebody at the machine just pulled the lever. */
   "slots:spun": (news: SpinNews) => void;
@@ -379,6 +387,15 @@ export interface ServerToClient {
    */
   "room:state": (state: TableState) => void;
   "room:error": (message: string) => void;
+  /**
+   * The table you were at has been called off, and anything you had on it has
+   * gone back to your chips.
+   *
+   * Sent because nothing else would say so. A table closing is not a state the
+   * table can broadcast — there is no table left to build one from — and a
+   * felt that simply stopped updating reads as a connection that died.
+   */
+  "room:closed": (closed: TableClosed) => void;
   "chat:message": (message: ChatMessage) => void;
   /**
    * What this account is now worth, pushed as it changes.
