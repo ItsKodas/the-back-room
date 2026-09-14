@@ -17,13 +17,16 @@ import type { Model } from "mongoose";
 import { STARTING_CHIPS, emptyJarRecord, emptyStats, leaderValue, toLeaderRow } from "./store.js";
 import type {
   AdminLogEntry,
+  AdminTarget,
   AdminUserRow,
+  BalanceOp,
   GameRecord,
   JarRecord,
   LeaderBoard,
   LeaderSort,
   Profile,
   ProfileStats,
+  ResetPart,
   StatBump,
   Store,
 } from "./store.js";
@@ -39,6 +42,7 @@ interface UserDoc {
   stats: ProfileStats;
   byGame: Record<string, Record<string, number>>;
   jar: JarRecord;
+  createdAt?: Date;
 }
 
 const statsSchema = new mongoose.Schema<ProfileStats>(
@@ -310,6 +314,29 @@ const transferSchema = new mongoose.Schema<TransferDoc>(
 transferSchema.index({ fromId: 1, at: -1 });
 transferSchema.index({ toId: 1, at: -1 });
 
+interface AdminLogDoc extends Omit<AdminLogEntry, "id"> {
+  _id: string;
+}
+
+const adminLogSchema = new mongoose.Schema<AdminLogDoc>(
+  {
+    _id: { type: String, required: true },
+    at: { type: Number, required: true },
+    by: { type: String, required: true },
+    byName: { type: String, required: true },
+    kind: { type: String, required: true },
+    amount: { type: Number, required: true },
+    affected: { type: Number, required: true },
+    // "all", or the ids — Mixed because it is one or the other.
+    target: { type: mongoose.Schema.Types.Mixed, required: true },
+    parts: { type: [String], default: null },
+    subject: { type: String, default: null },
+    note: { type: String, default: "" },
+  },
+  { timestamps: false },
+);
+adminLogSchema.index({ at: -1 });
+
 function toEmote(doc: EmoteDoc): EmoteRecord {
   return {
     id: doc._id,
@@ -374,6 +401,7 @@ export class MongoStore implements Store {
   private readonly house: Model<HouseDoc>;
   private readonly emotes: Model<EmoteDoc>;
   private readonly ledger: Model<TransferDoc>;
+  private readonly adminLogs: Model<AdminLogDoc>;
 
   private constructor(private readonly connection: mongoose.Connection) {
     this.users = connection.model<UserDoc>("User", userSchema);
@@ -383,6 +411,7 @@ export class MongoStore implements Store {
     this.house = connection.model<HouseDoc>("House", houseSchema);
     this.emotes = connection.model<EmoteDoc>("Emote", emoteSchema);
     this.ledger = connection.model<TransferDoc>("Transfer", transferSchema);
+    this.adminLogs = connection.model<AdminLogDoc>("AdminLog", adminLogSchema);
   }
 
   /**
@@ -913,34 +942,203 @@ export class MongoStore implements Store {
     return result.modifiedCount > 0;
   }
 
-  // Task 3 replaces every stub below with a real implementation.
-
-  async listUsers(): Promise<{ rows: AdminUserRow[]; total: number }> {
-    throw new Error("listUsers is not implemented for Mongo yet");
+  /*
+   * The filter an admin target means. Ids that are not ObjectIds reach
+   * nobody, and the ids that are get turned into actual ObjectIds rather than
+   * left as strings — this filter is also handed to `aggregate`, which,
+   * unlike a `Query`, never casts a filter against the schema, so a string
+   * here would silently match no one.
+   */
+  private userFilter(target: AdminTarget): Record<string, unknown> {
+    if ("all" in target) {
+      return {};
+    }
+    return {
+      _id: {
+        $in: target.ids
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id)),
+      },
+    };
   }
 
-  async adjustBalances(): Promise<{ affected: number; moved: number }> {
-    throw new Error("adjustBalances is not implemented for Mongo yet");
+  private targetIds(target: AdminTarget): string[] | null {
+    return "all" in target ? null : target.ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
   }
 
-  async resetUsers(): Promise<{ affected: number }> {
-    throw new Error("resetUsers is not implemented for Mongo yet");
+  async listUsers({
+    query,
+    offset,
+    limit,
+  }: {
+    query: string;
+    offset: number;
+    limit: number;
+  }): Promise<{ rows: AdminUserRow[]; total: number }> {
+    // Escaped for the same reason findPlayers escapes: a name is not a pattern.
+    const safe = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const filter = safe.length === 0 ? {} : { name: new RegExp(`^${safe}`, "i") };
+    const [docs, total] = await Promise.all([
+      this.users
+        .find(filter)
+        .select("name avatar accentColor chips stats.games createdAt")
+        .sort({ chips: -1, _id: 1 })
+        .skip(Math.max(0, offset))
+        .limit(Math.min(limit, 100))
+        .lean<Array<UserDoc & { _id: mongoose.Types.ObjectId }>>(),
+      this.users.countDocuments(filter),
+    ]);
+    return {
+      total,
+      rows: docs.map((doc) => ({
+        id: doc._id.toString(),
+        name: doc.name,
+        avatar: doc.avatar,
+        accentColor: doc.accentColor,
+        chips: doc.chips,
+        games: doc.stats?.games ?? 0,
+        createdAt: doc.createdAt instanceof Date ? doc.createdAt.getTime() : 0,
+      })),
+    };
   }
 
-  async bankEmpty(): Promise<number> {
-    throw new Error("bankEmpty is not implemented for Mongo yet");
+  /*
+   * `moved` for a removal or a set is the sum of balances read just before
+   * the update and just after it. A hand settling between the two reads is
+   * counted as if the admin moved it — the log can be off by a live payout,
+   * never the balance itself, which the single update decides.
+   */
+  async adjustBalances({
+    target,
+    op,
+    amount,
+  }: {
+    target: AdminTarget;
+    op: BalanceOp;
+    amount: number;
+  }): Promise<{ affected: number; moved: number }> {
+    const filter = this.userFilter(target);
+    const sum = async () => {
+      const [summed] = await this.users.aggregate<{ total: number; count: number }>([
+        { $match: filter },
+        { $group: { _id: null, total: { $sum: "$chips" }, count: { $sum: 1 } } },
+      ]);
+      return { total: summed?.total ?? 0, count: summed?.count ?? 0 };
+    };
+    const before = await sum();
+    if (op === "add") {
+      await this.users.updateMany(filter, { $inc: { chips: amount } });
+    } else if (op === "set") {
+      await this.users.updateMany(filter, { $set: { chips: amount } });
+    } else {
+      await this.users.updateMany(
+        filter,
+        [{ $set: { chips: { $max: [0, { $subtract: ["$chips", amount] }] } } }],
+        // This mongoose version needs telling that the update is a pipeline,
+        // rather than inferring it from the array it was just handed.
+        { updatePipeline: true },
+      );
+    }
+    const after = await sum();
+    return { affected: before.count, moved: after.total - before.total };
   }
 
-  async deleteEmote(): Promise<boolean> {
-    throw new Error("deleteEmote is not implemented for Mongo yet");
+  async resetUsers({
+    target,
+    parts,
+  }: {
+    target: AdminTarget;
+    parts: readonly ResetPart[];
+  }): Promise<{ affected: number }> {
+    const filter = this.userFilter(target);
+    const affected = await this.users.countDocuments(filter);
+    const set: Record<string, unknown> = {};
+    if (parts.includes("balance")) {
+      set["chips"] = STARTING_CHIPS;
+    }
+    if (parts.includes("stats")) {
+      set["stats"] = emptyStats();
+      set["byGame"] = {};
+    }
+    if (parts.includes("jar")) {
+      set["jar"] = emptyJarRecord();
+    }
+    if (Object.keys(set).length > 0) {
+      await this.users.updateMany(filter, { $set: set });
+    }
+    if (parts.includes("history")) {
+      await this.forgetHistory(this.targetIds(target));
+    }
+    return { affected };
   }
 
-  async logAdmin(): Promise<AdminLogEntry> {
-    throw new Error("logAdmin is not implemented for Mongo yet");
+  /** Null ids means everybody. */
+  private async forgetHistory(ids: string[] | null): Promise<void> {
+    if (ids === null) {
+      await Promise.all([
+        this.ledger.deleteMany({}),
+        this.redemptions.deleteMany({}),
+        this.codes.updateMany({}, { $set: { redemptions: 0 } }),
+        this.games.deleteMany({}),
+      ]);
+      return;
+    }
+    await this.ledger.deleteMany({ $or: [{ fromId: { $in: ids } }, { toId: { $in: ids } }] });
+
+    const claims = await this.redemptions.find({ userId: { $in: ids } }).lean<RedemptionDoc[]>();
+    const perCode = new Map<string, number>();
+    for (const claim of claims) {
+      perCode.set(claim.code, (perCode.get(claim.code) ?? 0) + 1);
+    }
+    await Promise.all(
+      [...perCode].map(([code, count]) =>
+        this.codes.updateOne(
+          { code },
+          [{ $set: { redemptions: { $max: [0, { $subtract: ["$redemptions", count] }] } } }],
+          // See the same option in adjustBalances: this mongoose version needs
+          // telling that the update is a pipeline.
+          { updatePipeline: true },
+        ),
+      ),
+    );
+    await this.redemptions.deleteMany({ userId: { $in: ids } });
+
+    await this.games.updateMany(
+      { "players.userId": { $in: ids } },
+      { $pull: { players: { userId: { $in: ids } } } },
+    );
+    // A record nobody signed in is still in says nothing about anybody.
+    await this.games.deleteMany({ players: { $not: { $elemMatch: { userId: { $type: "string" } } } } });
   }
 
-  async adminLog(): Promise<AdminLogEntry[]> {
-    throw new Error("adminLog is not implemented for Mongo yet");
+  async bankEmpty(which: BankName): Promise<number> {
+    const before = await this.house.findOneAndUpdate(
+      { _id: bankId(which) },
+      { $set: { amount: 0 } },
+      { upsert: true, returnDocument: "before" },
+    );
+    return before?.amount ?? 0;
+  }
+
+  async deleteEmote(id: string): Promise<boolean> {
+    const result = await this.emotes.deleteOne({ _id: id });
+    return result.deletedCount === 1;
+  }
+
+  async logAdmin(entry: Omit<AdminLogEntry, "id" | "at">): Promise<AdminLogEntry> {
+    const written: AdminLogEntry = { ...entry, id: randomUUID(), at: Date.now() };
+    const { id, ...rest } = written;
+    await this.adminLogs.create({ _id: id, ...rest });
+    return written;
+  }
+
+  async adminLog({ limit, before }: { limit: number; before: number | null }): Promise<AdminLogEntry[]> {
+    const docs = await this.adminLogs
+      .find(before === null ? {} : { at: { $lt: before } })
+      .sort({ at: -1 })
+      .limit(limit)
+      .lean<AdminLogDoc[]>();
+    return docs.map(({ _id, ...rest }) => ({ ...rest, id: _id }));
   }
 
   async close(): Promise<void> {
