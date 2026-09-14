@@ -430,7 +430,7 @@ export class Table {
     if (!this.forFun && userId !== null && !this.escrow.hold(userId, chips)) {
       throw new TableError("This table is closing.");
     }
-    const already =this.placed.find((one) => one.seatId === seatId && one.spotId === spotId);
+    const already = this.placed.find((one) => one.seatId === seatId && one.spotId === spotId);
     if (already === undefined) {
       this.placed.push({ seatId, spotId, chips });
     } else {
