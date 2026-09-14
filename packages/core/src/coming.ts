@@ -21,11 +21,11 @@ import type { GameListing } from "./catalogue.js";
  * goes into a pot and one of the players takes it, so the chips never leave
  * the table and there is nothing for a bank to do.
  *
- * Poker was on this list and has been built; so has Two-up, which had to make
- * the bank argument twice over — once for a casino school paying from its own
- * bank, and once for a traditional school that needs no bank because the chips
- * never leave the ring. Both listings live in their own packages now, beside
- * their rules, the way the others do.
+ * Poker, Death Rolling and Two-up were on this list and have been built. Two-up
+ * had to make the bank argument twice over — once for a casino school paying
+ * from its own bank, and once for a traditional school that needs no bank
+ * because the chips never leave the ring. Their listings live in their own
+ * packages now, beside the rules, the way the others do.
  */
 export const COMING: readonly GameListing[] = [
   {
@@ -42,27 +42,12 @@ export const COMING: readonly GameListing[] = [
     /*
      * The other one here that needs no bank. Players stake against each other
      * and one of them takes it, so the chips never leave the table — which
-     * puts it beside Poker as the cheap half of this list to make honest.
+     * puts it beside Poker and Death Rolling as the cheap half of this list to
+     * make honest.
      */
     open: false,
     mark: { text: "LIAR'S DICE", accentAt: 0 },
     theme: { wall: "#13181a", felt: "#1d3336", accent: "#2f8f92", accentHi: "#7fdde0" },
-  },
-  {
-    id: "death-roll",
-    name: "Death Rolling",
-    blurb: "Halve the number or pay. Last one to roll a one loses.",
-    shape: "table",
-    /*
-     * Two, and it cannot be fewer. A death roll is a duel — the whole game is
-     * the number coming down between two people — so this is the one here that
-     * would refuse a lone player rather than build a bank for them.
-     */
-    minSeats: 2,
-    maxSeats: 2,
-    open: false,
-    mark: { text: "DEATH ROLL", accentAt: 0 },
-    theme: { wall: "#16141c", felt: "#241f33", accent: "#6b4bd6", accentHi: "#b39cff" },
   },
   {
     id: "baccarat",

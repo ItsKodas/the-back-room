@@ -1,0 +1,278 @@
+/*
+ * The board.
+ *
+ * A grid at width and a stack of cards on a phone, because seven figures do
+ * not fit across 375px and a table that only lays out on a desk is broken.
+ */
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: min(64rem, 100%);
+  margin: 0 auto;
+}
+
+.board__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0 0.6rem 0.4rem;
+}
+
+.board__sort {
+  /* A control during a glance, so it is big enough to hit with a thumb. */
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--gr-color-smoke-lit);
+  background: var(--gr-color-slate);
+  color: var(--gr-color-ink-dim);
+  font: inherit;
+  font-size: var(--gr-text-sm);
+  cursor: pointer;
+}
+
+.board__sort--on {
+  border-color: var(--gr-color-chip-dim);
+  background: var(--gr-color-smoke-lit);
+  color: var(--gr-color-ink-lit);
+}
+
+.board__row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(8rem, 1fr) 7rem auto;
+  grid-template-areas: "rank who chips figures";
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.6rem;
+  background: var(--gr-color-slate);
+  /* The one motion a row has: where it sits on the board. Task 8 drives it. */
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.board__row--you {
+  /* Yours, wherever it falls, without moving it. */
+  outline: 1px solid var(--gr-color-chip-dim);
+  background: var(--gr-color-smoke);
+}
+
+.board__rank {
+  grid-area: rank;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-ink-dim);
+  text-align: right;
+}
+
+.board__who {
+  grid-area: who;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.board__face {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--gr-color-smoke);
+  border: 2px solid var(--gr-color-neon-dim);
+  font-weight: 600;
+  font-size: var(--gr-text-xs);
+}
+
+.board__name {
+  /* A long Discord name shortens rather than widening the row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board__chips {
+  grid-area: chips;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-chip-hi);
+  text-align: right;
+}
+
+/*
+ * The four smaller figures, as one flex row rather than four cells sharing a
+ * grid area. A single element is one thing for the row's grid to place and
+ * for the phone breakpoint to reflow; four cousins fighting over one area
+ * would have to agree on that area's shape independently of each other.
+ */
+.board__figures {
+  grid-area: figures;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.1rem;
+}
+
+.board__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 4.2rem;
+  line-height: 1.1;
+}
+
+.board__figure small {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+.board__up {
+  color: var(--gr-color-good);
+}
+
+.board__down {
+  color: var(--gr-color-bad);
+}
+
+.board__gap,
+.board__note {
+  text-align: center;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-faint);
+}
+
+/*
+ * The breakpoint, measured rather than guessed: at width the row needs rank
+ * (2.5rem) + who (an 8rem floor) + chips (7rem) + four figures at their
+ * narrowest (4.2rem each, plus three 1.1rem gaps) before a single word wraps
+ * — call it 40rem of content alone, before the row's own padding and the
+ * gaps between the four grid tracks. 42rem is where that stops being tight
+ * enough to fight for and starts being room to breathe.
+ */
+@media (max-width: 42rem) {
+  .board__row {
+    /* A card rather than a row: rank, face, name and chips across the top,
+       the four smaller figures wrapping underneath. Seven columns do not fit
+       across a phone and a table that only lays out on a desk is broken. */
+    grid-template-columns: 2.25rem 1fr auto;
+    grid-template-areas:
+      "rank who chips"
+      "figures figures figures";
+    row-gap: 0.5rem;
+  }
+
+  .board__figures {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.9rem 1.4rem;
+  }
+
+  .board__figure {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board__row {
+    transition: none;
+  }
+}
+
+/*
+ * The card at the front door: the top three and your own place, nothing
+ * more. It always links to the board — signed out it has nothing to show and
+ * says so instead of disappearing, because a page you cannot see yet is
+ * better than a page you never learn is there.
+ */
+.standings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-3);
+  min-height: 44px;
+  border: var(--gr-edge-soft);
+  border-radius: var(--gr-radius-sm);
+  background:
+    radial-gradient(80% 60% at 50% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
+    var(--gr-color-night);
+  text-decoration: none;
+  color: inherit;
+}
+
+.standings:hover {
+  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+}
+
+.standings:focus-visible {
+  outline: 2px solid var(--gr-color-neon);
+  outline-offset: 2px;
+}
+
+.standings__note {
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.standings__top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.standings__place {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-2);
+  min-width: 0;
+}
+
+.standings__place b {
+  width: 1.2rem;
+  flex: none;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-ink-dim);
+  text-align: right;
+}
+
+.standings__face {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--gr-color-smoke);
+  border: 2px solid var(--gr-color-neon-dim);
+  font-weight: 600;
+  font-size: var(--gr-text-xs);
+}
+
+.standings__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standings__chips {
+  flex: none;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-chip-hi);
+}
+
+.standings__you {
+  margin: 0;
+  padding-top: var(--gr-space-2);
+  border-top: 1px solid var(--gr-color-smoke-lit);
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}

@@ -93,6 +93,45 @@ describe("the page a link unfurls into", () => {
     expect(image).toMatch(/\/og\/site\.png$/);
   });
 
+  it("tells a crawler the room is free to play, in a field made for saying it", async () => {
+    /*
+     * The head says what the page is called; the graph says what it is. This
+     * building deals blackjack, roulette and slots, which is exactly what a
+     * site that takes money looks like from the outside — and the only thing
+     * standing between those two readings is one boolean, on the way out, in
+     * a format something other than a person can read.
+     *
+     * Over HTTP rather than against `jsonLd` directly, because `meta.ts` was
+     * right the whole time once before and the bug was that one address never
+     * reached it.
+     */
+    const html = await get("/roulette");
+    const body = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)?.[1];
+
+    expect(body, "no graph on the page").toBeDefined();
+    const graph = (JSON.parse(body ?? "") as { "@graph": Record<string, unknown>[] })["@graph"];
+    const game = graph.find((one) => one["@type"] === "VideoGame");
+
+    expect(game?.["isAccessibleForFree"]).toBe(true);
+    expect(game?.["name"]).toBe("Roulette");
+    expect(graph.some((one) => one["@type"] === "Organization")).toBe(true);
+  });
+
+  it("says nothing structured about an address that asked not to be indexed", async () => {
+    /*
+     * The two have to agree: a graph describing a lasting thing, on a page
+     * whose robots tag says it will be gone next week, is a page arguing with
+     * itself.
+     *
+     * A code with no table behind it, which is the state a crawler finds most
+     * of them in — and it takes the same noindex route a live one does.
+     */
+    const html = await get("/6PMKG");
+
+    expect(html).toContain('content="noindex, follow"');
+    expect(html).not.toContain("ld+json");
+  });
+
   it("still writes it for a game, which is what always worked", async () => {
     // The other half: the fix must not have moved the static mount out of the
     // way of the files it is actually there to serve.

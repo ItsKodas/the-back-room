@@ -13,6 +13,10 @@ assets/audio/build/
 
 # copied from assets/audio/raw by scripts/sync-audio.mjs
 apps/web/public/audio/
+
+# pressed from apps/web/public/favicon.svg by scripts/make-icons.mjs
+apps/web/public/icon-*.png
+apps/web/public/apple-touch-icon.png
 __pycache__/
 
 # Brainstorming mockups, which are scratch rather than source.

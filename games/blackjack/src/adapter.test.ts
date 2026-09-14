@@ -304,6 +304,31 @@ describe("what blackjack does with chips", () => {
     expect(reported).toBe(back - 1000);
   });
 
+  it("stakes what the seat put out, not what came back", async () => {
+    let staked: number | null = null;
+    const game = blackjackAdapter();
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    seatCompany(table);
+    const { deps } = ledger({ u1: 10_000 });
+    const watching: GameDeps = {
+      ...deps,
+      async record(_userId, entry) {
+        staked = entry.shared?.chipsStaked ?? null;
+      },
+    };
+
+    await game.act(table, "a", { type: "bet", amount: 1000 }, watching);
+    await game.act(table, "a", { type: "deal" }, watching);
+    while (table.phase === "playing") {
+      await game.act(table, "a", { type: "stand" }, watching);
+    }
+    await game.settle(table, watching);
+
+    // A thousand, whatever came back — a hand that won 2,000 still staked 1,000.
+    expect(staked).toBe(1000);
+  });
+
   it("refuses a verb it does not have", async () => {
     const game = blackjackAdapter();
     const table = game.create("TEST1");

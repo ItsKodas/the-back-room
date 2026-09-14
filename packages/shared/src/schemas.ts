@@ -60,6 +60,16 @@ export const createSchema = z.object({
    * id. Same word, unrelated things: this one is a length of time.
    */
   window: z.number().int().min(1_000).max(300_000).optional(),
+  /**
+   * Where a duel at this table starts, for a game that counts down.
+   *
+   * The same kind of decision as the seat count and the betting window: a
+   * table that opens at a hundred is over in four rolls and one that opens at
+   * ten thousand takes a while to get going, so it belongs to the host with
+   * the rest of the table's shape. Bounded here and snapped to a level the
+   * game offers, which is where the real refusal lives.
+   */
+  ceiling: z.number().int().min(100).max(10_000).optional(),
 });
 
 export const setListedSchema = z.object({ listed: z.boolean() });

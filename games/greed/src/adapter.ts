@@ -184,6 +184,7 @@ export function greedAdapter(
           games: 1,
           wins: seat.won ? 1 : 0,
           chipsWon: seat.got - buyIn,
+          chipsStaked: buyIn,
         },
         game: GREED.id,
         // A best turn is a maximum and only the game knows that.

@@ -1,0 +1,465 @@
+/*
+ * The death roll table.
+ *
+ * There is no cloth to read here and nothing to lay out: a duel is one number
+ * coming down between two people, so this stylesheet draws exactly that —
+ * a stage with one huge figure in the middle of it — and stays out of the way
+ * of everything else. Sized in container units, the way the wheel is, so one
+ * layout serves a phone and a wide desk without a breakpoint for every piece
+ * of it.
+ */
+
+.dr {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--gr-space-5);
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- the seats */
+
+.dr__seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  align-items: stretch;
+}
+
+@container (min-width: 480px) {
+  .dr__seats {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--gr-space-5);
+  }
+}
+
+.dr__seat {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-2) var(--gr-space-3);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.24);
+}
+
+@container (min-width: 480px) {
+  .dr__seat {
+    flex: 1 1 240px;
+    max-width: 320px;
+  }
+}
+
+/* Whoever is about to roll, so the table itself says whose turn it is
+   without making anybody read the sentence underneath to find out. */
+.dr__seat--turn {
+  border-color: var(--gr-color-neon);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+}
+
+.dr__seat--away {
+  opacity: 0.55;
+}
+
+.dr__seat--empty {
+  justify-content: center;
+  color: var(--gr-color-ink-faint);
+  border-style: dashed;
+  background: transparent;
+}
+
+.dr__seat-name {
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dr__seat-passed {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+  margin-left: auto;
+}
+
+.dr__seat-purse {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Beside the name rather than out at the edge: it is part of who this seat
+   is, not another figure about them. */
+.dr__seat-bot {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--gr-color-ink-faint);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ----------------------------------------------------------- dealing a bot */
+
+/*
+ * Somebody to duel, under the empty seat it fills. Its own row rather than
+ * anything among the controls: it is a thing you do to the table, not a move
+ * in the duel — and a duel is not running while it is on screen anyway.
+ */
+.dr__bots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gr-space-2);
+}
+
+.dr__bots-label {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+.dr__bot {
+  /* Thumb-sized, like every other control on a felt that gets played on a
+     phone. */
+  min-height: 44px;
+  padding: var(--gr-space-2) var(--gr-space-4);
+  border-radius: 999px;
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.28);
+  color: var(--gr-color-ink-dim);
+  font: inherit;
+  font-size: var(--gr-text-sm);
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.dr__bot:hover:not(:disabled) {
+  border-color: var(--gr-color-neon-dim);
+  color: var(--gr-color-ink);
+}
+
+.dr__bot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dr__bot:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------- the stage */
+
+.dr__stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-4) 0;
+  text-align: center;
+}
+
+/*
+ * The number, and the only thing on this page allowed to be this big. A duel
+ * has no cloth to read, so this is what a player's eye lands on at every
+ * width — lit the way the sign is lit, because it is the one thing in the
+ * room giving off light.
+ */
+.dr__number {
+  margin: 0;
+  min-height: 1em;
+  font-family: var(--gr-font-display);
+  font-size: clamp(4.5rem, 26cqi, 10rem);
+  line-height: 1;
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 4px var(--gr-color-neon-core),
+    0 0 18px var(--gr-color-neon),
+    0 0 46px var(--gr-color-neon),
+    0 0 90px var(--gr-color-neon-deep);
+}
+
+/*
+ * Tumbling: visibly unresolved rather than a value the client is guessing at.
+ * Genuinely still happening for as long as it runs — a die held in the air —
+ * which is the one thing in this building allowed to loop, because it stops
+ * the moment the table actually answers.
+ */
+@keyframes dr-tumble {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-4%) scale(0.97);
+    filter: blur(1.5px);
+    opacity: 0.65;
+  }
+}
+
+.dr__number--rolling {
+  animation: dr-tumble 0.55s ease-in-out infinite;
+}
+
+/*
+ * Settling: the answer arriving from above with a little overshoot, the way
+ * anything falling onto felt actually comes to rest. Once, not looped — the
+ * one motion this number gets for having landed.
+ */
+@keyframes dr-settle {
+  0% {
+    transform: translateY(-35%) scale(0.82);
+    opacity: 0;
+    filter: blur(3px);
+  }
+  65% {
+    transform: translateY(4%) scale(1.04);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dr__number--settled {
+  animation: dr-settle 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/*
+ * The 1: short and hard, no flourish. A snap rather than a fall, and the one
+ * moment this number wears the building's bad colour instead of its own neon.
+ */
+@keyframes dr-hit {
+  0% {
+    transform: scale(1.3);
+    color: var(--gr-color-bad);
+  }
+  100% {
+    transform: scale(1);
+    color: var(--gr-color-bad);
+  }
+}
+
+.dr__number--hit {
+  animation: dr-hit 0.16s ease-out;
+}
+
+.dr__odds {
+  margin: 0;
+  font-size: var(--gr-text-base);
+  color: var(--gr-color-ink-dim);
+}
+
+.dr__standing {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: var(--gr-text-lg);
+  font-weight: 500;
+  color: var(--gr-color-ink);
+}
+
+.dr__pot {
+  margin: 0;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.dr__pot-figure {
+  color: var(--gr-color-ink-lit);
+  font-family: var(--gr-font-data);
+}
+
+/* Gold only when it is real: a for-fun pot is play money and never wears the
+   one colour in the building that means somebody's balance. */
+.dr__pot-figure--chip {
+  color: var(--gr-color-chip);
+}
+
+/*
+ * Chips landing on the pot, the moment a pass is pressed rather than when the
+ * table agrees — the figure they land on is this seat's own price, shown at
+ * once for the same reason the price itself is.
+ */
+@keyframes dr-chip-in {
+  0% {
+    transform: translateY(-30%) scale(0.9);
+    opacity: 0.4;
+  }
+  60% {
+    transform: translateY(8%) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dr__pot-figure--paid {
+  display: inline-block;
+  animation: dr-chip-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ------------------------------------------------------------ the controls */
+
+/*
+ * Roll, and the pass beside it. Docked to the bottom of the viewport on a
+ * phone so both are within reach of the thumb holding it, whatever else this
+ * page has grown above them.
+ */
+.dr__controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  gap: var(--gr-space-3);
+  justify-content: center;
+  padding: var(--gr-space-3) 0;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--gr-color-night) 35%
+  );
+}
+
+@container (min-width: 480px) {
+  .dr__controls {
+    position: static;
+    background: none;
+    padding: 0;
+  }
+}
+
+.dr__roll,
+.dr__pass {
+  min-height: 44px;
+  min-width: 120px;
+  padding: var(--gr-space-3) var(--gr-space-5);
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+}
+
+.dr__pass {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.dr__pass-name {
+  font-size: var(--gr-text-base);
+}
+
+.dr__pass-price {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+/* ------------------------------------------------------------- the history */
+
+/*
+ * Every roll of the duel, oldest first. Scrolling inside its own box rather
+ * than the page: a long duel is a long strip of numbers, and nothing on this
+ * screen is allowed to make the page itself scroll sideways.
+ */
+.dr__history {
+  list-style: none;
+  margin: 0;
+  padding: var(--gr-space-1) 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.dr__past {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  padding: 4px 6px;
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.3);
+  border: var(--gr-edge-soft);
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink);
+}
+
+/* ---------------------------------------------------------- the stake pick */
+
+/*
+ * What a duel costs, and where it starts. Its own picker rather than the
+ * betting window's borrowed one: that control was styled for the page that
+ * uses it, not for this one, and a shared class with nothing behind it is how
+ * this repo has ended up with a picker that draws as plain text before.
+ */
+.dr__pickrow {
+  display: grid;
+  gap: var(--gr-space-1);
+  margin-bottom: var(--gr-space-3);
+}
+
+.dr__pickrow-label {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+.dr__pick-options {
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+}
+
+.dr__pick {
+  min-height: 44px;
+  padding: var(--gr-space-2) var(--gr-space-3);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.28);
+  color: var(--gr-color-ink);
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-sm);
+  cursor: pointer;
+}
+
+.dr__pick:hover {
+  border-color: var(--gr-color-neon-dim);
+}
+
+.dr__pick--on {
+  border-color: var(--gr-color-neon);
+  background: color-mix(in srgb, var(--gr-color-neon) 16%, transparent);
+  color: var(--gr-color-ink-lit);
+}
+
+.dr__pick:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Every keyframe above, off. Nothing here is load-bearing for what the felt
+   * says: the number still changes the instant the table does, the odds still
+   * tick, and a pass still lands — this only stops any of it moving to say so.
+   */
+  .dr__number,
+  .dr__number--rolling,
+  .dr__number--settled,
+  .dr__number--hit,
+  .dr__pot-figure--paid {
+    animation: none;
+    transition: none;
+  }
+}

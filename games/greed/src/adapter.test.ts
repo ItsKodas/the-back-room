@@ -140,6 +140,18 @@ describe("what a finished game is worth", () => {
     expect(book.finished[0]?.buyIn).toBe(500);
   });
 
+  it("stakes the buy-in on everybody who played for it", async () => {
+    const adapter = greedAdapter({ roll: sixes });
+    const room = playOut(500);
+    expect(room.status).toBe("over");
+
+    const book = ledger();
+    await adapter.settle(room, book.deps);
+
+    expect(book.recorded).toHaveLength(2);
+    expect(book.recorded.map((entry) => entry.bump.shared?.chipsStaked)).toEqual([500, 500]);
+  });
+
   it("keeps a friendly game off the record entirely", async () => {
     /*
      * Nothing was staked, so there is nothing to have won or lost. Counting

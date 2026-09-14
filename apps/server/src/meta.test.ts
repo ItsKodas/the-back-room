@@ -7,13 +7,20 @@ import { SLOTS } from "@backroom/game-slots";
 import { TIPS } from "@backroom/game-tips";
 import { describe, expect, it } from "vitest";
 import type { Lookups } from "./meta.js";
-import { headTags, inject, pageFor } from "./meta.js";
+import { headTags, inject, jsonLd, pageFor } from "./meta.js";
 
 /** A room with one game and one table in it. */
 const room: Lookups = {
   game: (id) =>
     id === "blackjack"
-      ? { name: "Blackjack", blurb: "Beat the dealer to twenty-one.", maxSeats: 6 }
+      ? {
+          name: "Blackjack",
+          blurb: "Beat the dealer to twenty-one.",
+          minSeats: 1,
+          maxSeats: 6,
+          shape: "table" as const,
+          open: true,
+        }
       : null,
   table: (code) =>
     code === "6PMKG" ? { game: "Blackjack", host: "Ada", seats: 3, maxSeats: 6 } : null,
@@ -72,7 +79,14 @@ describe("what an address says about itself", () => {
         const found = dealt.find((game) => game.id === id);
         return found === undefined
           ? null
-          : { name: found.name, blurb: found.blurb, maxSeats: found.maxSeats };
+          : {
+              name: found.name,
+              blurb: found.blurb,
+              minSeats: found.minSeats,
+              maxSeats: found.maxSeats,
+              shape: found.shape,
+              open: found.open,
+            };
       },
       table: () => null,
     };
@@ -93,6 +107,33 @@ describe("what an address says about itself", () => {
     expect(page.title).toBe("The Back Room");
     expect(page.image).toBe("https://back.example/og/site.png");
     expect(page.noindex).toBe(true);
+  });
+
+  it("keeps a game that is only a sign on a door out of search results", () => {
+    /*
+     * The catalogue lists what is coming as well as what is open, and this
+     * head is written from the catalogue — so /craps was handed a title, a
+     * description and `index, follow`, while the client has no route for it
+     * and answers with the bare-code fallback instead. An invitation to index
+     * a result that leads nowhere, once per unbuilt game.
+     */
+    const listed: Lookups = {
+      game: (id) =>
+        id === "craps"
+          ? {
+              name: "Craps",
+              blurb: "Two dice, a point to make, and a rail of people shouting.",
+              minSeats: 1,
+              maxSeats: 8,
+              shape: "table",
+              open: false,
+            }
+          : null,
+      table: () => null,
+    };
+
+    // Asserted on the tag rather than the flag: the tag is what a crawler obeys.
+    expect(headTags(pageFor("/craps", SITE, listed))).toContain('content="noindex, follow"');
   });
 
   it("keeps somebody's own pages out of search", () => {
@@ -159,5 +200,150 @@ describe("writing the head into the page", () => {
     const plain = "<head><title>Old</title></head>";
 
     expect(inject(plain, pageFor("/", SITE, room))).toBe(plain);
+  });
+});
+
+describe("what a crawler is told in so many words", () => {
+  /**
+   * The head says what the page is called. This says what it *is* — and the
+   * one thing this building most needs a search engine not to guess at is
+   * whether it takes money, because everything here looks like a game that
+   * would.
+   */
+
+  /** The graph a page carries, parsed, or null when it carries none. */
+  const graph = (page: ReturnType<typeof pageFor>): Record<string, unknown>[] => {
+    const html = jsonLd(page);
+    const body = /<script type="application\/ld\+json">([\s\S]*)<\/script>/.exec(html)?.[1];
+    if (body === undefined) {
+      return [];
+    }
+    const parsed = JSON.parse(body) as { "@graph": Record<string, unknown>[] };
+    return parsed["@graph"];
+  };
+
+  /** The one node of a given type, or undefined. */
+  const node = (
+    page: ReturnType<typeof pageFor>,
+    type: string,
+  ): Record<string, unknown> | undefined => graph(page).find((one) => one["@type"] === type);
+
+  it("names the room and the site at the front door, and ties them together", () => {
+    const front = pageFor("/", SITE, room);
+    const org = node(front, "Organization");
+    const site = node(front, "WebSite");
+
+    expect(org?.["name"]).toBe("The Back Room");
+    expect(org?.["url"]).toBe(SITE);
+    // The site points at the organisation by id rather than repeating it,
+    // which is the whole reason both live in one graph.
+    const publisher = site?.["publisher"] as Record<string, unknown> | undefined;
+    expect(publisher?.["@id"]).toBe(org?.["@id"]);
+    expect(publisher?.["@id"]).toBe(`${SITE}/#room`);
+  });
+
+  it("says a game is free to play, in the field made for saying it", () => {
+    /*
+     * The load-bearing assertion in this file. Every game here is played for
+     * chips that cannot be bought, and a crawler reading a page full of
+     * blackjack and roulette will otherwise reach its own conclusion about
+     * what kind of site this is.
+     */
+    const game = node(pageFor("/blackjack", SITE, room), "VideoGame");
+
+    expect(game?.["isAccessibleForFree"]).toBe(true);
+    expect(game?.["name"]).toBe("Blackjack");
+    expect(game?.["url"]).toBe("https://back.example/blackjack");
+  });
+
+  it("counts the players from the seats rather than from the shape's name", () => {
+    const game = node(pageFor("/blackjack", SITE, room), "VideoGame");
+    const players = game?.["numberOfPlayers"] as Record<string, unknown>;
+
+    expect(players["minValue"]).toBe(1);
+    expect(players["maxValue"]).toBe(6);
+  });
+
+  it("tells a machine apart from a table", () => {
+    const machine: Lookups = {
+      game: (id) =>
+        id === "slots"
+          ? {
+              name: "Slots",
+              blurb: "Five reels, nine lines, one climbing bank.",
+              minSeats: 1,
+              maxSeats: 1,
+              shape: "machine",
+              open: true,
+            }
+          : null,
+      table: () => null,
+    };
+
+    expect(node(pageFor("/slots", SITE, machine), "VideoGame")?.["playMode"]).toBe("SinglePlayer");
+    expect(node(pageFor("/blackjack", SITE, room), "VideoGame")?.["playMode"]).toBe("MultiPlayer");
+  });
+
+  it("walks back to the front door", () => {
+    const crumbs = node(pageFor("/blackjack", SITE, room), "BreadcrumbList");
+    const steps = crumbs?.["itemListElement"] as Record<string, unknown>[];
+
+    expect(steps).toHaveLength(2);
+    expect(steps[0]?.["item"]).toBe(SITE);
+    expect(steps[1]?.["item"]).toBe("https://back.example/blackjack");
+  });
+
+  it("says nothing at all about a page that asked not to be indexed", () => {
+    /*
+     * Structured data is a claim worth making about a page a crawler should
+     * keep. On one it has been asked to drop it is weight and a contradiction
+     * — a table page describing itself as a lasting thing while its own robots
+     * tag says it will not be here next week.
+     */
+    for (const path of ["/6PMKG", "/me", "/admin"]) {
+      expect(jsonLd(pageFor(path, SITE, room)), path).toBe("");
+    }
+  });
+
+  it("cannot be climbed out of into the page", () => {
+    /*
+     * JSON escaping is not HTML escaping: "</script>" inside a JSON string is
+     * still a perfectly valid string, and still ends the script element it is
+     * sitting in. Every other tag in this file goes through `attr`; this one
+     * cannot, because it is a document rather than an attribute.
+     */
+    const nasty: Lookups = {
+      game: () => ({
+        name: "</script><script>alert(1)</script>",
+        blurb: "Nothing to see.",
+        minSeats: 1,
+        maxSeats: 4,
+        shape: "table",
+        open: true,
+      }),
+      table: () => null,
+    };
+    const html = jsonLd(pageFor("/anything", SITE, nasty));
+
+    expect(html).not.toContain("</script><script>");
+    expect(html.match(/<\/script>/g)).toHaveLength(1);
+    // And it is still the name it was, once something parses it back.
+    const parsed = node(pageFor("/anything", SITE, nasty), "VideoGame");
+    expect(parsed?.["name"]).toBe("</script><script>alert(1)</script>");
+  });
+
+  it("goes into the page along with the head", () => {
+    const shell = `<head>
+    <!--meta-->
+    <title>Old</title>
+    <!--/meta-->
+  </head>`;
+    const out = inject(shell, pageFor("/blackjack", SITE, room));
+
+    expect(out).toContain('<script type="application/ld+json">');
+    expect(out).toContain("<title>Blackjack · The Back Room</title>");
+    // Inside the markers, so the next address served rewrites it rather than
+    // stacking a second graph on top.
+    expect(out.indexOf("ld+json")).toBeLessThan(out.indexOf("<!--/meta-->"));
   });
 });

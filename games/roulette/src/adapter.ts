@@ -311,6 +311,7 @@ export function rouletteAdapter(
             games: 1,
             wins: paid.back > paid.staked ? 1 : 0,
             chipsWon: paid.back - paid.staked,
+            chipsStaked: paid.staked,
           },
           game: ROULETTE.id,
           add: { spins: 1 },

@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--
+      The same chip at every size something will ask for it in, pressed from
+      favicon.svg by scripts/make-icons.mjs. Outside the markers below, because
+      the icon is the building's rather than any one address's.
+    -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Back Room" />
+    <!--
       Everything between the markers is rewritten per address by the server,
       which is the only thing that knows whose table /6PMKG is. What is written
       here are the defaults: what a crawler sees if this build is ever served
@@ -32,10 +40,29 @@
     <!--/meta-->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Loaded without blocking the first paint.
+
+      A stylesheet in the head stops the page being drawn until it arrives, and
+      this one comes from somebody else's server — so on a bad connection the
+      room stayed black for as long as fonts.googleapis.com took to answer,
+      which is the one thing a player has no way to work around. `media="print"`
+      makes it irrelevant to the screen until it has loaded, and the onload puts
+      it back; every stack in tokens.css names a real fallback, so what shows in
+      the meantime is the page in system fonts rather than nothing.
+    -->
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Bevan&family=Dancing+Script:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Bevan&family=Dancing+Script:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

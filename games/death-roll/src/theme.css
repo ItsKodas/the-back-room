@@ -1,0 +1,57 @@
+/*
+ * The death roll room.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. So this repaints the surfaces and touches nothing that
+ * carries meaning — chip stays gold, good and bad stay what they are
+ * everywhere else.
+ *
+ * A duel needs no felt to speak of. There are no cards, no cloth and no
+ * layout to read, so the room is mostly dark with one number lit in the
+ * middle of it — which is why the sign itself is relit violet here rather
+ * than left the building's blue. Violet reads as lit rather than as
+ * coloured, and a number falling through it is the only thing there is to
+ * look at.
+ */
+:root[data-game="death-roll"],
+[data-game="death-roll"] {
+  --gr-color-night: #16141c;
+  --gr-color-slate: #1f1c29;
+  --gr-color-shadow: #0a090e;
+  --gr-color-smoke: #29233a;
+  --gr-color-smoke-lit: #362e4a;
+
+  /*
+   * The felt on a table this game does not have. Kept anyway: every other
+   * surface in the building — a panel, a seat, a card — reads off it, and a
+   * room that left it at the building's green would still look like a card
+   * room wearing a violet sign.
+   */
+  --gr-color-felt: #241f33;
+  --gr-color-felt-lit: #2f2842;
+  --gr-color-felt-deep: #181522;
+
+  /*
+   * The sign, relit. The building's is blue because the building's one light
+   * source is the sign; this room's whole point is a number lit from
+   * somewhere, so the tube itself has to be the colour of that light rather
+   * than a blue sign shining on a violet number.
+   */
+  --gr-color-neon-core: #f6f0ff;
+  --gr-color-neon-hi: #b39cff;
+  --gr-color-neon: #6b4bd6;
+  --gr-color-neon-dim: #402d80;
+  --gr-color-neon-deep: #4b2fb0;
+
+  /* The air over a table that is mostly dark takes its colour from the one
+     thing giving off light in it, the same as the building's own room does. */
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  /* Ink warmed off the building's blue-white and towards the violet it now
+     sits on. */
+  --gr-color-ink: #e5dff5;
+  --gr-color-ink-lit: #f7f3ff;
+  --gr-color-ink-dim: #9c93b3;
+  --gr-color-ink-faint: #6c6483;
+}

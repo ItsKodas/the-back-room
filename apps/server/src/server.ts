@@ -13,6 +13,7 @@ import {
   blackjackAdapter,
   maxStake as blackjackMaxStake,
 } from "@backroom/game-blackjack";
+import { DEATH_ROLL, deathRollAdapter } from "@backroom/game-death-roll";
 import { GREED, greedAdapter, RoomError } from "@backroom/game-greed";
 import { POKER, pokerAdapter } from "@backroom/game-poker";
 import {
@@ -76,6 +77,7 @@ import type { AuthConfig } from "./auth.js";
 import { mountAuth, readAuthConfig } from "./auth.js";
 import { friendlyRedirect } from "./domains.js";
 import { EMOTE_UPLOAD_PATH, emoteUrls, mountEmotes } from "./emotes.js";
+import { mountLeaderboard } from "./leaderboard.js";
 import { mountTransfers } from "./transfers.js";
 import { wireTips } from "./tips.js";
 import { inject, pageFor } from "./meta.js";
@@ -103,6 +105,7 @@ const CATALOGUE = COMING.reduce(
     .add(POKER)
     .add(TIPS)
     .add(ROULETTE)
+    .add(DEATH_ROLL)
     .add(TWO_UP),
 );
 
@@ -133,6 +136,13 @@ export interface BackRoomServerOptions {
    * cannot be tested against real randomness.
    */
   spinRandom?: () => number;
+  /**
+   * Where a death roll duel's number comes from. Injected for the same reason
+   * as `roll`: a duel decided by real chance can take anywhere from one turn
+   * to dozens, and a test that needed the real odds to land on the first roll
+   * would be flaky by design rather than by accident.
+   */
+  deathRollRoll?: (ceiling: number) => number;
   /** How long the busting dice stay on screen before play moves on. */
   farklePauseMs?: number;
   /**
@@ -280,6 +290,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   const {
     roll = defaultRoll,
     spinRandom = secureRandom,
+    deathRollRoll,
     farklePauseMs = 2200,
     bettingMs,
     settleMs,
@@ -390,6 +401,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   const tauntBudgets = new Map<string, Budget>();
   /** Searching for somebody and paying them, budgeted by account. */
   const sendBudgets = new Map<string, Budget>();
+  /** Asking who is ahead, budgeted by account. */
+  const boardBudgets = new Map<string, Budget>();
   /**
    * The emotes this server has seen thrown, by id.
    *
@@ -691,11 +704,19 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       [
         "User-agent: *",
         "Allow: /",
-        // Somebody's own pages, and the desk behind the bar. Nothing here is
-        // secret — these are simply not results anybody wants to land on.
-        "Disallow: /me",
-        "Disallow: /admin",
-        "Disallow: /style",
+        /*
+         * Somebody's own pages, and the desk behind the bar. Nothing here is
+         * secret — these are simply not results anybody wants to land on.
+         *
+         * Anchored with `$`, because a Disallow is a prefix match: bare
+         * "/me" is also every address that merely starts with those two
+         * letters, and the room hands out five-letter table codes at the root.
+         * A code beginning "ME" is one shuffle away, and shutting a crawler
+         * out of a shared table is the opposite of what this line is for.
+         */
+        "Disallow: /me$",
+        "Disallow: /admin$",
+        "Disallow: /style$",
         "Disallow: /api/",
         "",
         `Sitemap: ${origin(request)}/sitemap.xml`,
@@ -731,7 +752,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       const listing = CATALOGUE.get(id);
       return listing === undefined
         ? null
-        : { name: listing.name, blurb: listing.blurb, maxSeats: listing.maxSeats };
+        : {
+            name: listing.name,
+            blurb: listing.blurb,
+            minSeats: listing.minSeats,
+            maxSeats: listing.maxSeats,
+            shape: listing.shape,
+            open: listing.open,
+          };
     },
     table(code: string) {
       const card = tableCard(code);
@@ -865,6 +893,24 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       }) as GameAdapter<PlayTable>,
     ],
     [
+      DEATH_ROLL.id,
+      deathRollAdapter({
+        /*
+         * The roll, from the same source the reels and the shoe come from.
+         * This table hands the player its whole result every single turn,
+         * which over a duel is exactly the run of observations needed to
+         * recover Math.random's state — and somebody who knew the next roll
+         * would know whether to spend their pass, which is the whole game.
+         *
+         * `randomInt` rather than scaling `spinRandom`, because it is
+         * rejection-sampled and so uniform over any ceiling, which scaling a
+         * float is not.
+         */
+        roll: deathRollRoll ?? ((ceiling: number) => randomInt(1, ceiling + 1)),
+        ...(turnMs === undefined ? {} : { turnMs }),
+      }) as GameAdapter<PlayTable>,
+    ],
+    [
       TWO_UP.id,
       twoUpAdapter({
         /*
@@ -969,6 +1015,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     },
     tellChips,
     withinBudget: (id, max, windowMs) => withinBudget(sendBudgets, id, max, windowMs),
+  });
+  mountLeaderboard(app, {
+    store,
+    whoIs: async (request) => {
+      const profile = await whoIs(request as express.Request);
+      return profile === null ? null : { id: profile.id };
+    },
+    withinBudget: (id, max, windowMs) => withinBudget(boardBudgets, id, max, windowMs),
   });
 
   app.get("/api/admin/codes", requireAdmin, (_request, response) => {
@@ -1418,6 +1472,22 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     if (seated.game.payOut !== undefined) {
       void seated.game
         .payOut(seated.table, deps)
+        /*
+         * Sent again only if the game says it moved something. Death roll
+         * takes its antes here — the one place in the building where the money
+         * moving *is* the state changing — and without this the duel it starts
+         * would sit unseen until something unrelated woke the table up.
+         *
+         * The recursion is bounded by the game rather than by a counter here,
+         * which is the honest place for it: only the game knows whether it did
+         * anything, and one that answered yes every time would be asking for a
+         * broadcast loop it could stop and this could not.
+         */
+        .then((changed) => {
+          if (changed === true) {
+            broadcast(code);
+          }
+        })
         .catch((error) => console.error("paying out failed", error));
     }
   }
@@ -1867,6 +1937,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           maxSeats: parsed.data.maxSeats,
           buyIn: parsed.data.buyIn,
           window: parsed.data.window,
+          ceiling: parsed.data.ceiling,
         });
         rooms.set(code, { game, table, listed: parsed.data.listed ?? true });
         table.join(socket.id, seatNameFor(socket, parsed.data.name), socket.data.identity);
@@ -2428,7 +2499,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
 
           const cost = wasFree ? 0 : stake;
           await deps.record(userId, {
-            shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost },
+            shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost, chipsStaked: cost },
             game: SLOTS.id,
             add: { spins: 1, staked: cost, jackpots: jackpot ? 1 : 0 },
             // A best spin is a maximum, and only the machine knows that.

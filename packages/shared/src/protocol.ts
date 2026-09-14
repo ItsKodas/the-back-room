@@ -158,6 +158,13 @@ export interface ClientToServer {
        * Snapped to a level the game offers.
        */
       window?: number;
+      /**
+       * Where a duel at this table starts, for a game that counts down.
+       *
+       * Part of the shape of the table rather than of any one duel, so it is
+       * the host's. Snapped to a level the game offers.
+       */
+      ceiling?: number;
     },
     ack: (result: Ack) => void,
   ) => void;

@@ -26,6 +26,7 @@ COPY games/blackjack/package.json games/blackjack/
 COPY games/slots/package.json games/slots/
 COPY games/poker/package.json games/poker/
 COPY games/roulette/package.json games/roulette/
+COPY games/death-roll/package.json games/death-roll/
 COPY games/two-up/package.json games/two-up/
 COPY games/tips/package.json games/tips/
 COPY apps/server/package.json apps/server/
@@ -57,6 +58,7 @@ COPY games/blackjack/package.json games/blackjack/
 COPY games/slots/package.json games/slots/
 COPY games/poker/package.json games/poker/
 COPY games/roulette/package.json games/roulette/
+COPY games/death-roll/package.json games/death-roll/
 COPY games/two-up/package.json games/two-up/
 COPY games/tips/package.json games/tips/
 COPY apps/server/package.json apps/server/

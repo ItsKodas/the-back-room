@@ -984,9 +984,45 @@ describe("what a link to this place looks like", () => {
     await start();
     const body = await (await fetch(at("/robots.txt"))).text();
 
-    expect(body).toContain("Disallow: /me");
-    expect(body).toContain("Disallow: /admin");
+    expect(body).toContain("Disallow: /me$");
+    expect(body).toContain("Disallow: /admin$");
     expect(body).toMatch(/Sitemap: http:\/\/localhost:\d+\/sitemap\.xml/);
+  });
+
+  it("shuts the crawler out of those pages and not out of the tables", async () => {
+    /*
+     * A Disallow is a prefix match, so an unanchored "/me" is also every
+     * address beginning with those two letters — and the codes handed out at
+     * the root are five letters of the alphabet. `TableLink` uppercases
+     * whatever it is given, so /megan is a working link to table MEGAN, and
+     * an unanchored rule shut a crawler out of it. A link to a table is the
+     * most shared thing here.
+     *
+     * Read back off the wire and applied the way a crawler would, rather than
+     * asserted against a list this test also writes.
+     */
+    await start();
+    const body = await (await fetch(at("/robots.txt"))).text();
+    const rules = [...body.matchAll(/^Disallow: (\S+)$/gm)].map((found) => found[1] ?? "");
+
+    expect(rules.length).toBeGreaterThan(0);
+    /** Whether a crawler reading these rules would be kept off an address. */
+    const blocked = (path: string): boolean =>
+      rules.some((rule) =>
+        rule.endsWith("$") ? path === rule.slice(0, -1) : path.startsWith(rule),
+      );
+
+    expect(blocked("/me")).toBe(true);
+    expect(blocked("/admin")).toBe(true);
+    expect(blocked("/api/games")).toBe(true);
+    // The ones that must stay reachable: a table code that happens to begin
+    // with the same letters, and every game's own page.
+    expect(blocked("/megan")).toBe(false);
+    expect(blocked("/MEGAN")).toBe(false);
+    expect(blocked("/admit")).toBe(false);
+    expect(blocked("/stylo")).toBe(false);
+    expect(blocked("/blackjack")).toBe(false);
+    expect(blocked("/")).toBe(false);
   });
 
   it("lists the games on the map and none of the tables", async () => {

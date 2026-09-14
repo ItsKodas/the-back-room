@@ -242,6 +242,38 @@ describe("a roulette table's money", () => {
     expect(game.winners?.(table)).toEqual([]);
   });
 
+  it("stakes what was on the felt, and records nothing at a for-fun table", async () => {
+    const { bank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { deps } = spy();
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 100 }, deps);
+    table.closeBetting();
+    table.land();
+    await game.settle(table, deps);
+
+    expect(deps.record).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ shared: expect.objectContaining({ chipsStaked: 300 }) }),
+    );
+
+    // The same felt, at a table playing for nothing: no account, no record.
+    const friendly = rouletteAdapter({ pick: () => 0 });
+    const friendlyTable = friendly.create("FGHIJ", { forFun: true }) as Table;
+    friendlyTable.join("s1", "Ada", who("u1"));
+    const watching = spy();
+
+    await friendly.act(friendlyTable, "s1", { type: "place", spotId: RED, chips: 200 }, watching.deps);
+    friendlyTable.closeBetting();
+    friendlyTable.land();
+    await friendly.settle(friendlyTable, watching.deps);
+
+    expect(watching.deps.record).not.toHaveBeenCalled();
+  });
+
   it("waits on its own clock, one phase at a time", () => {
     const game = rouletteAdapter({ pick: () => 1, window: 1_000 });
     const table = game.create("ABCDE", { forFun: true }) as Table;

@@ -826,6 +826,26 @@ describe("the free spins", () => {
     expect(await store.bank("slots")).toBe(bankAfter - free.won);
   });
 
+  it("stakes what the spin cost, and a free spin costs nothing", async () => {
+    const stake = 10;
+    const { client, store, userId } = await openMachine({
+      bank: 5_000_000,
+      chips: 100_000,
+      spinRandom: scatters(3),
+    });
+    await spin(client, stake);
+    const free = await spin(client, stake);
+    expect(free.ok).toBe(true);
+    if (!free.ok) {
+      return;
+    }
+    expect(free.wasFree).toBe(true);
+
+    // The triggering spin staked once; the free spin it paid for staked nothing.
+    const profile = await store.get(userId);
+    expect(profile?.stats.chipsStaked).toBe(stake);
+  });
+
   it("counts them down and stops", async () => {
     const { client } = await openMachine({
       bank: 5_000_000,

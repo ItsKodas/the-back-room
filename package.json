@@ -17,8 +17,9 @@
     "dev:server": "npm run dev -w @backroom/server",
     "dev:web": "npm run dev -w @backroom/web",
     "sync-audio": "node scripts/sync-audio.mjs",
-    "predev": "npm run sync-audio",
-    "prebuild": "npm run sync-audio",
+    "make-icons": "node scripts/make-icons.mjs",
+    "predev": "npm run sync-audio && npm run make-icons",
+    "prebuild": "npm run sync-audio && npm run make-icons",
     "lint": "biome lint ."
   },
   "devDependencies": {

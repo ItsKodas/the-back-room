@@ -120,6 +120,38 @@ const always = (() => {
   return out;
 })();
 
+/**
+ * One @keyframes block, cut from its opening brace to the brace that closes it.
+ *
+ * Counted rather than searched for, because both of the obvious searches are
+ * wrong here and both fail quietly. `to` is a substring of `rotor`, so a block
+ * ended at the word in its own header and the only angle left to check was the
+ * zero it starts from — the turn itself went unread for as long as the test
+ * had been passing. And a brace followed by a bare newline is not how this
+ * file ends a line on a checkout with CRLF endings: the search came back -1,
+ * `slice` read that as one from the end, and the block became the whole rest
+ * of the stylesheet, failing on a rotate() belonging to the turn ring eight
+ * hundred lines below.
+ */
+const keyframes = (name: string, sheet: string = css): string => {
+  const at = sheet.indexOf(`@keyframes ${name}`);
+  if (at === -1) {
+    return "";
+  }
+  let depth = 0;
+  for (let cursor = sheet.indexOf("{", at); cursor < sheet.length; cursor += 1) {
+    if (sheet[cursor] === "{") {
+      depth += 1;
+    } else if (sheet[cursor] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return sheet.slice(at, cursor + 1);
+      }
+    }
+  }
+  return "";
+};
+
 /*
  * The drawing and the stylesheet that moves it.
  *
@@ -252,18 +284,41 @@ describe("the wheel the stylesheet knows how to spin", () => {
      * had settled at some angle of its own would jump back to where it started
      * at that moment, which is worse to watch than the spin was to have.
      */
-    for (const [keyframes, ends] of [
-      ["tile-rotor", /rotate\((-?\d+)deg\)/g],
-      ["tile-ball-round", /rotate\((-?\d+)deg\)/g],
-    ] as const) {
-      const at = css.indexOf(`@keyframes ${keyframes}`);
-      expect(at).toBeGreaterThan(-1);
-      const block = css.slice(at, css.indexOf("}\n", css.indexOf("to", at)));
-      const turns = [...block.matchAll(ends)].map(([, degrees]) => Number(degrees));
-      expect(turns.length).toBeGreaterThan(0);
+    for (const name of ["tile-rotor", "tile-ball-round"]) {
+      const block = keyframes(name);
+      expect(block).not.toBe("");
+      const turns = [...block.matchAll(/rotate\((-?\d+)deg\)/g)].map(([, degrees]) =>
+        Number(degrees),
+      );
+      // Both ends of it, not one. A block cut short still has its from in it,
+      // and a from is a zero, and a zero passes this without meaning anything.
+      expect(turns.length).toBeGreaterThan(1);
       for (const turn of turns) {
         expect(Math.abs(turn) % 360).toBe(0);
       }
+    }
+  });
+
+  it("cuts a keyframes block at its own closing brace, on any checkout", () => {
+    /*
+     * The helper above is doing real work, so it gets its own check, the way
+     * the media-block one does. It replaced two searches that were both wrong
+     * and both quiet about it.
+     *
+     * `to` is inside `rotor`: the rotor's block used to end at the word in its
+     * own header, leaving one angle to check and that angle a zero, so the
+     * turn this suite exists to pin went unread. And the end of a line is not
+     * `}\n` on a checkout with CRLF endings, where the search came back -1, a
+     * slice took that as one from the end, and the block ran on to the foot of
+     * the stylesheet — failing on the turn ring's own rotate(-90deg), which is
+     * not part of any wheel.
+     */
+    for (const sheet of [css, css.replace(/\n/g, "\r\n")]) {
+      const rotor = keyframes("tile-rotor", sheet);
+      expect(rotor).toContain("1080deg");
+      expect(rotor.endsWith("}")).toBe(true);
+      expect(rotor).not.toContain("turn-ring");
+      expect(rotor).not.toContain("@keyframes tile-ball-round");
     }
   });
 
@@ -271,7 +326,7 @@ describe("the wheel the stylesheet knows how to spin", () => {
     // The fall's last frame and the ball's resting depth are the same number,
     // or the ball jumps out of its pocket as the animation is taken away.
     const rest = /\.art__ball \{[^}]*transform: translateY\((-?[\d.]+)px\)/.exec(css);
-    const fall = css.slice(css.indexOf("@keyframes tile-ball-fall"));
+    const fall = keyframes("tile-ball-fall");
     const landed = /100% \{\s*transform: translateY\((-?[\d.]+)px\)/.exec(fall);
     expect(rest).not.toBeNull();
     expect(landed).not.toBeNull();
