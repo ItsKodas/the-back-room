@@ -85,6 +85,14 @@ actually lands on, and with an odd number of players the roll comes back round
 differently. This is why the bot and the readout come from a solver rather than
 a formula.
 
+**One state has no fixed right answer.** At three players, ceiling 3, with all
+three still holding a pass, whether each should pass depends on the next
+player's choice in a loop with no stable end — the way rock-paper-scissors has
+none. The correct play there is to pass 59.2% of the time: the one chance that
+leaves nobody better off doing anything else. That is what the solver returns
+and what the hard bot does. Every other state, at every table size, has a fixed
+best choice, and odds.test.ts proves it.
+
 **Nobody passes above ceiling 8 at any table size.** That fact is what makes
 the solver cheap, and it is pinned by a test.
 
@@ -211,7 +219,8 @@ players and ceiling 10,000 that is a few hundred thousand operations, once.
 
 ## The bot
 
-- **Hard** plays the solver's move.
+- **Hard** plays the solver's move, which in that one three-player state means
+  passing 59.2% of the time.
 - **Normal** values surviving a round at less than it is worth, which raises the
   bar a pass has to clear.
 - **Easy** never passes.
