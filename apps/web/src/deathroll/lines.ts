@@ -62,9 +62,17 @@ export function moveLine(state: TableView, seatId: string | null): string | null
     return `${nameOf(state, toRoll)} to roll`;
   }
   const holds = state.seats.find((seat) => seat.id === toRoll)?.passed === false;
-  const at = state.alive.indexOf(toRoll);
-  const next = state.alive[(at + 1) % state.alive.length];
-  return holds && next !== undefined
+  const next = passesTo(state);
+  return holds && next !== null
     ? `Your roll — roll it, or pass it to ${nameOf(state, next)}`
     : "Your roll";
+}
+
+/** Who a pass by the player to roll would land on: the next player still in. */
+export function passesTo(state: TableView): string | null {
+  if (state.toRoll === null) {
+    return null;
+  }
+  const at = state.alive.indexOf(state.toRoll);
+  return state.alive[(at + 1) % state.alive.length] ?? null;
 }

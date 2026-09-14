@@ -16,7 +16,7 @@ import { SeatCount } from "../table/SeatCount.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Falling } from "./Falling.js";
-import { goesOut, moveLine } from "./lines.js";
+import { goesOut, moveLine, passesTo } from "./lines.js";
 import type { Intent } from "./useIntent.js";
 import { useIntent } from "./useIntent.js";
 import "@backroom/game-death-roll/theme.css";
@@ -305,15 +305,25 @@ function Standing({
   countdown: number | null;
 }) {
   if (state.phase === "waiting") {
-    const line =
-      state.waitingFor === "players"
-        ? "Waiting for players."
-        : countdown !== null
-          ? `Dealing in ${countdown}s — ${state.readyCount} of ${state.seats.length} ready.`
-          : `${state.readyCount} of ${state.seats.length} ready.`;
+    // Out of the players still here, as the table counts it: a seat held
+    // after Leave is not somebody the deal is waiting on.
+    const here = state.seats.filter((seat) => seat.connected).length;
     return (
       <p className="dr__standing" role="status">
-        {line}
+        {state.waitingFor === "players" ? (
+          "Waiting for players."
+        ) : countdown !== null ? (
+          <>
+            Dealing in{" "}
+            {/* Keyed on the seconds so each tick remounts and plays its motion once. */}
+            <span key={countdown} className="dr__countdown">
+              {countdown}
+            </span>
+            s — {state.readyCount} of {here} ready.
+          </>
+        ) : (
+          `${state.readyCount} of ${here} ready.`
+        )}
       </p>
     );
   }
@@ -343,7 +353,7 @@ function Standing({
   );
 }
 
-/** Roll, or hand the roll back at a price. Only ever shown on your turn. */
+/** Roll, or pass the roll on at a price. Only ever shown on your turn. */
 function Controls({
   state,
   intent,
@@ -382,7 +392,13 @@ function Controls({
         <button
           type="button"
           className="btn btn--ghost dr__pass"
-          aria-label={`Pass the roll back for ${fmt(state.passPrice)}`}
+          aria-label={(() => {
+            // Named, since a pass goes on round the table and cannot come back.
+            const to = passesTo(state);
+            return to === null
+              ? `Pass the roll on for ${fmt(state.passPrice)}`
+              : `Pass the roll to ${nameOf(state, to)} for ${fmt(state.passPrice)}`;
+          })()}
           disabled={busy}
           onClick={() => {
             play("bet");
@@ -522,7 +538,9 @@ function SeatRow({
       ) : null}
       {seat.out ? <span className="dr__seat-out">out</span> : null}
       {isTurn ? (
-        <span className="dr__seat-turn-marker">{forced ? "must roll" : "your roll"}</span>
+        <span className="dr__seat-turn-marker">
+          {forced ? "must roll" : mine ? "your roll" : "to roll"}
+        </span>
       ) : null}
       {seat.short ? <span className="dr__seat-short">short of the ante</span> : null}
       {state.forFun && seat.purse !== null ? (
@@ -674,12 +692,12 @@ export function Sit({
           </div>
 
           {/*
-            * What a duel here costs, and where it starts. Both are decisions
+            * What a game here costs, and where it starts. Both are decisions
             * about the whole evening rather than one player's, the same way a
             * betting window belongs to whoever opens a roulette table — so
             * they are picked here, once, by the host.
             */}
-          <div className="dr__pickrow" role="radiogroup" aria-label="What a duel costs">
+          <div className="dr__pickrow" role="radiogroup" aria-label="What a game costs">
             <span className="dr__pickrow-label">Ante</span>
             <div className="dr__pick-options">
               {STAKES.map((level) => (
@@ -697,7 +715,7 @@ export function Sit({
             </div>
           </div>
 
-          <div className="dr__pickrow" role="radiogroup" aria-label="Where a duel starts">
+          <div className="dr__pickrow" role="radiogroup" aria-label="Where the first round starts">
             <span className="dr__pickrow-label">Opens at</span>
             <div className="dr__pick-options">
               {CEILINGS.map((level) => (
