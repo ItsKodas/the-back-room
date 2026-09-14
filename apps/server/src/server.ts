@@ -1116,7 +1116,16 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     tellChipsTo,
     tables: () => [...rooms.values()].map((room) => room.table),
     emptyBanks,
-    forgetEmote: (id) => emotesSeen.delete(id),
+    // Kept, not evicted: the payout loop skips any replay it cannot find, so
+    // evicting here dropped the replay a pool still holding this emote is
+    // owed. The name stays; the sound goes, because its bytes went with the
+    // row and a URL to them would only 404 mid-animation.
+    emoteDeleted: (id) => {
+      const seen = emotesSeen.get(id);
+      if (seen !== undefined) {
+        emotesSeen.set(id, { ...seen, sound: null });
+      }
+    },
   });
 
   app.get("/api/admin/codes", requireAdmin, (_request, response) => {

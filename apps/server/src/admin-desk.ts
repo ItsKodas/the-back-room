@@ -68,8 +68,15 @@ export interface AdminDeskRoutes {
    * tables.
    */
   emptyBanks: () => Promise<number>;
-  /** Drops an emote from whatever the server remembers of it. */
-  forgetEmote: (id: string) => void;
+  /**
+   * Tells the server an emote is gone for good.
+   *
+   * Not "forget it": a pool still holding the emote replays it when it
+   * settles, and a replay needs the name. What the server does is drop the
+   * sound, whose bytes went with the row, and keep the rest — the picture's
+   * URL now answers 404, and the client hides a picture that will not load.
+   */
+  emoteDeleted: (id: string) => void;
 }
 
 function logTarget(target: AdminTarget): "all" | string[] {
@@ -77,7 +84,7 @@ function logTarget(target: AdminTarget): "all" | string[] {
 }
 
 export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
-  const { store, requireAdmin, whoIs, tellChipsTo, tables, emptyBanks, forgetEmote } = deps;
+  const { store, requireAdmin, whoIs, tellChipsTo, tables, emptyBanks, emoteDeleted } = deps;
 
   async function log(request: Request, entry: Omit<AdminLogEntry, "id" | "at" | "by" | "byName">) {
     const who = await whoIs(request);
@@ -190,7 +197,7 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         response.status(404).json({ error: "No such emote." });
         return;
       }
-      forgetEmote(id);
+      emoteDeleted(id);
       await log(request, {
         kind: "delete-emote",
         amount: 0,

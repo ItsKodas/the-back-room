@@ -82,6 +82,9 @@ async function start(
       seen += 1;
       return id;
     },
+    // Every HTTP request is the first person listed. Only a test that also
+    // puts them on the admin allowlist gets anything out of it.
+    identifyRequest: () => ids[0] ?? null,
   });
   await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
   return { store, port: (server.http.address() as AddressInfo).port, ids };
@@ -191,9 +194,9 @@ async function emote(store: MemoryStore, cost: number, withSound = false) {
 }
 
 /** Two signed-in players at a friendly table, and an emote to throw. */
-async function table(cost = 250, target = 2000) {
+async function table(cost = 250, target = 2000, withSound = false) {
   const { store, port, ids } = await start(["Ada", "Bo"]);
-  const made = await emote(store, cost);
+  const made = await emote(store, cost, withSound);
 
   const ada = await client(port);
   const created = await create(ada, "Ada");
@@ -520,6 +523,48 @@ describe("when the hand settles", () => {
      */
     expect(await chipsOf(store, adaId)).toBe(STARTING_CHIPS - 250);
     expect(await chipsOf(store, boId)).toBe(STARTING_CHIPS);
+  });
+});
+
+/*
+ * An admin deleting an emote does not take a pool's chips with it, and the
+ * spec promises the replay still happens — the name, with no picture behind
+ * it and no sound. Forgetting the emote on delete dropped the replay
+ * outright: the chips were paid, and nobody saw anything thrown back.
+ */
+describe("a pool holding an emote an admin deletes", () => {
+  afterEach(() => {
+    delete process.env["ADMIN_DISCORD_IDS"];
+  });
+
+  it("still throws it back, by name and without its sound", async () => {
+    // Ada is d0, and every HTTP request in this file is Ada.
+    process.env["ADMIN_DISCORD_IDS"] = "d0";
+    const { store, port, ada, bo, adaSeat, boSeat, emoteId, adaId } = await table(250, 2000, true);
+    await throwAt(bo, emoteId, adaSeat);
+    const thrown = await tauntWhere(bo, (one) => !one.revenge);
+    expect(thrown.sound).toBe(`/api/emotes/${emoteId}/sound`);
+
+    const deleted = await fetch(`http://localhost:${port}/api/admin/emotes/${emoteId}/delete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(deleted.status).toBe(200);
+
+    await winWith(ada);
+
+    const back = await tauntWhere(bo, (one) => one.revenge);
+    expect(back).toMatchObject({
+      revenge: true,
+      emoteId,
+      name: "Smug",
+      sound: null,
+      atSeatId: boSeat,
+      fromSeatId: adaSeat,
+      chips: 250,
+    });
+    expect(await chipsOf(store, adaId)).toBe(STARTING_CHIPS + 250);
   });
 });
 

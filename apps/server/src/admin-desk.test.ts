@@ -87,7 +87,7 @@ async function desk(options: { tables?: SeatedTable[] } = {}) {
   const store = new MemoryStore();
   const admin = await store.upsertDiscordUser({ discordId: "d-admin", name: "Koda", avatar: null, accentColor: null });
   const told: AdminTarget[] = [];
-  const forgotten: string[] = [];
+  const deleted: string[] = [];
   const app = express();
   app.use(express.json({ limit: "64kb" }));
   mountAdminDesk(app, {
@@ -109,7 +109,7 @@ async function desk(options: { tables?: SeatedTable[] } = {}) {
       }
       return total;
     },
-    forgetEmote: (id) => forgotten.push(id),
+    emoteDeleted: (id) => deleted.push(id),
   });
   // Captured from `listen`'s own return, not read back off the module-level
   // `http` — that one exists for `afterEach` to close, and is only ever
@@ -119,7 +119,7 @@ async function desk(options: { tables?: SeatedTable[] } = {}) {
   });
   http = listening;
   const base = `http://localhost:${(listening.address() as AddressInfo).port}`;
-  return { store, admin, told, forgotten, base };
+  return { store, admin, told, deleted, base };
 }
 
 async function post(url: string, body: unknown) {
@@ -244,15 +244,15 @@ describe("resetting players", () => {
 });
 
 describe("deleting an emote", () => {
-  it("removes it, forgets it, and logs its name", async () => {
-    const { store, base, forgotten } = await desk();
+  it("removes it, tells the server it is gone, and logs its name", async () => {
+    const { store, base, deleted } = await desk();
     const image = new Uint8Array(64);
     image.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
     const made = await store.addEmote({ name: "Smug", cost: 250, image, sound: null, createdBy: "a" });
 
     expect((await post(`${base}/api/admin/emotes/${made.id}/delete`, {})).body).toEqual({ ok: true });
     expect(await store.listEmotes(true)).toEqual([]);
-    expect(forgotten).toEqual([made.id]);
+    expect(deleted).toEqual([made.id]);
     const [entry] = await store.adminLog({ limit: 1, before: null });
     expect(entry).toMatchObject({ kind: "delete-emote", subject: "Smug" });
     expect((await post(`${base}/api/admin/emotes/${made.id}/delete`, {})).status).toBe(404);
