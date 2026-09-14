@@ -367,3 +367,88 @@
     animation: none;
   }
 }
+
+/* ----------------------------------------------------------------- emotes */
+
+.desk__two {
+  display: grid;
+  gap: var(--gr-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/*
+ * A file input's own chrome ("Choose file" plus the filename) is exactly the
+ * kind of unbreakable content the file-wide note above warns about — some
+ * mobile browsers size it to the filename rather than the field. Without
+ * this it is the one control in the building that can drag a 375px page
+ * wider than the phone showing it.
+ */
+.desk__two .field__input[type="file"] {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.desk__emotes {
+  display: grid;
+  gap: var(--gr-space-3);
+  /* 220px fits inside the ~297px a panel has left at 375px after its own
+     padding, so one column is what a phone gets — this is a minimum, not a
+     target. */
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  margin-bottom: var(--gr-space-3);
+}
+
+.desk__emote {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--gr-space-2) var(--gr-space-3);
+  align-items: center;
+  padding: var(--gr-space-3);
+  border: var(--gr-edge-hair);
+  border-radius: var(--gr-radius-sm);
+}
+
+.desk__emote .desk__buttons {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+
+.desk__emote--retired {
+  opacity: 0.6;
+}
+
+.desk__emote-art {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.3);
+}
+
+.desk__emote-text {
+  display: grid;
+  min-width: 0;
+}
+
+/*
+ * `min-width: 0` above lets this shrink below the name's natural width;
+ * without it a 20-character emote name widens the card, the grid track,
+ * and the phone page past 375px rather than being cut off here.
+ */
+.desk__emote-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk__emote-text .panel__note {
+  margin: 0;
+}
+
+/* A refused retire or delete, named rather than swallowed: spans the card
+   the same way the buttons row does, under whichever press it answers. */
+.desk__emote-said {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--gr-text-xs);
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { adminGet, adminPost, fmt } from "./api.js";
 
 /**
  * The emote desk.
@@ -31,8 +32,6 @@ interface Emote {
   retired: boolean;
 }
 
-const fmt = (n: number) => n.toLocaleString("en-US");
-
 /** Kilobytes, which is the unit these files are actually in. */
 const size = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))}KB`;
 
@@ -58,6 +57,10 @@ function base64(file: File): Promise<string> {
 
 export function Emotes() {
   const [emotes, setEmotes] = useState<Emote[] | null>(null);
+  // A read that failed and a read that has not landed yet both leave
+  // `emotes` null, so this is what tells them apart: without it, a broken
+  // list and an empty one both say "None yet.", which is a lie the first way.
+  const [failed, setFailed] = useState(false);
   const [name, setName] = useState("");
   const [cost, setCost] = useState("250");
   const [image, setImage] = useState<File | null>(null);
@@ -68,10 +71,10 @@ export function Emotes() {
   const soundInput = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(() => {
-    void fetch("/api/admin/emotes", { credentials: "include" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body: { emotes: Emote[] } | null) => setEmotes(body?.emotes ?? []))
-      .catch(() => setEmotes([]));
+    void adminGet<{ emotes: Emote[] }>("/api/admin/emotes").then((body) => {
+      setFailed(body === null);
+      setEmotes(body === null ? null : body.emotes);
+    });
   }, []);
 
   useEffect(load, [load]);
@@ -129,22 +132,16 @@ export function Emotes() {
           // A sound is optional, and absent is how that is said.
           ...(sound === null ? {} : { sound: await base64(sound) }),
         };
-        const response = await fetch("/api/admin/emotes", {
-          method: "POST",
-          credentials: "include",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const answer = (await response.json()) as { error?: string; emote?: Emote };
-        if (!response.ok) {
-          setSaid(answer.error ?? "That was refused.");
+        const answer = await adminPost<{ emote?: Emote }>("/api/admin/emotes", body);
+        if (!answer.ok) {
+          setSaid(answer.error);
           return;
         }
-        setSaid(`Added ${answer.emote?.name ?? "it"}.`);
+        setSaid(`Added ${answer.body.emote?.name ?? "it"}.`);
         clear();
         load();
       } catch {
-        setSaid("Could not reach the room.");
+        setSaid("Could not read that file.");
       } finally {
         setBusy(false);
       }
@@ -155,45 +152,47 @@ export function Emotes() {
     <>
       <section className="panel">
         <p className="panel__label">New emote</p>
-        <label className="field">
-          <span className="field__label">Name</span>
-          <input
-            className="field__input"
-            value={name}
-            maxLength={MAX_NAME}
-            placeholder="Smug"
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">What a throw costs</span>
-          <input
-            className="field__input"
-            value={cost}
-            inputMode="numeric"
-            onChange={(event) => setCost(event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">Picture — GIF, PNG, JPEG or WebP, up to 2MB</span>
-          <input
-            className="field__input"
-            type="file"
-            ref={imageInput}
-            accept={IMAGE_TYPES}
-            onChange={(event) => setImage(event.target.files?.[0] ?? null)}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">Sound — optional, MP3, OGG or WAV, up to 1MB</span>
-          <input
-            className="field__input"
-            type="file"
-            ref={soundInput}
-            accept={SOUND_TYPES}
-            onChange={(event) => setSound(event.target.files?.[0] ?? null)}
-          />
-        </label>
+        <div className="desk__two">
+          <label className="field">
+            <span className="field__label">Name</span>
+            <input
+              className="field__input"
+              value={name}
+              maxLength={MAX_NAME}
+              placeholder="Smug"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">What a throw costs</span>
+            <input
+              className="field__input"
+              value={cost}
+              inputMode="numeric"
+              onChange={(event) => setCost(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Picture — GIF, PNG, JPEG or WebP, up to 2MB</span>
+            <input
+              className="field__input"
+              type="file"
+              ref={imageInput}
+              accept={IMAGE_TYPES}
+              onChange={(event) => setImage(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Sound — optional, MP3, OGG or WAV, up to 1MB</span>
+            <input
+              className="field__input"
+              type="file"
+              ref={soundInput}
+              accept={SOUND_TYPES}
+              onChange={(event) => setSound(event.target.files?.[0] ?? null)}
+            />
+          </label>
+        </div>
         <button type="button" className="btn btn--wide" disabled={busy} onClick={add}>
           {busy ? "Uploading…" : "Add emote"}
         </button>
@@ -203,69 +202,104 @@ export function Emotes() {
           and if they lose it is gone. A sound is optional — plenty of them are funnier
           without one.
         </p>
-        {said === null ? null : <p className="panel__note">{said}</p>}
+        {said === null ? null : (
+          <p className="panel__note" role="status">
+            {said}
+          </p>
+        )}
       </section>
 
       <section className="panel">
         <p className="panel__label">Emotes</p>
         {emotes === null || emotes.length === 0 ? (
-          <p className="panel__note">None yet.</p>
+          <p className="panel__note">{failed ? "Could not read the emotes." : "None yet."}</p>
         ) : (
-          <div className="scroller">
-            <table className="history">
-              <thead>
-                <tr>
-                  <th />
-                  <th>Name</th>
-                  <th className="history__num">Cost</th>
-                  <th>Sound</th>
-                  <th className="history__num">Size</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {emotes.map((emote) => (
-                  <tr key={emote.id} className={emote.retired ? "code--dead" : undefined}>
-                    <td>
-                      <img
-                        className="taunt-picker__art"
-                        src={`/api/emotes/${emote.id}/image`}
-                        alt=""
-                      />
-                    </td>
-                    <td>{emote.retired ? `${emote.name} — retired` : emote.name}</td>
-                    <td className="history__num code__chips">{fmt(emote.cost)}</td>
-                    <td>{emote.soundMime === null ? "—" : "yes"}</td>
-                    <td className="history__num">
-                      {size(emote.imageBytes + (emote.soundBytes ?? 0))}
-                    </td>
-                    <td className="history__num">
-                      {emote.retired ? null : (
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--small"
-                          onClick={() => {
-                            void fetch(`/api/admin/emotes/${emote.id}/retire`, {
-                              method: "POST",
-                              credentials: "include",
-                            }).then(load);
-                          }}
-                        >
-                          Retire
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="desk__emotes">
+            {emotes.map((emote) => (
+              <EmoteCard key={emote.id} emote={emote} onChanged={load} />
+            ))}
           </div>
         )}
         <p className="panel__note">
-          Retiring one stops it being offered. It keeps its picture, because it may still be
-          sitting in somebody's pool waiting to be thrown back at them.
+          Retiring one stops it being offered and keeps its picture for any replay still owed.
+          Deleting one removes it for good; a replay still owed shows its name without it.
         </p>
       </section>
     </>
+  );
+}
+
+/**
+ * One emote, and the two ways to be rid of it.
+ *
+ * Delete arms on the first press and fires on the second, and disarms itself
+ * after a moment — the same bargain as leaving a table, because it is the
+ * one press here that cannot be undone.
+ */
+function EmoteCard({ emote, onChanged }: { emote: Emote; onChanged: () => void }) {
+  const [arming, setArming] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!arming) {
+      return;
+    }
+    const timer = setTimeout(() => setArming(false), 3000);
+    return () => clearTimeout(timer);
+  }, [arming]);
+
+  const post = (path: string) => {
+    void adminPost(path, {}).then((answer) => {
+      if (answer.ok) {
+        onChanged();
+      } else {
+        // The server's own words: a 404 (already gone) and no connection at
+        // all are different problems, and only the server knows which.
+        setSaid(answer.error);
+      }
+    });
+  };
+
+  return (
+    <article className={`desk__emote${emote.retired ? " desk__emote--retired" : ""}`} aria-label={emote.name}>
+      <img className="desk__emote-art" src={`/api/emotes/${emote.id}/image`} alt="" />
+      <div className="desk__emote-text">
+        <strong>{emote.name}</strong>
+        <span className="panel__note">
+          <span className="code__chips">{fmt(emote.cost)}</span> · {emote.soundMime === null ? "no sound" : "sound"} ·{" "}
+          {size(emote.imageBytes + (emote.soundBytes ?? 0))}
+          {emote.retired ? " · retired" : ""}
+        </span>
+      </div>
+      <div className="desk__buttons">
+        {emote.retired ? null : (
+          <button
+            type="button"
+            className="btn btn--ghost btn--small"
+            onClick={() => post(`/api/admin/emotes/${emote.id}/retire`)}
+          >
+            Retire
+          </button>
+        )}
+        <button
+          type="button"
+          className={`btn btn--ghost btn--small${arming ? " desk__danger" : ""}`}
+          onClick={() => {
+            if (arming) {
+              post(`/api/admin/emotes/${emote.id}/delete`);
+              return;
+            }
+            setArming(true);
+          }}
+        >
+          {arming ? "Delete for good?" : "Delete"}
+        </button>
+      </div>
+      {said === null ? null : (
+        <p className="desk__emote-said desk__bad" role="status">
+          {said}
+        </p>
+      )}
+    </article>
   );
 }
