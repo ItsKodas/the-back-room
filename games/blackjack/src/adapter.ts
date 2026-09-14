@@ -340,6 +340,35 @@ export function blackjackAdapter(
       });
     },
 
+    /**
+     * Hands a stake back to somebody who stood up before the deal.
+     *
+     * Out of the bank, since that is where the stake went, and in the bank's
+     * queue so no other table reads it mid-refund. Taking a bet off the felt
+     * only ever lowers what the round could owe, so the bank cannot be short
+     * for it — and is asked anyway, for the reason `settle` asks.
+     *
+     * Drained before the first await: this runs on every broadcast, and that
+     * is what makes it exactly-once per stake.
+     */
+    async payOut(table, deps) {
+      const owed = table.owedOut.splice(0);
+      if (owed.length === 0) {
+        return;
+      }
+      await serially(table, async () => {
+        for (const one of owed) {
+          if (bank !== null && !(await bank.take(one.chips))) {
+            console.error(
+              `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
+            );
+            continue;
+          }
+          await deps.give(one.userId, one.chips);
+        }
+      });
+    },
+
     isSettled(table) {
       return table.phase === "settled";
     },

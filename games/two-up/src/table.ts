@@ -248,17 +248,54 @@ export class Table {
     this.roomChanged();
     return seat;
   }
+  /**
+   * Casino seats that stood up while the felt was open, with chips still down.
+   *
+   * Handed back by the adapter, because a refund comes out of the bank and
+   * this class cannot await. Drained by `payOut`.
+   */
+  leaving: string[] = [];
+
+  /** Ring stakes owed back from a round nobody is left to play. Drained by `payOut`. */
+  owedOut: Array<{ seatId: string; userId: string | null; chips: number }> = [];
+
+  /**
+   * Somebody stands up, and their chips do not vanish with them.
+   *
+   * They used to. A casino chip is in the bank the moment it lands, so
+   * filtering it off the cloth was the bank keeping a stake for a throw the
+   * player never saw. Now a chip placed in an open window is queued to be
+   * handed back, and one already riding a throw rides it and is paid to the
+   * account it came from.
+   *
+   * A ring's centre and covers stay put while anybody is left: they are
+   * contested by the people still standing there, and a cover pulled out from
+   * under a centre halfway through a run would refund a bet that had already
+   * been matched. But a ring with nobody left in it can never be played, and a
+   * table that closes with a centre on it is a table that kept it — so the
+   * last person out takes everybody's stakes back to their accounts.
+   *
+   * Play money keeps the old behaviour: the purse it would be paid into leaves
+   * with the seat.
+   */
   removeSeat(seatId: string): void {
     this.seating.remove(seatId);
-    /*
-     * Their chips on the cloth go with them, and the centre and the covers do
-     * not. A casino stake is already in the bank, so there is nothing to hand
-     * back; a ring's chips are contested by the people still standing there,
-     * and a cover pulled out from under a centre halfway through a run would
-     * refund a bet that had already been matched.
-     */
-    this.placed = this.placed.filter((one) => one.seatId !== seatId);
     this.previous.delete(seatId);
+    if (this.forFun) {
+      this.placed = this.placed.filter((one) => one.seatId !== seatId);
+    } else if (this.school === "casino") {
+      if (this.phase === "betting" && this.staked(seatId) > 0 && !this.leaving.includes(seatId)) {
+        this.leaving.push(seatId);
+      }
+    } else if (this.phase !== "settled" && !this.seats.some((seat) => !seat.isBot)) {
+      const stakes = [...(this.centre === null ? [] : [this.centre]), ...this.covers];
+      for (const one of stakes) {
+        this.owedOut.push({ seatId: one.seatId, userId: this.accountOf(one.seatId), chips: one.chips });
+      }
+      if (stakes.length > 0) {
+        this.beginRound();
+      }
+    }
     this.roomChanged();
   }
   disconnect(seatId: string): void {

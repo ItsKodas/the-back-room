@@ -389,23 +389,43 @@ export function rouletteAdapter(
     },
 
     /**
-     * Reads what the store's bank holds, so the view can show a cap.
+     * Hands back chips left on an open cloth by somebody who stood up, then
+     * reads what the store's bank holds so the view can show a cap.
      *
-     * Not a payout — a seat that leaves this table is owed nothing, because
-     * its chips went into the bank as they landed. What this hook uniquely
-     * offers is that it runs on every broadcast, and what the bank holds is a
-     * question for the store, which a view cannot ask because building one is
-     * synchronous.
+     * A seat that leaves mid-window never saw the spin its chips were for, so
+     * they come back — through `giveBack`, the same door a player's own "clear"
+     * uses, because a refund out of the bank is a payout like any other and
+     * must not uncover a bet somebody else placed against it. When it would,
+     * the chips stay down and ride the spin, and `settle` pays them to their
+     * owner. So does a window that shut before this got its turn in the queue.
+     * Either way nothing is kept.
      *
-     * A for-fun table never needs this: its bank is on the table and its
-     * figure is exact from the moment it exists. Which is the good half of
-     * doing it this way — the number can only ever be stale where staleness
-     * costs a greyed-out spot on a table nobody is sitting at yet.
+     * Drained before the first await, which is what makes a call on every
+     * broadcast exactly-once per seat.
      *
-     * Less what the other tables on this bank could owe, so the felt greys
-     * out the same spots the refusal would. Showing only; `place` asks again.
+     * The bank figure: what the bank holds is a question for the store, which
+     * a view cannot ask because building one is synchronous. A for-fun table
+     * never needs it — its bank is on the table and exact from the moment it
+     * exists. Less what the other tables on this bank could owe, so the felt
+     * greys out the same spots the refusal would. Showing only; `place` asks
+     * again.
      */
-    async payOut(table) {
+    async payOut(table, deps) {
+      const leaving = table.leaving.splice(0);
+      if (leaving.length > 0) {
+        await serially(table, async () => {
+          for (const seatId of leaving) {
+            const owner = { id: seatId, userId: table.accountOf(seatId) };
+            try {
+              await giveBack(table, owner, () => table.clear(seatId), deps);
+            } catch (error) {
+              if (!(error instanceof TableError)) {
+                throw error;
+              }
+            }
+          }
+        });
+      }
       if (!table.forFun) {
         const elsewhere = ledger?.owedElsewhere(table) ?? 0;
         table.housed = (await holds(table)) - elsewhere;
@@ -440,12 +460,18 @@ export function rouletteAdapter(
       if (banked(table)) {
         unpaid.set(table, { spin, back: backOf(spin) });
       }
+      /*
+       * Whose account each seat was, read now rather than inside the queue.
+       *
+       * Paid whether or not they are still sitting here: a bet that rode the
+       * spin after its owner stood up is still their bet, and skipping it was
+       * the bank keeping a win it owed. The next window forgets departed seats,
+       * so this cannot wait until the queue comes round.
+       */
+      const owners = new Map([...spin.keys()].map((seatId) => [seatId, table.accountOf(seatId)]));
       await serially(table, async () => {
         for (const [seatId, paid] of spin) {
-          const seat = table.seats.find((one) => one.id === seatId);
-          if (seat === undefined) {
-            continue;
-          }
+          const seat = { id: seatId, userId: owners.get(seatId) ?? null };
           /*
            * Play money is paid but never recorded. A for-fun table touches no
            * account, so a win there is not a win anybody's profile should claim
