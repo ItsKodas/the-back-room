@@ -2894,7 +2894,7 @@ export class Table implements PlayTable {
    * waiting for the next game — has nothing on the felt and goes at once.
    */
   removeSeat(seatId: string): void {
-    if (this.game !== null && this.game.players.includes(seatId)) {
+    if (this.game?.players.includes(seatId)) {
       this.leaving.add(seatId);
       return;
     }
@@ -3165,7 +3165,7 @@ export class Table implements PlayTable {
       ready: this.readiness.isReady(seat.id),
       inGame: game?.players.includes(seat.id) ?? false,
       out: game?.out.includes(seat.id) ?? false,
-      passed: round !== null && round.order.includes(seat.id) && !round.holdsPass(seat.id),
+      passed: (round?.order.includes(seat.id) ?? false) && !(round?.holdsPass(seat.id) ?? true),
       short: this.shorts.has(seat.id),
       purse: this.forFun ? this.purseFor(seat.id) : null,
     };
