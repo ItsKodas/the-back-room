@@ -29,6 +29,15 @@ describe("a table waiting for players", () => {
     expect(table.view("ada").waitingFor).toBeNull();
   });
 
+  it("still needs players when the second one has left and their seat is only held", () => {
+    // Ready is counted against connected seats, so a held leaver made the
+    // felt read "1 of 1 ready" at a table that could never deal.
+    const table = seated("ada", "bob");
+    table.disconnect("bob");
+
+    expect(table.view("ada").waitingFor).toBe("players");
+  });
+
   it("takes no stake for being ready", () => {
     // Waiting never costs anybody a stake: ready moves nothing.
     const table = seated("ada", "bob");

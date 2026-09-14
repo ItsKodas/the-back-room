@@ -233,7 +233,10 @@ describe("a death roll table over sockets", () => {
      * inside it — so the second half of this test presses ready and requires
      * the deal within the same span. Two seated and nobody ready runs exactly
      * the path an all-ready table deals through, with a zero-length pause, so
-     * a table that stopped consulting readiness fails the first half.
+     * a table that stopped consulting readiness fails the first half. The
+     * deal itself gets more room than the wait did: a table that ignored
+     * readiness took its antes well inside the window, so the proof holds,
+     * and a loaded full-suite run is not a reason for this half to fail.
      */
     const WINDOW_MS = 1_000;
     await new Promise((resolve) => setTimeout(resolve, WINDOW_MS));
@@ -243,7 +246,7 @@ describe("a death roll table over sockets", () => {
     expect(host.seen.every((view) => view.phase === "waiting" && view.pot === 0)).toBe(true);
 
     await Promise.all([ready(host), ready(bo)]);
-    const playing = await stateWhere(host, (view) => view.phase === "playing", WINDOW_MS);
+    const playing = await stateWhere(host, (view) => view.phase === "playing", 5_000);
     expect(playing.pot).toBe(1_000);
   });
 

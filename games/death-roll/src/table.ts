@@ -542,7 +542,9 @@ export class Table implements PlayTable {
       winnerIds: winner === null ? [] : [winner],
       countdownEndsAt: game === null ? this.readiness.countdownEndsAt : null,
       readyCount: game === null ? this.readiness.count(this.present()) : 0,
-      waitingFor: game === null && seated.length < 2 ? "players" : null,
+      // Counted the way ready is: a held leaver cannot be dealt, so a table
+      // down to one connected player is waiting, not "1 of 1 ready".
+      waitingFor: game === null && this.present().length < 2 ? "players" : null,
       lastEvent: this.lastEvent,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,
     };
