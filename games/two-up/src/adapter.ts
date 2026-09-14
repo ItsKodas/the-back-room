@@ -121,6 +121,9 @@ export function twoUpAdapter(
    */
   const unpaid = new WeakMap<Table, { round: object; back: number }>();
 
+  /** What a void has taken off the escrow and not yet paid out of the bank. */
+  const refunding = new WeakMap<Table, number>();
+
   const backOf = (round: ReadonlyMap<string, { back: number }>): number => {
     let back = 0;
     for (const one of round.values()) {
@@ -136,10 +139,15 @@ export function twoUpAdapter(
    * until that is paid, and nothing after.
    */
   const owing = (table: Table): number => {
-    // A called-off table owes nothing, and an act queued behind the void
-    // would otherwise put its reservation back on the way out of `serially`.
+    /*
+     * A called-off table owes only the refunds its void has yet to pay. Those
+     * chips are still in the bank until the void's turn in the queue comes,
+     * and another table reading them as free would take stakes against chips
+     * about to leave. After that nothing — an act queued behind the void would
+     * otherwise put its reservation back on the way out of `serially`.
+     */
     if (table.escrow.closed) {
-      return 0;
+      return refunding.get(table) ?? 0;
     }
     const waiting = unpaid.get(table);
     let total = waiting?.back ?? 0;
@@ -610,32 +618,41 @@ export function twoUpAdapter(
     async payOut(table, deps) {
       if (table.leaving.size > 0) {
         await serially(table, async () => {
-          for (const seatId of [...table.leaving]) {
-            // Out of the set before the first await, so two broadcasts cannot
-            // both hand it back — and skipped if a join or a shut window
-            // already took it out.
-            if (!table.leaving.delete(seatId)) {
-              continue;
-            }
-            const seat = payee(table, seatId);
-            let off: number | null;
-            try {
-              off = await lift(table, () => {
-                // Unless they sat back down while the bank was read, when the chips are theirs to manage.
-                if (!table.seats.some((one) => one.id === seatId)) {
-                  table.clear(seatId);
+          /*
+           * Round again while anybody's chips came off. A refused leaver stays
+           * in the set, because the bet leaning on them can go too — and if it
+           * was the last seat, nothing will ever spin to settle what is left.
+           */
+          let moved = true;
+          while (moved) {
+            moved = false;
+            for (const seatId of [...table.leaving]) {
+              const seat = payee(table, seatId);
+              let off: number | null;
+              try {
+                off = await lift(table, () => {
+                  // Asked again after the bank read: a join or a shut window may have taken them out.
+                  if (table.leaving.has(seatId)) {
+                    table.clear(seatId);
+                  }
+                });
+              } catch (error) {
+                // The window shut while the bank was read, so the chips ride.
+                if (error instanceof TableError) {
+                  continue;
                 }
-              });
-            } catch (error) {
-              // The window shut while the bank was read, so the chips ride.
-              if (error instanceof TableError) {
+                throw error;
+              }
+              // Refused: the chips stay down, and the seat stays to be asked again.
+              if (off === null) {
                 continue;
               }
-              throw error;
-            }
-            // Refused chips stay down and ride; `settle` pays them to the account.
-            if (off !== null) {
-              await payBack(table, seat, off, deps);
+              // Out of the set before the payment awaits, so nothing lifts it twice.
+              table.leaving.delete(seatId);
+              if (off > 0) {
+                moved = true;
+                await payBack(table, seat, off, deps);
+              }
             }
           }
         });
@@ -792,9 +809,15 @@ export function twoUpAdapter(
      */
     async void(table, deps) {
       const owed = table.escrow.close();
+      refunding.set(table, owed.reduce((sum, one) => sum + one.chips, 0));
       await serially(table, async () => {
-        for (const one of owed) {
-          await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+        try {
+          for (const one of owed) {
+            await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+          }
+        } finally {
+          // Inside the work, so `serially` reads the table as owing nothing on its way out.
+          refunding.delete(table);
         }
       });
       ledger?.release(table);

@@ -243,8 +243,9 @@ export class Table {
    * Standing up mid-round is honoured there and then.
    *
    * Nothing is kept from a seat that leaves and nothing waits for it: casino
-   * chips down while bets are open come back, and chips that are riding — a
-   * closed casino cloth, a ring's centre or covers — are paid to their account
+   * chips down while bets are open come back, unless another bet leans on them
+   * for cover or the window shuts first, and chips that are riding — a closed
+   * casino cloth, a ring's centre or covers — are paid to their account
    * whatever the coins do. Holding the seat would be holding it for nothing.
    */
   readonly leavesMidHand = true;

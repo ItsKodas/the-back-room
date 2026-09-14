@@ -817,3 +817,66 @@ describe("a two-up table's chips while the economy is being awaited", () => {
     expect(read()).toBe(100_000);
   });
 });
+
+describe("a two-up casino table's claim on the bank while it is being wound up", () => {
+  it("keeps a called-off table's stakes owed until its refunds have left the bank", async () => {
+    const { deps } = purse({ u0: 1_000 });
+    const { bank: inner } = bankOf(1_000_000);
+    let paying: ReturnType<typeof gate> | null = null;
+    const bank = {
+      ...inner,
+      take: async (amount: number) => {
+        if (paying !== null) {
+          paying.reached();
+          await paying.opened;
+        }
+        return inner.take(amount);
+      },
+    };
+    const adapter = twoUpAdapter({ bank });
+    const a = adapter.create("AAAA", { ruleset: "casino" });
+    const b = adapter.create("BBBB", { ruleset: "casino" });
+    sit(a, "s0", "u0");
+    await adapter.act(a, "s0", { type: "place", on: "heads", chips: 200 }, deps);
+
+    const { ledgerOf } = await import("@backroom/core");
+    const hold = gate();
+    paying = hold;
+    const voiding = adapter.void?.(a, deps);
+    await hold.arrived;
+    expect(ledgerOf(bank).owedElsewhere(b)).toBeGreaterThanOrEqual(200);
+
+    paying = null;
+    hold.open();
+    await voiding;
+    expect(ledgerOf(bank).owedElsewhere(b)).toBe(0);
+  });
+
+  it("asks again about a leaver's chips once the bet leaning on them has gone", async () => {
+    /*
+     * Heads covers tails against a bank of 100, so heads leaving is refused.
+     * Tails then leaves too, and with nobody left to spin the table, heads
+     * must still be asked about again rather than stranded on the cloth.
+     */
+    const { held, deps } = purse({ u0: 1_000, u1: 1_000 });
+    const { bank, read } = bankOf(100);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+    await adapter.act(table, "s1", { type: "place", on: "tails", chips: 200 }, deps);
+
+    table.removeSeat("s0");
+    await adapter.payOut?.(table, deps);
+    expect(held["u0"]).toBe(900);
+
+    table.removeSeat("s1");
+    await adapter.payOut?.(table, deps);
+
+    expect(held).toEqual({ u0: 1_000, u1: 1_000 });
+    expect(read()).toBe(100);
+    expect(table.onCloth).toBe(0);
+    expect(table.escrow.total).toBe(0);
+  });
+});
