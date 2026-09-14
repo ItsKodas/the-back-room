@@ -306,6 +306,7 @@ describe("what blackjack does with chips", () => {
 
   it("stakes what the seat put out, not what came back", async () => {
     let staked: number | null = null;
+    let rounds: number | null = null;
     const game = blackjackAdapter();
     const table = game.create("TEST1");
     table.join("a", "Ada", identity("u1"));
@@ -315,6 +316,7 @@ describe("what blackjack does with chips", () => {
       ...deps,
       async record(_userId, entry) {
         staked = entry.shared?.chipsStaked ?? null;
+        rounds = entry.shared?.rounds ?? null;
       },
     };
 
@@ -327,6 +329,8 @@ describe("what blackjack does with chips", () => {
 
     // A thousand, whatever came back — a hand that won 2,000 still staked 1,000.
     expect(staked).toBe(1000);
+    // And a hand is a round, won or lost.
+    expect(rounds).toBe(1);
   });
 
   it("refuses a verb it does not have", async () => {

@@ -354,8 +354,8 @@ export function deathRollAdapter(
         const net = duel.netFor(seat.id);
         await deps.record(seat.userId, {
           shared: {
-            games: 1,
-            wins: net > 0 ? 1 : 0,
+            rounds: 1,
+            roundsWon: net > 0 ? 1 : 0,
             chipsWon: net,
             /*
              * The ante plus whatever this seat spent passing. A pass is chips

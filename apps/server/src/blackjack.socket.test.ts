@@ -346,7 +346,7 @@ describe("blackjack over the wire", () => {
     // Both read after the deal, so whatever hands dealLive played out first
     // are already in them and this measures only the hand about to finish.
     const staked = (await store.get(ada))?.chips ?? 0;
-    const played = (await store.get(ada))?.stats.games ?? 0;
+    const played = (await store.get(ada))?.stats.rounds ?? 0;
 
     await act(host, { type: "stand" });
     const over = await stateWhere(host, (view) => view.phase === "settled");
@@ -363,7 +363,7 @@ describe("blackjack over the wire", () => {
     await expect.poll(async () => (await store.get(ada))?.chips).toBe(staked + back);
 
     const record = await store.get(ada);
-    expect(record?.stats.games).toBe(played + 1);
+    expect(record?.stats.rounds).toBe(played + 1);
   });
 
   it("tells you what you are worth as the chips move, without being asked", async () => {

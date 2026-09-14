@@ -14,7 +14,7 @@ export interface BoardRow {
   avatar: string | null;
   accentColor: number | null;
   chips: number;
-  stats: { games: number; wins: number; chipsWon: number; chipsStaked: number };
+  stats: { rounds: number; roundsWon: number; chipsWon: number; chipsStaked: number };
 }
 
 export interface Board {
@@ -35,7 +35,7 @@ export const COLUMNS: ReadonlyArray<{ sort: BoardSort; label: string }> = [
 
 /** Wins as a percentage. Nobody who has played nothing has won nothing. */
 export function winRate(stats: BoardRow["stats"]): number {
-  return stats.games === 0 ? 0 : Math.round((stats.wins / stats.games) * 100);
+  return stats.rounds === 0 ? 0 : Math.round((stats.roundsWon / stats.rounds) * 100);
 }
 
 export function figure(row: BoardRow, sort: BoardSort): number {
@@ -47,9 +47,9 @@ export function figure(row: BoardRow, sort: BoardSort): number {
     case "staked":
       return row.stats.chipsStaked;
     case "games":
-      return row.stats.games;
+      return row.stats.rounds;
     case "wins":
-      return row.stats.wins;
+      return row.stats.roundsWon;
   }
 }
 

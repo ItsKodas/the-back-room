@@ -17,7 +17,7 @@ function signedIn(overrides: Partial<Account["profile"]> = {}): Account {
       avatar: null,
       accentColor: null,
       chips: 10_000,
-      stats: { games: 47, wins: 19, chipsWon: 4200 },
+      stats: { rounds: 47, roundsWon: 19, chipsWon: 4200 },
       byGame: {
         greed: { bestTurn: 3050, farkles: 62, hotDice: 11 },
         blackjack: { busts: 3 },

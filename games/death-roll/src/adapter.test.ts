@@ -456,6 +456,11 @@ describe("settling", () => {
     expect(price).toBeGreaterThan(0);
     expect(staked(passer)).toBe(500 + price);
     expect(staked(passer === "ada" ? "bob" : "ada")).toBe(500);
+
+    // One duel is one round for each of them, and exactly one of them won it.
+    const shared = (deps.record as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[1]?.shared);
+    expect(shared.map((one) => one?.rounds)).toEqual([1, 1]);
+    expect(shared.filter((one) => one?.roundsWon === 1)).toHaveLength(1);
   });
 
   it("hands out exactly what it was handed, passes and all", async () => {

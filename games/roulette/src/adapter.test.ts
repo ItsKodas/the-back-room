@@ -257,7 +257,9 @@ describe("a roulette table's money", () => {
 
     expect(deps.record).toHaveBeenCalledWith(
       "u1",
-      expect.objectContaining({ shared: expect.objectContaining({ chipsStaked: 300 }) }),
+      expect.objectContaining({
+        shared: expect.objectContaining({ chipsStaked: 300, rounds: 1 }),
+      }),
     );
 
     // The same felt, at a table playing for nothing: no account, no record.
