@@ -148,3 +148,43 @@ export function maxStakeAgainst(bank: number, committed: Iterable<number>): numb
   const round = roundWorstCase(committed);
   return maxStake(bank - (round.back - round.staked));
 }
+
+/**
+ * The most one seat's hands could still take out of the bank.
+ *
+ * Stakes back included, and less any stake the seat has yet to put up to get
+ * there — the same terms as `maxStakeAgainst`, because this is what the other
+ * tables paid from this bank are told a felt is holding. Before the deal a
+ * hand is worth exactly what the round budget allowed for it: split, both
+ * doubled, both won, less the three stakes still to come, plus the one down.
+ *
+ * It never grows faster than the bank does. A split or a double adds as much
+ * here as it adds to the stakes in the bank, and every other card only takes
+ * a possibility away — which is why neither needs to be capped as it happens.
+ */
+export function stillOwed(
+  hands: ReadonlyArray<{
+    bet: number;
+    cards: readonly unknown[];
+    done: boolean;
+    fromSplit: boolean;
+  }>,
+): number {
+  let total = 0;
+  for (const hand of hands) {
+    const open = !hand.done && hand.cards.length <= 2;
+    if (open && !hand.fromSplit && hands.length === 1) {
+      const worst = worstCase(hand.bet);
+      total += worst.back - worst.staked + hand.bet;
+    } else if (open) {
+      // Doubled and won, less the double still to come.
+      total += DOUBLE * hand.bet * WIN_RETURN - (DOUBLE - 1) * hand.bet;
+    } else if (hand.cards.length === 2 && !hand.fromSplit) {
+      // Could be a dealt blackjack, which is the better return.
+      total += Math.floor(BLACKJACK_RETURN * hand.bet);
+    } else {
+      total += WIN_RETURN * hand.bet;
+    }
+  }
+  return total;
+}

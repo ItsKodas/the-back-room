@@ -1,7 +1,7 @@
 import type { BotMove, GameAdapter, GameDeps } from "@backroom/core";
-import { seatLimit, TableError } from "@backroom/core";
+import { ledgerOf, seatLimit, TableError } from "@backroom/core";
 import { botBet, thinkingTime } from "./bot.js";
-import { headroom, type BetOn, MIN_CHIP, staked } from "./bank.js";
+import { type Bet, headroom, type BetOn, MIN_CHIP, owed, staked } from "./bank.js";
 import { toBets } from "./bets.js";
 import { uncovered } from "./centre.js";
 import { TWO_UP } from "./listing.js";
@@ -97,6 +97,76 @@ export function twoUpAdapter(
   const kipMs = options.kipMs ?? KIP_MS;
 
   /*
+   * The book every casino table paid from this bank keeps together.
+   *
+   * Every casino school in the building is paid from one bank, so a cap worked
+   * out against this table's cloth alone reads every other table's chips as
+   * headroom — chips those tables' winners are already owed. See `BankLedger`
+   * for the whole of why.
+   */
+  const ledger = bank === null ? null : ledgerOf(bank);
+
+  /** Whether this table's chips are the bank's, and so in the book. A ring's never are. */
+  const banked = (table: Table): boolean =>
+    ledger !== null && !table.forFun && table.school === "casino";
+
+  /** Rounds that have been paid, so a settled cloth stops holding the bank's chips. */
+  const paidOut = new WeakSet<object>();
+
+  /**
+   * A round handed to `settle` and still waiting its turn in the queue.
+   *
+   * Counted apart from the table, because the table does not wait for it: a
+   * cloth swept for the next round no longer says what the last one is owed.
+   */
+  const unpaid = new WeakMap<Table, { round: object; back: number }>();
+
+  const backOf = (round: ReadonlyMap<string, { back: number }>): number => {
+    let back = 0;
+    for (const one of round.values()) {
+      back += one.back;
+    }
+    return back;
+  };
+
+  /**
+   * The most this table could still take out of the bank, stakes back included.
+   *
+   * The cloth's worst outcome until the coins are called, what they called
+   * until that is paid, and nothing after.
+   */
+  const owing = (table: Table): number => {
+    const waiting = unpaid.get(table);
+    let total = waiting?.back ?? 0;
+    if (table.paid === null) {
+      total += owed(toBets(table.placed));
+    } else if (table.paid !== waiting?.round && !paidOut.has(table.paid)) {
+      total += backOf(table.paid);
+    }
+    return total;
+  };
+
+  /**
+   * Runs something that moves this table's chips in the bank's own queue, and
+   * tells the book what the table owes once it has.
+   *
+   * Anything else skips the queue: a for-fun table's bank is a field on the
+   * table, and a ring has no bank to promise anybody anything from.
+   */
+  const serially = async <T>(table: Table, work: () => Promise<T>): Promise<T> => {
+    if (ledger === null || !banked(table)) {
+      return work();
+    }
+    return ledger.serially(async () => {
+      try {
+        return await work();
+      } finally {
+        ledger.owes(table, () => owing(table));
+      }
+    });
+  };
+
+  /*
    * Where a table's money actually lives.
    *
    * A for-fun table's purse and bank live on the table and are gone when it
@@ -121,9 +191,17 @@ export function twoUpAdapter(
    * it holds mid-window already includes them, and `headroom` subtracts the
    * stakes itself — handing it the inflated figure would let the cloth vouch
    * for itself.
+   *
+   * Nor counting what every other casino table on this bank could owe: their
+   * chips are in there too, and are not this table's to promise. Only a fact
+   * inside `serially`, where nothing else can move the bank between reading it
+   * and a chip landing.
    */
-  const base = async (table: Table): Promise<number> =>
-    (await holds(table)) - staked(toBets(table.placed));
+  const base = async (table: Table): Promise<number> => {
+    const held = await holds(table);
+    const elsewhere = ledger !== null && banked(table) ? ledger.owedElsewhere(table) : 0;
+    return held - staked(toBets(table.placed)) - elsewhere;
+  };
 
   /**
    * Chips off the player, and into the bank if this is the casino school.
@@ -212,11 +290,48 @@ export function twoUpAdapter(
      * against.
      */
     if (table.school === "casino" && bank !== null && !(await bank.take(chips))) {
+      /*
+       * Loudly, because a refusal now means something outside the book moved
+       * the bank: another process, or a hand on the database. A winner left
+       * unpaid with nothing in the log is how this hid the first time.
+       */
+      console.error(
+        `two-up ${table.code}: the bank refused ${chips} owed to ${seat.userId ?? seat.id}`,
+      );
       return;
     }
     if (seat.userId !== null) {
       await deps.give(seat.userId, chips);
     }
+  };
+
+  /**
+   * Chips back off the cloth, unless the bets left behind would lose their cover.
+   *
+   * A chip coming off comes out of the bank, and what it leaves does not get
+   * cheaper for it: heads went down against the bank, tails was then allowed
+   * to lean on heads, and taking heads back leaves tails owed more than the
+   * bank holds. So it is refused — but only when it makes the shortfall worse,
+   * so a bank drained from outside never traps anybody's chips on a cloth.
+   */
+  const giveBack = async (
+    table: Table,
+    seat: { id: string; userId: string | null },
+    lift: () => void,
+    deps: GameDeps,
+  ): Promise<void> => {
+    const before = [...table.placed];
+    const floor = await base(table);
+    lift();
+    const off = staked(toBets(before)) - staked(toBets(table.placed));
+    if (banked(table)) {
+      const short = (bets: readonly Bet[]) => owed(bets) - staked(bets) - floor;
+      if (short(toBets(table.placed)) > Math.max(0, short(toBets(before)))) {
+        table.placed = before;
+        throw new TableError("That chip is covering another bet. It stays for this round.");
+      }
+    }
+    await pay(table, seat, off, deps);
   };
 
   return {
@@ -256,98 +371,96 @@ export function twoUpAdapter(
       }
 
       if (table.school === "casino") {
-        switch (move.type) {
-          case "place": {
-            if (!betOn(move.on)) {
-              throw new TableError("There is no such bet on this table.");
+        await serially(table, async () => {
+          switch (move.type) {
+            case "place": {
+              if (!betOn(move.on)) {
+                throw new TableError("There is no such bet on this table.");
+              }
+              const on = move.on;
+              const chips = move.chips ?? 0;
+
+              /*
+               * What this side can still take, worked out across the whole
+               * cloth. One throw settles everybody, so the table's exposure is
+               * a single shared number and a cap that ignored the other seats
+               * would be a promise made in front of people it did not count.
+               */
+              const most = headroom(await base(table), toBets(table.placed), on);
+              if (chips > most) {
+                throw new TableError(
+                  most === 0
+                    ? "The bank cannot cover any more on that."
+                    : `The bank covers ${most.toLocaleString("en-US")} on that at the moment.`,
+                );
+              }
+
+              /*
+               * Asked, paid, then placed. The table is asked first because it
+               * is the cheap refusal, and placed last because by then nothing
+               * is left to go wrong — which is what keeps a chip on the cloth
+               * and the chips that paid for it from ever disagreeing.
+               */
+              table.check(seatId, on, chips);
+              if (!(await stake(table, seat, chips, deps))) {
+                throw new TableError(
+                  table.forFun
+                    ? "That is more than your purse."
+                    : "You do not have the chips for that.",
+                );
+              }
+              table.place(seatId, on, chips);
+              return;
             }
-            const on = move.on;
-            const chips = move.chips ?? 0;
 
             /*
-             * What this side can still take, worked out across the whole
-             * cloth. One throw settles everybody, so the table's exposure is
-             * a single shared number and a cap that ignored the other seats
-             * would be a promise made in front of people it did not count.
+             * Taking a chip back pays it out of the bank, the same movement as
+             * a win — otherwise a player could fill the bank by placing and
+             * unplacing all evening.
              */
-            const most = headroom(await base(table), toBets(table.placed), on);
-            if (chips > most) {
-              throw new TableError(
-                most === 0
-                  ? "The bank cannot cover any more on that."
-                  : `The bank covers ${most.toLocaleString("en-US")} on that at the moment.`,
-              );
-            }
-
-            /*
-             * Asked, paid, then placed. The table is asked first because it
-             * is the cheap refusal, and placed last because by then nothing
-             * is left to go wrong — which is what keeps a chip on the cloth
-             * and the chips that paid for it from ever disagreeing.
-             */
-            table.check(seatId, on, chips);
-            if (!(await stake(table, seat, chips, deps))) {
-              throw new TableError(
-                table.forFun
-                  ? "That is more than your purse."
-                  : "You do not have the chips for that.",
-              );
-            }
-            table.place(seatId, on, chips);
-            return;
-          }
-
-          /*
-           * Taking a chip back pays it out of the bank, the same movement as
-           * a win — otherwise a player could fill the bank by placing and
-           * unplacing all evening.
-           */
-          case "take": {
-            if (!betOn(move.on)) {
-              throw new TableError("There is no such bet on this table.");
-            }
-            const off = table.take(seatId, move.on, move.chips ?? 0);
-            await pay(table, seat, off, deps);
-            return;
-          }
-
-          case "undo":
-          case "clear": {
-            const before = table.staked(seatId);
-            if (move.type === "undo") {
-              table.undo(seatId);
-            } else {
-              table.clear(seatId);
-            }
-            const backOff = before - table.staked(seatId);
-            await pay(table, seat, backOff, deps);
-            return;
-          }
-
-          case "repeat": {
-            const want = table.lastRound(seatId);
-            for (const one of want) {
-              const most = headroom(await base(table), toBets(table.placed), one.on);
-              if (one.chips > most) {
-                continue;
+            case "take": {
+              if (!betOn(move.on)) {
+                throw new TableError("There is no such bet on this table.");
               }
-              try {
-                table.check(seatId, one.on, one.chips);
-              } catch {
-                // The window shut partway through. Whatever is down, stays down.
-                return;
-              }
-              if (!(await stake(table, seat, one.chips, deps))) {
-                return;
-              }
-              table.place(seatId, one.on, one.chips);
+              const on = move.on;
+              await giveBack(table, seat, () => table.take(seatId, on, move.chips ?? 0), deps);
+              return;
             }
-            return;
-          }
 
-          default:
-            throw new TableError("That is not a move at this table.");
-        }
+            case "undo":
+              await giveBack(table, seat, () => table.undo(seatId), deps);
+              return;
+
+            case "clear":
+              await giveBack(table, seat, () => table.clear(seatId), deps);
+              return;
+
+            case "repeat": {
+              const want = table.lastRound(seatId);
+              for (const one of want) {
+                const most = headroom(await base(table), toBets(table.placed), one.on);
+                if (one.chips > most) {
+                  continue;
+                }
+                try {
+                  table.check(seatId, one.on, one.chips);
+                } catch {
+                  // The window shut partway through. Whatever is down, stays down.
+                  return;
+                }
+                if (!(await stake(table, seat, one.chips, deps))) {
+                  return;
+                }
+                table.place(seatId, one.on, one.chips);
+              }
+              return;
+            }
+
+            default:
+              throw new TableError("That is not a move at this table.");
+          }
+        });
+        return;
       }
 
       // The traditional school: a centre, and the ring covering it.
@@ -408,10 +521,14 @@ export function twoUpAdapter(
      * chip it moves goes straight from one account to another — so there is
      * nothing here for it to refresh, and a for-fun table's bank is exact
      * from the moment it exists.
+     *
+     * Less what the other casino tables on this bank could owe, so the felt
+     * greys out what the refusal would. Showing only; `place` asks again.
      */
     async payOut(table) {
       if (!table.forFun && table.school === "casino") {
-        table.housed = await holds(table);
+        const elsewhere = ledger?.owedElsewhere(table) ?? 0;
+        table.housed = (await holds(table)) - elsewhere;
       }
     },
 
@@ -475,32 +592,45 @@ export function twoUpAdapter(
         return;
       }
 
-      if (table.paid === null || table.called === null) {
+      /*
+       * Read before joining the bank's queue, not after: the table sweeps its
+       * cloth on its own clock, and a settle that looked for the result once
+       * its turn came could find nothing there to pay.
+       */
+      const round = table.paid;
+      if (round === null || table.called === null) {
         return;
       }
-      for (const [seatId, paid] of table.paid) {
-        /* Same rule as the ring above: a decided payout is theirs, seated or not. */
-        const here = table.seats.find((one) => one.id === seatId);
-        const userId = here?.userId ?? table.accountOf(seatId);
-        await pay(table, { id: seatId, userId }, paid.back, deps);
-        /*
-         * Play money is paid but never recorded. A for-fun table touches no
-         * account, so a win there is not a win anybody's profile should claim —
-         * and a guest has no account to write one on either way.
-         */
-        if (table.forFun || userId === null) {
-          continue;
-        }
-        await deps.record(userId, {
-          shared: {
-            games: 1,
-            wins: paid.back > paid.staked ? 1 : 0,
-            chipsWon: paid.back - paid.staked,
-          },
-          game: TWO_UP.id,
-          add: { rounds: 1 },
-        });
+      if (banked(table)) {
+        unpaid.set(table, { round, back: backOf(round) });
       }
+      await serially(table, async () => {
+        for (const [seatId, paid] of round) {
+          /* Same rule as the ring above: a decided payout is theirs, seated or not. */
+          const here = table.seats.find((one) => one.id === seatId);
+          const userId = here?.userId ?? table.accountOf(seatId);
+          await pay(table, { id: seatId, userId }, paid.back, deps);
+          /*
+           * Play money is paid but never recorded. A for-fun table touches no
+           * account, so a win there is not a win anybody's profile should claim —
+           * and a guest has no account to write one on either way.
+           */
+          if (table.forFun || userId === null) {
+            continue;
+          }
+          await deps.record(userId, {
+            shared: {
+              games: 1,
+              wins: paid.back > paid.staked ? 1 : 0,
+              chipsWon: paid.back - paid.staked,
+            },
+            game: TWO_UP.id,
+            add: { rounds: 1 },
+          });
+        }
+        paidOut.add(round);
+        unpaid.delete(table);
+      });
     },
 
     /**
