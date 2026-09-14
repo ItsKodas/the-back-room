@@ -460,7 +460,7 @@ describe("leaving", () => {
     made.leave((blind as { id: string }).id);
 
     // What they took off the table, plus what is left on it, is what there was.
-    const took = made.owedOut.reduce((total, one) => total + one.chips, 0);
+    const took = made.escrow.due.reduce((total, one) => total + one.chips, 0);
     expect(chips(made) + took).toBe(before);
   });
 

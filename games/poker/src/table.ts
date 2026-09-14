@@ -5,7 +5,7 @@ import type {
   SeatIdentity,
   TableStatus,
 } from "@backroom/core";
-import { Seating, TableError } from "@backroom/core";
+import { Escrow, Seating, TableError } from "@backroom/core";
 import type { Card } from "./cards.js";
 import { Deck } from "./cards.js";
 import { best, compare, describe, meaningful, title } from "./hand.js";
@@ -290,14 +290,16 @@ export class Table implements PlayTable {
   lastEvent: string | null = null;
 
   /**
-   * Chips owed back to people who have stood up, and not yet handed over.
+   * What each account can claim from the chips on this table.
    *
-   * A queue rather than a payment, because the table cannot pay anybody — it
-   * has never heard of an account. Whoever is holding the economy drains this
-   * once and gives the chips back, which is the only moment poker touches it
-   * apart from sitting down.
+   * A buy-in is held when it lands and a stack standing up is queued back to
+   * its account; everything between is stacks moving around the felt, which
+   * does not change anybody's claim until a pot is awarded. That is what lets a
+   * hand called off halfway hand every chip back to the person who brought it.
+   *
+   * Never written at a table playing for nothing.
    */
-  readonly owedOut: Array<{ userId: string; name: string; chips: number }> = [];
+  readonly escrow = new Escrow();
 
   /**
    * What people who have left already put in this hand.
@@ -495,6 +497,14 @@ export class Table implements PlayTable {
     if (chips <= 0) {
       return;
     }
+    /*
+     * Held here rather than by whoever took the chips, so recording the claim
+     * and putting the stack down are one step. A table called off while the
+     * chips were being taken refuses, and the taker gives them back.
+     */
+    if (!this.forFun && seat.userId !== null && !this.escrow.hold(seat.userId, chips)) {
+      throw new TableError("This table is closing.");
+    }
     seat.stack += chips;
     this.lastEvent = `${seat.name} sat down with ${chips.toLocaleString("en-US")}`;
   }
@@ -539,7 +549,7 @@ export class Table implements PlayTable {
     }
     const chips = this.cashOut(seatId);
     if (chips > 0 && seat.userId !== null && !this.forFun) {
-      this.owedOut.push({ userId: seat.userId, name: seat.name, chips });
+      this.escrow.refund(seat.userId, chips);
     }
     if (chips > 0) {
       this.lastEvent = `${seat.name} took ${chips.toLocaleString("en-US")} off the table`;
@@ -598,7 +608,7 @@ export class Table implements PlayTable {
      * building is arranged to prevent.
      */
     if (left > 0 && gone.userId !== null && !this.forFun) {
-      this.owedOut.push({ userId: gone.userId, name: gone.name, chips: left });
+      this.escrow.refund(gone.userId, left);
     }
     this.seating.remove(id);
     this.lastEvent = `${gone.name} left`;
@@ -1213,6 +1223,20 @@ export class Table implements PlayTable {
       seat.paid = 0;
     }
     this.ghosts = [];
+
+    /*
+     * Every chip in the middle is in somebody's stack now, so every claim is
+     * whatever that account has in front of it. A leaver's bet was theirs until
+     * this moment and is the winner's after it.
+     */
+    if (!this.forFun) {
+      this.escrow.settle();
+      for (const seat of this.seats) {
+        if (seat.userId !== null) {
+          this.escrow.hold(seat.userId, seat.stack);
+        }
+      }
+    }
 
     const first = this.paid[0];
     this.lastEvent =
