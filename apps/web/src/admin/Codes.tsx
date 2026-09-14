@@ -99,10 +99,22 @@ function Mint({ onMinted }: { onMinted: () => void }) {
       setSaid("Give it an amount worth redeeming.");
       return;
     }
+    // Blank means anyone, once each — the campaign case. Anything else has to
+    // be a whole number said on purpose: a typo like "1o" is NaN, which
+    // JSON sends as null, and null is exactly "anyone" — an uncapped code.
+    const people = uses.trim();
+    if (people !== "" && !/^\d+$/.test(people)) {
+      setSaid("People must be a whole number, 1 or more — or blank for anyone.");
+      return;
+    }
+    const cap = people === "" ? null : Number(people);
+    if (cap !== null && cap < 1) {
+      setSaid("People must be a whole number, 1 or more — or blank for anyone.");
+      return;
+    }
     void adminPost<{ code: Code }>("/api/admin/codes", {
       chips: Math.floor(amount),
-      // Blank means anyone, once each — the campaign case.
-      maxRedemptions: uses.trim() === "" ? null : Math.floor(Number(uses)),
+      maxRedemptions: cap,
       note,
     }).then((answer) => {
       setSaid(answer.ok ? `Minted ${answer.body.code.code}` : answer.error);
