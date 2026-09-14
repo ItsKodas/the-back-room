@@ -150,9 +150,11 @@
    * pager button measures under the 44px thumb floor everywhere it is
    * used across the desk — cards, tables, dialogs, the pager. One rule
    * here covers all of them without a patch per tab; scoped to `.desk`
-   * so a small button elsewhere in the building is untouched.
+   * so a small button elsewhere in the building is untouched. The dialog
+   * is named on its own because it is portalled to the body, outside `.desk`.
    */
-  .desk .btn--small {
+  .desk .btn--small,
+  .desk__dialog .btn--small {
     min-height: 44px;
   }
 }

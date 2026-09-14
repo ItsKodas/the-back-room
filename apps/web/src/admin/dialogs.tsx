@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { adminPost, fmt } from "./api.js";
 
 export type Who = { all: true } | { ids: string[] };
@@ -33,18 +34,40 @@ export function chipsSentence(op: "add" | "remove" | "set", amount: number, coun
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const box = useRef<HTMLDivElement | null>(null);
+  // Read at render, before this dialog's own focus call moves it: whatever
+  // had focus then is the control that opened it.
+  const [opener] = useState(() => document.activeElement);
+  // Held in a ref so the effect below runs once per open. A parent passes a
+  // fresh closure every render, and re-running on it pulled focus back to
+  // the first field whenever the parent re-rendered — the players list
+  // landing under an open dialog, say, mid-way through typing the note.
+  const close = useRef(onClose);
+  close.current = onClose;
+
   useEffect(() => {
     box.current?.querySelector<HTMLElement>("input, button")?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        close.current();
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      // Every way out — Cancel, Escape, the backdrop, done — unmounts the
+      // dialog, so this is the one place that puts the keyboard back where
+      // the admin left it instead of on the body.
+      if (opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus();
+      }
+    };
+  }, [opener]);
 
-  return (
+  // Portalled to the body: the tab panel's arrival keyframe sets a transform,
+  // and a transformed ancestor becomes the containing block for anything
+  // `position: fixed` inside it — the scrim covered only the panel, not the
+  // screen, for as long as that transform was set.
+  return createPortal(
     <div className="desk__scrim">
       {/* A real button rather than a click handler on the backdrop div: it
           takes the dismiss with a press or a keyboard activation for free,
@@ -54,7 +77,8 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
         <p className="panel__label">{title}</p>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

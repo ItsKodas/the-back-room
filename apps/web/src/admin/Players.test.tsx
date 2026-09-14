@@ -124,6 +124,68 @@ describe("the players tab", () => {
   });
 });
 
+describe("an admin dialog, where it lives and where focus goes", () => {
+  it("is rendered on the body, outside the transformed tab panel", async () => {
+    stubFetch();
+    render(
+      <div className="desk__panel" data-testid="panel">
+        <Players />
+      </div>,
+    );
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Give everyone…" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(screen.getByTestId("panel").contains(dialog)).toBe(false);
+    expect(dialog.closest(".desk__scrim")?.parentElement).toBe(document.body);
+  });
+
+  it("keeps focus where the admin put it when the list lands under an open dialog", async () => {
+    // The list is held back so it lands while the dialog is already open —
+    // the slow connection the dialog has to survive.
+    let release: (() => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release = () => resolve({ ok: true, status: 200, json: async () => ({ rows: ROWS, total: 2 }) });
+          }),
+      ),
+    );
+    render(<Players />);
+    fireEvent.click(screen.getByRole("button", { name: "Give everyone…" }));
+    const note = within(screen.getByRole("dialog")).getByLabelText("Note");
+    note.focus();
+    expect(document.activeElement).toBe(note);
+
+    release?.();
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    expect(document.activeElement).toBe(note);
+  });
+
+  it.each([
+    ["Cancel", (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))],
+    ["Escape", () => fireEvent.keyDown(window, { key: "Escape" })],
+    ["the backdrop", () => fireEvent.click(screen.getByRole("button", { name: "Close" }))],
+    ["done", (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole("button", { name: "Give" }))],
+  ])("gives focus back to the button that opened it, after %s", async (_how, shut) => {
+    stubFetch();
+    render(<Players />);
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    const opener = screen.getByRole("button", { name: "Give everyone…" });
+    // A click in jsdom does not move focus the way a browser press does.
+    opener.focus();
+    fireEvent.click(opener);
+    const dialog = screen.getByRole("dialog");
+    expect(document.activeElement).not.toBe(opener);
+
+    shut(dialog);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(opener);
+  });
+});
+
 describe("the players tab, when the list will not load", () => {
   it("says it could not read the players rather than claiming there are none", async () => {
     // Ruling 1: `page` must stay distinct from an empty result on a failed
