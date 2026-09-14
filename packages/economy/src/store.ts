@@ -186,8 +186,8 @@ export interface GameRecord {
  * Separate on purpose. A shared bank would be whichever game holds back the
  * most quietly paying for the one that holds back the least — the machine
  * keeps a tenth of what goes through it, a blackjack table about a
- * two-hundredth and a single-zero wheel about a thirty-seventh, so one pot
- * would be the machine funding the felt.
+ * two-hundredth, a single-zero wheel about a thirty-seventh and the coins
+ * about a thirty-second, so one pot would be the machine funding the felt.
  *
  * A list rather than only a type, because a type cannot be counted. Every
  * bank needs a float before its game will take a stake at all, so the admin
@@ -197,7 +197,7 @@ export interface GameRecord {
  * so a typo is a build error rather than a bank nobody can find that quietly
  * holds somebody's chips.
  */
-export const BANKS = ["slots", "blackjack", "roulette"] as const;
+export const BANKS = ["slots", "blackjack", "roulette", "two-up"] as const;
 
 export type BankName = (typeof BANKS)[number];
 

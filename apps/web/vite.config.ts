@@ -45,6 +45,7 @@ export default defineConfig({
       "@backroom/game-poker",
       "@backroom/game-roulette",
       "@backroom/game-slots",
+      "@backroom/game-two-up",
     ],
   },
 });
