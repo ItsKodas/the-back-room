@@ -1,94 +1,208 @@
 import { describe, expect, it } from "vitest";
-import { edge, lossOdds, passGain, worthPassing } from "./odds.js";
+import { EXACT_CEILING, lossOdds, passMargin, solveRound } from "./odds.js";
 
-/**
- * The closed form against the definition.
- *
- * `lossOdds` is a one-line formula standing in for a recursion, which is the
- * kind of thing that is either exactly right or quietly wrong by a hair that
- * no example test would catch. So the definition is written out here in full
- * and the formula is checked against it for every ceiling a table can reach.
- */
-function bruteForce(upTo: number): number[] {
-  // L[N] = chance the player about to roll at ceiling N eventually rolls the 1.
-  const loss = new Array<number>(upTo + 1).fill(0);
-  loss[1] = 1;
-  for (let ceiling = 2; ceiling <= upTo; ceiling++) {
-    // L(N) = (N - sum of L(2..N-1)) / (N + 1), which is the recursion
-    // 1/N + (1/N) * sum over r in 2..N of (1 - L(r)) solved for L(N).
-    let below = 0;
-    for (let r = 2; r <= ceiling - 1; r++) {
-      below += loss[r] as number;
+/** The price the game charges: a tenth of the ante, whatever the ante. */
+const shipped = (players: number) => passMargin(players, 10, 1);
+/** The normal bot values surviving at less than it is worth. */
+const wary = (players: number) => shipped(players) * 2.5;
+
+/** No passes at all: the chance each seat after the roller goes out, by brute force. */
+function noPass(players: number, top: number): number[][] {
+  const table: number[][] = [[], Array.from({ length: players }, (_, j) => (j === 0 ? 1 : 0))];
+  const prefix = Array.from({ length: players }, () => 0);
+  for (let n = 2; n <= top; n += 1) {
+    let current = Array.from({ length: players }, () => 1 / players);
+    for (let sweep = 0; sweep < 400; sweep += 1) {
+      current = current.map((_, j) => {
+        const before = (j - 1 + players) % players;
+        return ((j === 0 ? 1 : 0) + (prefix[before] as number) + (current[before] as number)) / n;
+      });
     }
-    loss[ceiling] = (ceiling - below) / (ceiling + 1);
+    table[n] = current;
+    for (let j = 0; j < players; j += 1) {
+      prefix[j] = (prefix[j] as number) + (current[j] as number);
+    }
   }
-  return loss;
+  return table;
 }
 
-describe("the odds of being the one who rolls the 1", () => {
-  it("matches the recursion it stands in for, at every ceiling", () => {
-    const loss = bruteForce(400);
-    for (let ceiling = 2; ceiling <= 400; ceiling++) {
-      expect(lossOdds(ceiling), `ceiling ${ceiling}`).toBeCloseTo(
-        loss[ceiling] as number,
-        12,
-      );
+describe("a round nobody can pass in", () => {
+  it("matches the duel's closed form, below the exact cap and above it", () => {
+    const duel = solveRound(2);
+    for (let n = 2; n <= 400; n += 1) {
+      expect(duel.risk(n, 0, 0, false)[0]).toBeCloseTo(lossOdds(n), 12);
     }
   });
 
-  it("is certain at a ceiling of one", () => {
-    // There is nothing to roll but the 1. The game never reaches this — a 1
-    // ends the duel rather than becoming the ceiling — but the formula should
-    // still be telling the truth at its own edge.
-    expect(lossOdds(1)).toBe(1);
-  });
-
-  it("makes the roller the underdog, always, by less and less", () => {
-    let previous = lossOdds(2);
-    expect(previous).toBeCloseTo(2 / 3, 12);
-    for (let ceiling = 3; ceiling <= 400; ceiling++) {
-      const odds = lossOdds(ceiling);
-      expect(odds, `ceiling ${ceiling}`).toBeGreaterThan(0.5);
-      expect(odds, `ceiling ${ceiling}`).toBeLessThan(previous);
-      previous = odds;
+  it("matches brute force at three to six players", () => {
+    for (let players = 3; players <= 6; players += 1) {
+      const round = solveRound(players);
+      const truth = noPass(players, 120);
+      for (let n = 2; n <= 120; n += 1) {
+        const risk = round.risk(n, 0, 0, false);
+        for (let j = 0; j < players; j += 1) {
+          expect(risk[j], `${players} players, ceiling ${n}, seat ${j}`).toBeCloseTo(
+            truth[n]?.[j] as number,
+            10,
+          );
+        }
+      }
     }
   });
 
-  it("shrinks the edge to nothing at a table's opening number", () => {
-    expect(edge(1_000)).toBeCloseTo(1 / 1_001_000, 12);
+  it("always puts exactly one player out", () => {
+    for (let players = 2; players <= 6; players += 1) {
+      const round = solveRound(players);
+      for (const n of [2, 3, 8, EXACT_CEILING, EXACT_CEILING + 1, 1_000]) {
+        for (let t = 0; t < players; t += 1) {
+          for (const holders of [0, 1, (1 << players) - 1]) {
+            for (const passedTo of [false, true]) {
+              const sum = round.risk(n, t, holders, passedTo).reduce((a, b) => a + b, 0);
+              expect(sum).toBeCloseTo(1, 9);
+            }
+          }
+        }
+      }
+    }
   });
 });
 
-describe("whether a pass is worth paying for", () => {
-  /** The break-even ceiling for a price, found by asking rather than by hand. */
-  const breakEven = (ante: number, price: number): number => {
+describe("the solver's choices", () => {
+  /*
+   * The whole claim, checked from outside: at the solver's own values, every
+   * choice it records is the better one — or, where it mixes, leaves the player
+   * with nothing to gain either way — and every value is what that choice
+   * implies. Written against the public API alone, so it cannot share a bug
+   * with the code it checks.
+   */
+  const verify = (players: number, margin: number) => {
+    const round = solveRound(players, { margin });
+    let violations = 0;
+    for (let n = 2; n <= EXACT_CEILING; n += 1) {
+      for (let t = 0; t < players; t += 1) {
+        for (let holders = 0; holders < 1 << players; holders += 1) {
+          for (const passedTo of [false, true]) {
+            const next = (t + 1) % players;
+            const roll = Array.from({ length: players }, (_, i) => (i === t ? 1 / n : 0));
+            for (let r = 2; r <= n; r += 1) {
+              const after = round.risk(r, next, holders, false);
+              for (let i = 0; i < players; i += 1) {
+                roll[i] = (roll[i] as number) + (after[i] as number) / n;
+              }
+            }
+            const holds = (holders & (1 << t)) !== 0 && !passedTo;
+            const chance = round.passChance(n, t, holders, passedTo);
+            const landed = holds ? round.risk(n, next, holders ^ (1 << t), true) : null;
+            const gap = landed ? (roll[t] as number) - margin - (landed[t] as number) : -1;
+            if (!holds && chance !== 0) violations += 1;
+            if (holds && chance === 1 && gap < -1e-9) violations += 1;
+            if (holds && chance === 0 && gap > 1e-9) violations += 1;
+            if (holds && chance > 0 && chance < 1 && Math.abs(gap) > 1e-9) violations += 1;
+            const risk = round.risk(n, t, holders, passedTo);
+            for (let i = 0; i < players; i += 1) {
+              const implied = landed
+                ? chance * (landed[i] as number) + (1 - chance) * (roll[i] as number)
+                : (roll[i] as number);
+              if (Math.abs((risk[i] as number) - implied) > 1e-9) violations += 1;
+            }
+          }
+        }
+      }
+    }
+    return violations;
+  };
+
+  it("are the better move in every state, at every table size, at the game's price", () => {
+    for (let players = 2; players <= 6; players += 1) {
+      expect(verify(players, shipped(players)), `${players} players`).toBe(0);
+    }
+  });
+
+  it("are the better move at the normal bot's price too", () => {
+    for (let players = 2; players <= 6; players += 1) {
+      expect(verify(players, wary(players)), `${players} players`).toBe(0);
+    }
+  });
+});
+
+describe("when a pass is right", () => {
+  const firstCertainPass = (players: number) => {
+    const round = solveRound(players, { margin: shipped(players) });
+    const everyone = (1 << players) - 1;
     let highest = 0;
-    for (let ceiling = 2; ceiling <= 1_000; ceiling++) {
-      if (worthPassing(ceiling, ante, price)) {
-        highest = ceiling;
+    for (let n = 2; n <= EXACT_CEILING; n += 1) {
+      if (round.passChance(n, 0, everyone, false) === 1) {
+        highest = n;
       }
     }
     return highest;
   };
 
-  it("turns correct at ceiling eight when a pass costs a tenth", () => {
-    // The figure the spec chose the price from. If this moves, the game has
-    // changed and the spec is out of date, not this test.
-    expect(breakEven(500, 50)).toBe(8);
+  it("is ceiling 3 in a duel, 6 at four players and 8 at six", () => {
+    expect(firstCertainPass(2)).toBe(3);
+    expect(firstCertainPass(4)).toBe(6);
+    expect(firstCertainPass(6)).toBe(8);
   });
 
-  it("turns correct at ceiling five for a quarter and three for a half", () => {
-    expect(breakEven(500, 125)).toBe(5);
-    expect(breakEven(500, 250)).toBe(3);
+  it("is ceiling 2 at three players and 3 at five", () => {
+    // Odd tables pass lower: turn order decides who a pass lands on.
+    expect(firstCertainPass(3)).toBe(2);
+    expect(firstCertainPass(5)).toBe(3);
   });
 
-  it("is never worth it at a table's opening number", () => {
-    expect(worthPassing(1_000, 500, 50)).toBe(false);
+  it("is a coin weighted at 59.2% in the one state with no fixed answer", () => {
+    // Three players, ceiling 3, all holding: rock-paper-scissors, so play mixes.
+    const round = solveRound(3, { margin: shipped(3) });
+    for (let t = 0; t < 3; t += 1) {
+      expect(round.passChance(3, t, 0b111, false)).toBeCloseTo(0.592, 3);
+    }
   });
 
-  it("is worth many times its price when the number is nearly gone", () => {
-    // A third of the ante swings on one pass at ceiling two, which is what
-    // makes holding yours the only skill this game has.
-    expect(passGain(2, 500)).toBeCloseTo(500 / 1.5, 6);
+  it("never comes above ceiling 8, in any state, at either price", () => {
+    /*
+     * What makes capping the exact solve at 32 safe: above the highest ceiling
+     * anybody passes at, a round is roll-only, and the solver stops looking.
+     */
+    for (let players = 2; players <= 6; players += 1) {
+      for (const margin of [shipped(players), wary(players)]) {
+        const round = solveRound(players, { margin });
+        for (let n = 9; n <= EXACT_CEILING; n += 1) {
+          for (let t = 0; t < players; t += 1) {
+            for (let holders = 0; holders < 1 << players; holders += 1) {
+              expect(round.passChance(n, t, holders, false)).toBe(0);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("is never right first when a pass can be handed straight back", () => {
+    /*
+     * The finding behind the rule this game adds. Allow pass-backs, make passes
+     * free, and with everybody holding one nobody should ever pass first: it
+     * would only come straight back. Pinned so it cannot quietly be undone.
+     */
+    for (let players = 2; players <= 6; players += 1) {
+      const round = solveRound(players, { margin: 0, passBack: true });
+      const everyone = (1 << players) - 1;
+      for (let n = 2; n <= EXACT_CEILING; n += 1) {
+        expect(round.passChance(n, 0, everyone, false), `${players} players, ceiling ${n}`).toBe(0);
+      }
+    }
+  });
+});
+
+describe("what the solver refuses", () => {
+  it("refuses a table it was not built for", () => {
+    expect(() => solveRound(1)).toThrow(RangeError);
+    expect(() => solveRound(7)).toThrow(RangeError);
+  });
+
+  it("refuses a position or holder set that does not exist", () => {
+    const round = solveRound(3);
+    expect(() => round.risk(10, 3, 0, false)).toThrow(RangeError);
+    expect(() => round.risk(10, 0, 8, false)).toThrow(RangeError);
+    expect(() => round.passChance(0, 0, 0, false)).toThrow(RangeError);
   });
 });

@@ -5,7 +5,18 @@
  * bot. It borrows seating and the shape of a table from @backroom/core and
  * brings everything that makes it this game rather than another one.
  */
-export { edge, lossOdds, passCost, passGain, worthPassing } from "./odds.js";
+export type { RoundSolution, SolveOptions } from "./odds.js";
+export {
+  EXACT_CEILING,
+  edge,
+  lossOdds,
+  passCost,
+  passGain,
+  passMargin,
+  roundFor,
+  solveRound,
+  worthPassing,
+} from "./odds.js";
 export type { Passed, Rolled } from "./duel.js";
 export { Duel } from "./duel.js";
 export type { Phase, SeatView, TableView } from "./table.js";
