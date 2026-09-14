@@ -651,6 +651,68 @@ describe("a roulette table's money while the store takes its time", () => {
   });
 
   it.each([
+    { first: "s1", second: "s2", between: true, order: "the covering seat first" },
+    { first: "s2", second: "s1", between: true, order: "the covered seat first" },
+    // One drain meets red, refused, before black: it has to go round again.
+    { first: "s1", second: "s2", between: false, order: "both before one broadcast" },
+  ])("hands both leavers their chips back when the whole cloth goes ($order)", async ({
+    first,
+    second,
+    between,
+  }) => {
+    /*
+     * Red is refused while black leans on it. Once black has gone too, nothing
+     * leans on red — and with nobody left at the table there is no spin coming
+     * to settle it, so a refusal that was never asked again would strand it.
+     */
+    const { bank, held: inBank } = purse(1_000);
+    const game = rouletteAdapter({ bank, pick: () => 2 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    table.join("s2", "Bram", who("u2"));
+    const { held, deps } = wallet({ u1: 1_000, u2: 2_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 1_000 }, deps);
+    await game.act(table, "s2", { type: "place", spotId: BLACK, chips: 2_000 }, deps);
+
+    table.removeSeat(first);
+    if (between) {
+      await game.payOut?.(table, deps);
+    }
+    table.removeSeat(second);
+    await game.payOut?.(table, deps);
+
+    expect(held["u1"]).toBe(1_000);
+    expect(held["u2"]).toBe(2_000);
+    expect(inBank()).toBe(1_000);
+    expect(table.placed).toEqual([]);
+  });
+
+  it("keeps a called-off table's refunds in the book until they have left the bank", async () => {
+    /*
+     * The void closes the escrow at once, but the chips only leave the bank on
+     * its turn in the queue. Reading the table as owing nothing in between
+     * would let another table promise chips that are about to be paid out.
+     */
+    const { bank, stallNext } = gated(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const closing = game.create("ABCDE") as Table;
+    const other = game.create("FGHIJ") as Table;
+    closing.join("s1", "Ada", who("u1"));
+    const { deps } = wallet({ u1: 1_000 });
+    await game.act(closing, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    const { reached, open } = stallNext("take");
+    const voiding = game.void?.(closing, deps);
+    await reached;
+    expect(ledgerOf(bank).owedElsewhere(other)).toBeGreaterThanOrEqual(200);
+
+    open();
+    await voiding;
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+  });
+
+  it.each([
     { type: "take", spotId: RED, chips: 200 },
     { type: "clear" },
   ])("pays a take-back ($type) only what a void has not already handed back", async (move) => {

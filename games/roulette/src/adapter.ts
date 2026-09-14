@@ -72,6 +72,9 @@ export function rouletteAdapter(
    */
   const unpaid = new WeakMap<Table, { spin: object; back: number }>();
 
+  /** What a void has closed the escrow on and not yet paid back out of the bank. */
+  const refunding = new WeakMap<Table, number>();
+
   const backOf = (spin: ReadonlyMap<string, { back: number }>): number => {
     let back = 0;
     for (const one of spin.values()) {
@@ -87,10 +90,15 @@ export function rouletteAdapter(
    * decided until that is paid, and nothing after.
    */
   const owing = (table: Table): number => {
-    // A called-off table owes nothing, and an act queued behind the void
-    // would otherwise put its reservation back on the way out of `serially`.
+    /*
+     * A called-off table owes only the refunds its void has not paid yet.
+     * Those are still in the bank until the void's turn in the queue, and
+     * reading them as nothing would let another table promise them. Nothing
+     * after that, or an act queued behind the void would put its reservation
+     * back on the way out of `serially`.
+     */
     if (table.escrow.closed) {
-      return 0;
+      return refunding.get(table) ?? 0;
     }
     const waiting = unpaid.get(table);
     let total = waiting?.back ?? 0;
@@ -454,13 +462,15 @@ export function rouletteAdapter(
     },
 
     /**
-     * Pays back chips owed to somebody who stood up while bets were open, and
-     * reads what the store's bank holds so the view can show a cap.
+     * Hands chips back to anybody who stood up while bets were open, where the
+     * bank allows it, and reads what the store's bank holds so the view can
+     * show a cap.
      *
      * Both belong here because this hook runs on every broadcast. Leaving is
-     * synchronous, so the table can only queue what it owes a leaver; and what
-     * the bank holds is a question for the store, which a view cannot ask
-     * because building one is synchronous.
+     * synchronous, so the table can only note who left, and whether their
+     * chips can come off is a cover check against the bank; and what the bank
+     * holds is a question for the store, which a view cannot ask because
+     * building one is synchronous.
      *
      * A for-fun table never needs this: its bank is on the table and its
      * figure is exact from the moment it exists. Which is the good half of
@@ -473,25 +483,41 @@ export function rouletteAdapter(
     async payOut(table, deps) {
       if (table.leaving.size > 0) {
         await serially(table, async () => {
-          for (const seatId of [...table.leaving]) {
-            const floor = await base(table);
-            /*
-             * Asked again after the bank has answered: the window may have
-             * shut, the seat may have sat back down, or another broadcast may
-             * have got here first. Off the list either way — refused chips
-             * ride, and are not asked about again.
-             */
-            if (!table.leaving.delete(seatId)) {
-              continue;
+          /*
+           * Round again whenever somebody's chips came off. A leaver refused
+           * because their chips cover another bet is free to go once that bet
+           * has gone too — and if everybody has left, no spin is coming to
+           * settle what a refusal left behind.
+           */
+          let moved = true;
+          while (moved) {
+            moved = false;
+            for (const seatId of [...table.leaving]) {
+              const floor = await base(table);
+              /*
+               * Asked again after the bank has answered: the window may have
+               * shut, the seat may have sat back down, or another broadcast
+               * may have got here first.
+               */
+              if (!table.leaving.has(seatId)) {
+                continue;
+              }
+              // Not the table's own take-backs, which refuse a seat that has gone.
+              const off = lifts(table, floor, () => {
+                table.placed = table.placed.filter((one) => one.seatId !== seatId);
+              });
+              /*
+               * Refused, and still on the list: every later broadcast asks
+               * again, until the chips come off or the window shuts and they
+               * ride.
+               */
+              if (off === null) {
+                continue;
+              }
+              table.leaving.delete(seatId);
+              moved = true;
+              await handBack(table, { id: seatId, userId: table.accountOf(seatId) }, off, deps);
             }
-            // Not the table's own take-backs, which refuse a seat that has gone.
-            const off = lifts(table, floor, () => {
-              table.placed = table.placed.filter((one) => one.seatId !== seatId);
-            });
-            if (off === null) {
-              continue;
-            }
-            await handBack(table, { id: seatId, userId: table.accountOf(seatId) }, off, deps);
           }
         });
       }
@@ -578,9 +604,18 @@ export function rouletteAdapter(
      */
     async void(table, deps) {
       const owed = table.escrow.close();
+      refunding.set(
+        table,
+        owed.reduce((total, one) => total + one.chips, 0),
+      );
       await serially(table, async () => {
-        for (const one of owed) {
-          await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+        try {
+          for (const one of owed) {
+            await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+          }
+        } finally {
+          // Gone before `serially` asks what the table owes on the way out.
+          refunding.delete(table);
         }
       });
       ledger?.release(table);
