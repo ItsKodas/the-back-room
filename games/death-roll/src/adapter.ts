@@ -100,6 +100,48 @@ export function deathRollAdapter(
   };
 
   /**
+   * Records chips just taken for the duel, or hands them straight back if the
+   * table has been called off in the meantime. Play money is never held.
+   */
+  const held = async (
+    table: Table,
+    seat: { id: string; userId: string | null },
+    chips: number,
+    deps: GameDeps,
+  ): Promise<boolean> => {
+    if (table.forFun || seat.userId === null) {
+      return true;
+    }
+    if (table.escrow.hold(seat.userId, chips)) {
+      return true;
+    }
+    await deps.give(seat.userId, chips);
+    return false;
+  };
+
+  /**
+   * Chips going back before the duel is decided: off the escrow, then to
+   * them. What `escrow.release` actually removed, never the nominal amount —
+   * a void may already have refunded this account, and handing it back again
+   * would be paying it twice.
+   */
+  const giveBack = async (
+    table: Table,
+    seat: { id: string; userId: string | null },
+    chips: number,
+    deps: GameDeps,
+  ): Promise<void> => {
+    if (!table.forFun && seat.userId !== null) {
+      const back = table.escrow.release(seat.userId, chips);
+      if (back > 0) {
+        await deps.give(seat.userId, back);
+      }
+      return;
+    }
+    await give(table, seat, chips, deps);
+  };
+
+  /**
    * Both antes in, and a duel dealt if they both landed.
    *
    * Split out of `payOut` so that draining the queue and clearing the flag
@@ -147,6 +189,14 @@ export function deathRollAdapter(
        */
       return table.noteShort(one.id);
     }
+    /*
+     * Held the moment it is taken. A table called off while the second ante
+     * is still being asked for has already handed back everything it knew
+     * about, and this one arrived too late to be in it.
+     */
+    if (!(await held(table, one, table.ante, deps))) {
+      return true;
+    }
 
     /*
      * The second ante, and the first one handed back however that goes wrong.
@@ -169,7 +219,7 @@ export function deathRollAdapter(
        * stopped and the retry is on the slow clock.
        */
       table.noteShort(two.id);
-      await give(table, one, table.ante, deps);
+      await giveBack(table, one, table.ante, deps);
       throw error;
     }
     if (!paid) {
@@ -180,12 +230,22 @@ export function deathRollAdapter(
        */
       let news = false;
       try {
-        await give(table, one, table.ante, deps);
+        await giveBack(table, one, table.ante, deps);
       } finally {
         /* Noted whatever the refund did, for the reason above. */
         news = table.noteShort(two.id);
       }
       return news;
+    }
+    /*
+     * Held the moment it is taken, same as the first. A table called off
+     * between the two antes has already handed the first one back, and this
+     * one is given straight back rather than joining a pot that will never
+     * open.
+     */
+    if (!(await held(table, two, table.ante, deps))) {
+      await giveBack(table, one, table.ante, deps);
+      return true;
     }
 
     /*
@@ -199,8 +259,8 @@ export function deathRollAdapter(
      */
     const gone = [one, two].find((seat) => !table.seats.some((here) => here.id === seat.id));
     if (gone !== undefined) {
-      await give(table, one, table.ante, deps);
-      await give(table, two, table.ante, deps);
+      await giveBack(table, one, table.ante, deps);
+      await giveBack(table, two, table.ante, deps);
       table.noteLeft(gone.name);
       return true;
     }
@@ -260,6 +320,14 @@ export function deathRollAdapter(
             );
           }
           /*
+           * Held the moment it is taken, same as an ante. A table called off
+           * while this pass was in flight has already handed back everything
+           * it knew about, and this one arrived too late to be in it.
+           */
+          if (!(await held(table, seat, price, deps))) {
+            throw new TableError("This table is closing.");
+          }
+          /*
            * And handed straight back if the table moved while the chips were
            * in flight. Taking them is a real write to a real store, and
            * nothing holds the table still for it: the turn clock can fire and
@@ -271,7 +339,7 @@ export function deathRollAdapter(
           try {
             duel.pass(seatId);
           } catch (error) {
-            await give(table, seat, price, deps);
+            await giveBack(table, seat, price, deps);
             throw error;
           }
           table.touchClock();
@@ -323,6 +391,12 @@ export function deathRollAdapter(
       if (duel === null || duel.loserId === null) {
         return;
       }
+      /*
+       * Before the first await: the pot now belongs to the winner, not to the
+       * accounts it came off, so a void racing this settlement finds nothing
+       * left to give back twice.
+       */
+      table.escrow.settle();
       const winnerId = duel.winnerId;
       const winner = table.seats.find((one) => one.id === winnerId);
       if (winner === undefined) {
@@ -388,6 +462,15 @@ export function deathRollAdapter(
         winnerIds: winnerId === null ? [] : [winnerId],
         endedAt: Date.now(),
       });
+    },
+
+    /** Calls the table off: every ante and pass still on the felt, back to whoever paid it. */
+    async void(table, deps) {
+      const owed = table.escrow.close();
+      for (const one of owed) {
+        await deps.give(one.userId, one.chips);
+      }
+      return owed;
     },
 
     winners(table) {

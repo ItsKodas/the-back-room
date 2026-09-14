@@ -744,3 +744,77 @@ describe("the table's own clock", () => {
     expect(table.phase).toBe("waiting");
   });
 });
+
+describe("a duel called off before anybody lost", () => {
+  it("hands both antes and any pass back", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game);
+    const { deps, gave } = spy();
+    await deal(game, table, deps);
+    const duel = table.duel;
+    expect(duel).not.toBeNull();
+    const roller = duel?.toRoll as string;
+    await game.act(table, roller, { type: "pass" }, deps);
+    const price = table.passPrice;
+    const who = table.seats.find((seat) => seat.id === roller)?.userId as string;
+
+    const refunded = await game.void?.(table, deps);
+
+    const back = (userId: string) =>
+      gave.mock.calls.filter(([id]) => id === userId).reduce((total, [, chips]) => total + (chips as number), 0);
+    expect(back("u1") + back("u2")).toBe(table.ante * 2 + price);
+    expect(back(who)).toBe(table.ante + price);
+    expect(refunded?.reduce((total, one) => total + one.chips, 0)).toBe(table.ante * 2 + price);
+  });
+
+  it("refunds nothing once the duel has been settled", async () => {
+    const game = deathRollAdapter({ roll: () => 1 });
+    const table = seated(game);
+    const { deps, gave } = spy();
+    await deal(game, table, deps);
+    const roller = table.duel?.toRoll as string;
+    await game.act(table, roller, { type: "roll" }, deps);
+    expect(game.isSettled(table)).toBe(true);
+    await game.settle(table, deps);
+    gave.mockClear();
+
+    await game.void?.(table, deps);
+    expect(gave).not.toHaveBeenCalled();
+  });
+
+  it("gives back an ante taken after the table closed", async () => {
+    /*
+     * Once the first ante's hold is refused — the table having been called
+     * off while it was in flight — the code correctly never takes the
+     * second, so the total handed back is not a fixed `ante * 2`. What has to
+     * hold is the room's whole invariant: nothing taken is kept unaccounted
+     * for, and no duel opens on a table that has closed.
+     */
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game);
+    const { deps, took, gave } = spy();
+    table.askForDuel();
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = {
+      ...deps,
+      take: async (userId: string, chips: number) => {
+        await gate;
+        return took(userId, chips);
+      },
+    } as GameDeps;
+
+    const dealing = game.payOut?.(table, slow);
+    await game.void?.(table, deps);
+    release();
+    await dealing;
+
+    const takenIn = took.mock.calls.reduce((total, [, chips]) => total + (chips as number), 0);
+    const givenBack = gave.mock.calls.reduce((total, [, chips]) => total + (chips as number), 0);
+    expect(takenIn).toBeGreaterThan(0);
+    expect(givenBack).toBe(takenIn);
+    expect(table.duel).toBeNull();
+  });
+});

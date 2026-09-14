@@ -5,7 +5,7 @@ import type {
   SeatIdentity,
   TableStatus,
 } from "@backroom/core";
-import { Seating, TableError } from "@backroom/core";
+import { Escrow, Seating, TableError } from "@backroom/core";
 import type { Passed, Rolled } from "./duel.js";
 import { Duel } from "./duel.js";
 import { FUN_PURSE, passPrice, TURN_MS } from "./listing.js";
@@ -79,6 +79,8 @@ export class Table implements PlayTable {
   duel: Duel | null = null;
   turnEndsAt: number | null = null;
   shortId: string | null = null;
+  /** The antes and passes of the duel on the felt, by account. */
+  readonly escrow = new Escrow();
 
   private readonly seating: Seating;
   private readonly turnMs: number;
@@ -351,6 +353,14 @@ export class Table implements PlayTable {
 
   /** Clears the felt and puts the table back to waiting for the next duel. */
   finish(): void {
+    /*
+     * A backstop, not the usual route: `settle` drains the escrow the moment
+     * a duel is decided. A duel cleared without being settled — a seat gone
+     * with nobody left to pay, see `settle`'s guard — has lost its pot, so
+     * this hands back nothing rather than refunding chips that never had a
+     * winner.
+     */
+    this.escrow.settle();
     const done = this.duel;
     if (done !== null && this.startedWith !== null) {
       /*
