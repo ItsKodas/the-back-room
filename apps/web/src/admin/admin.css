@@ -2,6 +2,14 @@
 
 .desk {
   display: grid;
+  /*
+   * Without this, the grid's one implicit column is `auto`, which sizes to
+   * the widest thing inside it — the nowrap codes table, once it is wider
+   * than the phone. A column that may shrink below its content lets the
+   * table overflow inside `.scroller` instead of dragging the whole page,
+   * tabs included, out to the table's width.
+   */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--gr-space-4);
   width: 100%;
   max-width: 1100px;
@@ -51,6 +59,9 @@
 /* One short arrival per tab: the panel is keyed by tab, so this plays once. */
 .desk__panel {
   display: grid;
+  /* Same reason as `.desk` above — an implicit `auto` column would grow to
+     fit the nowrap codes table rather than let it scroll in its own box. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--gr-space-4);
   animation: desk-arrive 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
