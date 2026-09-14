@@ -111,6 +111,29 @@ describe("redeeming a code over http", () => {
   });
 });
 
+describe("whether /api/me says you are an admin", () => {
+  async function me(base: string) {
+    return (await (await fetch(`${base}/api/me`)).json()) as { admin?: unknown };
+  }
+
+  it("says so to somebody on the list", async () => {
+    const store = new MemoryStore();
+    const boss = await player(store, "d-admin");
+    process.env["ADMIN_DISCORD_IDS"] = "d-admin";
+    expect((await me(await start(store, boss.id))).admin).toBe(true);
+  });
+
+  it("says no to somebody who is not, and to a guest", async () => {
+    process.env["ADMIN_DISCORD_IDS"] = "d-admin";
+    const store = new MemoryStore();
+    const ada = await player(store, "d1");
+    expect((await me(await start(store, ada.id))).admin).toBe(false);
+    await server?.close();
+    server = null;
+    expect((await me(await start(store, null))).admin).toBe(false);
+  });
+});
+
 describe("minting codes", () => {
   it("is invisible to somebody not on the list", async () => {
     const store = new MemoryStore();

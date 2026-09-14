@@ -510,10 +510,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     void (async () => {
       const id = userIdOfRequest(request);
       const profile = id === undefined ? null : await store.get(id);
+      // Only so the bar can offer a way to the desk. It opens nothing: every
+      // admin route still asks the list itself.
+      const admin = profile !== null && admins.has(profile.discordId);
       response.json(
         profile === null
-          ? { signedIn: false, signinAvailable: auth !== null }
-          : { signedIn: true, signinAvailable: auth !== null, profile },
+          ? { signedIn: false, signinAvailable: auth !== null, admin }
+          : { signedIn: true, signinAvailable: auth !== null, admin, profile },
       );
     })();
   });
