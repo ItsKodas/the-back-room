@@ -1,4 +1,11 @@
-import { type Seat, type SeatIdentity, Seating, type TableStatus, TableError } from "@backroom/core";
+import {
+  Escrow,
+  type Seat,
+  type SeatIdentity,
+  Seating,
+  type TableStatus,
+  TableError,
+} from "@backroom/core";
 import { FUN_BANK, FUN_PURSE, MIN_CHIP } from "./bank.js";
 import { type Paid, type Placed, settle } from "./bets.js";
 import { spotAt } from "./spots.js";
@@ -162,6 +169,22 @@ export class Table {
   /** Last spin's chips, by seat, so "same again" is one press. */
   private previous = new Map<string, Placed[]>();
 
+  /** Every chip on the cloth by the account it came from, until the ball decides it. */
+  readonly escrow = new Escrow();
+
+  /**
+   * The account behind each seat that has been at this spin, seated or not.
+   *
+   * A seat that stands up once the ball is in still has chips riding on it,
+   * and what the wheel decides is theirs. Pruned when the cloth is swept, since
+   * the spin that owes somebody is the spin they were in.
+   */
+  private readonly accounts = new Map<string, string | null>();
+
+  accountOf(seatId: string): string | null {
+    return this.accounts.get(seatId) ?? null;
+  }
+
   /**
    * What the store's bank holds, for a table playing for chips.
    *
@@ -223,9 +246,10 @@ export class Table {
   /**
    * Standing up mid-spin is honoured there and then.
    *
-   * Nothing is owed to a seat that leaves: whatever they put on the cloth is
-   * already in the bank, and the wheel does not need them to finish. Holding
-   * the seat would be holding it for nothing.
+   * Nothing is kept from a seat that leaves, and the wheel does not need them
+   * to finish: chips down while bets are open come back, and chips riding once
+   * the window has shut are paid to their account whatever the ball does.
+   * Holding the seat would be holding it for nothing.
    */
   readonly leavesMidHand = true;
 
@@ -237,12 +261,25 @@ export class Table {
    * play for nothing.
    */
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
-    return this.seating.join(id, name, this.status, identity, !this.forFun);
+    const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
+    this.accounts.set(seat.id, identity?.userId ?? null);
+    return seat;
   }
   removeSeat(seatId: string): void {
+    const userId = this.accountOf(seatId);
     this.seating.remove(seatId);
-    this.placed = this.placed.filter((one) => one.seatId !== seatId);
     this.previous.delete(seatId);
+    /*
+     * While bets are open their chips are still theirs to take back, so they
+     * go back. Once the window has shut the chips ride: the ball is in, and
+     * what it decides is paid to their account whether they watch or not.
+     */
+    if (this.phase === "betting") {
+      this.placed = this.placed.filter((one) => one.seatId !== seatId);
+      if (userId !== null && !this.forFun) {
+        this.escrow.refund(userId);
+      }
+    }
   }
   disconnect(seatId: string): void {
     this.seating.disconnect(seatId);
@@ -388,7 +425,12 @@ export class Table {
   /** A chip down. Refuses exactly what {@link check} refuses. */
   place(seatId: string, spotId: string, chips: number): void {
     this.check(seatId, spotId, chips);
-    const already = this.placed.find((one) => one.seatId === seatId && one.spotId === spotId);
+    // Bots only place at for-fun tables, so they never reach the hold.
+    const userId = this.seats.find((seat) => seat.id === seatId)?.userId ?? null;
+    if (!this.forFun && userId !== null && !this.escrow.hold(userId, chips)) {
+      throw new TableError("This table is closing.");
+    }
+    const already =this.placed.find((one) => one.seatId === seatId && one.spotId === spotId);
     if (already === undefined) {
       this.placed.push({ seatId, spotId, chips });
     } else {
@@ -479,6 +521,9 @@ export class Table {
     if (this.phase !== "spinning" || this.pocket === null) {
       return;
     }
+    // The ball has landed, so the cloth now belongs to its result, not to the
+    // accounts that put it there — a void from here on has nothing to hand back.
+    this.escrow.settle();
     this.paid = settle(this.placed, this.pocket);
     this.history = [...this.history, this.pocket].slice(-HISTORY);
 
@@ -533,6 +578,12 @@ export class Table {
     this.deadline = Date.now() + this.window;
     for (const seat of this.seating.seats) {
       seat.waiting = false;
+    }
+    const here = new Set(this.seats.map((seat) => seat.id));
+    for (const seatId of [...this.accounts.keys()]) {
+      if (!here.has(seatId)) {
+        this.accounts.delete(seatId);
+      }
     }
   }
 

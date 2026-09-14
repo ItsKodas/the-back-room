@@ -87,6 +87,11 @@ export function rouletteAdapter(
    * decided until that is paid, and nothing after.
    */
   const owing = (table: Table): number => {
+    // A called-off table owes nothing, and an act queued behind the void
+    // would otherwise put its reservation back on the way out of `serially`.
+    if (table.escrow.closed) {
+      return 0;
+    }
     const waiting = unpaid.get(table);
     let total = waiting?.back ?? 0;
     if (table.paid === null) {
@@ -176,11 +181,23 @@ export function rouletteAdapter(
     if (banked(table)) {
       const short = (bets: readonly Bet[]) => owed(bets) - staked(bets) - floor;
       if (short(toBets(table.placed)) > Math.max(0, short(toBets(before)))) {
+        // Nothing has been released from the escrow yet, so putting the
+        // cloth back is all it takes to leave the two in step.
         table.placed = before;
         throw new TableError("That chip is covering another bet. It stays for this spin.");
       }
     }
-    await pay(table, seat, off, deps);
+    if (table.forFun || seat.userId === null) {
+      await pay(table, seat, off, deps);
+      return;
+    }
+    /*
+     * What the escrow actually lets go of, never the nominal drop: a void
+     * ahead of this in the bank's queue may already have handed these chips
+     * back, and paying them again would pay them twice.
+     */
+    const back = table.escrow.release(seat.userId, off);
+    await pay(table, seat, back, deps);
   };
 
   /** Chips off the player and into the bank. False if they have not got them. */
@@ -331,7 +348,20 @@ export function rouletteAdapter(
                 table.forFun ? "That is more than your purse." : "You do not have the chips for that.",
               );
             }
-            table.place(seatId, spot.id, chips);
+            /*
+             * And straight back out if the cloth refuses it now. Taking the
+             * chips is an await, and the table does not stand still for it:
+             * last call can arrive, the window can shut on its own clock, the
+             * seat can go, the table can be called off. The chips are in the
+             * bank by then, so they come out the way a take-back does — in
+             * full, because a refused place never reached the escrow.
+             */
+            try {
+              table.place(seatId, spot.id, chips);
+            } catch (error) {
+              await pay(table, seat, chips, deps);
+              throw error;
+            }
             return;
           }
 
@@ -377,7 +407,13 @@ export function rouletteAdapter(
               if (!(await stake(table, seat, one.chips, deps))) {
                 return;
               }
-              table.place(seatId, one.spotId, one.chips);
+              // The same await as a single chip, and the same way back out.
+              try {
+                table.place(seatId, one.spotId, one.chips);
+              } catch {
+                await pay(table, seat, one.chips, deps);
+                return;
+              }
             }
             return;
           }
@@ -389,13 +425,13 @@ export function rouletteAdapter(
     },
 
     /**
-     * Reads what the store's bank holds, so the view can show a cap.
+     * Pays back chips owed to somebody who stood up while bets were open, and
+     * reads what the store's bank holds so the view can show a cap.
      *
-     * Not a payout — a seat that leaves this table is owed nothing, because
-     * its chips went into the bank as they landed. What this hook uniquely
-     * offers is that it runs on every broadcast, and what the bank holds is a
-     * question for the store, which a view cannot ask because building one is
-     * synchronous.
+     * Both belong here because this hook runs on every broadcast. Leaving is
+     * synchronous, so the table can only queue what it owes a leaver; and what
+     * the bank holds is a question for the store, which a view cannot ask
+     * because building one is synchronous.
      *
      * A for-fun table never needs this: its bank is on the table and its
      * figure is exact from the moment it exists. Which is the good half of
@@ -405,7 +441,16 @@ export function rouletteAdapter(
      * Less what the other tables on this bank could owe, so the felt greys
      * out the same spots the refusal would. Showing only; `place` asks again.
      */
-    async payOut(table) {
+    async payOut(table, deps) {
+      // Taken before the first await, so two broadcasts cannot both pay it.
+      const owed = table.escrow.takeDue();
+      if (owed.length > 0) {
+        await serially(table, async () => {
+          for (const one of owed) {
+            await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+          }
+        });
+      }
       if (!table.forFun) {
         const elsewhere = ledger?.owedElsewhere(table) ?? 0;
         table.housed = (await holds(table)) - elsewhere;
@@ -442,21 +487,26 @@ export function rouletteAdapter(
       }
       await serially(table, async () => {
         for (const [seatId, paid] of spin) {
-          const seat = table.seats.find((one) => one.id === seatId);
-          if (seat === undefined) {
-            continue;
-          }
+          /*
+           * A decided payout is theirs, seated or not. The chips rode once the
+           * window shut, so somebody who stood up while the ball was in the air
+           * is owed what it landed on — keeping it would be the bank pocketing
+           * a win it lost.
+           */
+          const here = table.seats.find((one) => one.id === seatId);
+          const userId = here?.userId ?? table.accountOf(seatId);
+          const seat = { id: seatId, userId };
           /*
            * Play money is paid but never recorded. A for-fun table touches no
            * account, so a win there is not a win anybody's profile should claim
            * — and a guest has no account to write one on either way.
            */
-          if (table.forFun || seat.userId === null) {
+          if (table.forFun || userId === null) {
             await pay(table, seat, paid.back, deps);
             continue;
           }
           await pay(table, seat, paid.back, deps);
-          await deps.record(seat.userId, {
+          await deps.record(userId, {
             shared: {
               rounds: 1,
               roundsWon: paid.back > paid.staked ? 1 : 0,
@@ -470,6 +520,21 @@ export function rouletteAdapter(
         paidOut.add(spin);
         unpaid.delete(table);
       });
+    },
+
+    /**
+     * Calls the table off: every chip still on the cloth, back to whoever put
+     * it there, and this table's claim on the bank released.
+     */
+    async void(table, deps) {
+      const owed = table.escrow.close();
+      await serially(table, async () => {
+        for (const one of owed) {
+          await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+        }
+      });
+      ledger?.release(table);
+      return owed;
     },
 
     /** Who came out of the spin ahead, which is not the same as who was paid. */

@@ -445,3 +445,128 @@ describe("a bank more than one table is paid from", () => {
     }
   });
 });
+
+function wallet(start: Record<string, number>) {
+  const held = { ...start };
+  const deps = {
+    take: async (userId: string, amount: number) => {
+      if ((held[userId] ?? 0) < amount) return false;
+      held[userId] = (held[userId] ?? 0) - amount;
+      return true;
+    },
+    give: async (userId: string, amount: number) => {
+      held[userId] = (held[userId] ?? 0) + amount;
+    },
+    record: async () => {},
+    finished: async () => {},
+  } as GameDeps;
+  return { held, deps };
+}
+
+describe("a roulette table called off", () => {
+  it("hands every chip on the cloth back out of the bank", async () => {
+    const { bank, held: inBank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    expect(table.escrow.total).toBe(200);
+
+    await game.void?.(table, deps);
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_000);
+  });
+
+  it("keeps the escrow and the cloth in step as chips go on and come off", async () => {
+    const { bank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { deps } = wallet({ u1: 5_000 });
+    const onCloth = () => table.placed.reduce((total, one) => total + one.chips, 0);
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 100 }, deps);
+    expect(table.escrow.total).toBe(onCloth());
+    await game.act(table, "s1", { type: "undo" }, deps);
+    expect(table.escrow.total).toBe(onCloth());
+    await game.act(table, "s1", { type: "clear" }, deps);
+    expect(table.escrow.total).toBe(0);
+  });
+
+  it("returns chips to somebody who leaves while bets are open", async () => {
+    const { bank, held: inBank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+
+    table.removeSeat("s1");
+    await game.payOut?.(table, deps);
+
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_000);
+  });
+
+  it("still pays somebody who left after the ball was in", async () => {
+    const { bank } = purse(1_000_000);
+    // Position 1 on the wheel is 32, which is red.
+    const game = rouletteAdapter({ bank, pick: () => 1 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    table.closeBetting();
+    table.removeSeat("s1");
+    table.land();
+
+    await game.settle(table, deps);
+
+    expect(held["u1"]).toBe(1_200);
+  });
+
+  it("gives back a chip the table refused after it was paid for", async () => {
+    const { bank, held: inBank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    // The window shuts while the account is being charged.
+    const shutting = {
+      ...deps,
+      take: async (userId: string, amount: number) => {
+        const ok = await deps.take(userId, amount);
+        table.closeBetting();
+        return ok;
+      },
+    } as GameDeps;
+    table.join("s2", "Bo", who("u2"));
+    // Somebody else's chip, so the cloth is not empty and the window really shuts.
+    await game.act(table, "s2", { type: "place", spotId: RED, chips: 25 }, wallet({ u2: 100 }).deps);
+
+    await expect(
+      game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, shutting),
+    ).rejects.toThrow();
+
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_025);
+  });
+
+  it("stops holding the bank's chips for a table that has been called off", async () => {
+    const { bank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const closed = game.create("ABCDE") as Table;
+    closed.join("s1", "Ada", who("u1"));
+    const other = game.create("FGHIJ") as Table;
+    const { deps } = wallet({ u1: 1_000 });
+    await game.act(closed, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+
+    await game.void?.(closed, deps);
+
+    const { ledgerOf } = await import("@backroom/core");
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+  });
+});
