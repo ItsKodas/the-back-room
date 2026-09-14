@@ -234,12 +234,26 @@ describe("resetting players", () => {
 
     expect((await post(`${base}/api/admin/reset`, { target: { ids: [ada.id] }, parts: ["balance"], emptyBanks: true })).status).toBe(400);
 
-    const answer = await post(`${base}/api/admin/reset`, { target: { all: true }, parts: ["balance"], emptyBanks: true });
+    /*
+     * The two entries this writes routinely share a millisecond, and the log
+     * breaks a tie on the id, which is random — so which of the pair comes
+     * first is arbitrary. The clock is pinned so every run is that tie rather
+     * than only some, and the assertion finds each entry by what it is
+     * instead of by where it sits.
+     */
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now());
+    let answer: Awaited<ReturnType<typeof post>>;
+    try {
+      answer = await post(`${base}/api/admin/reset`, { target: { all: true }, parts: ["balance"], emptyBanks: true });
+    } finally {
+      clock.mockRestore();
+    }
     expect(answer.body).toEqual({ affected: 2, emptied: 1500 });
     expect(await store.bank("slots")).toBe(0);
-    const [latest, reset] = await store.adminLog({ limit: 2, before: null });
-    expect(latest).toMatchObject({ kind: "empty-banks", amount: 1500 });
-    expect(reset).toMatchObject({ kind: "reset", target: "all" });
+    const logged = await store.adminLog({ limit: 2, before: null });
+    expect(logged).toHaveLength(2);
+    expect(logged.find((one) => one.kind === "empty-banks")).toMatchObject({ amount: 1500 });
+    expect(logged.find((one) => one.kind === "reset")).toMatchObject({ target: "all" });
   });
 });
 
