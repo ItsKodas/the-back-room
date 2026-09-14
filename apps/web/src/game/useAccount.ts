@@ -26,6 +26,11 @@ export interface Account {
   /** False when the server has no Discord credentials configured. */
   available: boolean;
   loading: boolean;
+  /**
+   * Whether to offer the way to the admin desk. A courtesy, not a key: the
+   * desk's routes answer 404 to anybody the server does not have on its list.
+   */
+  admin: boolean;
   refresh: () => void;
   /**
    * Takes a balance the server has pushed, without asking for the profile
@@ -39,6 +44,7 @@ export interface Account {
 interface MeResponse {
   signedIn: boolean;
   signinAvailable: boolean;
+  admin?: boolean;
   profile?: AccountProfile;
 }
 
@@ -47,6 +53,7 @@ export function useAccount(): Account {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [available, setAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [admin, setAdmin] = useState(false);
 
   const refresh = useCallback(() => {
     void (async () => {
@@ -54,13 +61,16 @@ export function useAccount(): Account {
         const response = await fetch("/api/me", { credentials: "include" });
         if (!response.ok) {
           setProfile(null);
+          setAdmin(false);
           return;
         }
         const body = (await response.json()) as MeResponse;
         setAvailable(body.signinAvailable);
         setProfile(body.signedIn ? (body.profile ?? null) : null);
+        setAdmin(body.signedIn && body.admin === true);
       } catch {
         setProfile(null);
+        setAdmin(false);
       } finally {
         setLoading(false);
       }
@@ -77,6 +87,7 @@ export function useAccount(): Account {
     void (async () => {
       await fetch("/auth/logout", { method: "POST", credentials: "include" });
       setProfile(null);
+      setAdmin(false);
     })();
   }, []);
 
@@ -84,6 +95,7 @@ export function useAccount(): Account {
     profile,
     available,
     loading,
+    admin,
     refresh,
     setChips,
     signOut,

@@ -148,6 +148,41 @@ export const mintCodeSchema = z.object({
 export type MintCodePayload = z.infer<typeof mintCodeSchema>;
 
 /**
+ * Who an admin action reaches. Capped so one request cannot name the whole
+ * playerbase by hand — that is what `all` is for.
+ */
+const adminTargetSchema = z.union([
+  z.object({ all: z.literal(true) }).strict(),
+  z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(500) }).strict(),
+]);
+
+const adminNoteSchema = z.string().max(120).optional();
+
+/** Giving, taking or setting chips. Set may be zero; the others may not. */
+export const adminChipsSchema = z
+  .object({
+    op: z.enum(["add", "remove", "set"]),
+    amount: z.number().int().min(0).max(10_000_000),
+    target: adminTargetSchema,
+    note: adminNoteSchema,
+  })
+  .refine((body) => body.op === "set" || body.amount >= 1);
+
+export type AdminChipsPayload = z.infer<typeof adminChipsSchema>;
+
+/** Wiping parts of players. Emptying the banks only makes sense for everybody. */
+export const adminResetSchema = z
+  .object({
+    target: adminTargetSchema,
+    parts: z.array(z.enum(["balance", "stats", "jar", "history"])).min(1),
+    emptyBanks: z.boolean().optional(),
+    note: adminNoteSchema,
+  })
+  .refine((body) => body.emptyBanks !== true || "all" in body.target);
+
+export type AdminResetPayload = z.infer<typeof adminResetSchema>;
+
+/**
  * One action at a table.
  *
  * Only the type is checked here. What else the payload carries is the game's

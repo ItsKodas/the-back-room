@@ -89,7 +89,20 @@ export function TauntStage({ landed }: TauntStageProps) {
       aria-live="polite"
       key={showing.id}
     >
-      <img className="taunt-stage__art" src={showing.image} alt="" />
+      {/*
+        * An emote can be deleted while a pool still owes its replay. The line
+        * below says everything that matters, so a picture that no longer
+        * exists steps aside rather than drawing a broken image. The section
+        * is keyed by play, so the next one starts visible again.
+        */}
+      <img
+        className="taunt-stage__art"
+        src={showing.image}
+        alt=""
+        onError={(event) => {
+          event.currentTarget.hidden = true;
+        }}
+      />
       <p className="taunt-stage__line">
         {showing.revenge ? (
           <>

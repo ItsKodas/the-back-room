@@ -16,12 +16,18 @@ import type { BankName, PublicPlayer } from "./store.js";
 import type { Model } from "mongoose";
 import { STARTING_CHIPS, emptyJarRecord, emptyStats, leaderValue, toLeaderRow } from "./store.js";
 import type {
+  AdminLogCursor,
+  AdminLogEntry,
+  AdminTarget,
+  AdminUserRow,
+  BalanceOp,
   GameRecord,
   JarRecord,
   LeaderBoard,
   LeaderSort,
   Profile,
   ProfileStats,
+  ResetPart,
   StatBump,
   Store,
 } from "./store.js";
@@ -37,6 +43,7 @@ interface UserDoc {
   stats: ProfileStats;
   byGame: Record<string, Record<string, number>>;
   jar: JarRecord;
+  createdAt?: Date;
 }
 
 const statsSchema = new mongoose.Schema<ProfileStats>(
@@ -310,6 +317,33 @@ const transferSchema = new mongoose.Schema<TransferDoc>(
 transferSchema.index({ fromId: 1, at: -1 });
 transferSchema.index({ toId: 1, at: -1 });
 
+interface AdminLogDoc extends Omit<AdminLogEntry, "id"> {
+  _id: string;
+}
+
+const adminLogSchema = new mongoose.Schema<AdminLogDoc>(
+  {
+    _id: { type: String, required: true },
+    at: { type: Number, required: true },
+    by: { type: String, required: true },
+    byName: { type: String, required: true },
+    kind: { type: String, required: true },
+    amount: { type: Number, required: true },
+    affected: { type: Number, required: true },
+    // "all", or the ids — Mixed because it is one or the other.
+    target: { type: mongoose.Schema.Types.Mixed, required: true },
+    parts: { type: [String], default: null },
+    subject: { type: String, default: null },
+    note: { type: String, default: "" },
+  },
+  // No `__v`: these are written once and never updated, and a version key
+  // would ride along into every entry the desk is handed.
+  { timestamps: false, versionKey: false },
+);
+/* The one question ever asked of it — newest first, paged on (at, id) — so
+   the index is that order exactly, tiebreak included. */
+adminLogSchema.index({ at: -1, _id: -1 });
+
 function toEmote(doc: EmoteDoc): EmoteRecord {
   return {
     id: doc._id,
@@ -374,6 +408,7 @@ export class MongoStore implements Store {
   private readonly house: Model<HouseDoc>;
   private readonly emotes: Model<EmoteDoc>;
   private readonly ledger: Model<TransferDoc>;
+  private readonly adminLogs: Model<AdminLogDoc>;
 
   private constructor(private readonly connection: mongoose.Connection) {
     this.users = connection.model<UserDoc>("User", userSchema);
@@ -383,6 +418,7 @@ export class MongoStore implements Store {
     this.house = connection.model<HouseDoc>("House", houseSchema);
     this.emotes = connection.model<EmoteDoc>("Emote", emoteSchema);
     this.ledger = connection.model<TransferDoc>("Transfer", transferSchema);
+    this.adminLogs = connection.model<AdminLogDoc>("AdminLog", adminLogSchema);
   }
 
   /**
@@ -911,6 +947,240 @@ export class MongoStore implements Store {
       { $set: { retired: true } },
     );
     return result.modifiedCount > 0;
+  }
+
+  /*
+   * The filter an admin target means. Ids that are not ObjectIds reach
+   * nobody, and the ids that are get turned into actual ObjectIds rather than
+   * left as strings — this filter is also handed to `aggregate`, which,
+   * unlike a `Query`, never casts a filter against the schema, so a string
+   * here would silently match no one.
+   */
+  private userFilter(target: AdminTarget): Record<string, unknown> {
+    if ("all" in target) {
+      return {};
+    }
+    return {
+      _id: {
+        $in: target.ids
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id)),
+      },
+    };
+  }
+
+  private targetIds(target: AdminTarget): string[] | null {
+    return "all" in target ? null : target.ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  }
+
+  async listUsers({
+    query,
+    offset,
+    limit,
+  }: {
+    query: string;
+    offset: number;
+    limit: number;
+  }): Promise<{ rows: AdminUserRow[]; total: number }> {
+    // Escaped for the same reason findPlayers escapes: a name is not a pattern.
+    const safe = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const filter = safe.length === 0 ? {} : { name: new RegExp(`^${safe}`, "i") };
+    const [docs, total] = await Promise.all([
+      this.users
+        .find(filter)
+        .select("name avatar accentColor chips stats.rounds createdAt")
+        .sort({ chips: -1, _id: 1 })
+        .skip(Math.max(0, offset))
+        .limit(Math.min(limit, 100))
+        .lean<Array<UserDoc & { _id: mongoose.Types.ObjectId }>>(),
+      this.users.countDocuments(filter),
+    ]);
+    return {
+      total,
+      rows: docs.map((doc) => ({
+        id: doc._id.toString(),
+        name: doc.name,
+        avatar: doc.avatar,
+        accentColor: doc.accentColor,
+        chips: doc.chips,
+        rounds: doc.stats?.rounds ?? 0,
+        createdAt: doc.createdAt instanceof Date ? doc.createdAt.getTime() : 0,
+      })),
+    };
+  }
+
+  /*
+   * An add is exact: every matched player got exactly `amount`, so `moved`
+   * comes from the update's own match count with nothing read around it.
+   * That matters because a grant is only legitimate for being logged, and
+   * reading balances either side of it counted every stake and payout landing
+   * in between — for `{ all: true }`, the whole building's play — as the
+   * admin's.
+   *
+   * A removal or a set cannot be counted that way, since what each player
+   * lost depends on what they held, so those two still sum the targeted
+   * balances just before the update and just after it. Play landing between
+   * the two reads is counted as if the admin moved it: the logged figure for
+   * those two can be off by a live payout, never the balance itself, which
+   * the single update decides.
+   */
+  async adjustBalances({
+    target,
+    op,
+    amount,
+  }: {
+    target: AdminTarget;
+    op: BalanceOp;
+    amount: number;
+  }): Promise<{ affected: number; moved: number }> {
+    const filter = this.userFilter(target);
+    if (op === "add") {
+      const result = await this.users.updateMany(filter, { $inc: { chips: amount } });
+      return { affected: result.matchedCount, moved: amount * result.matchedCount };
+    }
+    const sum = async () => {
+      const [summed] = await this.users.aggregate<{ total: number; count: number }>([
+        { $match: filter },
+        { $group: { _id: null, total: { $sum: "$chips" }, count: { $sum: 1 } } },
+      ]);
+      return { total: summed?.total ?? 0, count: summed?.count ?? 0 };
+    };
+    const before = await sum();
+    if (op === "set") {
+      await this.users.updateMany(filter, { $set: { chips: amount } });
+    } else {
+      await this.users.updateMany(
+        filter,
+        [{ $set: { chips: { $max: [0, { $subtract: ["$chips", amount] }] } } }],
+        // This mongoose version needs telling that the update is a pipeline,
+        // rather than inferring it from the array it was just handed.
+        { updatePipeline: true },
+      );
+    }
+    const after = await sum();
+    return { affected: before.count, moved: after.total - before.total };
+  }
+
+  async resetUsers({
+    target,
+    parts,
+  }: {
+    target: AdminTarget;
+    parts: readonly ResetPart[];
+  }): Promise<{ affected: number }> {
+    const filter = this.userFilter(target);
+    const affected = await this.users.countDocuments(filter);
+    const set: Record<string, unknown> = {};
+    if (parts.includes("balance")) {
+      set["chips"] = STARTING_CHIPS;
+    }
+    if (parts.includes("stats")) {
+      set["stats"] = emptyStats();
+      set["byGame"] = {};
+    }
+    if (parts.includes("jar")) {
+      set["jar"] = emptyJarRecord();
+    }
+    if (Object.keys(set).length > 0) {
+      await this.users.updateMany(filter, { $set: set });
+    }
+    if (parts.includes("history")) {
+      await this.forgetHistory(this.targetIds(target));
+    }
+    return { affected };
+  }
+
+  /** Null ids means everybody. */
+  private async forgetHistory(ids: string[] | null): Promise<void> {
+    if (ids === null) {
+      await Promise.all([
+        this.ledger.deleteMany({}),
+        this.redemptions.deleteMany({}),
+        this.codes.updateMany({}, { $set: { redemptions: 0 } }),
+        this.games.deleteMany({}),
+      ]);
+      return;
+    }
+    await this.ledger.deleteMany({ $or: [{ fromId: { $in: ids } }, { toId: { $in: ids } }] });
+
+    const claims = await this.redemptions.find({ userId: { $in: ids } }).lean<RedemptionDoc[]>();
+    const perCode = new Map<string, number>();
+    for (const claim of claims) {
+      perCode.set(claim.code, (perCode.get(claim.code) ?? 0) + 1);
+    }
+    /*
+     * The records go before the counts come down. A crash between the two
+     * then leaves a code counting uses nobody holds any more — it runs out a
+     * little early, which fails safe. The other way round left a code under
+     * its true count with the redemptions still in place, and a capped code
+     * under-counted is one that hands out more chips than it was minted for.
+     */
+    await this.redemptions.deleteMany({ userId: { $in: ids } });
+    await Promise.all(
+      [...perCode].map(([code, count]) =>
+        this.codes.updateOne(
+          { code },
+          [{ $set: { redemptions: { $max: [0, { $subtract: ["$redemptions", count] }] } } }],
+          // See the same option in adjustBalances: this mongoose version needs
+          // telling that the update is a pipeline.
+          { updatePipeline: true },
+        ),
+      ),
+    );
+
+    // Read first, so the cleanup below can name the records this reset
+    // actually changed. Sweeping the whole collection for the empty shape
+    // deleted bots-and-guests records that were never about these players.
+    const touched = await this.games
+      .find({ "players.userId": { $in: ids } }, { _id: 1 })
+      .lean<Array<{ _id: unknown }>>();
+    await this.games.updateMany(
+      { "players.userId": { $in: ids } },
+      { $pull: { players: { userId: { $in: ids } } } },
+    );
+    // A record this reset has just left with nobody signed in says nothing
+    // about anybody.
+    await this.games.deleteMany({
+      _id: { $in: touched.map((game) => game._id) },
+      players: { $not: { $elemMatch: { userId: { $type: "string" } } } },
+    });
+  }
+
+  async bankEmpty(which: BankName): Promise<number> {
+    const before = await this.house.findOneAndUpdate(
+      { _id: bankId(which) },
+      { $set: { amount: 0 } },
+      { upsert: true, returnDocument: "before" },
+    );
+    return before?.amount ?? 0;
+  }
+
+  async deleteEmote(id: string): Promise<boolean> {
+    const result = await this.emotes.deleteOne({ _id: id });
+    return result.deletedCount === 1;
+  }
+
+  async logAdmin(entry: Omit<AdminLogEntry, "id" | "at">): Promise<AdminLogEntry> {
+    const written: AdminLogEntry = { ...entry, id: randomUUID(), at: Date.now() };
+    const { id, ...rest } = written;
+    await this.adminLogs.create({ _id: id, ...rest });
+    return written;
+  }
+
+  async adminLog({ limit, before }: { limit: number; before: AdminLogCursor | null }): Promise<AdminLogEntry[]> {
+    const docs = await this.adminLogs
+      .find(
+        before === null
+          ? {}
+          : { $or: [{ at: { $lt: before.at } }, { at: before.at, _id: { $lt: before.id } }] },
+      )
+      // `_id` breaks the tie: without it, entries sharing a millisecond came
+      // back in whatever order the server liked, which is no order a cursor
+      // can resume from.
+      .sort({ at: -1, _id: -1 })
+      .limit(limit)
+      .lean<AdminLogDoc[]>();
+    return docs.map(({ _id, ...rest }) => ({ ...rest, id: _id }));
   }
 
   async close(): Promise<void> {

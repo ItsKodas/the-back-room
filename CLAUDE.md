@@ -10,10 +10,12 @@ plays.
 
 ### There is no real money here, ever
 
-Players get chips daily and nowhere else, except from redemption codes an
-admin mints. Nothing in this building takes payment, and nothing in it ever
-should. If a change would create a route from money to chips, it is the wrong
-change.
+Players get chips daily and nowhere else, except from an admin: by a
+redemption code they mint, or by a grant written into the admin log. Both
+are the same power — chips nobody won — so both sit behind the same
+allowlist, and neither is ever a thing a player can cause. Nothing in this
+building takes payment, and nothing in it ever should. If a change would
+create a route from money to chips, it is the wrong change.
 
 ### Chips are only won from real people
 

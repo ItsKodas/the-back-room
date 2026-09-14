@@ -5,8 +5,8 @@ import { createServer as createHttpServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
-import { BankLedger, Catalogue, COMING, Taunts } from "@backroom/core";
-import type { BankName, Store } from "@backroom/economy";
+import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core";
+import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
   BLACKJACK,
@@ -73,6 +73,7 @@ import session from "express-session";
 import type { DefaultEventsMap } from "socket.io";
 import { Server } from "socket.io";
 import { readAdmins } from "./admin.js";
+import { ADMIN_BULK_PATHS, mountAdminDesk } from "./admin-desk.js";
 import type { AuthConfig } from "./auth.js";
 import { mountAuth, readAuthConfig } from "./auth.js";
 import { friendlyRedirect } from "./domains.js";
@@ -445,14 +446,15 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * silently behaves as though it were sent empty.
    */
   /*
-   * Every path but one. An emote upload carries a picture, which is several
-   * hundred times this limit — and a body refused at eight kilobytes cannot be
-   * un-refused by a larger parser mounted further down, so the small one has
-   * to decline to look at that route rather than reject it.
+   * Every path but a few. An emote upload carries a picture, which is several
+   * hundred times this limit, and the admin desk's bulk routes can carry five
+   * hundred ids — and a body refused at eight kilobytes cannot be un-refused
+   * by a larger parser mounted further down, so the small one has to decline
+   * to look at those routes rather than reject them.
    */
   const smallJson = express.json({ limit: "8kb" });
   app.use((request, response, next) => {
-    if (request.path === EMOTE_UPLOAD_PATH) {
+    if (request.path === EMOTE_UPLOAD_PATH || ADMIN_BULK_PATHS.includes(request.path)) {
       next();
       return;
     }
@@ -510,10 +512,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     void (async () => {
       const id = userIdOfRequest(request);
       const profile = id === undefined ? null : await store.get(id);
+      // Only so the bar can offer a way to the desk. It opens nothing: every
+      // admin route still asks the list itself.
+      const admin = profile !== null && admins.has(profile.discordId);
       response.json(
         profile === null
-          ? { signedIn: false, signinAvailable: auth !== null }
-          : { signedIn: true, signinAvailable: auth !== null, profile },
+          ? { signedIn: false, signinAvailable: auth !== null, admin }
+          : { signedIn: true, signinAvailable: auth !== null, admin, profile },
       );
     })();
   });
@@ -824,6 +829,19 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     }
   }
 
+  /** `tellChips` for everybody an admin action reached who has a screen open. */
+  async function tellChipsTo(target: AdminTarget): Promise<void> {
+    const connected = new Set<string>();
+    for (const socket of io.sockets.sockets.values()) {
+      const userId = socket.data.identity?.userId;
+      if (typeof userId === "string") {
+        connected.add(userId);
+      }
+    }
+    const wanted = "all" in target ? connected : new Set(target.ids.filter((id) => connected.has(id)));
+    await Promise.all([...wanted].map((userId) => tellChips(userId)));
+  }
+
   const deps: GameDeps = {
     take: async (userId, amount) => {
       if (amount <= 0) {
@@ -843,6 +861,29 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     },
     record: (userId, bump) => store.bumpStats(userId, bump),
     finished: (record) => store.recordGame(record),
+  };
+
+  /*
+   * One bank object per game, named rather than built inline where each
+   * adapter is constructed — an admin's empty-banks reset has to queue
+   * through the exact same `BankLedger` a table's own stakes and payouts do
+   * (see `ledgerOf`, which keys its book on this object's identity), and it
+   * can only reach that ledger by being handed this same reference.
+   */
+  const blackjackBank = {
+    holds: () => store.bank("blackjack"),
+    add: (amount: number) => store.bankAdd("blackjack", amount),
+    take: (amount: number) => store.bankTake("blackjack", amount),
+  };
+  const rouletteBank = {
+    holds: () => store.bank("roulette"),
+    add: (amount: number) => store.bankAdd("roulette", amount),
+    take: (amount: number) => store.bankTake("roulette", amount),
+  };
+  const twoUpBank = {
+    holds: () => store.bank("two-up"),
+    add: (amount: number) => store.bankAdd("two-up", amount),
+    take: (amount: number) => store.bankTake("two-up", amount),
   };
 
   /** Every game this server can host, by id. */
@@ -868,11 +909,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          * store, so a table cannot reach the machine's bank however it is
          * asked to.
          */
-        bank: {
-          holds: () => store.bank("blackjack"),
-          add: (amount: number) => store.bankAdd("blackjack", amount),
-          take: (amount: number) => store.bankTake("blackjack", amount),
-        },
+        bank: blackjackBank,
       }) as GameAdapter<PlayTable>,
     ],
     [
@@ -898,11 +935,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          */
         pick: (pockets: number) => Math.floor(spinRandom() * pockets),
         /* Its own bank, kept apart from the machine's and the felt's. */
-        bank: {
-          holds: () => store.bank("roulette"),
-          add: (amount: number) => store.bankAdd("roulette", amount),
-          take: (amount: number) => store.bankTake("roulette", amount),
-        },
+        bank: rouletteBank,
       }) as GameAdapter<PlayTable>,
     ],
     [
@@ -934,14 +967,49 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          */
         random: spinRandom,
         /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
-        bank: {
-          holds: () => store.bank("two-up"),
-          add: (amount: number) => store.bankAdd("two-up", amount),
-          take: (amount: number) => store.bankTake("two-up", amount),
-        },
+        bank: twoUpBank,
       }) as GameAdapter<PlayTable>,
     ],
   ]);
+
+  /**
+   * Empties one game's bank inside that bank's own serialization guard,
+   * where it has one.
+   *
+   * `store.bankEmpty` alone would race a stake or a payout already under
+   * way: it could land after a spin's cap is read and its stake taken but
+   * before its winnings are paid, which is exactly the gap `BankLedger`
+   * exists to close for two tables racing each other — here it would be an
+   * admin racing a table instead, and a paid winning spin would go unpaid.
+   * Queuing this through the same `serially` a stake or payout runs inside
+   * shuts that out: the empty either runs before the round starts or after
+   * it has fully settled, never in the middle.
+   *
+   * Slots is the one game whose whole round — cap read, stake, payout —
+   * already runs wholly inside its own `slotsBank.serially`, so queuing the
+   * empty there is sufficient on its own; there is no separate window for a
+   * reset to land in that serialization does not already cover.
+   */
+  async function emptyOneBank(which: BankName): Promise<number> {
+    switch (which) {
+      case "slots":
+        return slotsBank.serially(() => store.bankEmpty("slots"));
+      case "blackjack":
+        return ledgerOf(blackjackBank).serially(() => store.bankEmpty("blackjack"));
+      case "roulette":
+        return ledgerOf(rouletteBank).serially(() => store.bankEmpty("roulette"));
+      case "two-up":
+        return ledgerOf(twoUpBank).serially(() => store.bankEmpty("two-up"));
+    }
+  }
+
+  async function emptyBanks(): Promise<number> {
+    let total = 0;
+    for (const bank of BANKS) {
+      total += await emptyOneBank(bank);
+    }
+    return total;
+  }
 
   /**
    * The seat this person already holds at this table, if they hold one.
@@ -1036,6 +1104,28 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       return profile === null ? null : { id: profile.id };
     },
     withinBudget: (id, max, windowMs) => withinBudget(boardBudgets, id, max, windowMs),
+  });
+
+  mountAdminDesk(app, {
+    store,
+    requireAdmin,
+    whoIs: async (request) => {
+      const profile = await whoIs(request);
+      return profile === null ? null : { id: profile.id, name: profile.name };
+    },
+    tellChipsTo,
+    tables: () => [...rooms.values()].map((room) => room.table),
+    emptyBanks,
+    // Kept, not evicted: the payout loop skips any replay it cannot find, so
+    // evicting here dropped the replay a pool still holding this emote is
+    // owed. The name stays; the sound goes, because its bytes went with the
+    // row and a URL to them would only 404 mid-animation.
+    emoteDeleted: (id) => {
+      const seen = emotesSeen.get(id);
+      if (seen !== undefined) {
+        emotesSeen.set(id, { ...seen, sound: null });
+      }
+    },
   });
 
   app.get("/api/admin/codes", requireAdmin, (_request, response) => {
@@ -1161,6 +1251,18 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return;
       }
       await store.bankAdd(which, amount);
+      const profile = await whoIs(request);
+      await store.logAdmin({
+        by: profile?.id ?? "unknown",
+        byName: profile?.name ?? "unknown",
+        kind: "float",
+        amount,
+        affected: 0,
+        target: "all",
+        parts: null,
+        subject: which,
+        note: "",
+      });
       const bank = await store.bank(which);
       response.json({ bank, maxStake: capOf(which, bank) });
     })();
