@@ -275,4 +275,40 @@ describe("pressing ready", () => {
       vi.useRealTimers();
     }
   });
+
+  it("does not let an answered press's own timer clear a later, unrelated one", () => {
+    /*
+     * Each press winds its own PATIENCE_MS clock without cancelling an
+     * earlier press's clock. An answer clears the intent but not the timer
+     * that was armed for it, so that timer is still ticking — and, unfixed,
+     * still reaches for `setSent(null)` when it fires, however outdated the
+     * intent it was armed for has become. Here a second, still-outstanding
+     * press must survive past the first press's own deadline.
+     */
+    vi.useFakeTimers();
+    try {
+      const act_ = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ state }: { state: TableView }) => useIntent(state, "ada", act_, null),
+        { initialProps: { state: waiting() } },
+      );
+
+      act(() => result.current.ready(true)); // t=0: timer A armed for t=1600.
+      act(() => vi.advanceTimersByTime(50));
+      rerender({ state: waiting({ you: { ...notReady, ready: true } }) }); // t=50: answered.
+      expect(result.current.readying).toBeNull();
+
+      act(() => vi.advanceTimersByTime(250)); // t=300.
+      act(() => result.current.ready(false)); // timer B armed for t=1900.
+      expect(result.current.readying).toBe(false);
+
+      act(() => vi.advanceTimersByTime(1301)); // t=1601: just past timer A's deadline.
+      expect(result.current.readying).toBe(false);
+
+      act(() => vi.advanceTimersByTime(300)); // t=1901: just past timer B's deadline.
+      expect(result.current.readying).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

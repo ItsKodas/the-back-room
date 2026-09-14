@@ -192,7 +192,10 @@ export function Felt({
           <button
             type="button"
             className="btn dr__roll"
-            disabled={table.busy}
+            // A second press before the table has answered the first would
+            // ask it something it was already asked — the same guard Roll
+            // and Pass already keep on their own outstanding intents.
+            disabled={table.busy || intent.readying !== null}
             onClick={() => intent.ready(!(intent.readying ?? mine.ready))}
           >
             {(intent.readying ?? mine.ready) ? "Not ready" : "I'm ready"}

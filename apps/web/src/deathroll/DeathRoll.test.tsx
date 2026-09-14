@@ -279,6 +279,27 @@ describe("the table of up to six", () => {
     expect(screen.getAllByText(/^Open seat$/i)).toHaveLength(2);
   });
 
+  it("disables the ready button while its own press is outstanding", () => {
+    // Roll and Pass already guard against a second press before the table
+    // has answered the first (`busy` in Controls); the ready button shares
+    // its slot but had no such guard, so this presses it once against an
+    // `act` that never answers and checks it cannot be pressed again.
+    const state = view({
+      phase: "waiting",
+      waitingFor: null,
+      toRoll: null,
+      pot: 0,
+      seats: [seat({ id: "s1", name: "Ada" })],
+      you: seat({ id: "s1", name: "Ada" }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
+
+    const button = screen.getByRole("button", { name: /I'm ready/i });
+    fireEvent.click(button);
+
+    expect(button).toBeDisabled();
+  });
+
   it("shows the ready screen at a for-fun table too", () => {
     // M5 from the Task 6 review: the ready button at a for-fun table had no
     // test of its own.

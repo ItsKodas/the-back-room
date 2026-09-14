@@ -58,21 +58,32 @@ export function useIntent(
   error: string | null,
 ): Intent {
   const [sent, setSent] = useState<Sent | null>(null);
-  const timers = useRef<number[]>([]);
+  // Only ever one `Sent` outstanding, so only one timer needs to exist for
+  // it: winding a new one cancels whichever earlier one is still ticking,
+  // rather than leaving it free to fire later and give up an intent it was
+  // never armed for. That earlier timer may belong to a press that has
+  // already been answered — answering clears `sent` but not the clock that
+  // was wound for it — so without this a slow-to-arrive second press could
+  // be cut short by its predecessor's own deadline rather than its own.
+  const timer = useRef<number | null>(null);
 
   useEffect(() => {
-    const held = timers.current;
     return () => {
-      for (const id of held) {
-        window.clearTimeout(id);
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
       }
     };
   }, []);
 
   /** Gives up on whatever is outstanding after `ms`, however the answer goes. */
   const wind = useCallback((ms: number) => {
-    const id = window.setTimeout(() => setSent(null), ms);
-    timers.current.push(id);
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+    }
+    timer.current = window.setTimeout(() => {
+      timer.current = null;
+      setSent(null);
+    }, ms);
   }, []);
 
   const send = useCallback(
