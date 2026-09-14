@@ -171,7 +171,9 @@ describe("who's ahead, from the front door", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link").textContent?.trim()).not.toBe("");
+    // The card carries its own heading now, so non-empty text alone would pass
+    // with nothing under it; the wait has to be said in words.
+    expect(screen.getByText("Counting.")).toBeTruthy();
   });
 
   it("cannot say a total smaller than your own rank", async () => {
