@@ -555,6 +555,35 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
     });
 
     /*
+     * A grant is only legitimate because it is written into the admin log, so
+     * the figure logged has to be what the admin moved. Reading the targeted
+     * balances before and after the update counted any other write landing in
+     * between as the admin's — for `{ all: true }`, every stake and payout in
+     * the building. The concurrent write is placed inside the update call
+     * itself, which is what makes an otherwise timing-dependent race land
+     * between the two reads every time.
+     */
+    it("counts only its own grant as moved, even with play landing mid-update", async () => {
+      const ada = await newPlayer();
+      const bo = await newPlayer();
+      const users = (store as unknown as { users: { updateMany: (...args: unknown[]) => unknown } }).users;
+      const real = users.updateMany.bind(users);
+      const spy = vi.spyOn(users, "updateMany").mockImplementationOnce(async (...args: unknown[]) => {
+        // A hand paying Bo out while the admin's grant is in flight.
+        await store.adjustChips(bo.id, 777);
+        return real(...args);
+      });
+      try {
+        const result = await store.adjustBalances({ target: { ids: [ada.id, bo.id] }, op: "add", amount: 100 });
+        expect(result.affected).toBe(2);
+        expect(result.moved).toBe(100 * result.affected);
+      } finally {
+        spy.mockRestore();
+      }
+      expect((await store.get(bo.id))?.chips).toBe(STARTING_CHIPS + 777 + 100);
+    });
+
+    /*
      * A name of its own rather than `newPlayer()`'s "Ada", which every other
      * test in this file also creates — the sort is by chips with the search
      * unbounded at 100, and a database this long-lived already holds well

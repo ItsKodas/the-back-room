@@ -1010,10 +1010,19 @@ export class MongoStore implements Store {
   }
 
   /*
-   * `moved` for a removal or a set is the sum of balances read just before
-   * the update and just after it. A hand settling between the two reads is
-   * counted as if the admin moved it — the log can be off by a live payout,
-   * never the balance itself, which the single update decides.
+   * An add is exact: every matched player got exactly `amount`, so `moved`
+   * comes from the update's own match count with nothing read around it.
+   * That matters because a grant is only legitimate for being logged, and
+   * reading balances either side of it counted every stake and payout landing
+   * in between — for `{ all: true }`, the whole building's play — as the
+   * admin's.
+   *
+   * A removal or a set cannot be counted that way, since what each player
+   * lost depends on what they held, so those two still sum the targeted
+   * balances just before the update and just after it. Play landing between
+   * the two reads is counted as if the admin moved it: the logged figure for
+   * those two can be off by a live payout, never the balance itself, which
+   * the single update decides.
    */
   async adjustBalances({
     target,
@@ -1025,6 +1034,10 @@ export class MongoStore implements Store {
     amount: number;
   }): Promise<{ affected: number; moved: number }> {
     const filter = this.userFilter(target);
+    if (op === "add") {
+      const result = await this.users.updateMany(filter, { $inc: { chips: amount } });
+      return { affected: result.matchedCount, moved: amount * result.matchedCount };
+    }
     const sum = async () => {
       const [summed] = await this.users.aggregate<{ total: number; count: number }>([
         { $match: filter },
@@ -1033,9 +1046,7 @@ export class MongoStore implements Store {
       return { total: summed?.total ?? 0, count: summed?.count ?? 0 };
     };
     const before = await sum();
-    if (op === "add") {
-      await this.users.updateMany(filter, { $inc: { chips: amount } });
-    } else if (op === "set") {
+    if (op === "set") {
       await this.users.updateMany(filter, { $set: { chips: amount } });
     } else {
       await this.users.updateMany(
