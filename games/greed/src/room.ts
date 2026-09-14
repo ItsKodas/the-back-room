@@ -6,7 +6,7 @@ import {
   scoreSelection,
 } from "@backroom/rules";
 import type { Die, Ruleset } from "@backroom/rules";
-import { MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
+import { Escrow, MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
 import type { Seat as TableSeat, SeatIdentity } from "@backroom/core";
 import type { Phase, RoomStatus, RoomView, SeatView, TurnView } from "@backroom/shared";
 import type { BotSkill } from "./bot.js";
@@ -70,6 +70,8 @@ export class Room {
   lastEvent: string | null = null;
   /** Chips each seat puts in. Zero means a friendly game. */
   buyIn = 0;
+  /** Holds the buy-ins taken at the start of a game played for chips. */
+  readonly escrow = new Escrow();
   /**
    * When the active player forfeits, in epoch ms. Owned by the socket layer —
    * this class never reads it, so the engine stays free of wall-clock time.
@@ -495,6 +497,8 @@ export class Room {
   }
 
   private finish(): void {
+    // The game is decided, so the buy-ins now belong to the pot.
+    this.escrow.settle();
     this.status = "over";
     // Only the people who actually played it can have won it.
     const played = this.seats.filter((seat) => !seat.waiting);

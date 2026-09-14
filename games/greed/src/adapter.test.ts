@@ -171,3 +171,105 @@ describe("what a finished game is worth", () => {
     expect(book.given).toEqual([]);
   });
 });
+
+/** A store that keeps balances, so a refund can be seen rather than inferred. */
+function wallet(start: Record<string, number>) {
+  const held = { ...start };
+  const deps: GameDeps = {
+    take: async (userId, amount) => {
+      if ((held[userId] ?? 0) < amount) return false;
+      held[userId] = (held[userId] ?? 0) - amount;
+      return true;
+    },
+    give: async (userId, amount) => {
+      held[userId] = (held[userId] ?? 0) + amount;
+    },
+    record: async () => {},
+    finished: async () => {},
+  };
+  return { held, deps };
+}
+
+describe("a Greed table called off mid-game", () => {
+  it("hands every buy-in back to the account it came from", async () => {
+    const adapter = greedAdapter({ roll: sixes });
+    const room = adapter.create("TEST1") as Room;
+    room.join("a", "Ada", who(1));
+    room.join("b", "Bram", who(2));
+    room.setBuyIn(500);
+    const { held, deps } = wallet({ u1: 1_000, u2: 1_000 });
+
+    await adapter.act(room, "a", { type: "start" }, deps);
+    expect(held).toEqual({ u1: 500, u2: 500 });
+    expect(room.escrow.total).toBe(1_000);
+
+    const refunded = await adapter.void?.(room, deps);
+    expect(held).toEqual({ u1: 1_000, u2: 1_000 });
+    expect(refunded).toEqual([
+      { userId: "u1", chips: 500 },
+      { userId: "u2", chips: 500 },
+    ]);
+  });
+
+  it("refunds nothing once the game is over, because the pot is the winner's", async () => {
+    const adapter = greedAdapter({ roll: sixes });
+    const room = playOut(500);
+    const { deps, given } = ledger();
+    expect(room.escrow.total).toBe(0);
+    await adapter.void?.(room, deps);
+    expect(given).toEqual([]);
+  });
+
+  it("gives a buy-in straight back if the table closed while it was being taken", async () => {
+    const adapter = greedAdapter({ roll: sixes });
+    const room = adapter.create("TEST1") as Room;
+    room.join("a", "Ada", who(1));
+    room.join("b", "Bram", who(2));
+    room.setBuyIn(500);
+    const { held, deps } = wallet({ u1: 1_000, u2: 1_000 });
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const slow: GameDeps = {
+      ...deps,
+      take: async (userId, amount) => {
+        const ok = await deps.take(userId, amount);
+        if (userId === "u2") await gate;
+        return ok;
+      },
+    };
+
+    const starting = adapter.act(room, "a", { type: "start" }, slow).catch((error) => error);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await adapter.void?.(room, deps);
+    release();
+    const outcome = await starting;
+
+    expect(outcome).toBeInstanceOf(Error);
+    expect(held).toEqual({ u1: 1_000, u2: 1_000 });
+    expect(room.status).toBe("lobby");
+  });
+
+  it("gives back the buy-in of somebody who left while the others were paying", async () => {
+    const adapter = greedAdapter({ roll: sixes });
+    const room = adapter.create("TEST1") as Room;
+    room.join("a", "Ada", who(1));
+    room.join("b", "Bram", who(2));
+    room.join("c", "Cy", who(3));
+    room.setBuyIn(500);
+    const { held, deps } = wallet({ u1: 1_000, u2: 1_000, u3: 1_000 });
+    const leaving: GameDeps = {
+      ...deps,
+      take: async (userId, amount) => {
+        const ok = await deps.take(userId, amount);
+        if (userId === "u3") room.removeSeat("b");
+        return ok;
+      },
+    };
+
+    await adapter.act(room, "a", { type: "start" }, leaving);
+    await adapter.payOut?.(room, deps);
+
+    expect(held["u2"]).toBe(1_000);
+    expect(room.escrow.total).toBe(1_000);
+  });
+});

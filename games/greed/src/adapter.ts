@@ -68,29 +68,58 @@ export function greedAdapter(
         // Every stake before a card is dealt, and anything already taken put
         // back if one of them cannot pay. Nobody ends up half-way into a game.
         const paid: string[] = [];
+        const giveBack = async () => {
+          // What escrow.release actually removed, never the nominal buy-in: a
+          // void may already have refunded this account, and handing it back
+          // again would be paying it twice.
+          for (const refund of paid) {
+            const back = room.escrow.release(refund, room.buyIn);
+            if (back > 0) {
+              await deps.give(refund, back);
+            }
+          }
+        };
         if (room.buyIn > 0) {
           for (const seat of room.seats) {
             if (seat.userId === null) {
               continue;
             }
-            if (await deps.take(seat.userId, room.buyIn)) {
-              paid.push(seat.userId);
-            } else {
-              for (const refund of paid) {
-                await deps.give(refund, room.buyIn);
-              }
+            if (!(await deps.take(seat.userId, room.buyIn))) {
+              await giveBack();
               // A refusal, not a fault: it is shown to the player as it is.
               throw new TableError(`${seat.name} cannot cover the buy-in.`);
             }
+            /*
+             * Held the moment it is taken. A table called off while the rest
+             * were paying has already handed back everything it knew about,
+             * and this one arrived too late to be in it.
+             */
+            if (!room.escrow.hold(seat.userId, room.buyIn)) {
+              // Never held, so escrow owes it nothing back — give the full
+              // stake directly, then let giveBack settle everyone before it.
+              await deps.give(seat.userId, room.buyIn);
+              await giveBack();
+              throw new TableError("This table is closing.");
+            }
+            paid.push(seat.userId);
           }
         }
         try {
           room.start(seatId);
         } catch (error) {
-          for (const refund of paid) {
-            await deps.give(refund, room.buyIn);
-          }
+          await giveBack();
           throw error;
+        }
+        /*
+         * Anybody who paid and then left while the others were being asked.
+         * The lobby lets a seat go, and every take above is an await: the
+         * game started without them and the pot does not count them, so their
+         * buy-in is theirs.
+         */
+        for (const userId of paid) {
+          if (!room.seats.some((seat) => seat.userId === userId)) {
+            room.escrow.refund(userId, room.buyIn);
+          }
         }
         return;
       }
@@ -113,6 +142,21 @@ export function greedAdapter(
    */
   winners(room) {
     return room.winnerIds;
+  },
+
+  /** Buy-ins owed back to somebody who left before the game began. */
+  async payOut(room, deps) {
+    for (const owed of room.escrow.takeDue()) {
+      await deps.give(owed.userId, owed.chips);
+    }
+  },
+
+  async void(room, deps) {
+    const owed = room.escrow.close();
+    for (const one of owed) {
+      await deps.give(one.userId, one.chips);
+    }
+    return owed;
   },
 
   /** The pot to the winners, split evenly, remainder to the earliest seated. */
