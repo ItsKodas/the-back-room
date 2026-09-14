@@ -189,6 +189,28 @@ describe("resetting players", () => {
     expect(bos[0]?.players.map((player) => player.name)).toEqual(["Bo"]);
   });
 
+  /*
+   * A history reset deletes a record only when it has just pulled somebody
+   * out of it and nobody signed in is left. A record that was bots and guests
+   * to begin with was never about the player being reset, and sweeping the
+   * whole collection for that shape deleted it anyway.
+   */
+  it("leaves alone a bots-only record the reset never touched", async () => {
+    const store = new MemoryStore();
+    const [ada] = await people(store, ["Ada"]);
+    await store.recordGame({
+      code: "BOTS", rulesetName: "greed", buyIn: 0, pot: 0, winnerIds: [], endedAt: 1,
+      players: [
+        { userId: null, name: "Bot", score: 1, isBot: true },
+        { userId: null, name: "Guest", score: 2, isBot: false },
+      ],
+    });
+
+    await store.resetUsers({ target: { ids: [ada.id] }, parts: ["history"] });
+
+    expect(store["games"].map((game) => game.code)).toEqual(["BOTS"]);
+  });
+
   it("counts only players who exist", async () => {
     const store = new MemoryStore();
     await people(store, ["Ada", "Bo"]);

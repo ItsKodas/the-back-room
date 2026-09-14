@@ -664,6 +664,31 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
       expect(solo).toBeNull();
     });
 
+    /*
+     * The cleanup after a history reset used to sweep the whole collection
+     * for records with nobody signed in, so a bots-and-guests record that had
+     * nothing to do with the player being reset went too. A unique code is
+     * what lets this look at that one record on a database never wiped.
+     */
+    it("leaves alone a bots-only record the reset never touched", async () => {
+      const ada = await newPlayer();
+      const botsCode = `B${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await store.recordGame({
+        code: botsCode, rulesetName: "greed", buyIn: 0, pot: 0, winnerIds: [], endedAt: Date.now(),
+        players: [
+          { userId: null, name: "Bot", score: 1, isBot: true },
+          { userId: null, name: "Guest", score: 2, isBot: false },
+        ],
+      });
+
+      await store.resetUsers({ target: { ids: [ada.id] }, parts: ["history"] });
+
+      const direct = await mongoose.createConnection(url as string).asPromise();
+      const kept = await direct.collection("games").findOne({ code: botsCode });
+      await direct.close();
+      expect(kept).not.toBeNull();
+    });
+
     it("empties a bank and deletes an emote", async () => {
       await store.bankAdd("two-up", 77);
       expect(await store.bankEmpty("two-up")).toBeGreaterThanOrEqual(77);

@@ -1008,13 +1008,17 @@ export class MemoryStore implements Store {
       }
     }
 
-    const games = this.games
-      .map((game) => ({
-        ...game,
-        players: game.players.filter((player) => player.userId === null || !ids.has(player.userId)),
-      }))
-      // A record nobody signed in is still in says nothing about anybody.
-      .filter((game) => game.players.some((player) => player.userId !== null));
+    const games = this.games.flatMap((game) => {
+      const kept = game.players.filter((player) => player.userId === null || !ids.has(player.userId));
+      // Untouched by this reset: left exactly as it was, even if it never had
+      // anybody signed in — it was never about the players being reset.
+      if (kept.length === game.players.length) {
+        return [game];
+      }
+      // A record this reset has just left with nobody signed in says nothing
+      // about anybody.
+      return kept.some((player) => player.userId !== null) ? [{ ...game, players: kept }] : [];
+    });
     this.games.splice(0, this.games.length, ...games);
   }
 

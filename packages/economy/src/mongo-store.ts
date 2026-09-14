@@ -1128,12 +1128,22 @@ export class MongoStore implements Store {
       ),
     );
 
+    // Read first, so the cleanup below can name the records this reset
+    // actually changed. Sweeping the whole collection for the empty shape
+    // deleted bots-and-guests records that were never about these players.
+    const touched = await this.games
+      .find({ "players.userId": { $in: ids } }, { _id: 1 })
+      .lean<Array<{ _id: unknown }>>();
     await this.games.updateMany(
       { "players.userId": { $in: ids } },
       { $pull: { players: { userId: { $in: ids } } } },
     );
-    // A record nobody signed in is still in says nothing about anybody.
-    await this.games.deleteMany({ players: { $not: { $elemMatch: { userId: { $type: "string" } } } } });
+    // A record this reset has just left with nobody signed in says nothing
+    // about anybody.
+    await this.games.deleteMany({
+      _id: { $in: touched.map((game) => game._id) },
+      players: { $not: { $elemMatch: { userId: { $type: "string" } } } },
+    });
   }
 
   async bankEmpty(which: BankName): Promise<number> {
