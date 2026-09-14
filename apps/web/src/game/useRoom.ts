@@ -4,6 +4,7 @@ import type {
   HouseRules,
   RoomView,
   ServerToClient,
+  TableClosed,
   TauntAck,
   TauntPlay,
   TauntStake,
@@ -139,9 +140,16 @@ export interface RoomHook {
  */
 export function useRoom(onChips?: (chips: number) => void): RoomHook {
   const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
   const socketRef = useRef<GameSocket | null>(null);
   const chipsRef = useRef(onChips);
   chipsRef.current = onChips;
+  // Which table this window is actually sitting at, so a close meant for
+  // somebody else's table cannot be mistaken for this one's.
+  const codeRef = useRef<string | null>(null);
   const [room, setRoom] = useState<RoomView | null>(null);
   const [landed, setLanded] = useState<TauntPlay[]>([]);
   const [stakes, setStakes] = useState<TauntStake[]>([]);
@@ -244,6 +252,7 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
       // Absent from a server older than taunts, which is nothing riding on
       // anybody rather than a reason to render nothing.
       setStakes(raw.taunts ?? []);
+      codeRef.current = (raw as { code?: string }).code ?? null;
       const state = raw as unknown as RoomView;
       setRoom(state);
       setPendingRoll((waiting) => {
@@ -263,6 +272,24 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
       setError(message);
       // A refused throw is never answered, so the dice would hang in the air.
       setPendingRoll(null);
+    });
+    /*
+     * The table was called off. Everything that was on it has already gone
+     * back to the account, and the balance arrives on its own through
+     * me:chips — so all that is left is to stop showing a felt that no longer
+     * exists. No lobby:leave: there is nothing left to leave.
+     */
+    socket.on("room:closed", (closed: TableClosed) => {
+      if (closed.code !== codeRef.current) {
+        return;
+      }
+      codeRef.current = null;
+      writeSeat(null);
+      setRoom(null);
+      setSeatId(null);
+      setChat([]);
+      setError("That table closed. Anything you had on it went back to your chips.");
+      navigateRef.current("/greed");
     });
     socket.on("me:chips", (chips) => chipsRef.current?.(chips));
     // Kept client-side rather than in room state: the table broadcasts on

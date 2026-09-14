@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ClientToServer,
   ServerToClient,
+  TableClosed,
   TableState,
   TauntAck,
   TauntPlay,
@@ -137,6 +138,13 @@ export function useTableSocket<TView>(
   const socketRef = useRef<TableSocket | null>(null);
   const chipsRef = useRef(onChips);
   chipsRef.current = onChips;
+  const onLeaveRef = useRef(onLeave);
+  useEffect(() => {
+    onLeaveRef.current = onLeave;
+  }, [onLeave]);
+  // Which table this window is actually sitting at, so a close meant for
+  // somebody else's table cannot be mistaken for this one's.
+  const codeRef = useRef<string | null>(null);
   const [state, setState] = useState<TView | null>(null);
   const [seatId, setSeatId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -196,9 +204,28 @@ export function useTableSocket<TView>(
       // Absent from a server that predates taunts, which is nothing riding on
       // anybody rather than a reason to render nothing at all.
       setStakes(raw.taunts ?? []);
+      codeRef.current = (raw as { code?: string }).code ?? null;
       setState(raw as unknown as TView);
     });
     socket.on("room:error", (message: string) => setError(message));
+    /*
+     * The table was called off. Everything that was on it has already gone
+     * back to the account, and the balance arrives on its own through
+     * me:chips — so all that is left is to stop showing a felt that no longer
+     * exists. No lobby:leave: there is nothing left to leave.
+     */
+    socket.on("room:closed", (closed: TableClosed) => {
+      if (closed.code !== codeRef.current) {
+        return;
+      }
+      codeRef.current = null;
+      writeSeat(game, null);
+      setState(null);
+      setSeatId(null);
+      setChat([]);
+      setError("That table closed. Anything you had on it went back to your chips.");
+      onLeaveRef.current();
+    });
     socket.on("me:chips", (chips: number) => chipsRef.current?.(chips));
     // Capped, because a long night at a table should not grow without limit.
     socket.on("chat:message", (message: ChatMessage) =>
