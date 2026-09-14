@@ -9,6 +9,11 @@ It is already listed. `COMING` has carried it since before there was anything
 to put in `games/` — two seats, "Halve the number or pay", and a violet room —
 and this is the design that makes the sign into a door.
 
+> **Amended by `2026-09-14-death-roll-six-seats-design.md`**, which takes the
+> table from two seats to six, forbids passing a roll that was passed to you,
+> and replaces the ceiling-8 pass figure below. Read that one for how the game
+> plays now.
+
 ## The duel
 
 A host opens a table with a **stake** and an **opening ceiling**. Two seats,
