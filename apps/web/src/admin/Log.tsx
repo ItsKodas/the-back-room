@@ -91,7 +91,11 @@ export function Log() {
     }
     setOlderFailed(false);
     setLoadingMore(true);
-    void adminGet<{ entries: LogEntry[] }>(`/api/admin/log?before=${last.at}`)
+    // The id as well as the time: two acts can share a millisecond, and the
+    // time alone would skip whichever fell on the far side of this page.
+    void adminGet<{ entries: LogEntry[] }>(
+      `/api/admin/log?before=${last.at}&beforeId=${encodeURIComponent(last.id)}`,
+    )
       .then((body) => {
         if (body === null) {
           // The server's refusal, not a quiet stop: the entries already on

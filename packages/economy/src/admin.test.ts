@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MemoryStore, STARTING_CHIPS, emptyJarRecord } from "./store.js";
 
 /*
@@ -233,7 +233,41 @@ describe("the admin log", () => {
 
     const all = await store.adminLog({ limit: 50, before: null });
     expect(all.map((entry) => entry.id)).toEqual([second.id, first.id]);
-    const older = await store.adminLog({ limit: 50, before: second.at });
+    const older = await store.adminLog({ limit: 50, before: { at: second.at, id: second.id } });
     expect(older.map((entry) => entry.id)).toEqual([first.id]);
+  });
+
+  /*
+   * A reset that also empties the banks writes two entries back to back,
+   * routinely inside one millisecond. Paging on `at` alone skipped whichever
+   * of the pair fell on the far side of a page boundary.
+   */
+  it("pages past two entries written in the same millisecond without skipping one", async () => {
+    const store = new MemoryStore();
+    const base = {
+      by: "u1", byName: "Koda", amount: 5, affected: 1, target: "all" as const,
+      parts: null, subject: null, note: "",
+    };
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      await store.logAdmin({ ...base, kind: "reset" });
+      await store.logAdmin({ ...base, kind: "empty-banks" });
+    } finally {
+      clock.mockRestore();
+    }
+
+    const [top] = await store.adminLog({ limit: 1, before: null });
+    if (top === undefined) {
+      throw new Error("the first page came back empty");
+    }
+    const [below, ...rest] = await store.adminLog({ limit: 1, before: { at: top.at, id: top.id } });
+    expect(rest).toEqual([]);
+    if (below === undefined) {
+      throw new Error("the entry sharing the first one's millisecond was skipped");
+    }
+    expect(below.id).not.toBe(top.id);
+    expect(below.at).toBe(now);
+    expect(await store.adminLog({ limit: 1, before: { at: below.at, id: below.id } })).toEqual([]);
   });
 });

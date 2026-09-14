@@ -6,7 +6,7 @@ import express from "express";
 import type { Server } from "node:http";
 import type { Socket } from "socket.io-client";
 import { io as connectSocket } from "socket.io-client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SeatedTable } from "./admin-desk.js";
 import { mountAdminDesk, tablesHolding } from "./admin-desk.js";
 import type { BackRoomServer } from "./server.js";
@@ -268,8 +268,35 @@ describe("the log route", () => {
     const recent = await store.logAdmin({ ...base_, kind: "set" });
     const first = (await (await fetch(`${base}/api/admin/log`)).json()) as { entries: Array<{ id: string }> };
     expect(first.entries.map((one) => one.id)).toEqual([recent.id, old.id]);
-    const back = (await (await fetch(`${base}/api/admin/log?before=${recent.at}`)).json()) as { entries: Array<{ id: string }> };
+    const back = (await (await fetch(`${base}/api/admin/log?before=${recent.at}&beforeId=${recent.id}`)).json()) as {
+      entries: Array<{ id: string }>;
+    };
     expect(back.entries.map((one) => one.id)).toEqual([old.id]);
+  });
+
+  it("pages on the time and the id together, so a shared millisecond skips nobody", async () => {
+    const { store, base } = await desk();
+    const base_ = { by: "u", byName: "K", amount: 1, affected: 1, target: "all" as const, parts: null, subject: null, note: "" };
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      await store.logAdmin({ ...base_, kind: "reset" });
+      await store.logAdmin({ ...base_, kind: "empty-banks" });
+    } finally {
+      clock.mockRestore();
+    }
+    const read = async (query: string) =>
+      ((await (await fetch(`${base}/api/admin/log${query}`)).json()) as { entries: Array<{ id: string }> }).entries.map(
+        (one) => one.id,
+      );
+
+    const all = await read("");
+    expect(all).toHaveLength(2);
+    const [top, below] = all;
+    expect(await read(`?before=${now}&beforeId=${top}`)).toEqual([below]);
+    // One without the other is not a cursor, so it reads as the first page.
+    expect(await read(`?before=${now}`)).toEqual(all);
+    expect(await read(`?beforeId=${top}`)).toEqual(all);
   });
 });
 

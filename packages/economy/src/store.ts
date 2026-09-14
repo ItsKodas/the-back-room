@@ -317,6 +317,12 @@ export interface AdminLogEntry {
   note: string;
 }
 
+/** Where a page of the admin log left off: the last entry shown. */
+export interface AdminLogCursor {
+  at: number;
+  id: string;
+}
+
 export interface Store {
   readonly kind: "memory" | "mongo";
   upsertDiscordUser(input: {
@@ -503,8 +509,13 @@ export interface Store {
   deleteEmote(id: string): Promise<boolean>;
 
   logAdmin(entry: Omit<AdminLogEntry, "id" | "at">): Promise<AdminLogEntry>;
-  /** Newest first; `before` is an `at` to page back from. */
-  adminLog(input: { limit: number; before: number | null }): Promise<AdminLogEntry[]>;
+  /**
+   * Newest first, ordered by `at` then `id`, both descending; `before` is the
+   * last entry already shown. The id is half of the cursor because two acts
+   * routinely share a millisecond — a reset that empties the banks writes two
+   * entries back to back — and paging on the time alone skipped one of them.
+   */
+  adminLog(input: { limit: number; before: AdminLogCursor | null }): Promise<AdminLogEntry[]>;
 
   close(): Promise<void>;
 }
@@ -1024,9 +1035,15 @@ export class MemoryStore implements Store {
     return written;
   }
 
-  async adminLog({ limit, before }: { limit: number; before: number | null }): Promise<AdminLogEntry[]> {
+  async adminLog({ limit, before }: { limit: number; before: AdminLogCursor | null }): Promise<AdminLogEntry[]> {
+    // Sorted here rather than trusting insertion order, so the order is
+    // written out as the same (at, id) comparison the cursor filter uses.
     return this.adminEntries
-      .filter((entry) => before === null || entry.at < before)
+      .filter(
+        (entry) =>
+          before === null || entry.at < before.at || (entry.at === before.at && entry.id < before.id),
+      )
+      .sort((a, b) => b.at - a.at || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
       .slice(0, limit);
   }
 

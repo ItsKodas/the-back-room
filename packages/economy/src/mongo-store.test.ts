@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import mongoose from "mongoose";
 import { MongoStore } from "./mongo-store.js";
 import { STARTING_CHIPS, emptyJarRecord } from "./store.js";
@@ -655,6 +655,40 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
       const [latest] = await store.adminLog({ limit: 1, before: null });
       expect(latest?.id).toBe(entry.id);
       expect(latest?.subject).toBe("slots");
+    });
+
+    /*
+     * The clock is pinned to the real present, not pushed forward: this
+     * database is never wiped, and the test above reads the newest entry with
+     * a limit of one — an entry dated in the future would sit on top of it on
+     * every run from now on.
+     */
+    it("pages past two entries written in the same millisecond without skipping one", async () => {
+      const base = {
+        by: "u", byName: "Koda", kind: "reset" as const, amount: 0, affected: 0, target: "all" as const,
+        parts: null, subject: null, note: "mongo same-millisecond test",
+      };
+      const now = Date.now();
+      const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+      let written: string[];
+      try {
+        const one = await store.logAdmin(base);
+        const two = await store.logAdmin(base);
+        written = [one.id, two.id];
+      } finally {
+        clock.mockRestore();
+      }
+
+      const [top] = await store.adminLog({ limit: 1, before: null });
+      if (top === undefined) {
+        throw new Error("the first page came back empty");
+      }
+      expect(written).toContain(top.id);
+      // And no stray `__v` riding along on what the desk is handed.
+      expect(Object.keys(top)).not.toContain("__v");
+      const [below] = await store.adminLog({ limit: 1, before: { at: top.at, id: top.id } });
+      expect(below?.at).toBe(now);
+      expect(written.filter((id) => id !== top.id)).toEqual([below?.id]);
     });
   });
 });

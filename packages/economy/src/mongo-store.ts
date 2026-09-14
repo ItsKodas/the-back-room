@@ -16,6 +16,7 @@ import type { BankName, PublicPlayer } from "./store.js";
 import type { Model } from "mongoose";
 import { STARTING_CHIPS, emptyJarRecord, emptyStats, leaderValue, toLeaderRow } from "./store.js";
 import type {
+  AdminLogCursor,
   AdminLogEntry,
   AdminTarget,
   AdminUserRow,
@@ -335,9 +336,13 @@ const adminLogSchema = new mongoose.Schema<AdminLogDoc>(
     subject: { type: String, default: null },
     note: { type: String, default: "" },
   },
-  { timestamps: false },
+  // No `__v`: these are written once and never updated, and a version key
+  // would ride along into every entry the desk is handed.
+  { timestamps: false, versionKey: false },
 );
-adminLogSchema.index({ at: -1 });
+/* The one question ever asked of it — newest first, paged on (at, id) — so
+   the index is that order exactly, tiebreak included. */
+adminLogSchema.index({ at: -1, _id: -1 });
 
 function toEmote(doc: EmoteDoc): EmoteRecord {
   return {
@@ -1134,10 +1139,17 @@ export class MongoStore implements Store {
     return written;
   }
 
-  async adminLog({ limit, before }: { limit: number; before: number | null }): Promise<AdminLogEntry[]> {
+  async adminLog({ limit, before }: { limit: number; before: AdminLogCursor | null }): Promise<AdminLogEntry[]> {
     const docs = await this.adminLogs
-      .find(before === null ? {} : { at: { $lt: before } })
-      .sort({ at: -1 })
+      .find(
+        before === null
+          ? {}
+          : { $or: [{ at: { $lt: before.at } }, { at: before.at, _id: { $lt: before.id } }] },
+      )
+      // `_id` breaks the tie: without it, entries sharing a millisecond came
+      // back in whatever order the server liked, which is no order a cursor
+      // can resume from.
+      .sort({ at: -1, _id: -1 })
       .limit(limit)
       .lean<AdminLogDoc[]>();
     return docs.map(({ _id, ...rest }) => ({ ...rest, id: _id }));

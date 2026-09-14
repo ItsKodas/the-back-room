@@ -66,7 +66,9 @@ describe("the log tab", () => {
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(50));
     fireEvent.click(screen.getByRole("button", { name: "Load older" }));
     await waitFor(() => expect(screen.getByText("the oldest")).toBeTruthy());
-    expect(calls[1]).toBe(`/api/admin/log?before=${2000 - 49}`);
+    // Both halves of the cursor: the time alone skips an entry that shares
+    // the last one's millisecond.
+    expect(calls[1]).toBe(`/api/admin/log?before=${2000 - 49}&beforeId=n49`);
   });
 });
 

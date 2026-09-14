@@ -163,8 +163,15 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
 
   app.get("/api/admin/log", requireAdmin, (request, response) => {
     void (async () => {
-      const raw = Number(request.query["before"]);
-      const before = Number.isFinite(raw) && raw > 0 ? raw : null;
+      // Both halves or neither: a time without the id it pairs with is not a
+      // cursor that can page past a shared millisecond, so it reads as the
+      // first page rather than as a half-cursor that quietly skips an entry.
+      const at = Number(request.query["before"]);
+      const id = request.query["beforeId"];
+      const before =
+        Number.isFinite(at) && at > 0 && typeof id === "string" && id.length > 0 && id.length <= 64
+          ? { at, id }
+          : null;
       response.json({ entries: await store.adminLog({ limit: PAGE, before }) });
     })();
   });

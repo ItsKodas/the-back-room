@@ -18,6 +18,7 @@ export {
   toLeaderRow,
 } from "./store.js";
 export type {
+  AdminLogCursor,
   AdminLogEntry,
   AdminLogKind,
   AdminTarget,
