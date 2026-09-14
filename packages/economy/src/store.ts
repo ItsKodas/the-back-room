@@ -100,9 +100,9 @@ export function leaderValue(row: { chips: number; stats: ProfileStats }, sort: L
     case "staked":
       return row.stats.chipsStaked;
     case "games":
-      return row.stats.games;
+      return row.stats.rounds;
     case "wins":
-      return row.stats.wins;
+      return row.stats.roundsWon;
   }
 }
 
@@ -127,8 +127,19 @@ export function toLeaderRow(profile: {
 
 /** What every game can answer about a player, whatever the game is. */
 export interface ProfileStats {
-  games: number;
-  wins: number;
+  /**
+   * Contests this player has won or lost: a game of greed, a hand of
+   * blackjack, a spin of the wheel, a duel.
+   *
+   * Not every chip movement. A slot machine is played a spin every couple of
+   * seconds, and when spins counted here they buried every hand a player had
+   * ever played — a W–L of 1,203–32,367. So a machine puts its chips on the
+   * record and nothing here. This replaced a `games`/`wins` pair that had
+   * already been filled with spins and could not be separated back out, which
+   * is why it starts at nothing rather than from those.
+   */
+  rounds: number;
+  roundsWon: number;
   chipsWon: number;
   /**
    * Chips put on the felt, win or lose.
@@ -501,7 +512,7 @@ export interface Store {
 export const STARTING_CHIPS = 10_000;
 
 export function emptyStats(): ProfileStats {
-  return { games: 0, wins: 0, chipsWon: 0, chipsStaked: 0 };
+  return { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 };
 }
 
 export class MemoryStore implements Store {

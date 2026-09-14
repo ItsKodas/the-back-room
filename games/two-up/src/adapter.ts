@@ -525,7 +525,36 @@ export function twoUpAdapter(
      * Less what the other casino tables on this bank could owe, so the felt
      * greys out what the refusal would. Showing only; `place` asks again.
      */
-    async payOut(table) {
+    async payOut(table, deps) {
+      /*
+       * Stakes owed back to people who stood up, drained before the first
+       * await so a call on every broadcast is exactly-once per stake.
+       *
+       * A casino chip comes back through `giveBack`, the same door a player's
+       * own "clear" uses, so a refund cannot uncover a bet somebody else placed
+       * against it; when it would — or the window shut before this got its
+       * turn — the chip rides the throw and `settle` pays its owner. A ring's
+       * stakes never touched a bank and go straight back.
+       */
+      const leaving = table.leaving.splice(0);
+      const owed = table.owedOut.splice(0);
+      for (const one of owed) {
+        await pay(table, { id: one.seatId, userId: one.userId }, one.chips, deps);
+      }
+      if (leaving.length > 0) {
+        await serially(table, async () => {
+          for (const seatId of leaving) {
+            const owner = { id: seatId, userId: table.accountOf(seatId) };
+            try {
+              await giveBack(table, owner, () => table.clear(seatId), deps);
+            } catch (error) {
+              if (!(error instanceof TableError)) {
+                throw error;
+              }
+            }
+          }
+        });
+      }
       if (!table.forFun && table.school === "casino") {
         const elsewhere = ledger?.owedElsewhere(table) ?? 0;
         table.housed = (await holds(table)) - elsewhere;
@@ -558,6 +587,28 @@ export function twoUpAdapter(
           return;
         }
         table.owing = null;
+        /*
+         * Everybody who staked into this ring, with their account and stake,
+         * read now — before the first payment yields.
+         *
+         * Not from `owing`: that names only the seats the coins hand chips
+         * back to, so a loser is not in it, and a record written only from it
+         * gave every ring a winner and never a loser — a W–L that climbs on one
+         * side forever. And not read later: the sweep clears the centre and the
+         * covers the moment it runs, on the table's own clock, so a stake read
+         * after an await can come back as nothing.
+         */
+        const players = new Map<string, { userId: string | null; staked: number }>();
+        for (const seatId of [table.centre?.seatId, ...table.covers.map((one) => one.seatId)]) {
+          if (seatId === undefined || players.has(seatId)) {
+            continue;
+          }
+          const seated = table.seats.find((one) => one.id === seatId);
+          players.set(seatId, {
+            userId: seated?.userId ?? table.accountOf(seatId),
+            staked: table.stakedIn(seatId),
+          });
+        }
         for (const [seatId, chips] of owing) {
           if (chips <= 0) {
             continue;
@@ -580,14 +631,27 @@ export function twoUpAdapter(
           const here = table.seats.find((one) => one.id === seatId);
           const userId = here?.userId ?? table.accountOf(seatId);
           await pay(table, { id: seatId, userId }, chips, deps);
-          if (!table.forFun && userId !== null) {
-            const staked = table.stakedIn(seatId);
-            await deps.record(userId, {
-              shared: { games: 1, wins: chips > staked ? 1 : 0, chipsWon: chips - staked },
-              game: TWO_UP.id,
-              add: { rounds: 1 },
-            });
+        }
+
+        /* Play money is paid but never recorded, for the same reason as the casino. */
+        if (table.forFun) {
+          return;
+        }
+        for (const [seatId, { userId, staked }] of players) {
+          if (userId === null) {
+            continue;
           }
+          const back = owing.get(seatId) ?? 0;
+          await deps.record(userId, {
+            shared: {
+              rounds: 1,
+              roundsWon: back > staked ? 1 : 0,
+              chipsWon: back - staked,
+              chipsStaked: staked,
+            },
+            game: TWO_UP.id,
+            add: { rounds: 1 },
+          });
         }
         return;
       }
@@ -604,11 +668,21 @@ export function twoUpAdapter(
       if (banked(table)) {
         unpaid.set(table, { round, back: backOf(round) });
       }
+      /*
+       * Whose account each seat was, read before joining the queue: the next
+       * round forgets departed seats, and a bet that rode the throw after its
+       * owner stood up must still find them.
+       */
+      const owners = new Map(
+        [...round.keys()].map((seatId) => [
+          seatId,
+          table.seats.find((one) => one.id === seatId)?.userId ?? table.accountOf(seatId),
+        ]),
+      );
       await serially(table, async () => {
         for (const [seatId, paid] of round) {
           /* Same rule as the ring above: a decided payout is theirs, seated or not. */
-          const here = table.seats.find((one) => one.id === seatId);
-          const userId = here?.userId ?? table.accountOf(seatId);
+          const userId = owners.get(seatId) ?? null;
           await pay(table, { id: seatId, userId }, paid.back, deps);
           /*
            * Play money is paid but never recorded. A for-fun table touches no
@@ -620,9 +694,10 @@ export function twoUpAdapter(
           }
           await deps.record(userId, {
             shared: {
-              games: 1,
-              wins: paid.back > paid.staked ? 1 : 0,
+              rounds: 1,
+              roundsWon: paid.back > paid.staked ? 1 : 0,
               chipsWon: paid.back - paid.staked,
+              chipsStaked: paid.staked,
             },
             game: TWO_UP.id,
             add: { rounds: 1 },

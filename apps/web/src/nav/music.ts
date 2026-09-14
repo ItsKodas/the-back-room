@@ -34,6 +34,19 @@ const DEFAULT_VOLUME = 0.05;
  */
 const RESUME_WITHIN_MS = 30 * 60 * 1000;
 const REMEMBER_EVERY_MS = 5000;
+/**
+ * How long a start is given to become playback before it is nudged, one entry
+ * per try.
+ *
+ * A reload sometimes leaves the embed parked, paused on its opening track,
+ * when nothing was refused in so many words — and Stop then Play by hand
+ * brought it straight back. So the page does the same on its own, a few times
+ * and further apart each time, then leaves it to the next press rather than
+ * poking a player that is never going to go.
+ */
+const NUDGE_AFTER_MS = [1500, 4000, 8000];
+/** Pause and play in the same breath get folded into nothing by the embed. */
+const NUDGE_GAP_MS = 250;
 
 /** Only the handful of player methods this file actually calls. */
 interface Player {
@@ -135,6 +148,8 @@ let heard = false;
 let gestureArmed = false;
 /** A remembered place to jump to once the track it belongs to starts. */
 let pendingSeek: Position | null = null;
+let nudges = 0;
+let nudgeTimer: ReturnType<typeof setTimeout> | undefined;
 
 const state: MusicState = {
   // On unless somebody has turned it off. The room is meant to have music in
@@ -524,6 +539,47 @@ function start(): void {
   } else {
     player.playVideo();
   }
+  scheduleNudge();
+}
+
+function scheduleNudge(): void {
+  clearTimeout(nudgeTimer);
+  const delay = NUDGE_AFTER_MS[nudges];
+  if (delay === undefined || heard) {
+    return;
+  }
+  nudgeTimer = setTimeout(nudge, delay);
+}
+
+/** Whether a start has still not turned into playback that anybody can hear. */
+function stuck(target: Player): boolean {
+  return player === target && !heard && !state.playing && shouldPlay();
+}
+
+/**
+ * Stop then Play, done for the player.
+ *
+ * Only while the stream is meant to be on and is not playing: a start that
+ * took, or a switch turned off in the meantime, ends it. The same track is
+ * resumed rather than a new one chosen, so a remembered place still waiting to
+ * be sought to is not thrown away.
+ */
+function nudge(): void {
+  nudgeTimer = undefined;
+  const target = player;
+  if (target === null || !stuck(target)) {
+    return;
+  }
+  nudges += 1;
+  target.pauseVideo();
+  nudgeTimer = setTimeout(() => {
+    nudgeTimer = undefined;
+    if (!stuck(target)) {
+      return;
+    }
+    target.playVideo();
+    scheduleNudge();
+  }, NUDGE_GAP_MS);
 }
 
 export function setMusicOn(on: boolean): void {

@@ -61,6 +61,16 @@ export function Standings() {
 
   return (
     <Link className="standings" to="/leaderboard">
+      <span className="standings__head">
+        <span>Who's ahead</span>
+        {phase === "in" && board !== null && board.you !== null ? (
+          <span className="standings__you">
+            {/* `total` is an estimate and can lag your own exact rank; a
+                reader's own standing must never be able to say "12 of 8". */}
+            You are {board.you.rank} of {exact(Math.max(board.total, board.you.rank))}
+          </span>
+        ) : null}
+      </span>
       {phase === "loading" ? (
         // Asked, heard nothing back yet: a fact about sign-in the card is not
         // allowed to guess at, so this is a wait rather than an empty card.
@@ -68,36 +78,31 @@ export function Standings() {
       ) : phase === "out" ? (
         <span className="standings__note">Sign in to see who's ahead.</span>
       ) : phase === "in" && board !== null ? (
-        <>
-          <ol className="standings__top">
-            {/* Ranked the same way the board ranks: ties share a place there,
-                so they have to share one here or the two pages disagree. */}
-            {ranked(board.rows, board.sort)
-              .slice(0, 3)
-              .map(({ row, rank }) => (
-                <li key={row.id} className="standings__place">
-                  <b>{rank}</b>
-                  <Avatar
-                    name={row.name}
-                    avatar={row.avatar}
-                    accentColor={row.accentColor}
-                    className="standings__face"
-                  />
+        // Side by side rather than stacked: three rows of one name each was
+        // most of a screen on a phone for what is a glance at the board.
+        <ol className="standings__top">
+          {/* Ranked the same way the board ranks: ties share a place there,
+              so they have to share one here or the two pages disagree. */}
+          {ranked(board.rows, board.sort)
+            .slice(0, 3)
+            .map(({ row, rank }) => (
+              <li key={row.id} className="standings__place">
+                <b>{rank}</b>
+                <Avatar
+                  name={row.name}
+                  avatar={row.avatar}
+                  accentColor={row.accentColor}
+                  className="standings__face"
+                />
+                <span className="standings__who">
                   <span className="standings__name">{row.name}</span>
                   <span className="standings__chips" title={`${exact(row.chips)} chips`}>
                     {compact(row.chips)}
                   </span>
-                </li>
-              ))}
-          </ol>
-          {board.you === null ? null : (
-            <p className="standings__you">
-              {/* `total` is an estimate and can lag your own exact rank; a
-                  reader's own standing must never be able to say "12 of 8". */}
-              You are {board.you.rank} of {exact(Math.max(board.total, board.you.rank))}
-            </p>
-          )}
-        </>
+                </span>
+              </li>
+            ))}
+        </ol>
       ) : null}
     </Link>
   );

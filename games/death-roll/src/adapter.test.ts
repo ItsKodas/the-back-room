@@ -6,82 +6,144 @@ import type { Table } from "./table.js";
 
 const who = (userId: string) => ({ userId, avatar: null, accentColor: null });
 
-/** An account that always has chips, and a note of everything asked of it. */
-const spy = (enough = true) => {
-  const took = vi.fn(async () => enough);
-  const gave = vi.fn(async () => {});
+/** An account that always pays, noting everything asked of it. */
+const spy = (take: (userId: string, amount: number) => Promise<boolean> = async () => true) => {
+  const took = vi.fn(take);
+  const gave = vi.fn(async (_userId: string, _amount: number) => {});
+  const finished = vi.fn(async (_record: unknown) => {});
   const deps = {
     take: took,
     give: gave,
     record: vi.fn(async () => {}),
-    finished: vi.fn(async () => {}),
+    finished,
   } as unknown as GameDeps;
-  return { deps, took, gave };
+  return { deps, took, gave, finished };
 };
 
-/** A table with two signed-in players at it, ready to be dealt. */
-const seated = (game: ReturnType<typeof deathRollAdapter>, options = {}) => {
-  const table = game.create("ABCDE", { buyIn: 500, ceiling: 1_000, ...options }) as Table;
-  table.join("ada", "Ada", who("u1"));
-  table.join("bob", "Bob", who("u2"));
+const sum = (calls: unknown[][]) => calls.reduce((total, call) => total + (call[1] as number), 0);
+
+type Adapter = ReturnType<typeof deathRollAdapter>;
+
+/** A chips table with these players sat at it, everybody ready. */
+const seated = (game: Adapter, ...names: string[]) => {
+  const table = game.create("ABCDE", { buyIn: 500, ceiling: 1_000, maxSeats: 6 }) as Table;
+  for (const name of names) {
+    table.join(name, name, who(`u-${name}`));
+  }
+  for (const name of names) {
+    table.setReady(name, true, 0);
+  }
   return table;
 };
 
-/** Starts a duel the way the room does: the table asks, payOut answers. */
-const deal = async (
-  game: ReturnType<typeof deathRollAdapter>,
-  table: Table,
-  deps: GameDeps,
-) => {
-  table.askForDuel();
+/** Deals the way the room does: the table asks, payOut answers. */
+const deal = async (game: Adapter, table: Table, deps: GameDeps) => {
+  table.askForGame(Date.now());
   return await game.payOut?.(table, deps);
 };
 
-describe("getting a duel started", () => {
-  it("takes an ante from each player and opens the pot with both", async () => {
+describe("dealing a game", () => {
+  it("takes an ante from everybody ready and deals them all", async () => {
     const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
+    const table = seated(game, "ada", "bob", "cat");
     const { deps, took } = spy();
+
+    expect(await deal(game, table, deps)).toBe(true);
+
+    expect(took).toHaveBeenCalledTimes(3);
+    expect(table.game?.players).toEqual(["ada", "bob", "cat"]);
+    expect(table.view(null).pot).toBe(1_500);
+  });
+
+  it("sits out a player who cannot cover the ante, and deals the rest", async () => {
+    // A short player no longer holds a table of people who can pay.
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps } = spy(async (userId) => userId !== "u-cat");
 
     await deal(game, table, deps);
 
-    expect(took).toHaveBeenCalledWith("u1", 500);
-    expect(took).toHaveBeenCalledWith("u2", 500);
+    expect(table.game?.players).toEqual(["ada", "bob"]);
+    expect(table.view(null).seats.find((seat) => seat.id === "cat")?.short).toBe(true);
     expect(table.view(null).pot).toBe(1_000);
-    expect(table.phase).toBe("dueling");
   });
 
-  it("asks to be seen, because nothing else will send this state", async () => {
+  it("hands every ante back and deals nobody when fewer than two can pay", async () => {
     const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const { deps } = spy();
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, took, gave } = spy(async (userId) => userId === "u-ada");
 
     expect(await deal(game, table, deps)).toBe(true);
+
+    expect(table.game).toBeNull();
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls.filter((call) => call[0] === "u-ada")));
+    expect(table.view(null).readyCount).toBe(0);
   });
 
-  it("says nothing when there was no duel waiting to start", async () => {
-    // Called on every broadcast, so the common case is that it has no work.
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const { deps } = spy();
-
-    expect(await game.payOut?.(table, deps)).toBeFalsy();
-  });
-
-  it("gives the first ante back when the second is refused", async () => {
+  it("hands back everything taken when the store fails partway through, and says the table changed", async () => {
     /*
-     * The one that matters most here. A duel that took one ante and failed the
-     * second would be a table holding somebody's stake for a game that never
-     * happened — and `take` really can refuse, because a balance can be spent
-     * at another table between sitting down and the duel coming round.
+     * Answered rather than thrown: the room only sends the state again when
+     * payOut says it moved something, so a throw here left every screen on
+     * a deal that had already fallen through — ready still lit, no reason.
      */
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const game = deathRollAdapter({ roll: () => 500 });
+      const table = seated(game, "ada", "bob", "cat");
+      const { deps, gave } = spy(async (userId) => {
+        if (userId === "u-cat") {
+          throw new Error("store down");
+        }
+        return true;
+      });
+
+      expect(await deal(game, table, deps)).toBe(true);
+
+      expect(table.game).toBeNull();
+      expect(gave).toHaveBeenCalledWith("u-ada", 500);
+      expect(gave).toHaveBeenCalledWith("u-bob", 500);
+      expect(table.draining).toBe(false);
+      expect(table.view(null).lastEvent).toMatch(/could not take the antes/);
+      expect(table.view(null).readyCount).toBe(0);
+      expect(logged).toHaveBeenCalled();
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("refunds a player who stood up while the antes were being taken, and deals without them", async () => {
     const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const took = vi
-      .fn<(userId: string, amount: number) => Promise<boolean>>()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
-    const gave = vi.fn(async () => {});
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, gave } = spy(async (userId) => {
+      if (userId === "u-cat") {
+        table.removeSeat("ada");
+      }
+      return true;
+    });
+
+    await deal(game, table, deps);
+
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(table.game?.players).toEqual(["bob", "cat"]);
+  });
+
+  it("refunds a player who leaves while another's refund from the same deal is still in flight, and never deals a ghost", async () => {
+    // The window I1 closes: a refund is itself an await, and who is left can
+    // change again while it runs. cat's take triggers ada's departure; ada's
+    // refund is rigged to trigger bob's, right in the middle of paying it back.
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const took = vi.fn(async (userId: string) => {
+      if (userId === "u-cat") {
+        table.removeSeat("ada");
+      }
+      return true;
+    });
+    const gave = vi.fn(async (userId: string) => {
+      if (userId === "u-ada") {
+        table.removeSeat("bob");
+      }
+    });
     const deps = {
       take: took,
       give: gave,
@@ -91,651 +153,405 @@ describe("getting a duel started", () => {
 
     await deal(game, table, deps);
 
-    expect(gave).toHaveBeenCalledWith("u1", 500);
-    expect(table.phase).toBe("waiting");
-    expect(table.view(null).pot).toBe(0);
-    expect(table.view(null).waitingFor).toBe("funds");
-    expect(table.view(null).shortId).toBe("bob");
+    expect(table.game?.players ?? []).not.toContain("bob");
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(gave).toHaveBeenCalledWith("u-bob", 500);
+    expect(sum(took.mock.calls)).toBe(sum(gave.mock.calls) + table.view(null).pot);
   });
 
-  it("never deals to one player, whatever it is asked", async () => {
+  it("takes no extra antes if a second deal is asked for and paid out while the first is still draining", async () => {
     const game = deathRollAdapter({ roll: () => 500 });
-    const table = game.create("ABCDE", { buyIn: 500 }) as Table;
-    table.join("ada", "Ada", who("u1"));
-    const { deps, took } = spy();
-
-    await deal(game, table, deps);
-
-    expect(took).not.toHaveBeenCalled();
-    expect(table.phase).toBe("waiting");
-  });
-
-  it("does not tell everybody again while the same seat is still short", async () => {
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const deps = {
-      take: vi.fn(async () => false),
-      give: vi.fn(async () => {}),
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
-
-    expect(await deal(game, table, deps)).toBe(true);
-    expect(await deal(game, table, deps)).toBe(false);
-  });
-
-  it("says who is short even when handing the first ante back fails", async () => {
-    /*
-     * The refund is the only thing standing between a refused second ante and
-     * a stake held for a game that never happened, and it is a database write
-     * like any other — it can fail. If it does, the felt must still say why
-     * the table stopped, because a table that says nothing goes back round on
-     * the fast clock and takes that same ante again every couple of seconds.
-     */
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const deps = {
-      take: vi
-        .fn<(userId: string, amount: number) => Promise<boolean>>()
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false),
-      give: vi.fn(async () => {
-        throw new Error("the store is down");
-      }),
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
-
-    // Loudly, too: the room logs this, and it is somebody's chips.
-    await expect(deal(game, table, deps)).rejects.toThrow("the store is down");
-    expect(table.view(null).shortId).toBe("bob");
-    expect(table.view(null).waitingFor).toBe("funds");
-  });
-
-  it("gives the first ante back when the second one throws", async () => {
-    /*
-     * `deps.take` is a real write to a real store: it can reject outright as
-     * well as answer no. The refused answer was always handed back — a thrown
-     * one is the same stake held for a game that never happened, and there is
-     * no bank here for it to be held out of.
-     */
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const gave = vi.fn(async () => {});
-    const deps = {
-      take: vi
-        .fn<(userId: string, amount: number) => Promise<boolean>>()
-        .mockResolvedValueOnce(true)
-        .mockRejectedValueOnce(new Error("the store is down")),
-      give: gave,
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
-
-    await expect(deal(game, table, deps)).rejects.toThrow("the store is down");
-
-    expect(gave).toHaveBeenCalledWith("u1", 500);
-    expect(table.phase).toBe("waiting");
-    expect(table.view(null).pot).toBe(0);
-  });
-
-  it("deals nobody in who left while the antes were in flight", async () => {
-    /*
-     * The worst of the lot. A seat asked to go is dropped there and then while
-     * no duel is running, which is the state for the whole of `payOut` — so a
-     * player can be debited after leaving, and a duel opened on a seat that is
-     * gone. The clock then rolls for the ghost, and if it wins there is nobody
-     * to pay: the entire pot disappears.
-     */
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const gave = vi.fn(async () => {});
-    const deps = {
-      take: vi.fn(async (userId: string) => {
-        if (userId === "u2") {
-          table.removeSeat("ada");
-        }
-        return true;
-      }),
-      give: gave,
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
-
-    await deal(game, table, deps);
-
-    expect(table.duel).toBeNull();
-    expect(table.phase).toBe("waiting");
-    expect(gave).toHaveBeenCalledWith("u1", 500);
-    expect(gave).toHaveBeenCalledWith("u2", 500);
-  });
-
-  it("does not arm a second deal while the antes are in flight", async () => {
-    /*
-     * `payOut` is unlatched and runs on every broadcast, and for the whole of
-     * its awaits the table looks exactly like one with nothing pending. A deal
-     * timer armed in that window fires into a second `payOut`, which takes two
-     * more antes and opens a duel the first one then throws away — four antes
-     * off accounts for a pot of two.
-     */
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    let armed: string | undefined;
-    const deps = {
-      take: vi.fn(async () => {
-        armed = game.pause?.(table)?.key;
-        return true;
-      }),
-      give: vi.fn(async () => {}),
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
-
-    await deal(game, table, deps);
-
-    expect(armed).toBeUndefined();
-  });
-
-  it("asks the seat that was short last time before anybody else's chips move", async () => {
-    /*
-     * A table whose second player cannot cover the ante retries every ten
-     * seconds for as long as they sit there, and in plain seat order that
-     * means the first player is debited and refunded every single time — two
-     * real writes against a real balance, either of which can fail, for a duel
-     * that was never going to start. Asking the one who cannot pay first
-     * refuses the attempt before anybody is out of pocket.
-     */
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const took = vi.fn(async (userId: string) => userId !== "u2");
-    const gave = vi.fn(async () => {});
+    const table = seated(game, "ada", "bob");
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const took = vi.fn(async () => {
+      await gate;
+      return true;
+    });
     const deps = {
       take: took,
-      give: gave,
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
-
-    await deal(game, table, deps);
-    expect(table.view(null).shortId).toBe("bob");
-    took.mockClear();
-    gave.mockClear();
-
-    await deal(game, table, deps);
-
-    expect(took).toHaveBeenCalledTimes(1);
-    expect(took).toHaveBeenCalledWith("u2", 500);
-    expect(gave).not.toHaveBeenCalled();
-  });
-
-  it("deals the duel to exactly the two seats that paid for it", async () => {
-    /*
-     * `payOut` takes the antes from the seats it was handed, and `begin` used
-     * to go and work out who was playing all over again — two sources of truth
-     * for one question, with the money resting on the first of them. Taking an
-     * ante is a real await, and the table is free to move while it runs.
-     */
-    const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const deps = {
-      take: vi.fn(async () => {
-        const bob = table.seats.find((seat) => seat.id === "bob");
-        if (bob !== undefined) {
-          bob.waiting = true;
-        }
-        return true;
-      }),
       give: vi.fn(async () => {}),
       record: vi.fn(async () => {}),
       finished: vi.fn(async () => {}),
     } as unknown as GameDeps;
 
-    await deal(game, table, deps);
+    table.askForGame(Date.now());
+    const first = game.payOut?.(table, deps);
 
-    expect(table.phase).toBe("dueling");
-    expect(table.view(null).pot).toBe(1_000);
+    table.askForGame(Date.now());
+    const second = await game.payOut?.(table, deps);
+
+    expect(second).toBe(false);
+
+    release();
+    await first;
+
+    expect(took).toHaveBeenCalledTimes(2);
+    expect(table.game?.players).toEqual(["ada", "bob"]);
   });
 
-  it("waits longer before trying a refused ante again", async () => {
-    // Still asking — they may top up — but not every two seconds.
+  it("does nothing, and says so, when no game was asked for", async () => {
     const game = deathRollAdapter({ roll: () => 500 });
-    const table = seated(game);
-    const deps = {
-      take: vi.fn(async () => false),
-      give: vi.fn(async () => {}),
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
+    const table = seated(game, "ada", "bob");
+    const { deps } = spy();
+
+    expect(await game.payOut?.(table, deps)).toBe(false);
+  });
+
+  it("offers no second deal while the antes are still being taken", async () => {
+    // Four antes off accounts for a pot of two, otherwise.
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
+    let during: unknown = "unset";
+    const { deps } = spy(async () => {
+      during = game.pause?.(table) ?? null;
+      return true;
+    });
+
     await deal(game, table, deps);
 
-    const waiting = game.pause?.(table);
-
-    expect(waiting?.key).toBe("short");
-    expect(waiting?.ms).toBe(10_000);
+    expect(during).toBeNull();
   });
 });
 
-describe("rolling and passing", () => {
-  it("rolls from the source it was given", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
-    const { deps } = spy();
-    await deal(game, table, deps);
+describe("disconnecting", () => {
+  it("does not charge or deal a ready player who disconnects before their ante is taken", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, took } = spy();
+    table.askForGame(Date.now());
 
-    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
+    table.disconnect("cat");
 
-    expect(table.view(null).ceiling).toBe(743);
+    expect(await game.payOut?.(table, deps)).toBe(true);
+    expect(took).toHaveBeenCalledTimes(2);
+    expect(took).toHaveBeenCalledWith("u-ada", 500);
+    expect(took).toHaveBeenCalledWith("u-bob", 500);
+    expect(table.game?.players).toEqual(["ada", "bob"]);
+    expect(table.view(null).seats.find((seat) => seat.id === "cat")?.short).toBe(false);
   });
 
-  it("takes the price of a pass off the account and adds it to the pot", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
+  it("refunds and does not deal a funded player who presses Leave while a later ante is being taken", async () => {
+    /*
+     * Leave only disconnects at this table — the room reaps the seat later —
+     * so a seat that is still there is not the same as a player who is.
+     */
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, gave } = spy(async (userId) => {
+      if (userId === "u-cat") {
+        table.disconnect("ada");
+      }
+      return true;
+    });
+
+    await deal(game, table, deps);
+
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(table.game?.players).toEqual(["bob", "cat"]);
+    expect(table.view(null).pot).toBe(1_000);
+  });
+
+  it("refunds everybody when a Leave mid-deal leaves fewer than two funded", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
+    const { deps, took, gave } = spy(async (userId) => {
+      if (userId === "u-bob") {
+        table.disconnect("ada");
+      }
+      return true;
+    });
+
+    await deal(game, table, deps);
+
+    expect(table.game).toBeNull();
+    expect(gave).toHaveBeenCalledWith("u-ada", 500);
+    expect(gave).toHaveBeenCalledWith("u-bob", 500);
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls));
+  });
+
+  it("deals at once when everybody still here is ready, rather than waiting out the countdown on a player who left", () => {
+    const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+    const table = seated(game, "ada", "bob", "cat");
+
+    table.disconnect("cat");
+
+    const pause = game.pause?.(table);
+    expect(pause).toMatchObject({ key: "deal", ms: 0 });
+    pause?.run();
+    expect(table.takePending()).toEqual(["ada", "bob"]);
+  });
+
+  it("still runs a countdown if a player who left comes back before the deal", () => {
+    // Guards the change above: with the leaver no longer counted, nothing is
+    // counting down, so their return has to start one or the table stalls.
+    const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+    const table = game.create("ABCDE", { buyIn: 500, maxSeats: 6 }) as Table;
+    for (const name of ["ada", "bob", "cat"]) {
+      table.join(name, name, who(`u-${name}`));
+    }
+    table.disconnect("cat");
+    // Everybody present is ready, so no countdown starts while cat is away.
+    table.setReady("ada", true, Date.now());
+    table.setReady("bob", true, Date.now());
+
+    table.reconnect("cat");
+
+    expect(game.pause?.(table)?.key).toBe("countdown");
+  });
+
+  it("asks for nobody once the countdown ends, if a disconnect leaves fewer than two still ready", () => {
+    const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+    const table = game.create("ABCDE", { buyIn: 500, maxSeats: 6 }) as Table;
+    for (const name of ["ada", "bob", "cat"]) {
+      table.join(name, name, who(`u-${name}`));
+    }
+    table.setReady("ada", true, 0);
+    table.setReady("bob", true, 0);
+
+    table.disconnect("bob");
+    table.askForGame(20_000);
+
+    expect(table.pending).toBe(false);
+  });
+});
+
+describe("passing", () => {
+  it("takes the price and adds it to the pot", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
     const { deps, took } = spy();
     await deal(game, table, deps);
-    const first = table.view(null).toRoll as string;
     took.mockClear();
 
-    await game.act(table, first, { type: "pass" }, deps);
+    await game.act(table, "ada", { type: "pass" }, deps);
 
-    expect(took).toHaveBeenCalledWith(first === "ada" ? "u1" : "u2", 50);
+    expect(took).toHaveBeenCalledWith("u-ada", 50);
     expect(table.view(null).pot).toBe(1_050);
   });
 
-  it("refuses a pass the player cannot pay for, without spending it", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
+  it("refuses a roll that was passed to you", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
     const { deps } = spy();
     await deal(game, table, deps);
-    const first = table.view(null).toRoll as string;
-    const broke = spy(false);
+    await game.act(table, "ada", { type: "pass" }, deps);
 
-    await expect(game.act(table, first, { type: "pass" }, broke.deps)).rejects.toThrow(
-      TableError,
-    );
-    expect(table.view(null).pot).toBe(1_000);
-    expect(table.view(null).seats.find((seat) => seat.id === first)?.passed).toBe(false);
+    await expect(game.act(table, "bob", { type: "pass" }, deps)).rejects.toThrow(TableError);
   });
 
-  it("hands a pass back when the table moved on while the chips were in flight", async () => {
-    /*
-     * Taking the price of a pass is a real write to a real store, and the
-     * world moves while it is in flight: the turn clock can fire and roll for
-     * this seat, or a second press can arrive — there is no lock on a table
-     * and the rate limit is sixty events every two seconds. The duel then
-     * refuses the pass, and a player charged for a pass that never reached the
-     * pot is chips gone from a game with no bank to lose them out of.
-     */
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
+  it("refuses a pass the player cannot pay for, with the pass still in hand", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
     const { deps } = spy();
     await deal(game, table, deps);
-    const first = table.view(null).toRoll as string;
+    const broke = spy(async () => false);
 
-    const gave = vi.fn(async () => {});
-    const racing = {
-      take: vi.fn(async () => {
-        game.timeout?.(table, first);
-        return true;
-      }),
-      give: gave,
-      record: vi.fn(async () => {}),
-      finished: vi.fn(async () => {}),
-    } as unknown as GameDeps;
+    await expect(game.act(table, "ada", { type: "pass" }, broke.deps)).rejects.toThrow(TableError);
 
-    await expect(game.act(table, first, { type: "pass" }, racing)).rejects.toThrow(TableError);
-    expect(gave).toHaveBeenCalledWith(first === "ada" ? "u1" : "u2", 50);
+    expect(table.game?.round.holdsPass("ada")).toBe(true);
     expect(table.view(null).pot).toBe(1_000);
   });
 
-  it("refuses a move from somebody who is not at the table", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
+  it("hands the price back if the table moved while it was being taken", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
     const { deps } = spy();
     await deal(game, table, deps);
+    const moving = spy(async () => {
+      game.timeout?.(table, "ada");
+      return true;
+    });
 
-    await expect(game.act(table, "cat", { type: "roll" }, deps)).rejects.toThrow(TableError);
-  });
+    await expect(game.act(table, "ada", { type: "pass" }, moving.deps)).rejects.toThrow(TableError);
 
-  it("refuses anything that is not a move here", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
-    const { deps } = spy();
-    await deal(game, table, deps);
-
-    await expect(
-      game.act(table, table.view(null).toRoll as string, { type: "double" }, deps),
-    ).rejects.toThrow(TableError);
+    expect(moving.gave).toHaveBeenCalledWith("u-ada", 50);
+    expect(table.view(null).pot).toBe(1_000);
   });
 });
 
 describe("settling", () => {
-  it("gives the winner the pot and takes nothing more from anybody", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps, took, gave } = spy();
+  it("pays the last one standing the whole pot, passes from every round included", async () => {
+    const draws = [1, 1];
+    const game = deathRollAdapter({ roll: () => draws.shift() as number });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, took, gave, finished } = spy();
     await deal(game, table, deps);
-    const loser = table.view(null).toRoll as string;
-    took.mockClear();
 
-    await game.act(table, loser, { type: "roll" }, deps);
+    await game.act(table, "ada", { type: "pass" }, deps);
+    await game.act(table, "bob", { type: "roll" }, deps);
+    table.nextRound();
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
 
     expect(game.isSettled(table)).toBe(true);
     await game.settle(table, deps);
 
-    const winner = loser === "ada" ? "u2" : "u1";
-    expect(gave).toHaveBeenCalledWith(winner, 1_000);
-    expect(took).not.toHaveBeenCalled();
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls));
+    expect(sum(gave.mock.calls)).toBe(1_550);
+    const record = finished.mock.calls[0]?.[0] as { players: { net: number }[] };
+    expect(record.players.reduce((total, one) => total + one.net, 0)).toBe(0);
+
+    // A whole game is one round on the board for each player, however many
+    // rounds of the number it took, and exactly one of them won it.
+    const shared = (deps.record as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[1]?.shared);
+    expect(shared.map((one) => one?.rounds)).toEqual([1, 1, 1]);
+    expect(shared.filter((one) => one?.roundsWon === 1)).toHaveLength(1);
   });
 
-  it("stakes the ante and every pass bought on top of it", async () => {
-    /*
-     * A pass is chips on the felt, not a fee: the winner takes the loser's
-     * passes inside the pot. So what a seat staked is its ante plus whatever
-     * it spent passing, which is not the same as the net either of them ends
-     * up with — the whole reason the board keeps the two figures apart.
-     */
-    const rolls = [743, 1];
-    const game = deathRollAdapter({ roll: () => rolls.shift() as number });
-    const table = seated(game);
-    const { deps, took } = spy();
-    await deal(game, table, deps);
-    const passer = table.view(null).toRoll as string;
-
-    await game.act(table, passer, { type: "pass" }, deps);
-    const price = took.mock.calls.at(-1)?.[1] as number;
-    const second = table.view(null).toRoll as string;
-    await game.act(table, second, { type: "roll" }, deps);
-    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
-    await game.settle(table, deps);
-
-    const staked = (seatId: string) =>
-      (deps.record as ReturnType<typeof vi.fn>).mock.calls.find(
-        (call) => call[0] === (seatId === "ada" ? "u1" : "u2"),
-      )?.[1]?.shared?.chipsStaked;
-
-    expect(price).toBeGreaterThan(0);
-    expect(staked(passer)).toBe(500 + price);
-    expect(staked(passer === "ada" ? "bob" : "ada")).toBe(500);
-  });
-
-  it("hands out exactly what it was handed, passes and all", async () => {
-    /*
-     * The rule the whole building rests on, checked as arithmetic: the pot in
-     * equals the pot out. There is no bank here to make up a difference, so a
-     * mismatch is chips minted or chips vanished.
-     */
-    const rolls = [743, 1];
-    const game = deathRollAdapter({ roll: () => rolls.shift() as number });
-    const table = seated(game);
-    const { deps, took, gave } = spy();
-    await deal(game, table, deps);
-    const first = table.view(null).toRoll as string;
-
-    await game.act(table, first, { type: "pass" }, deps);
-    const second = table.view(null).toRoll as string;
-    await game.act(table, second, { type: "roll" }, deps);
-    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
-    await game.settle(table, deps);
-
-    const takenIn = took.mock.calls.reduce((sum, call) => sum + (call[1] as number), 0);
-    const paidOut = gave.mock.calls.reduce((sum, call) => sum + (call[1] as number), 0);
-    expect(takenIn).toBe(1_050);
-    expect(paidOut).toBe(1_050);
-  });
-
-  it("names the winner for whatever is riding on them", async () => {
+  it("records no game and no stats as though the pot were paid, when paying the winner fails", async () => {
     const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps } = spy();
+    const table = seated(game, "ada", "bob");
+    const record = vi.fn(async () => {});
+    const finished = vi.fn(async () => {});
+    const deps = {
+      take: vi.fn(async () => true),
+      give: vi.fn(async () => {
+        throw new Error("store down");
+      }),
+      record,
+      finished,
+    } as unknown as GameDeps;
     await deal(game, table, deps);
-    const loser = table.view(null).toRoll as string;
-
-    await game.act(table, loser, { type: "roll" }, deps);
-
-    expect(game.winners?.(table)).toEqual([loser === "ada" ? "bob" : "ada"]);
-  });
-
-  it("writes the duel into the history with both nets", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps } = spy();
-    const finished = deps.finished as unknown as ReturnType<typeof vi.fn>;
-    await deal(game, table, deps);
-    const loser = table.view(null).toRoll as string;
-
-    await game.act(table, loser, { type: "roll" }, deps);
-    await game.settle(table, deps);
-
-    const record = finished.mock.calls[0]?.[0] as { players: { net: number }[]; pot: number };
-    expect(record.pot).toBe(1_000);
-    expect(record.players.map((one) => one.net).sort((a, b) => a - b)).toEqual([-500, 500]);
-  });
-
-  it("settles once and stays settled while the result is up", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps } = spy();
-    await deal(game, table, deps);
-
-    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
-
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
     expect(game.isSettled(table)).toBe(true);
-    table.finish();
-    expect(game.isSettled(table)).toBe(false);
-  });
-});
 
-describe("a seat that goes mid-duel", () => {
-  /*
-   * The room reaps a seat ninety seconds after it drops, whatever the table is
-   * doing — and an absent player burns thirty seconds of turn clock every
-   * turn, so a duel routinely outlives that. `leavesMidHand: false` promises
-   * the seat is held until the hand is over, and the pot rests on it: a winner
-   * whose seat had already gone would be both antes paid to nobody.
-   */
-  it("holds the seat so the duel still settles to whoever won it", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps, gave } = spy();
-    await deal(game, table, deps);
-    const loser = table.view(null).toRoll as string;
-    const winner = loser === "ada" ? "bob" : "ada";
+    await expect(game.settle(table, deps)).rejects.toThrow("store down");
 
-    table.removeSeat(winner);
-    await game.act(table, loser, { type: "roll" }, deps);
-    await game.settle(table, deps);
-
-    expect(table.seats.map((seat) => seat.id)).toContain(winner);
-    expect(gave).toHaveBeenCalledWith(winner === "ada" ? "u1" : "u2", 1_000);
-  });
-
-  it("lets the seat go once the felt is cleared", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps } = spy();
-    await deal(game, table, deps);
-    const loser = table.view(null).toRoll as string;
-    const winner = loser === "ada" ? "bob" : "ada";
-
-    table.removeSeat(winner);
-    await game.act(table, loser, { type: "roll" }, deps);
-    await game.settle(table, deps);
-
-    // Held right up until the pot is paid, and then honoured.
-    expect(table.seats.map((seat) => seat.id)).toContain(winner);
-    table.finish();
-    expect(table.seats.map((seat) => seat.id)).toEqual([loser]);
-  });
-
-  it("records no settlement it did not pay", async () => {
-    /*
-     * Defensive, now that a seat is held until the felt clears — but a
-     * settlement written for a pot that was never paid is worse than a lost
-     * pot: it is a win on somebody's profile and a figure in the history for
-     * chips that never moved.
-     */
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-    const { deps, gave } = spy();
-    const finished = deps.finished as unknown as ReturnType<typeof vi.fn>;
-    table.begin(undefined, ["ada", "ghost"]);
-    table.duel?.roll("ada", () => 1);
-
-    // Loudly: an unpaid pot is the worst thing that can happen at this table,
-    // and the room logs what it cannot fix.
-    await expect(game.settle(table, deps)).rejects.toThrow(/pot unpaid/);
-
-    expect(gave).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
     expect(finished).not.toHaveBeenCalled();
   });
-});
 
-describe("a table playing for nothing", () => {
-  it("never touches an account, over a whole duel", async () => {
-    /*
-     * The rule is in CLAUDE.md in so many words, and it is also the mistake
-     * that has actually happened in this repo — a verification run opened a
-     * chips table by accident and spent somebody's real balance. So the
-     * assertion is not that the right amount moved but that nothing was asked
-     * of the account at all.
-     */
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = game.create("ABCDE", { forFun: true, buyIn: 500 }) as Table;
-    table.join("ada", "Ada", null);
-    table.join("bob", "Bob", null);
-    const { deps, took, gave } = spy();
+  it("never touches an account at a table playing for nothing, over a whole game", async () => {
+    const draws = [1, 1];
+    const game = deathRollAdapter({ roll: () => draws.shift() as number });
+    const table = game.create("ABCDE", { forFun: true, buyIn: 500, maxSeats: 6 }) as Table;
+    for (const name of ["ada", "bob", "cat"]) {
+      table.join(name, name, null);
+      table.setReady(name, true, 0);
+    }
+    const { deps, took, gave, finished } = spy();
 
     await deal(game, table, deps);
-    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
+    await game.act(table, "ada", { type: "roll" }, deps);
+    table.nextRound();
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
     await game.settle(table, deps);
 
     expect(took).not.toHaveBeenCalled();
     expect(gave).not.toHaveBeenCalled();
+    expect(finished).not.toHaveBeenCalled();
+    const purses = ["ada", "bob", "cat"].map((name) => table.purseFor(name));
+    expect(purses.reduce((a, b) => a + b, 0)).toBe(30_000);
   });
 
-  it("moves the play purses instead, and they still sum to nothing", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = game.create("ABCDE", { forFun: true, buyIn: 500 }) as Table;
-    table.join("ada", "Ada", null);
-    table.join("bob", "Bob", null);
-    const { deps } = spy();
-
+  it("pays the winner in full even though they called to leave mid-game, and drops their seat only once the felt clears", async () => {
+    const draws = [1, 1];
+    const game = deathRollAdapter({ roll: () => draws.shift() as number });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, gave } = spy();
     await deal(game, table, deps);
-    const loser = table.view(null).toRoll as string;
-    await game.act(table, loser, { type: "roll" }, deps);
+
+    await game.act(table, "ada", { type: "pass" }, deps);
+    await game.act(table, "bob", { type: "roll" }, deps);
+    table.nextRound();
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
+
+    expect(game.isSettled(table)).toBe(true);
+    const winnerId = table.game?.winnerId as string;
+    const pot = table.view(null).pot;
+
+    table.removeSeat(winnerId);
+    expect(table.seats.map((seat) => seat.id)).toContain(winnerId);
+
     await game.settle(table, deps);
 
-    expect(table.purseFor("ada") + table.purseFor("bob")).toBe(20_000);
-    expect(table.purseFor(loser)).toBe(9_500);
+    expect(table.seats.map((seat) => seat.id)).toContain(winnerId);
+    expect(gave).toHaveBeenCalledWith(`u-${winnerId}`, pot);
+
+    table.finish();
+    expect(table.seats.map((seat) => seat.id)).not.toContain(winnerId);
   });
+});
 
-  it("refills a purse too short for the ante rather than stopping play", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = game.create("ABCDE", { forFun: true, buyIn: 500 }) as Table;
-    table.join("ada", "Ada", null);
-    table.join("bob", "Bob", null);
-    table.movePurse("ada", -9_800);
+describe("the clock", () => {
+  it("rolls for a player whose time ran out, even one who could have passed", async () => {
+    const game = deathRollAdapter({ roll: () => 400 });
+    const table = seated(game, "ada", "bob");
     const { deps } = spy();
-
     await deal(game, table, deps);
 
-    expect(table.phase).toBe("dueling");
-    expect(table.purseFor("ada")).toBe(9_500);
-  });
-});
+    game.timeout?.(table, "ada");
 
-describe("who may sit down", () => {
-  it("refuses a bot at a table playing for chips", () => {
-    // The line the whole economy rests on: a bot at a chips table is a button
-    // somebody holds down. Refused by the table, not hidden by the client.
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
-
-    expect(() => table.addBot("bot:1", "Bot", "normal")).toThrow(TableError);
-    expect(table.seats).toHaveLength(2);
+    expect(table.view(null).ceiling).toBe(400);
+    expect(table.game?.round.holdsPass("ada")).toBe(true);
   });
 
-  it("plays a bot's turn at a table playing for nothing", () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = game.create("ABCDE", { forFun: true, buyIn: 500 }) as Table;
-    table.join("ada", "Ada", null);
-    table.addBot("bot:1", "Bot", "normal");
-    table.begin("bot:1");
+  it("deals at once when everybody is ready", () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
 
-    const move = game.botMove?.(table);
-
-    expect(move?.seatId).toBe("bot:1");
-    move?.play();
-    expect(table.view(null).ceiling).toBe(743);
+    expect(game.pause?.(table)).toMatchObject({ key: "deal", ms: 0 });
   });
 
-  it("has nothing for a bot to do when it is not their turn", () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = game.create("ABCDE", { forFun: true, buyIn: 500 }) as Table;
-    table.join("ada", "Ada", null);
-    table.addBot("bot:1", "Bot", "normal");
-    table.begin("ada");
-
-    expect(game.botMove?.(table)).toBeNull();
-  });
-});
-
-describe("the table's own clock", () => {
-  it("rolls for somebody whose time runs out rather than forfeiting", async () => {
+  it("keeps the countdown's key even after it has run out, so the room still runs it", () => {
     /*
-     * Rolling is chance either way, so a clock cannot disadvantage an absent
-     * player — there is no decision being taken from them. Forfeiting would
-     * let a bad connection lose somebody their stake, which is the one thing a
-     * clock must never do.
+     * The room only runs a pause if the table is still waiting on the same key
+     * when the timer fires. A countdown that became "deal" at that instant
+     * would never be run, and the table would sit there with people ready.
      */
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
-    const { deps } = spy();
-    await deal(game, table, deps);
-    const waiting = table.view(null).toRoll as string;
+    vi.useFakeTimers();
+    try {
+      const game = deathRollAdapter({ roll: () => 500, countdownMs: 20_000 });
+      const table = game.create("ABCDE", { buyIn: 500, maxSeats: 6 }) as Table;
+      for (const name of ["ada", "bob", "cat"]) {
+        table.join(name, name, who(`u-${name}`));
+      }
+      table.setReady("ada", true, Date.now());
+      table.setReady("bob", true, Date.now());
 
-    game.timeout?.(table, waiting);
+      const armed = game.pause?.(table);
+      expect(armed?.key).toBe("countdown");
 
-    expect(table.view(null).ceiling).toBe(743);
-    expect(table.view(null).toRoll).not.toBe(waiting);
+      vi.advanceTimersByTime(armed?.ms ?? 0);
+      const firing = game.pause?.(table);
+      expect(firing?.key).toBe("countdown");
+
+      firing?.run();
+      expect(table.takePending()).toEqual(["ada", "bob"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("puts the clock on whoever is to act", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
-    const table = seated(game);
+  it("shows who went out before starting the next round, and leaves a finished game up", async () => {
+    const draws = [1, 1];
+    const game = deathRollAdapter({ roll: () => draws.shift() as number });
+    const table = seated(game, "ada", "bob", "cat");
     const { deps } = spy();
     await deal(game, table, deps);
 
-    const clock = game.clock?.(table);
+    await game.act(table, "ada", { type: "roll" }, deps);
+    const between = game.pause?.(table);
+    expect(between?.key).toBe("round");
+    between?.run();
 
-    expect(clock?.seatId).toBe(table.view(null).toRoll);
-    expect(clock?.endsAt).toBeGreaterThan(Date.now());
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
+    expect(game.pause?.(table)?.key).toBe("result");
   });
+});
 
-  it("waits for a second player without asking for a duel", async () => {
-    const game = deathRollAdapter({ roll: () => 743 });
+describe("moves", () => {
+  it("takes a ready press between games, and refuses a roll when there is none", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
     const table = game.create("ABCDE", { buyIn: 500 }) as Table;
-    table.join("ada", "Ada", who("u1"));
-
-    expect(game.pause?.(table)).toBeNull();
-  });
-
-  it("asks for a duel once there are two, and clears the felt after one", async () => {
-    const game = deathRollAdapter({ roll: () => 1 });
-    const table = seated(game);
+    table.join("ada", "ada", who("u-ada"));
     const { deps } = spy();
 
-    const waiting = game.pause?.(table);
-    expect(waiting?.key).toBe("deal");
-    waiting?.run();
-    expect(table.pending).toBe(true);
+    await game.act(table, "ada", { type: "ready", ready: true }, deps);
 
-    await game.payOut?.(table, deps);
-    await game.act(table, table.view(null).toRoll as string, { type: "roll" }, deps);
-
-    const result = game.pause?.(table);
-    expect(result?.key).toBe("result");
-    result?.run();
-    expect(table.phase).toBe("waiting");
+    expect(table.readiness.isReady("ada")).toBe(true);
+    await expect(game.act(table, "ada", { type: "roll" }, deps)).rejects.toThrow(TableError);
   });
 });

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { OPENING } from "@backroom/game-death-roll";
 import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import { FACES } from "@backroom/game-slots";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ReelsArt, TileArt, WheelArt } from "./TileArt.js";
+import { CoinsArt, DuelArt, ReelsArt, TileArt, WheelArt } from "./TileArt.js";
 
 describe("the furniture in a tile's corner", () => {
   it("gives the slot machine as many reels as the machine has", () => {
@@ -336,6 +337,93 @@ describe("the wheel the stylesheet knows how to spin", () => {
   it("stills every part of it when motion is not wanted", () => {
     const stilled = css.split("@media (prefers-reduced-motion: reduce)").slice(1);
     for (const part of ["art__wheel", "art__wheel-rim", "art__ball-arm", "art__ball"]) {
+      expect(stilled.some((block) => block.includes(`.tile:hover .${part}`))).toBe(true);
+    }
+  });
+});
+
+/*
+ * Death roll's number and two-up's pennies.
+ *
+ * Both fell through to the stack of chips until they had drawings of their
+ * own, and both are two files that have to agree on names nothing else checks.
+ */
+describe("the duel in death roll's corner", () => {
+  it("draws a duel rather than the chips", () => {
+    const { container } = render(<TileArt game="death-roll" />);
+    expect(container.querySelector(".art__duel")).not.toBeNull();
+  });
+
+  it("starts where a table opens and comes down every roll to the one", () => {
+    // Every roll is under the one before it, or the corner advertises a game
+    // the rules do not play.
+    const { container } = render(<DuelArt />);
+    const rolls = [...container.querySelectorAll("[data-roll]")].map((one) =>
+      Number(one.getAttribute("data-roll")),
+    );
+    expect(rolls[0]).toBe(OPENING);
+    expect(rolls.at(-1)).toBe(1);
+    for (let at = 1; at < rolls.length; at += 1) {
+      expect(rolls[at]).toBeLessThan(rolls[at - 1] as number);
+    }
+  });
+
+  it("lands every roll it draws, and stills each one", () => {
+    const { container } = render(<DuelArt />);
+    const count = container.querySelectorAll(".art__roll").length;
+    const stilled = css.split("@media (prefers-reduced-motion: reduce)").slice(1);
+    for (let at = 1; at <= count; at += 1) {
+      const selector = `.tile:hover .art__roll--${at}`;
+      expect(always).toContain(selector);
+      expect(stilled.some((block) => block.includes(selector))).toBe(true);
+    }
+  });
+});
+
+describe("the pennies in two-up's corner", () => {
+  it("tosses two coins, each with both faces", () => {
+    const { container } = render(<TileArt game="two-up" />);
+    const pieces = container.querySelectorAll(".art__piece");
+    expect(pieces).toHaveLength(2);
+    for (const piece of pieces) {
+      expect(piece.querySelector(".art__coin-flip")).not.toBeNull();
+      expect(piece.querySelector(".tu__chalk")).not.toBeNull();
+    }
+  });
+
+  it("never puts a transform attribute on a group the stylesheet moves", () => {
+    const { container } = render(<CoinsArt />);
+    for (const moved of container.querySelectorAll(".art__piece, .art__coin-toss, .art__coin-flip")) {
+      expect(moved.getAttribute("transform")).toBeNull();
+    }
+  });
+
+  it("changes face only while the coin is edge-on, and lands on the face it sat on", () => {
+    /*
+     * A face that swaps while the coin is open is a picture changing, not a
+     * coin turning. The two keyframe blocks are separate and nothing but these
+     * stops ties them, so every stop in the faces block has to be an edge-on
+     * stop in the flip block.
+     */
+    const flip = keyframes("tile-coin-flip");
+    const faces = keyframes("tile-coin-faces");
+    const edgeOn = /((?:\d+%,\s*)*\d+%)\s*\{\s*transform: scaleY\(0\.04\)/.exec(flip);
+    expect(edgeOn).not.toBeNull();
+    const edges = (edgeOn as RegExpExecArray)[1]?.split(/,\s*/) ?? [];
+    const swaps = [...faces.matchAll(/(\d+%) \{\s*opacity: (\d)/g)];
+    // The ends are where it starts and stops, not a swap.
+    const inner = swaps.filter(([, stop]) => stop !== "0%" && stop !== "100%");
+    expect(inner.length).toBeGreaterThan(0);
+    for (const [, stop] of inner) {
+      expect(edges).toContain(stop);
+    }
+    expect(swaps.at(-1)?.[2]).toBe("0");
+  });
+
+  it("stills every part of the toss when motion is not wanted", () => {
+    const stilled = css.split("@media (prefers-reduced-motion: reduce)").slice(1);
+    for (const part of ["art__coin-toss", "art__coin-flip", "art__coin-tails"]) {
+      expect(always).toContain(`.tile:hover .${part}`);
       expect(stilled.some((block) => block.includes(`.tile:hover .${part}`))).toBe(true);
     }
   });

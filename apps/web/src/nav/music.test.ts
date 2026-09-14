@@ -21,6 +21,7 @@ interface Fake {
   state(data: number): void;
   current: { id: string; seconds: number; muted: boolean };
   playVideo: ReturnType<typeof vi.fn>;
+  pauseVideo: ReturnType<typeof vi.fn>;
   playVideoAt: ReturnType<typeof vi.fn>;
   seekTo: ReturnType<typeof vi.fn>;
 }
@@ -42,6 +43,7 @@ function installYouTube(playlist: string[]) {
       const fake: Fake = {
         current: { id: playlist[0] ?? "", seconds: 0, muted: false },
         playVideo: vi.fn(),
+        pauseVideo: vi.fn(),
         playVideoAt: vi.fn((index: number) => {
           fake.current.id = playlist[index] ?? "";
           fake.current.seconds = 0;
@@ -54,7 +56,7 @@ function installYouTube(playlist: string[]) {
       };
       const api = {
         playVideo: fake.playVideo,
-        pauseVideo: vi.fn(),
+        pauseVideo: fake.pauseVideo,
         nextVideo: vi.fn(),
         setVolume: vi.fn(),
         setShuffle: vi.fn(),
@@ -111,6 +113,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   for (const fake of fakes) {
     dead.add(fake);
   }
@@ -164,6 +167,72 @@ describe("the room's music", () => {
     window.dispatchEvent(new Event("pointerup"));
     await tick();
     expect(fake.playVideoAt).toHaveBeenCalledTimes(2);
+    expect(fake.playVideo).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A reload can leave the embed sitting paused on its opening track without
+   * anybody pressing anything. Stop then Play brought it back by hand, so the
+   * page now does that itself.
+   */
+  it("pauses and plays again when a start is left sitting paused", async () => {
+    vi.useFakeTimers();
+    installYouTube(["a", "b", "c"]);
+    const music = await load();
+    music.attachMusic(null, false);
+    await settle();
+    const fake = latest();
+    fake.ready();
+    fake.state(PAUSED);
+
+    vi.advanceTimersByTime(1500);
+    expect(fake.pauseVideo).toHaveBeenCalledTimes(1);
+    expect(fake.playVideo).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(250);
+    expect(fake.playVideo).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a start alone once it is playing", async () => {
+    vi.useFakeTimers();
+    installYouTube(["a", "b", "c"]);
+    const music = await load();
+    music.attachMusic(null, false);
+    await settle();
+    const fake = latest();
+    fake.ready();
+    fake.state(PLAYING);
+
+    vi.advanceTimersByTime(60_000);
+    expect(fake.pauseVideo).not.toHaveBeenCalled();
+    expect(fake.playVideo).not.toHaveBeenCalled();
+  });
+
+  it("stops nudging after a few tries and leaves it to a press", async () => {
+    vi.useFakeTimers();
+    installYouTube(["a", "b", "c"]);
+    const music = await load();
+    music.attachMusic(null, false);
+    await settle();
+    const fake = latest();
+    fake.ready();
+
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(fake.playVideo).toHaveBeenCalledTimes(3);
+    expect(fake.pauseVideo).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not nudge a stream that has been turned off", async () => {
+    vi.useFakeTimers();
+    installYouTube(["a", "b", "c"]);
+    const music = await load();
+    music.attachMusic(null, false);
+    await settle();
+    const fake = latest();
+    fake.ready();
+    music.setMusicOn(false);
+
+    vi.advanceTimersByTime(60_000);
     expect(fake.playVideo).not.toHaveBeenCalled();
   });
 

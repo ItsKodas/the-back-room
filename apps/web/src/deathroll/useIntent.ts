@@ -22,6 +22,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * which leaves the ceiling exactly where it was. So the ceiling is watched
  * too, for that one case where the turn is the only thing a roll actually
  * moves.
+ *
+ * Ready is a choice the player has already made, so it may show on the press.
  */
 
 /**
@@ -34,15 +36,19 @@ export const PATIENCE_MS = 1600;
 
 type Sent =
   | { kind: "roll"; toRoll: string | null; ceiling: number }
-  | { kind: "pass"; toRoll: string | null; price: number };
+  | { kind: "pass"; toRoll: string | null; price: number }
+  | { kind: "ready"; ready: boolean };
 
 export interface Intent {
   /** Whether the die is tumbling: this seat asked to roll and nothing has answered. */
   rolling: boolean;
   /** Chips this seat's own pass has put on the pot, ahead of the table's word. */
   pending: number;
+  /** The ready state shown ahead of the table's word, or null once it has answered. */
+  readying: boolean | null;
   roll: () => void;
   pass: () => void;
+  ready: (next: boolean) => void;
 }
 
 export function useIntent(
@@ -52,21 +58,32 @@ export function useIntent(
   error: string | null,
 ): Intent {
   const [sent, setSent] = useState<Sent | null>(null);
-  const timers = useRef<number[]>([]);
+  // Only ever one `Sent` outstanding, so only one timer needs to exist for
+  // it: winding a new one cancels whichever earlier one is still ticking,
+  // rather than leaving it free to fire later and give up an intent it was
+  // never armed for. That earlier timer may belong to a press that has
+  // already been answered — answering clears `sent` but not the clock that
+  // was wound for it — so without this a slow-to-arrive second press could
+  // be cut short by its predecessor's own deadline rather than its own.
+  const timer = useRef<number | null>(null);
 
   useEffect(() => {
-    const held = timers.current;
     return () => {
-      for (const id of held) {
-        window.clearTimeout(id);
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
       }
     };
   }, []);
 
   /** Gives up on whatever is outstanding after `ms`, however the answer goes. */
   const wind = useCallback((ms: number) => {
-    const id = window.setTimeout(() => setSent(null), ms);
-    timers.current.push(id);
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+    }
+    timer.current = window.setTimeout(() => {
+      timer.current = null;
+      setSent(null);
+    }, ms);
   }, []);
 
   const send = useCallback(
@@ -94,18 +111,29 @@ export function useIntent(
     send({ kind: "pass", toRoll: state.toRoll, price: state.passPrice }, { type: "pass" });
   }, [myTurn, state, send]);
 
+  const ready = useCallback(
+    (next: boolean) => {
+      send({ kind: "ready", ready: next }, { type: "ready", ready: next });
+    },
+    [send],
+  );
+
   /*
    * The table has spoken once the turn has moved off what it was when this
    * seat asked — true of every real roll and every real pass — or, for a roll
    * only, once the ceiling has: the one move that can leave the turn looking
-   * exactly like it did before.
+   * exactly like it did before. A ready ask has no turn to watch at all, so
+   * it is answered instead the moment this seat's own readiness matches what
+   * was asked for.
    */
   useEffect(() => {
     if (sent === null || state === null) {
       return;
     }
     const answered =
-      state.toRoll !== sent.toRoll || (sent.kind === "roll" && state.ceiling !== sent.ceiling);
+      sent.kind === "ready"
+        ? state.you?.ready === sent.ready
+        : state.toRoll !== sent.toRoll || (sent.kind === "roll" && state.ceiling !== sent.ceiling);
     if (answered) {
       setSent(null);
     }
@@ -127,7 +155,9 @@ export function useIntent(
   return {
     rolling: sent?.kind === "roll",
     pending: sent?.kind === "pass" ? sent.price : 0,
+    readying: sent?.kind === "ready" ? sent.ready : null,
     roll,
     pass,
+    ready,
   };
 }

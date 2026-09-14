@@ -8,9 +8,10 @@ export interface AccountProfile {
   chips: number;
   /** What every game can answer, whatever the game was. */
   stats: {
-    games: number;
-    wins: number;
+    rounds: number;
+    roundsWon: number;
     chipsWon: number;
+    chipsStaked: number;
   };
   /**
    * What one game can answer, under that game's own name. Untyped beyond

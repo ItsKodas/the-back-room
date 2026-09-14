@@ -1696,6 +1696,129 @@ a.btn {
 }
 
 /*
+ * The strip under the sign: the board and the bar, neither of them a game you
+ * sit at. Fixed tracks rather than auto-fit, so the board does not stretch
+ * across the room and then jump back when the bar's listing arrives.
+ */
+.room__front {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--gr-space-3);
+  margin-top: var(--gr-space-4);
+}
+
+@media (max-width: 640px) {
+  .room__front {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.barsign {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-3);
+  min-height: 44px;
+  padding: var(--gr-space-2) var(--gr-space-3);
+  border: var(--gr-edge-soft);
+  border-radius: var(--gr-radius-sm);
+  background:
+    radial-gradient(80% 60% at 20% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
+    linear-gradient(180deg, var(--gr-color-smoke), var(--gr-color-shadow));
+  text-decoration: none;
+  color: inherit;
+}
+
+.barsign:hover {
+  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+}
+
+.barsign:focus-visible {
+  outline: 2px solid var(--gr-color-neon);
+  outline-offset: 2px;
+}
+
+.barsign--shut {
+  opacity: 0.5;
+}
+
+.barsign__art {
+  flex: none;
+  width: 72px;
+  height: 56px;
+  border-radius: var(--gr-radius-sm);
+  border: 1px solid rgb(0 0 0 / 0.7);
+  background:
+    repeating-linear-gradient(180deg, rgb(0 0 0 / 0.35) 0 3px, transparent 3px 6px),
+    var(--gr-color-night);
+  overflow: hidden;
+}
+
+.barsign__art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The chips on the counter spread when a hand comes near, as if pushed over. */
+.barsign .art__piece {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 420ms cubic-bezier(0.16, 1.06, 0.28, 1);
+}
+
+.barsign:hover .art__piece--1,
+.barsign:focus-visible .art__piece--1 {
+  transform: translate(-18px, -4px) rotate(-30deg);
+}
+
+.barsign:hover .art__piece--2,
+.barsign:focus-visible .art__piece--2 {
+  transform: translate(18px, -8px) rotate(24deg);
+}
+
+.barsign:hover .art__piece--3,
+.barsign:focus-visible .art__piece--3 {
+  transform: translate(0, 10px) rotate(40deg);
+}
+
+.barsign__words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-1);
+  min-width: 0;
+}
+
+.barsign__name {
+  font-family: var(--gr-font-display);
+  font-size: var(--gr-text-lg);
+  line-height: 1;
+  color: var(--gr-color-ink-lit);
+}
+
+.barsign__name em {
+  font-style: normal;
+  color: var(--gr-color-neon);
+}
+
+.barsign__note {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-1);
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barsign .art__piece,
+  .barsign:hover .art__piece--1,
+  .barsign:hover .art__piece--2,
+  .barsign:hover .art__piece--3 {
+    transition: none;
+    transform: none;
+  }
+}
+
+/*
  * A table game is wide and says who is at it. The shape is the information:
  * a glance tells you what kind of thing it is before you read the name.
  */
@@ -2044,6 +2167,274 @@ a.btn {
   .tile:focus-visible .art__ball-arm,
   .tile:hover .art__ball,
   .tile:focus-visible .art__ball {
+    animation: none;
+  }
+}
+
+/*
+ * Death roll's number, coming down.
+ *
+ * The group rises out of the corner the way the other tables' furniture does,
+ * and inside it the rolls land one after another, each dropping in from above
+ * and settling with the overshoot the felt's own number has. The last is the
+ * one, and it arrives the way the felt's does: a snap in the building's bad
+ * colour, and it stays. Nothing loops — a duel that has ended is not still
+ * happening.
+ */
+.art__duel {
+  transform-box: view-box;
+  transform-origin: 84px 80px;
+  transform: translate(8px, 14px) scale(0.86);
+  transition:
+    transform 460ms cubic-bezier(0.16, 1.06, 0.28, 1),
+    opacity 260ms ease;
+  opacity: 0.9;
+}
+
+.tile:hover .art__duel,
+.tile:focus-visible .art__duel {
+  transform: translate(-12px, -24px) scale(1);
+  opacity: 1;
+}
+
+.art__roll {
+  font-family: var(--gr-font-display);
+  font-size: 50px;
+  fill: var(--gr-color-neon-core, #f6f0ff);
+  filter: drop-shadow(0 0 2px var(--gr-color-neon-hi, #b39cff)) drop-shadow(0 0 9px var(--gr-color-neon, #6b4bd6));
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+/* Where a table opens, which is what the corner shows before anybody rolls. */
+.art__roll--1 {
+  opacity: 1;
+}
+
+.art__roll--one {
+  fill: var(--gr-color-bad, #c2543f);
+  filter: drop-shadow(0 0 8px var(--gr-color-bad, #c2543f));
+}
+
+.tile:hover .art__roll--1,
+.tile:focus-visible .art__roll--1 {
+  animation: tile-roll-leave 180ms ease-in 160ms both;
+}
+
+.tile:hover .art__roll--2,
+.tile:focus-visible .art__roll--2 {
+  animation: tile-roll-pass 300ms ease-out 180ms both;
+}
+
+.tile:hover .art__roll--3,
+.tile:focus-visible .art__roll--3 {
+  animation: tile-roll-pass 300ms ease-out 420ms both;
+}
+
+.tile:hover .art__roll--4,
+.tile:focus-visible .art__roll--4 {
+  animation: tile-roll-pass 300ms ease-out 660ms both;
+}
+
+.tile:hover .art__roll--5,
+.tile:focus-visible .art__roll--5 {
+  animation: tile-roll-pass 300ms ease-out 900ms both;
+}
+
+.tile:hover .art__roll--6,
+.tile:focus-visible .art__roll--6 {
+  animation: tile-roll-pass 300ms ease-out 1140ms both;
+}
+
+.tile:hover .art__roll--7,
+.tile:focus-visible .art__roll--7 {
+  animation: tile-roll-hit 220ms ease-out 1400ms both;
+}
+
+@keyframes tile-roll-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+}
+
+/* In from above with a little overshoot, held, and gone as the next arrives. */
+@keyframes tile-roll-pass {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.84);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(3px) scale(1.04);
+  }
+  60%,
+  75% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+}
+
+@keyframes tile-roll-hit {
+  0% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/*
+ * Two-up's pennies, off the kip.
+ *
+ * Thrown out of the corner by the same transition the other tables use, and
+ * inside that each coin rises, tumbles and comes down. The tumble is a squash
+ * through edge-on rather than a 3D turn — an SVG group has no depth to turn
+ * in — and the tails face is shown or hidden only at the instant the coin is
+ * edge-on, which is the only moment a real one could change which face it
+ * shows. The stops in tile-coin-faces are the edge-on stops in tile-coin-flip;
+ * move one and move the other.
+ */
+.art__piece {
+  --toss-ms: 900ms;
+  --toss-delay: 0ms;
+}
+
+.art__piece--2 {
+  --toss-ms: 1000ms;
+  --toss-delay: 70ms;
+}
+
+.art__coin-toss,
+.art__coin-flip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.art__coin-tails {
+  opacity: 0;
+}
+
+.tile:hover .art__coin-toss,
+.tile:focus-visible .art__coin-toss {
+  animation: tile-coin-arc var(--toss-ms) cubic-bezier(0.3, 0.5, 0.5, 1) var(--toss-delay) both;
+}
+
+.tile:hover .art__coin-flip,
+.tile:focus-visible .art__coin-flip {
+  animation: tile-coin-flip var(--toss-ms) linear var(--toss-delay) both;
+}
+
+.tile:hover .art__coin-tails,
+.tile:focus-visible .art__coin-tails {
+  animation: tile-coin-faces var(--toss-ms) step-end var(--toss-delay) both;
+}
+
+@keyframes tile-coin-arc {
+  0% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  40% {
+    transform: translateY(-58px);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+  }
+  80% {
+    transform: translateY(0);
+  }
+  88% {
+    transform: translateY(-5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes tile-coin-flip {
+  0%,
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: scaleY(1);
+  }
+  10%,
+  30%,
+  50%,
+  70% {
+    transform: scaleY(0.04);
+  }
+  86% {
+    transform: scale(1.06, 0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes tile-coin-faces {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art__duel,
+  .tile:hover .art__duel,
+  .tile:focus-visible .art__duel {
+    transition: none;
+    transform: none;
+  }
+
+  .tile:hover .art__roll--1,
+  .tile:focus-visible .art__roll--1,
+  .tile:hover .art__roll--2,
+  .tile:focus-visible .art__roll--2,
+  .tile:hover .art__roll--3,
+  .tile:focus-visible .art__roll--3,
+  .tile:hover .art__roll--4,
+  .tile:focus-visible .art__roll--4,
+  .tile:hover .art__roll--5,
+  .tile:focus-visible .art__roll--5,
+  .tile:hover .art__roll--6,
+  .tile:focus-visible .art__roll--6,
+  .tile:hover .art__roll--7,
+  .tile:focus-visible .art__roll--7,
+  .tile:hover .art__coin-toss,
+  .tile:focus-visible .art__coin-toss,
+  .tile:hover .art__coin-flip,
+  .tile:focus-visible .art__coin-flip,
+  .tile:hover .art__coin-tails,
+  .tile:focus-visible .art__coin-tails {
     animation: none;
   }
 }

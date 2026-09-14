@@ -223,11 +223,28 @@ export class Table {
   /**
    * Standing up mid-spin is honoured there and then.
    *
-   * Nothing is owed to a seat that leaves: whatever they put on the cloth is
-   * already in the bank, and the wheel does not need them to finish. Holding
-   * the seat would be holding it for nothing.
+   * The seat goes, and its chips do not go with it. The wheel does not need
+   * the player to finish, but it does owe them: see {@link removeSeat}.
    */
   readonly leavesMidHand = true;
+
+  /**
+   * Who a seat was, kept after the seat itself has gone.
+   *
+   * A seat that stood up with chips on the cloth is still owed whatever those
+   * chips come to, and once `Seating.remove` has run this is the only record of
+   * whose account that is. Pruned when the next window opens, because the spin
+   * that owes somebody is the spin they were in.
+   */
+  private readonly accounts = new Map<string, { userId: string | null; name: string }>();
+
+  /**
+   * Seats that stood up while the felt was open, with chips still down.
+   *
+   * Their chips are handed back by the adapter, because a refund comes out of
+   * the bank and this class cannot await. Drained by `payOut`.
+   */
+  leaving: string[] = [];
 
   /**
    * A seat at the table.
@@ -237,12 +254,39 @@ export class Table {
    * play for nothing.
    */
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
-    return this.seating.join(id, name, this.status, identity, !this.forFun);
+    const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
+    this.accounts.set(seat.id, { userId: seat.userId, name: seat.name });
+    return seat;
   }
+
+  /**
+   * Somebody stands up, and their chips stay behind for the adapter.
+   *
+   * Filtering them off the cloth was the table keeping them. Every chip went
+   * into the bank as it landed, so a seat that left mid-window lost its whole
+   * stake for a spin it never saw, and a refresh that outlasted the grace
+   * period did the same. Now a chip placed in an open window is queued to be
+   * handed back, and a chip already riding a spin rides it and is paid to the
+   * account it came from.
+   *
+   * Play money is the exception, and keeps the old behaviour: the purse it
+   * would be paid into leaves with the seat.
+   */
   removeSeat(seatId: string): void {
     this.seating.remove(seatId);
-    this.placed = this.placed.filter((one) => one.seatId !== seatId);
     this.previous.delete(seatId);
+    if (this.forFun) {
+      this.placed = this.placed.filter((one) => one.seatId !== seatId);
+      return;
+    }
+    if (this.phase === "betting" && this.staked(seatId) > 0 && !this.leaving.includes(seatId)) {
+      this.leaving.push(seatId);
+    }
+  }
+
+  /** The account behind a seat, whether or not the seat is still occupied. */
+  accountOf(seatId: string): string | null {
+    return this.accounts.get(seatId)?.userId ?? null;
   }
   disconnect(seatId: string): void {
     this.seating.disconnect(seatId);
@@ -502,7 +546,7 @@ export class Table {
         spin,
         pocket,
         seatId,
-        name: this.seats.find((seat) => seat.id === seatId)?.name ?? "",
+        name: this.accounts.get(seatId)?.name ?? "",
         up,
       });
     }
@@ -533,6 +577,12 @@ export class Table {
     this.deadline = Date.now() + this.window;
     for (const seat of this.seating.seats) {
       seat.waiting = false;
+    }
+    const here = new Set(this.seats.map((seat) => seat.id));
+    for (const seatId of [...this.accounts.keys()]) {
+      if (!here.has(seatId)) {
+        this.accounts.delete(seatId);
+      }
     }
   }
 

@@ -485,11 +485,26 @@ export class Table {
     return this.seating.reconnect(seatId) as Seat;
   }
 
+  /**
+   * Stakes owed back to people who stood up before the deal.
+   *
+   * A stake leaves the account the moment it is placed, and the betting
+   * window is this table's lobby, so leaving — or a refresh that outlasted
+   * the grace period — removed a seat with its bet still on the felt and the
+   * table kept it for a hand that was never dealt. The refund is the
+   * adapter's to make, because it comes out of the bank and this class cannot
+   * await. Drained by `payOut`.
+   */
+  owedOut: Array<{ userId: string; chips: number }> = [];
+
   removeSeat(seatId: string): void {
     if (this.status !== "lobby") {
       return;
     }
-    this.seating.remove(seatId);
+    const seat = this.seating.remove(seatId) as Seat | null;
+    if (seat !== null && !this.forFun && seat.userId !== null && staked(seat) > 0) {
+      this.owedOut.push({ userId: seat.userId, chips: staked(seat) });
+    }
   }
 
   /**

@@ -184,6 +184,31 @@ describe("settling a casino round", () => {
     expect(held["u0"]).toBe(1_100);
     expect(read()).toBe(99_900);
   });
+
+  it("puts the round and its stake on the player's record", async () => {
+    const { deps } = purse({ u0: 1_000 });
+    const recorded: Array<{ userId: string; shared: Record<string, number> | undefined }> = [];
+    deps.record = async (userId, bump) => {
+      recorded.push({ userId, shared: bump.shared });
+    };
+    const { bank } = bankOf(100_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+    table.closeBetting();
+    table.boxerThrows(() => 0.1);
+    table.land();
+    table.read(() => 0.1);
+    await adapter.settle(table, deps);
+
+    expect(recorded).toEqual([
+      {
+        userId: "u0",
+        shared: expect.objectContaining({ rounds: 1, roundsWon: 1, chipsStaked: 100 }),
+      },
+    ]);
+  });
 });
 
 /*
@@ -329,6 +354,38 @@ describe("a traditional ring", () => {
     await adapter.settle(table, deps);
     expect(held["u0"] + held["u1"]).toBe(10_000);
     expect(held["u1"]).toBe(6_000);
+  });
+
+  it("puts a round on both records, the loser's included", async () => {
+    /*
+     * A ring pays only its winners, and a record written only where chips were
+     * paid would give every ring a winner and no loser — a W–L that climbs on
+     * one side forever. Both seats played the round and both staked into it.
+     */
+    const { deps } = purse({ u0: 5_000, u1: 5_000 });
+    const recorded = new Map<string, Record<string, number> | undefined>();
+    deps.record = async (userId, bump) => {
+      recorded.set(userId, bump.shared);
+    };
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("ABCD", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    await adapter.act(table, "s0", { type: "centre", chips: 1_000 }, deps);
+    await adapter.act(table, "s1", { type: "cover", chips: 1_000 }, deps);
+    table.closeCovering();
+    table.throwCoins("s0", () => 0.9);
+    table.land();
+    table.read(() => 0.9);
+    expect(table.decided).toBe("ring");
+    await adapter.settle(table, deps);
+
+    expect(recorded.get("u0")).toEqual(
+      expect.objectContaining({ rounds: 1, roundsWon: 0, chipsStaked: 1_000 }),
+    );
+    expect(recorded.get("u1")).toEqual(
+      expect.objectContaining({ rounds: 1, roundsWon: 1, chipsStaked: 1_000 }),
+    );
   });
 });
 

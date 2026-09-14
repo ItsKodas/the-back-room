@@ -10,7 +10,7 @@ const row = (id: string, name: string, chips: number, stats = {}) => ({
   avatar: null,
   accentColor: null,
   chips,
-  stats: { games: 0, wins: 0, chipsWon: 0, chipsStaked: 0, ...stats },
+  stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0, ...stats },
 });
 
 /** A room where the board answers whatever the test says, and remembers asks. */
@@ -35,7 +35,7 @@ function stubFetch(board: unknown) {
               avatar: null,
               accentColor: null,
               chips: 900,
-              stats: { games: 0, wins: 0, chipsWon: 0 },
+              stats: { rounds: 0, roundsWon: 0, chipsWon: 0 },
               byGame: {},
             },
           }),
@@ -68,7 +68,7 @@ describe("the leaderboard page", () => {
       sort: "chips",
       total: 2,
       rows: [
-        row("u1", "Ada", 900, { games: 4, wins: 3, chipsWon: 400, chipsStaked: 1200 }),
+        row("u1", "Ada", 900, { rounds: 4, roundsWon: 3, chipsWon: 400, chipsStaked: 1200 }),
         row("u2", "Bram", 100),
       ],
       you: null,
@@ -141,7 +141,7 @@ describe("the leaderboard page", () => {
     stubFetch({
       sort: "chips",
       total: 1,
-      rows: [row("u1", "Ada", 900, { games: 4, wins: 3, chipsWon: 1_234_567, chipsStaked: 2_345_678 })],
+      rows: [row("u1", "Ada", 900, { rounds: 4, roundsWon: 3, chipsWon: 1_234_567, chipsStaked: 2_345_678 })],
       you: null,
     });
     render(

@@ -2606,7 +2606,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
 
             const cost = wasFree ? 0 : stake;
             await deps.record(userId, {
-              shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost, chipsStaked: cost },
+              // Chips, and no round. A spin every couple of seconds is not a
+              // contest won or lost, and counting it as one buried every hand a
+              // player had played under tens of thousands of "losses".
+              shared: { chipsWon: won - cost, chipsStaked: cost },
               game: SLOTS.id,
               add: { spins: 1, staked: cost, jackpots: jackpot ? 1 : 0 },
               // A best spin is a maximum, and only the machine knows that.

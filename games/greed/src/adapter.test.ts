@@ -124,13 +124,13 @@ describe("what a finished game is worth", () => {
     await adapter.settle(room, book.deps);
 
     expect(book.recorded).toHaveLength(2);
-    expect(book.recorded.map((entry) => entry.bump.shared?.games)).toEqual([1, 1]);
+    expect(book.recorded.map((entry) => entry.bump.shared?.rounds)).toEqual([1, 1]);
     /*
      * However many won, that is how many wins are recorded. Taken from the
      * room rather than assumed: the final round lets two players reach the
      * target in the same round, and a tie is a real result here.
      */
-    expect(book.recorded.filter((entry) => entry.bump.shared?.wins === 1)).toHaveLength(
+    expect(book.recorded.filter((entry) => entry.bump.shared?.roundsWon === 1)).toHaveLength(
       room.winnerIds.length,
     );
     expect(room.winnerIds.length).toBeGreaterThan(0);
