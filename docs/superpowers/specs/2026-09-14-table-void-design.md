@@ -49,6 +49,34 @@ a bank quietly keep chips players never lost.
    from. Not reading table fields (cannot see in-flight stakes or departed
    accounts), not server-side refunds (the server would reach games' banks).
 
+## Revisions made while planning
+
+Found while mapping every game's money paths; these override the sections
+below where they disagree.
+
+- `Stake` is `{ userId, chips }`. Whether a refund goes through a bank is a
+  property of the table (the adapter's `banked(table)`), never of one stake.
+- `refund(userId, chips?)` takes an optional amount. Poker needs it: a leaver's
+  stack goes back while what they already bet stays in the pot.
+- Escrow exposes `get due(): readonly Stake[]` so tables' tests can read the
+  queue without draining it.
+- Where the table itself lands chips (`place`, `buyIn`, `setCentre`, `cover`),
+  the **table** holds them, so recording a stake and landing it are one
+  synchronous step. If `hold` refuses, the table throws
+  `TableError("This table is closing.")` and the adapter's existing
+  refund-on-throw path returns the chips.
+- A round is marked decided (`escrow.settle()`) at the table's own decision
+  point — greed `finish`, blackjack reaching `settled`, roulette `land`, two-up
+  `read`, poker `award` — rather than in the adapter's `settle`. A decided round
+  that somehow never settled then loses its stakes instead of refunding chips
+  that were already lost. Death roll has no synchronous decision point on the
+  table, so it drains in `settle` and again in `finish` as a backstop.
+- No separate `table.voided` flag. The server stops every timer and broadcast
+  for a closing table, and `escrow.closed` is what refuses an in-flight stake.
+- A banked adapter's `owing(table)` returns 0 once `escrow.closed`, so an act
+  queued behind a void cannot put the reservation back through `serially`'s
+  `finally`.
+
 ## Core (`packages/core`)
 
 ### `Escrow` — `src/escrow.ts`
