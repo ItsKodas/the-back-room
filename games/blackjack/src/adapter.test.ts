@@ -689,4 +689,51 @@ describe("a blackjack table called off", () => {
     const { ledgerOf } = await import("@backroom/core");
     expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
   });
+
+  it("gives a bet straight back if the table closed while it was being taken", async () => {
+    const { bank } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const { deps, balances } = ledger({ u1: 10_000 });
+
+    await game.act(table, "a", { type: "bet", amount: 300 }, deps);
+    expect(balances["u1"]).toBe(9_700);
+
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow: GameDeps = {
+      ...deps,
+      take: async (userId, amount) => {
+        const ok = await deps.take(userId, amount);
+        if (amount === 500) await gate;
+        return ok;
+      },
+    };
+
+    const raising = game.act(table, "a", { type: "bet", amount: 800 }, slow).catch((error) => error);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    /*
+     * Not awaited: `void`'s escrow close is the one synchronous step ahead of
+     * its own first await, so it has already happened by the time this call
+     * returns. Awaiting it here, before releasing the gate, would deadlock —
+     * its payout has to queue behind the bet still occupying the bank's
+     * queue, which cannot free up until the gate below lets it finish.
+     */
+    const voiding = game.void?.(table, deps);
+    release();
+    const [outcome] = await Promise.all([raising, voiding]);
+
+    expect(outcome).toBeInstanceOf(Error);
+    // The raise was never really placed — the escrow closed under it before
+    // the take that would have covered it ever resolved — so the felt goes
+    // back to the bet that was actually on it.
+    expect(table.seats[0]?.hands[0]?.bet).toBe(300);
+    // The original 300 came back when the table was called off, and the 500
+    // taken for the refused raise came straight back too: nothing here is
+    // this seat's any more than it started.
+    expect(balances["u1"]).toBe(10_000);
+  });
 });

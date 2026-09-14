@@ -250,6 +250,10 @@ export function blackjackAdapter(
             }
             if (owed > 0 && !table.escrow.hold(seat.userId, owed)) {
               await deps.give(seat.userId, owed);
+              // Back to what was on the felt before, the same as a refused
+              // take: a hold refused after the chips already moved is still a
+              // bet that never happened.
+              table.bet(seatId, already);
               throw new TableError("This table is closing.");
             }
             if (owed < 0) {
@@ -268,6 +272,16 @@ export function blackjackAdapter(
                * twice for one stake.
                */
               await bank?.add(-back);
+              /*
+               * The felt already shows the lowered amount from the optimistic
+               * update above, but a void that closed the escrow first has
+               * already refunded the whole stake this hand once — there is no
+               * lowered bet left to show, only the one this table already
+               * paid back.
+               */
+              if (back < -owed && table.escrow.closed) {
+                table.bet(seatId, already);
+              }
             } else if (owed > 0) {
               /*
                * Into the bank as it leaves the account. The stake is in there
@@ -358,8 +372,12 @@ export function blackjackAdapter(
             try {
               table.double(seatId);
             } catch (error) {
-              table.escrow.release(seat.userId, extra);
-              await deps.give(seat.userId, extra);
+              // What escrow actually gives back, not the nominal stake — the
+              // same reason a lowered bet does it this way.
+              const back = table.escrow.release(seat.userId, extra);
+              if (back > 0) {
+                await deps.give(seat.userId, back);
+              }
               throw error;
             }
             // In before the card is turned, like every other stake here.
@@ -394,8 +412,12 @@ export function blackjackAdapter(
             try {
               table.split(seatId);
             } catch (error) {
-              table.escrow.release(seat.userId, stake);
-              await deps.give(seat.userId, stake);
+              // What escrow actually gives back, not the nominal stake — the
+              // same reason a lowered bet does it this way.
+              const back = table.escrow.release(seat.userId, stake);
+              if (back > 0) {
+                await deps.give(seat.userId, back);
+              }
               throw error;
             }
             await bank?.add(stake);
