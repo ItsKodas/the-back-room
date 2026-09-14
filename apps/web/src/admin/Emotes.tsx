@@ -249,6 +249,11 @@ function EmoteCard({ emote, onChanged }: { emote: Emote; onChanged: () => void }
   }, [arming]);
 
   const post = (path: string) => {
+    // Cleared at the start of every attempt, not just a successful one — the
+    // card keeps its instance across a reload (same `key`), so a stale
+    // refusal from an earlier press would otherwise sit there forever, long
+    // after the thing it complained about no longer applies.
+    setSaid(null);
     void adminPost(path, {}).then((answer) => {
       if (answer.ok) {
         onChanged();

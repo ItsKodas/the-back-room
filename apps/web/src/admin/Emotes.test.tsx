@@ -104,3 +104,31 @@ describe("a refused delete", () => {
     expect(screen.getByRole("article", { name: "Smug" })).toBeTruthy();
   });
 });
+
+describe("a stale refusal", () => {
+  it("clears once a later press on the same card succeeds", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === "POST" && url.endsWith("/delete")) {
+          return { ok: false, status: 404, json: async () => ({ error: "Already gone." }) };
+        }
+        if (init?.method === "POST") {
+          return { ok: true, status: 200, json: async () => ({ ok: true }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ emotes: [EMOTE] }) };
+      }),
+    );
+
+    render(<Emotes />);
+    const card = await waitFor(() => screen.getByRole("article", { name: "Smug" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Delete for good?" }));
+    await waitFor(() => expect(within(card).getByText("Already gone.")).toBeTruthy());
+
+    // The same card, same instance (same `key`) — a later, successful press
+    // must not leave the earlier refusal sitting there forever.
+    fireEvent.click(within(card).getByRole("button", { name: "Retire" }));
+    await waitFor(() => expect(within(card).queryByText("Already gone.")).toBeNull());
+  });
+});
