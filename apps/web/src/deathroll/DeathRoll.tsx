@@ -193,9 +193,9 @@ export function Felt({
             type="button"
             className="btn dr__roll"
             disabled={table.busy}
-            onClick={() => table.act({ type: "ready", ready: !mine.ready })}
+            onClick={() => intent.ready(!(intent.readying ?? mine.ready))}
           >
-            {mine.ready ? "Not ready" : "I'm ready"}
+            {(intent.readying ?? mine.ready) ? "Not ready" : "I'm ready"}
           </button>
         </div>
       ) : null}

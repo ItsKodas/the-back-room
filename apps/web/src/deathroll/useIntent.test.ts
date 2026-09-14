@@ -63,6 +63,28 @@ function playing(overrides: Partial<TableView> = {}): TableView {
   };
 }
 
+/** This seat, not yet ready for the next game. Named so a test can build on it without a non-null assertion. */
+const notReady = {
+  id: "ada",
+  name: "Ada",
+  connected: true,
+  waiting: false,
+  isBot: false,
+  avatar: null,
+  accentColor: null,
+  passed: false,
+  purse: null,
+  ready: false,
+  inGame: true,
+  out: false,
+  short: false,
+};
+
+/** A table between games, holding whatever this test needs it to hold. */
+function waiting(overrides: Partial<TableView> = {}): TableView {
+  return { ...playing({ phase: "waiting", toRoll: null, you: notReady }), ...overrides };
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -197,5 +219,60 @@ describe("pressing pass", () => {
 
     rerender({ error: "Already passed." });
     expect(result.current.pending).toBe(0);
+  });
+});
+
+describe("pressing ready", () => {
+  it("shows ready on the press, before the table has answered", () => {
+    const act_ = vi.fn();
+    const { result } = renderHook(() => useIntent(waiting(), "ada", act_, null));
+
+    act(() => result.current.ready(true));
+
+    expect(result.current.readying).toBe(true);
+    expect(act_).toHaveBeenCalledWith({ type: "ready", ready: true });
+  });
+
+  it("gives way to the table once it agrees", () => {
+    const act_ = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ state }: { state: TableView }) => useIntent(state, "ada", act_, null),
+      { initialProps: { state: waiting() } },
+    );
+    act(() => result.current.ready(true));
+
+    rerender({ state: waiting({ you: { ...notReady, ready: true } }) });
+
+    expect(result.current.readying).toBeNull();
+  });
+
+  it("is given up the moment the table refuses it", () => {
+    const act_ = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ error }: { error: string | null }) => useIntent(waiting(), "ada", act_, error),
+      { initialProps: { error: null as string | null } },
+    );
+    act(() => result.current.ready(true));
+
+    rerender({ error: "You can get ready once this game is over." });
+
+    expect(result.current.readying).toBeNull();
+  });
+
+  it("is given up if no answer ever comes", () => {
+    vi.useFakeTimers();
+    try {
+      const act_ = vi.fn();
+      const { result } = renderHook(() => useIntent(waiting(), "ada", act_, null));
+      act(() => result.current.ready(true));
+
+      act(() => {
+        vi.advanceTimersByTime(PATIENCE_MS + 1);
+      });
+
+      expect(result.current.readying).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
