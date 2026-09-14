@@ -16,7 +16,10 @@ export function Codes() {
   const [codes, setCodes] = useState<Code[] | null>(null);
 
   const load = useCallback(() => {
-    void adminGet<{ codes: Code[] }>("/api/admin/codes").then((body) => setCodes(body?.codes ?? []));
+    // Left as null on a refusal or no connection, same as `codes` starts —
+    // so a failed read still reads "Could not read it." rather than settling
+    // on an empty list and telling an admin there is nothing here to see.
+    void adminGet<{ codes: Code[] }>("/api/admin/codes").then((body) => setCodes(body?.codes ?? null));
   }, []);
 
   useEffect(load, [load]);
@@ -26,7 +29,9 @@ export function Codes() {
       <Mint onMinted={load} />
       <section className="panel">
         <p className="panel__label">Codes</p>
-        {codes === null || codes.length === 0 ? (
+        {codes === null ? (
+          <p className="panel__note">Could not read it.</p>
+        ) : codes.length === 0 ? (
           <p className="panel__note">None minted yet.</p>
         ) : (
           <div className="scroller">

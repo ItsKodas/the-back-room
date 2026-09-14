@@ -14,7 +14,9 @@
   gap: var(--gr-space-1);
   overflow-x: auto;
   border-bottom: var(--gr-edge-hair);
-  /* The bar scrolls inside itself on a narrow phone; the page never does. */
+  /* Below 480px the five tabs share the row instead (see the media query
+     below), so this scrollbar never actually shows; it stays hidden here as
+     a fallback rather than a promise that scrolling is how a tab is found. */
   scrollbar-width: none;
 }
 
@@ -119,6 +121,32 @@
   .desk__row > * {
     flex: 1 1 100%;
   }
+
+  /*
+   * All five tabs have to be reachable without a swipe: `flex: none` above
+   * sizes every tab to its label, and five labels are wider than a phone.
+   * Letting them shrink together, with the padding trimmed too, keeps every
+   * one on screen rather than pushing the last tab off the edge unannounced.
+   */
+  .desk__tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 var(--gr-space-1);
+  }
+}
+
+/* --------------------------------------------------------- codes and emotes */
+
+/*
+ * Scoped to the desk rather than `.history` itself: elsewhere (a player's own
+ * history, a transfer) the table is the only thing on the page and wrapping
+ * its cells is fine. Here a code, a chip figure and a used-count are each one
+ * fact, and breaking one across lines reads as three — `.scroller` already
+ * scrolls sideways for exactly this, so the fix is to let it.
+ */
+.desk .history td,
+.desk .history th {
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
