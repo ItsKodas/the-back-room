@@ -37,7 +37,18 @@ export function useTossSound(
     if (!flying) {
       return;
     }
-    end.current = tossCoins({ flightMs, wobbleMs: WOBBLE_MS, height, ...held.current });
+    /*
+     * A toss without its sound is still a toss; a toss that throws is a table
+     * that vanishes. This effect runs inside React's commit, the app has no
+     * error boundary, and the audio engine refuses things it disagrees with
+     * by throwing — so a single refused event would otherwise unmount the
+     * whole page mid-flight. Whatever goes wrong in here stays in here.
+     */
+    try {
+      end.current = tossCoins({ flightMs, wobbleMs: WOBBLE_MS, height, ...held.current });
+    } catch {
+      end.current = null;
+    }
     return () => {
       end.current?.();
       end.current = null;
