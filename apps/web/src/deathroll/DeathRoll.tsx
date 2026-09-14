@@ -430,19 +430,24 @@ function Bots({ table, state }: { table: Table; state: TableView }) {
 }
 
 /**
- * Every seat at the table, in turn order.
+ * Every seat at the table, in turn order, then anybody who sat down mid-game.
  *
  * Turn order rather than seating order, because with a pass that cannot be
  * handed back, where a pass would land is the thing a player has to read off
  * this list — and between games `order` is everybody seated, so the list
- * still means something before a game has dealt anybody in. Padded to the
+ * still means something before a game has dealt anybody in. A seat taken
+ * while a game runs is in `seats` but not yet in `order`; it is drawn after
+ * the dealt-in players rather than dropped, and rather than left to be drawn
+ * over by an "Open seat" slot it is actually sitting in. Padded to the
  * table's full size with dashed open seats, since a table of six does not
  * draw the same as a table of two.
  */
 function Seats({ state, seatId }: { state: TableView; seatId: string | null }) {
-  const seated = state.order
+  const dealt = state.order
     .map((id) => state.seats.find((seat) => seat.id === id))
     .filter((seat): seat is SeatView => seat !== undefined);
+  const joined = state.seats.filter((seat) => !state.order.includes(seat.id));
+  const seated = [...dealt, ...joined];
   const slots: (SeatView | null)[] = [...seated];
   while (slots.length < state.maxSeats) {
     slots.push(null);
@@ -506,6 +511,11 @@ function SeatRow({
       ) : null}
       {state.phase === "playing" && seat.inGame && !seat.out ? (
         <span className="dr__seat-pass">{seat.passed ? "passed" : "pass"}</span>
+      ) : null}
+      {/* A seat taken mid-game: sitting there, but not dealt into this
+          round, so it must not read as a player still in the hand. */}
+      {state.phase === "playing" && seat.waiting ? (
+        <span className="dr__seat-waiting">sitting out this game</span>
       ) : null}
       {seat.out ? <span className="dr__seat-out">out</span> : null}
       {isTurn ? (

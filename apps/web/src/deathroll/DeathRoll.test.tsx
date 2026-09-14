@@ -346,4 +346,63 @@ describe("the table of up to six", () => {
 
     expect(create).toHaveBeenCalledWith("Ada", expect.objectContaining({ maxSeats: 4 }));
   });
+
+  it("lists a player who sat down mid-game, marked as sitting out rather than as an open seat", () => {
+    const state = view({
+      maxSeats: 4,
+      order: ["ada", "bob"],
+      alive: ["ada", "bob"],
+      seats: [
+        seat({ id: "ada", name: "Ada", inGame: true }),
+        seat({ id: "bob", name: "Bob", inGame: true }),
+        seat({ id: "cat", name: "Cat", inGame: false, waiting: true }),
+      ],
+      toRoll: "ada",
+      you: seat({ id: "ada", name: "Ada", inGame: true }),
+    });
+    const { container } = render(<Felt table={stub().table} state={state} seatId="ada" />);
+
+    const names = [...container.querySelectorAll(".dr__seat-name")].map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(names).toContain("Cat");
+    expect(screen.getByText(/sitting out this game/)).toBeTruthy();
+    // 4 seats − 3 actually seated (Ada, Bob, Cat) = one open seat, not three.
+    expect(screen.getAllByText(/^Open seat$/i)).toHaveLength(1);
+  });
+
+  it("never draws a seat somebody is sitting in as an open one", () => {
+    const state = view({
+      maxSeats: 3,
+      order: ["ada", "bob"],
+      alive: ["ada", "bob"],
+      seats: [
+        seat({ id: "ada", name: "Ada", inGame: true }),
+        seat({ id: "bob", name: "Bob", inGame: true }),
+        seat({ id: "cat", name: "Cat", inGame: false, waiting: true }),
+      ],
+      toRoll: "ada",
+      you: seat({ id: "ada", name: "Ada", inGame: true }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="ada" />);
+
+    expect(screen.queryByText(/^Open seat$/i)).toBeNull();
+  });
+
+  it("still pads to the table size between games", () => {
+    const state = view({
+      phase: "waiting",
+      waitingFor: null,
+      toRoll: null,
+      pot: 0,
+      maxSeats: 6,
+      order: ["ada", "bob"],
+      alive: [],
+      seats: [seat({ id: "ada", name: "Ada" }), seat({ id: "bob", name: "Bob" })],
+      you: seat({ id: "ada", name: "Ada" }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="ada" />);
+
+    expect(screen.getAllByText(/^Open seat$/i)).toHaveLength(4);
+  });
 });

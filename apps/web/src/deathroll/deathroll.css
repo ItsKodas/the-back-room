@@ -125,7 +125,8 @@
 
 .dr__seat-ready,
 .dr__seat-pass,
-.dr__seat-out {
+.dr__seat-out,
+.dr__seat-waiting {
   flex: none;
   font-size: var(--gr-text-xs);
   color: var(--gr-color-ink-faint);
