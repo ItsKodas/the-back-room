@@ -87,9 +87,20 @@ export function needed(bets: readonly Bet[]): number {
  * payout does not.
  *
  * Floored, because half a chip of headroom is no headroom.
+ *
+ * The bank goes into that inequality as it is, never clamped up to nought
+ * first. A clamp reads like tidying and is the opposite: it hands the
+ * arithmetic a richer bank than exists while the chips already on the cloth
+ * go on counting in full, and so offers a chip the table cannot pay. One
+ * straight-up on every pocket is a legal cloth at a bank of -1, and a clamped
+ * bank would then put a chip on red that owes 38 against 37. Only the result
+ * is floored, which makes an overdrawn bank offer nothing, the honest answer.
+ *
+ * And the bank can be below nought. Every roulette table shares one, and a
+ * cap measured at one table counts the chips another has put down, so that
+ * table's payout can take the bank beneath this cloth's own stakes.
  */
 export function headroom(bank: number, bets: readonly Bet[], spot: Spot): number {
-  const room = Math.max(0, bank);
   const already = staked(bets);
   let worst = Number.POSITIVE_INFINITY;
   for (const pocket of spot.covers) {
@@ -97,7 +108,7 @@ export function headroom(bank: number, bets: readonly Bet[], spot: Spot): number
     for (const one of bets) {
       if (one.spot.covers.includes(pocket)) here += back(one);
     }
-    const left = room + already - here;
+    const left = bank + already - here;
     if (left < worst) worst = left;
   }
   return Math.max(0, Math.floor(worst / pays(spot)));

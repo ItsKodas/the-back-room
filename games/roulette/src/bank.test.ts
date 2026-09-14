@@ -88,6 +88,42 @@ describe("what the table can cover", () => {
     expect(headroom(-500, [], at("straight:17"))).toBe(0);
   });
 
+  it("offers nothing on an overdrawn bank, even where the cloth has room of its own", () => {
+    /*
+     * The case the empty-cloth tests above cannot see. A straight-up on every
+     * pocket pays 36 wherever the ball lands against 37 staked, so the cloth
+     * over-covers itself by a chip and the position is legal even at a bank
+     * of -1. Red is not covered by that spare chip, though: the true room is
+     * -1 + 37 - 36, which is nothing. A bank clamped up to nought before the
+     * arithmetic finds a chip that is not there, and a red pocket then owes 38
+     * against 37.
+     */
+    const everyPocket = WHEEL.map((pocket) => bet(`straight:${pocket}`, 1));
+    expect(owed(everyPocket)).toBeLessThanOrEqual(-1 + staked(everyPocket));
+    expect(headroom(-1, everyPocket, at("even:1-3-5-7-9-12-14-16-18-19-21-23-25-27-30-32-34-36"))).toBe(0);
+  });
+
+  it("never offers a chip an overdrawn bank cannot cover, across a cloth already down", () => {
+    /*
+     * The same guarantee as the property below, but with chips already on the
+     * cloth and banks below nought, which is the only place a clamped bank can
+     * go wrong. Thirty-five on every pocket pays 1,260 against 1,295 staked, so
+     * every bank down to -35 is a legal position to ask from. A negative bank
+     * is not hypothetical: every roulette table shares one, and another table's
+     * payout can take it below the chips this table has put in.
+     */
+    const cloth = WHEEL.map((pocket) => bet(`straight:${pocket}`, 35));
+    for (const id of ["straight:17", "split:17-20", "corner:1-2-4-5", "even:1-3-5-7-9-12-14-16-18-19-21-23-25-27-30-32-34-36"]) {
+      const spot = at(id);
+      for (const bank of [-35, -20, -1, 0]) {
+        expect(owed(cloth)).toBeLessThanOrEqual(bank + staked(cloth));
+        const most = headroom(bank, cloth, spot);
+        const withIt = [...cloth, { spot, chips: most }];
+        expect(owed(withIt)).toBeLessThanOrEqual(bank + staked(withIt));
+      }
+    }
+  });
+
   it("never offers a chip the bank cannot actually cover", () => {
     /*
      * Property, across every kind of spot and a range of banks: take the
