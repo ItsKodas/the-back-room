@@ -4,16 +4,16 @@ import type { GameListing } from "@backroom/core";
 export const DEATH_ROLL: GameListing = {
   id: "death-roll",
   name: "Death Rolling",
-  blurb: "Halve the number or pay. Last one to roll a one loses.",
+  blurb: "Halve the number or pay. Roll a one and you're out.",
   shape: "table",
   /*
-   * Two, and it cannot be fewer or more. A death roll is a duel — the whole
-   * game is the number coming down between two people — so this is the game in
-   * the building that refuses a lone player rather than building a bank for
-   * them.
+   * Two to six. Two is the duel death roll always was, and it is still the
+   * last round of every bigger game; six is what a phone's seat grid holds
+   * without scrolling. Never one: a chips game does not run for one player,
+   * and this one has no bank to play against.
    */
   minSeats: 2,
-  maxSeats: 2,
+  maxSeats: 6,
   mark: { text: "DEATH ROLL", accentAt: 0 },
   /*
    * The same values theme.css sets, repeated because the link cards are drawn
@@ -24,7 +24,7 @@ export const DEATH_ROLL: GameListing = {
 };
 
 /**
- * What a duel may be played for.
+ * What a game may be played for.
  *
  * A list rather than a range, for the reason poker's is: a room where every
  * table is a different odd size is a room nobody can read at a glance. Every
@@ -33,15 +33,14 @@ export const DEATH_ROLL: GameListing = {
  */
 export const STAKES = [100, 500, 1_000, 5_000] as const;
 
-/** What a duel costs unless the host says otherwise. */
+/** What a game costs unless the host says otherwise. */
 export const ANTE = 500;
 
 /**
- * Where a duel starts.
+ * Where a game's first round starts.
  *
  * A thousand is the number everybody who has played this before expects, and
- * the other two are an evening's difference either side of it: a hundred is
- * over in four or five rolls, ten thousand takes a while to get interesting.
+ * the other two are an evening's difference either side of it.
  */
 export const CEILINGS = [100, 1_000, 10_000] as const;
 
@@ -49,12 +48,19 @@ export const CEILINGS = [100, 1_000, 10_000] as const;
 export const OPENING = 1_000;
 
 /**
+ * Where every round after the first starts, whatever the table opened at.
+ *
+ * What keeps a full table near thirty rolls rather than forty: a round from a
+ * thousand averages eight and a half rolls, and one from a hundred six.
+ */
+export const RESET_CEILING = 100;
+
+/**
  * What a pass costs, as a fraction of the ante.
  *
- * A tenth, which puts the break-even at ceiling eight — roughly the last two
- * or three rolls of a duel. Dearer and the button is worth pressing on at most
- * one turn, which is a decision in name only; cheaper and it is simply always
- * right to spend it. See odds.ts for the arithmetic this came out of.
+ * A tenth. With a pass that cannot be handed back, that puts the first pass at
+ * ceiling 3 in a duel and 8 at six players, and nobody ever passes above 8 —
+ * see odds.ts, which solves it.
  */
 export const PASS_DIVISOR = 10;
 
@@ -64,22 +70,20 @@ export const FUN_PURSE = 10_000;
 /** How long somebody has to act before the table rolls for them. */
 export const TURN_MS = 30_000;
 
-/** How long a finished duel stays up to be read. */
+/** How long a finished game stays up to be read. */
 export const RESULT_MS = 5_000;
 
-/** How long a funded table waits before starting the next duel. */
-export const DEAL_MS = 2_000;
+/** How long the felt shows who just went out before the next round starts. */
+export const ROUND_MS = 3_000;
 
 /**
- * How long the table leaves it before trying a refused ante again.
+ * How long a table waits, once two are ready, for the rest to say they are in.
  *
- * Longer than DEAL_MS, and deliberately so. A table whose player cannot cover
- * the ante would otherwise retry every two seconds for as long as they sat
- * there — asking the economy for chips that are not coming and sending a state
- * to everybody each time. Ten seconds is slow enough to be no burden and quick
- * enough that somebody who has just topped up is not left staring at the felt.
+ * The thing that stops a ready button being a way to hold a table shut: when
+ * it runs out, whoever is ready is dealt, and whoever is not sits that game
+ * out.
  */
-export const SHORT_RETRY_MS = 10_000;
+export const COUNTDOWN_MS = 20_000;
 
 /** What a pass costs at this stake. Never nothing, whatever the arithmetic. */
 export function passPrice(ante: number): number {
@@ -118,7 +122,7 @@ export function anteFor(asked: unknown): number {
   return snap(asked, STAKES, ANTE);
 }
 
-/** Where the table's duels start, snapped for the same reason. */
+/** Where the table's first rounds start, snapped for the same reason. */
 export function openingFor(asked: unknown): number {
   return snap(asked, CEILINGS, OPENING);
 }
