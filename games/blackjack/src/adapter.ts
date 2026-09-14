@@ -78,12 +78,25 @@ export function blackjackAdapter(
    */
   const unpaid = new WeakMap<Table, { round: object; back: number }>();
 
+  /**
+   * What a void still has to hand back, between closing the escrow and its
+   * turn actually coming up in `serially`.
+   *
+   * Counted apart from the table for the same reason `unpaid` is: the escrow
+   * closes synchronously, well before the refunds it already counted as owed
+   * have left the bank, and the table itself has nothing left to say so.
+   */
+  const pendingVoid = new WeakMap<Table, number>();
+
   /** The most this table could still take out of the bank. */
   const owing = (table: Table): number => {
-    // A called-off table owes nothing, and an act queued behind the void
-    // would otherwise put its reservation back on the way out of `serially`.
+    // A called-off table owes only what its own void has not yet paid back
+    // out of the bank — not a flat zero, or an act queued behind the void in
+    // `serially` would read those chips as headroom before they have
+    // actually left the bank, and put its own reservation back on the way
+    // out.
     if (table.escrow.closed) {
-      return 0;
+      return pendingVoid.get(table) ?? 0;
     }
     const waiting = unpaid.get(table);
     let total = waiting?.back ?? 0;
@@ -121,16 +134,24 @@ export function blackjackAdapter(
     table: Table,
     owed: readonly { userId: string; chips: number }[],
     deps: GameDeps,
+    // Run once this work is done, still inside `serially` — so a caller with
+    // its own book-keeping to clear can do it before anything queued behind
+    // this turn gets a chance to read it.
+    after?: () => void,
   ) =>
     serially(table, async () => {
-      for (const one of owed) {
-        if (bank !== null && banked(table) && !(await bank.take(one.chips))) {
-          console.error(
-            `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
-          );
-          continue;
+      try {
+        for (const one of owed) {
+          if (bank !== null && banked(table) && !(await bank.take(one.chips))) {
+            console.error(
+              `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
+            );
+            continue;
+          }
+          await deps.give(one.userId, one.chips);
         }
-        await deps.give(one.userId, one.chips);
+      } finally {
+        after?.();
       }
     });
 
@@ -469,7 +490,14 @@ export function blackjackAdapter(
      */
     async void(table, deps) {
       const owed = table.escrow.close();
-      await handBack(table, owed, deps);
+      // Set before this joins `serially`: the escrow is already closed, and
+      // `owing` has to answer with what these refunds still are, not zero,
+      // for as long as they are still sitting in the bank.
+      pendingVoid.set(
+        table,
+        owed.reduce((total, one) => total + one.chips, 0),
+      );
+      await handBack(table, owed, deps, () => pendingVoid.delete(table));
       ledger?.release(table);
       return owed;
     },

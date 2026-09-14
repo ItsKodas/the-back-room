@@ -736,4 +736,46 @@ describe("a blackjack table called off", () => {
     // this seat's any more than it started.
     expect(balances["u1"]).toBe(10_000);
   });
+
+  it("keeps a called-off table's refunds in the book until they have left the bank", async () => {
+    /*
+     * The void closes the escrow at once, but the chips only leave the bank on
+     * its turn in the queue. Reading the table as owing nothing in between
+     * would let another table promise chips that are about to be paid out.
+     */
+    const { bank, read } = vaultOf(100_000);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gated = {
+      ...bank,
+      take: async (amount: number) => {
+        await gate;
+        return bank.take(amount);
+      },
+    };
+    const game = blackjackAdapter({ bank: gated });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    const { deps, balances } = ledger({ u1: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    const voiding = game.void?.(table, deps);
+    // Not awaited: the take a void's payout makes is stuck on the gate above
+    // by the time this settles, the same reasoning the test just above this
+    // one spells out.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBeGreaterThanOrEqual(500);
+
+    release();
+    await voiding;
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBe(0);
+    expect(balances["u1"]).toBe(10_000);
+    expect(read()).toBe(100_000);
+  });
 });
