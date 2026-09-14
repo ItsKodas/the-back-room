@@ -1108,6 +1108,14 @@ export class MongoStore implements Store {
     for (const claim of claims) {
       perCode.set(claim.code, (perCode.get(claim.code) ?? 0) + 1);
     }
+    /*
+     * The records go before the counts come down. A crash between the two
+     * then leaves a code counting uses nobody holds any more — it runs out a
+     * little early, which fails safe. The other way round left a code under
+     * its true count with the redemptions still in place, and a capped code
+     * under-counted is one that hands out more chips than it was minted for.
+     */
+    await this.redemptions.deleteMany({ userId: { $in: ids } });
     await Promise.all(
       [...perCode].map(([code, count]) =>
         this.codes.updateOne(
@@ -1119,7 +1127,6 @@ export class MongoStore implements Store {
         ),
       ),
     );
-    await this.redemptions.deleteMany({ userId: { $in: ids } });
 
     await this.games.updateMany(
       { "players.userId": { $in: ids } },
