@@ -319,6 +319,33 @@ describe("through the real server", () => {
     expect((await post(`${base}/api/admin/emotes/x/delete`, {})).status).toBe(404);
   });
 
+  it("hides every desk route from a guest, too", async () => {
+    process.env["ADMIN_DISCORD_IDS"] = "d-admin";
+    const store = new MemoryStore();
+    const base = await start(store, null);
+    expect((await fetch(`${base}/api/admin/users`)).status).toBe(404);
+    expect((await fetch(`${base}/api/admin/log`)).status).toBe(404);
+    expect((await post(`${base}/api/admin/chips`, { op: "add", amount: 1, target: { all: true } })).status).toBe(404);
+    expect((await post(`${base}/api/admin/reset`, { target: { all: true }, parts: ["balance"] })).status).toBe(404);
+    expect((await post(`${base}/api/admin/emotes/x/delete`, {})).status).toBe(404);
+  });
+
+  it("stops serving a deleted emote's picture", async () => {
+    const store = new MemoryStore();
+    const boss = await player(store, "d-admin", "Koda");
+    process.env["ADMIN_DISCORD_IDS"] = "d-admin";
+    const base = await start(store, boss.id);
+    const image = new Uint8Array(64);
+    image.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+    const made = await store.addEmote({ name: "Smug", cost: 250, image, sound: null, createdBy: "a" });
+    // Served first, so the 404 below is the delete's doing and not a route
+    // that never answered.
+    expect((await fetch(`${base}/api/emotes/${made.id}/image`)).status).toBe(200);
+
+    expect((await post(`${base}/api/admin/emotes/${made.id}/delete`, {})).status).toBe(200);
+    expect((await fetch(`${base}/api/emotes/${made.id}/image`)).status).toBe(404);
+  });
+
   it("takes a list of 500 ids, which is more than the building's small parser allows", async () => {
     const store = new MemoryStore();
     const boss = await player(store, "d-admin", "Koda");
