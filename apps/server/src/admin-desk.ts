@@ -1,4 +1,3 @@
-import { BANKS } from "@backroom/economy";
 import type { AdminLogEntry, AdminTarget, Store } from "@backroom/economy";
 import { adminChipsSchema, adminResetSchema } from "@backroom/shared/schemas";
 import type { Express, Request, RequestHandler } from "express";
@@ -57,6 +56,18 @@ export interface AdminDeskRoutes {
   tellChipsTo: (target: AdminTarget) => Promise<void>;
   /** The live tables, read at the moment a reset is asked for. */
   tables: () => Iterable<SeatedTable>;
+  /**
+   * Empties every game's bank and returns the total.
+   *
+   * Kept out of this module rather than done here with `store.bankEmpty` in
+   * a loop: each bank has its own serialization guard against a stake or a
+   * payout already in flight — a `BankLedger`, for the games that have one —
+   * and that guard is server state this module never sees. Emptying through
+   * the store directly would let a reset land between a stake landing and
+   * its payout, the same race the guard exists to shut out between two
+   * tables.
+   */
+  emptyBanks: () => Promise<number>;
   /** Drops an emote from whatever the server remembers of it. */
   forgetEmote: (id: string) => void;
 }
@@ -66,7 +77,7 @@ function logTarget(target: AdminTarget): "all" | string[] {
 }
 
 export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
-  const { store, requireAdmin, whoIs, tellChipsTo, tables, forgetEmote } = deps;
+  const { store, requireAdmin, whoIs, tellChipsTo, tables, emptyBanks, forgetEmote } = deps;
 
   async function log(request: Request, entry: Omit<AdminLogEntry, "id" | "at" | "by" | "byName">) {
     const who = await whoIs(request);
@@ -113,7 +124,7 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         response.status(400).json({ error: "That is not something the desk can do." });
         return;
       }
-      const { target, parts, emptyBanks, note } = parsed.data;
+      const { target, parts, emptyBanks: wantEmptyBanks, note } = parsed.data;
       const held = tablesHolding(tables(), target);
       if (held > 0) {
         response.status(409).json({
@@ -133,11 +144,8 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         note: (note ?? "").trim(),
       });
       let emptied: number | undefined;
-      if (emptyBanks === true) {
-        emptied = 0;
-        for (const bank of BANKS) {
-          emptied += await store.bankEmpty(bank);
-        }
+      if (wantEmptyBanks === true) {
+        emptied = await emptyBanks();
         await log(request, {
           kind: "empty-banks",
           amount: emptied,

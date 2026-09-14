@@ -1,13 +1,67 @@
 import type { AddressInfo } from "node:net";
-import type { AdminTarget } from "@backroom/economy";
-import { MemoryStore, STARTING_CHIPS } from "@backroom/economy";
+import type { AdminTarget, BankName } from "@backroom/economy";
+import { BANKS, MemoryStore, STARTING_CHIPS } from "@backroom/economy";
+import type { ClientToServer, ServerToClient } from "@backroom/shared";
 import express from "express";
 import type { Server } from "node:http";
+import type { Socket } from "socket.io-client";
+import { io as connectSocket } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SeatedTable } from "./admin-desk.js";
 import { mountAdminDesk, tablesHolding } from "./admin-desk.js";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+
+/**
+ * A store that can hold a slot pull open mid-round, so a test can prove a
+ * concurrent admin reset queues behind it rather than landing inside it.
+ *
+ * Gates `bank("slots")` specifically, and only its first call after `hold()`
+ * arms it: the spin handler reads the cap with it at the very start of its
+ * round and reads it again for the ack it sends back at the very end, and
+ * only the first of those is the moment worth holding open — gating the
+ * second would just hang every spin forever.
+ */
+class GatedStore extends MemoryStore {
+  readonly log: string[] = [];
+  private armed = false;
+  private release: (() => void) | null = null;
+  private gate: Promise<void> | null = null;
+  private waitingResolve: (() => void) | null = null;
+  /** Resolves once a spin has actually reached the gate and is paused there. */
+  readonly waiting: Promise<void> = new Promise((resolve) => {
+    this.waitingResolve = resolve;
+  });
+
+  hold(): void {
+    this.armed = true;
+    this.gate = new Promise((resolve) => {
+      this.release = resolve;
+    });
+  }
+
+  open(): void {
+    this.release?.();
+  }
+
+  override async bank(which: BankName): Promise<number> {
+    if (which === "slots" && this.armed) {
+      this.armed = false;
+      this.log.push("spin:holding");
+      this.waitingResolve?.();
+      await this.gate;
+      this.log.push("spin:resumed");
+    }
+    return super.bank(which);
+  }
+
+  override async bankEmpty(which: BankName): Promise<number> {
+    if (which === "slots") {
+      this.log.push("empty:slots");
+    }
+    return super.bankEmpty(which);
+  }
+}
 
 /*
  * The desk's routes on a bare app, so a test can say who is seated and who
@@ -44,6 +98,17 @@ async function desk(options: { tables?: SeatedTable[] } = {}) {
       told.push(target);
     },
     tables: () => options.tables ?? [],
+    // A stand-in for the real server's guarded version, which queues through
+    // each game's own `BankLedger` — this module never sees that guard, and
+    // the route test above is only proving the response and the log, not
+    // the ordering. The ordering is proved through the real server, below.
+    emptyBanks: async () => {
+      let total = 0;
+      for (const bank of BANKS) {
+        total += await store.bankEmpty(bank);
+      }
+      return total;
+    },
     forgetEmote: (id) => forgotten.push(id),
   });
   // Captured from `listen`'s own return, not read back off the module-level
@@ -245,5 +310,68 @@ describe("through the real server", () => {
     await post(`${base}/api/admin/bank`, { amount: 50, game: "roulette" });
     const [entry] = await store.adminLog({ limit: 1, before: null });
     expect(entry).toMatchObject({ kind: "float", amount: 50, subject: "roulette", byName: "Koda" });
+  });
+
+  /*
+   * The reset route's `emptyBanks` used to walk `store.bankEmpty` directly,
+   * which does not queue against the same `BankLedger` a slot pull's stake
+   * and payout run inside. That let an admin's empty land between a pull's
+   * cap read and its payout — a paid winning spin whose payout then found
+   * the bank it had just been promised empty, and refused. Routing through
+   * the real, server-provided `emptyBanks` (rather than the bare-app test
+   * double the other tests above use) is the whole point here: it is the
+   * dependency the fix actually lives behind.
+   */
+  it("queues an empty-banks reset behind an in-flight slot pull instead of landing inside it", async () => {
+    const store = new GatedStore();
+    const admin = await player(store, "d-admin", "Koda");
+    const gambler = await player(store, "d1", "Ada");
+    await store.bankAdd("slots", 1_000_000);
+    process.env["ADMIN_DISCORD_IDS"] = "d-admin";
+
+    server = createBackRoomServer({
+      store,
+      auth: null,
+      serveClient: false,
+      identify: () => gambler.id,
+      identifyRequest: () => admin.id,
+    });
+    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    const base = `http://localhost:${(server.http.address() as AddressInfo).port}`;
+
+    const client: Socket<ServerToClient, ClientToServer> = connectSocket(base, {
+      transports: ["websocket"],
+      forceNew: true,
+    });
+    await new Promise<void>((resolve) => client.on("connect", () => resolve()));
+
+    store.hold();
+    const spinAck = new Promise<{ ok: boolean }>((resolve) => {
+      client.emit("slots:spin", { stake: 100 }, resolve as (result: unknown) => void);
+    });
+    // Waits for the real hold point, not a timer: the spin has reached the
+    // ledger's queue and is paused inside it, exactly where a reset would
+    // otherwise be free to land.
+    await store.waiting;
+
+    const resetPromise = post(`${base}/api/admin/reset`, {
+      target: { all: true },
+      parts: ["balance"],
+      emptyBanks: true,
+    });
+    // However long this waits, the empty cannot have run yet: it is queued
+    // behind the still-open spin in the same `BankLedger`, not racing it, so
+    // this holds regardless of how generous the wait is.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(store.log).not.toContain("empty:slots");
+
+    store.open();
+    const [spinResult, resetResult] = await Promise.all([spinAck, resetPromise]);
+
+    expect(spinResult.ok).toBe(true);
+    expect(resetResult.status).toBe(200);
+    expect(store.log).toEqual(["spin:holding", "spin:resumed", "empty:slots"]);
+
+    client.close();
   });
 });

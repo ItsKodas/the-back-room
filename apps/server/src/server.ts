@@ -5,7 +5,7 @@ import { createServer as createHttpServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
-import { BankLedger, Catalogue, COMING, Taunts } from "@backroom/core";
+import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core";
 import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
@@ -863,6 +863,29 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     finished: (record) => store.recordGame(record),
   };
 
+  /*
+   * One bank object per game, named rather than built inline where each
+   * adapter is constructed — an admin's empty-banks reset has to queue
+   * through the exact same `BankLedger` a table's own stakes and payouts do
+   * (see `ledgerOf`, which keys its book on this object's identity), and it
+   * can only reach that ledger by being handed this same reference.
+   */
+  const blackjackBank = {
+    holds: () => store.bank("blackjack"),
+    add: (amount: number) => store.bankAdd("blackjack", amount),
+    take: (amount: number) => store.bankTake("blackjack", amount),
+  };
+  const rouletteBank = {
+    holds: () => store.bank("roulette"),
+    add: (amount: number) => store.bankAdd("roulette", amount),
+    take: (amount: number) => store.bankTake("roulette", amount),
+  };
+  const twoUpBank = {
+    holds: () => store.bank("two-up"),
+    add: (amount: number) => store.bankAdd("two-up", amount),
+    take: (amount: number) => store.bankTake("two-up", amount),
+  };
+
   /** Every game this server can host, by id. */
   const ADAPTERS = new Map<string, GameAdapter<PlayTable>>([
     [GREED.id, greedAdapter({ roll, pauseMs: farklePauseMs }) as GameAdapter<PlayTable>],
@@ -886,11 +909,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          * store, so a table cannot reach the machine's bank however it is
          * asked to.
          */
-        bank: {
-          holds: () => store.bank("blackjack"),
-          add: (amount: number) => store.bankAdd("blackjack", amount),
-          take: (amount: number) => store.bankTake("blackjack", amount),
-        },
+        bank: blackjackBank,
       }) as GameAdapter<PlayTable>,
     ],
     [
@@ -916,11 +935,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          */
         pick: (pockets: number) => Math.floor(spinRandom() * pockets),
         /* Its own bank, kept apart from the machine's and the felt's. */
-        bank: {
-          holds: () => store.bank("roulette"),
-          add: (amount: number) => store.bankAdd("roulette", amount),
-          take: (amount: number) => store.bankTake("roulette", amount),
-        },
+        bank: rouletteBank,
       }) as GameAdapter<PlayTable>,
     ],
     [
@@ -952,14 +967,49 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          */
         random: spinRandom,
         /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
-        bank: {
-          holds: () => store.bank("two-up"),
-          add: (amount: number) => store.bankAdd("two-up", amount),
-          take: (amount: number) => store.bankTake("two-up", amount),
-        },
+        bank: twoUpBank,
       }) as GameAdapter<PlayTable>,
     ],
   ]);
+
+  /**
+   * Empties one game's bank inside that bank's own serialization guard,
+   * where it has one.
+   *
+   * `store.bankEmpty` alone would race a stake or a payout already under
+   * way: it could land after a spin's cap is read and its stake taken but
+   * before its winnings are paid, which is exactly the gap `BankLedger`
+   * exists to close for two tables racing each other — here it would be an
+   * admin racing a table instead, and a paid winning spin would go unpaid.
+   * Queuing this through the same `serially` a stake or payout runs inside
+   * shuts that out: the empty either runs before the round starts or after
+   * it has fully settled, never in the middle.
+   *
+   * Slots is the one game whose whole round — cap read, stake, payout —
+   * already runs wholly inside its own `slotsBank.serially`, so queuing the
+   * empty there is sufficient on its own; there is no separate window for a
+   * reset to land in that serialization does not already cover.
+   */
+  async function emptyOneBank(which: BankName): Promise<number> {
+    switch (which) {
+      case "slots":
+        return slotsBank.serially(() => store.bankEmpty("slots"));
+      case "blackjack":
+        return ledgerOf(blackjackBank).serially(() => store.bankEmpty("blackjack"));
+      case "roulette":
+        return ledgerOf(rouletteBank).serially(() => store.bankEmpty("roulette"));
+      case "two-up":
+        return ledgerOf(twoUpBank).serially(() => store.bankEmpty("two-up"));
+    }
+  }
+
+  async function emptyBanks(): Promise<number> {
+    let total = 0;
+    for (const bank of BANKS) {
+      total += await emptyOneBank(bank);
+    }
+    return total;
+  }
 
   /**
    * The seat this person already holds at this table, if they hold one.
@@ -1065,6 +1115,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     },
     tellChipsTo,
     tables: () => [...rooms.values()].map((room) => room.table),
+    emptyBanks,
     forgetEmote: (id) => emotesSeen.delete(id),
   });
 
