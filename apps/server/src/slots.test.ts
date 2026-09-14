@@ -1002,3 +1002,75 @@ describe("the free spins", () => {
     }
   });
 });
+
+describe("two players pulling at once", () => {
+  /*
+   * The cap is only a promise if nothing moves between reading the bank and
+   * paying out of it. Two players pulling together both read the bank before
+   * either stake has landed, so each is capped as though the other were not
+   * there — and a bank that can cover the worst spin once cannot cover it
+   * twice. The second winner used to be told the bank was short after the
+   * reels had already come up diamonds.
+   */
+  const DIAMONDS = 25 / 32;
+
+  /** A bank read that takes as long as one across a network does. */
+  class DistantStore extends MemoryStore {
+    override async bank(which: Parameters<MemoryStore["bank"]>[0]): Promise<number> {
+      const held = await super.bank(which);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      return held;
+    }
+  }
+
+  it("never tells a winner the bank is short", async () => {
+    const store = new DistantStore();
+    const players: string[] = [];
+    for (const discordId of ["d1", "d2"]) {
+      const player = await store.upsertDiscordUser({
+        discordId,
+        name: discordId,
+        avatar: null,
+        accentColor: null,
+      });
+      await store.adjustChips(player.id, 10_000_000);
+      players.push(player.id);
+    }
+    const bank = 500_000;
+    await store.bankAdd("slots", bank);
+
+    // Who is asking comes off the handshake, so two sockets are two people.
+    const asking = (request: unknown) =>
+      new URL((request as { url?: string }).url ?? "/", "http://here").searchParams.get("as");
+    server = createBackRoomServer({
+      store,
+      auth: null,
+      serveClient: false,
+      identify: (socket) => asking(socket.request),
+      identifyRequest: () => null,
+      spinRandom: () => DIAMONDS,
+    });
+    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    const port = (server.http.address() as AddressInfo).port;
+    const clients = await Promise.all(
+      players.map(async (as) => {
+        const socket: Client = connect(`http://localhost:${port}`, {
+          transports: ["websocket"],
+          forceNew: true,
+          query: { as },
+        });
+        open.push(socket);
+        await new Promise<void>((resolve) => socket.on("connect", () => resolve()));
+        return socket;
+      }),
+    );
+
+    const results = await Promise.all(clients.map((client) => spin(client, maxStake(bank))));
+
+    expect(results.some((result) => result.ok)).toBe(true);
+    for (const result of results) {
+      expect(result.ok ? "paid" : result.error).not.toMatch(/short/);
+    }
+    expect(await store.bank("slots")).toBeGreaterThanOrEqual(0);
+  });
+});

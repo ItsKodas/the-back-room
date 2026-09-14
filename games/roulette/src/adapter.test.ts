@@ -340,3 +340,106 @@ describe("a roulette table's money", () => {
     expect(game.pause?.(table)?.key).toBe("betting");
   });
 });
+
+/*
+ * Every roulette table in the building is paid from one bank, and each of them
+ * used to measure its cap against that bank minus only its own cloth. So a
+ * second table read the first table's chips as bank — chips the first table's
+ * winners were already owed — and promised them again. Whichever table settled
+ * second found the bank empty, and its winner was simply not paid.
+ */
+describe("a bank more than one table is paid from", () => {
+  const BLACK = "even:2-4-6-8-10-11-13-15-17-20-22-24-26-28-29-31-33-35";
+  // Where the ball goes, by position on the wheel: 32 is red and 15 is black.
+  const landsRed = () => 1;
+  const landsBlack = () => 2;
+
+  it("does not let one table promise chips another table's cloth is owed", async () => {
+    const { bank, held } = purse(1_000);
+    const first = rouletteAdapter({ bank, pick: landsRed });
+    const second = rouletteAdapter({ bank, pick: landsBlack });
+    const a = first.create("AAAAA") as Table;
+    const b = second.create("BBBBB") as Table;
+    a.join("s1", "Ada", who("u1"));
+    a.join("s2", "Bram", who("u2"));
+    b.join("s1", "Cleo", who("u3"));
+    const { deps, gave } = spy();
+
+    // A matched pair: it asks nothing of the bank, and puts 2,000 into it.
+    await first.act(a, "s1", { type: "place", spotId: RED, chips: 1_000 }, deps);
+    await first.act(a, "s2", { type: "place", spotId: BLACK, chips: 1_000 }, deps);
+    // Refusing this is the fix. Taking it and then short-paying is the bug.
+    await second.act(b, "s1", { type: "place", spotId: BLACK, chips: 3_000 }, deps).catch((error) => {
+      expect(error).toBeInstanceOf(TableError);
+    });
+
+    b.closeBetting();
+    b.land();
+    await second.settle(b, deps);
+    a.closeBetting();
+    a.land();
+    await first.settle(a, deps);
+
+    expect(gave).toHaveBeenCalledWith("u1", 2_000);
+    expect(held()).toBeGreaterThanOrEqual(0);
+  });
+
+  it.each([
+    { type: "take", spotId: RED, chips: 1_000 },
+    { type: "undo" },
+    { type: "clear" },
+  ])("will not hand a chip back ($type) when the rest of the cloth would go unpaid", async (move) => {
+    /*
+     * A chip coming off the cloth comes out of the bank, and the bets it leaves
+     * behind do not get any cheaper for it. Red went down first against the
+     * bank; black was then allowed to lean on red. Take red back and black is
+     * owed 4,000 out of a bank of 3,000.
+     */
+    const { bank } = purse(1_000);
+    const game = rouletteAdapter({ bank, pick: landsBlack });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    table.join("s2", "Bram", who("u2"));
+    const { deps, gave } = spy();
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 1_000 }, deps);
+    await game.act(table, "s2", { type: "place", spotId: BLACK, chips: 2_000 }, deps);
+    await game.act(table, "s1", move, deps).catch((error) => {
+      expect(error).toBeInstanceOf(TableError);
+    });
+
+    table.closeBetting();
+    table.land();
+    await game.settle(table, deps);
+
+    expect(gave).toHaveBeenCalledWith("u2", 4_000);
+  });
+
+  it("says so when the bank will not pay a winner", async () => {
+    /*
+     * Unreachable from inside this building now, which is exactly when a
+     * refusal has to be loud: a bank drained from somewhere nothing here
+     * accounts for — another process, a hand on the database — must leave
+     * something in the log rather than a winner quietly unpaid.
+     */
+    const complain = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { bank, held } = purse(1_000_000);
+      const game = rouletteAdapter({ bank, pick: landsRed });
+      const table = game.create("ABCDE") as Table;
+      table.join("s1", "Ada", who("u1"));
+      const { deps, gave } = spy();
+
+      await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+      await bank.take(held());
+      table.closeBetting();
+      table.land();
+      await game.settle(table, deps);
+
+      expect(gave).not.toHaveBeenCalled();
+      expect(complain).toHaveBeenCalled();
+    } finally {
+      complain.mockRestore();
+    }
+  });
+});

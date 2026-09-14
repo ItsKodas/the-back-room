@@ -5,7 +5,7 @@ import { createServer as createHttpServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
-import { Catalogue, COMING, Taunts } from "@backroom/core";
+import { BankLedger, Catalogue, COMING, Taunts } from "@backroom/core";
 import type { BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
@@ -371,6 +371,19 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * windows is only the easiest way to overlap them and not the only one.
    */
   const spinning = new Set<string>();
+
+  /**
+   * One paid pull at a time across the whole machine, whoever is pulling.
+   *
+   * `spinning` keeps one account from overlapping itself; this keeps two
+   * accounts from overlapping each other, which is a money question rather
+   * than a free-spin one. The cap is read off the bank, and two pulls that
+   * both read it before either stake has landed are each capped as though the
+   * other were not there — a bank that covers the worst spin once does not
+   * cover it twice, and the second winner was told the bank was short after
+   * the reels had already come up.
+   */
+  const slotsBank = new BankLedger();
   /** Everybody standing at the slot machine, whether or not they are spinning. */
   const SLOTS_ROOM = "slots:floor";
   /*
@@ -2385,141 +2398,143 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         }
         spinning.add(userId);
         try {
-          /*
-           * A free spin replays the bet that won it. The stake and the line
-           * count come off the server's own record of the trigger, never off
-           * this message — otherwise the play is to trigger the bonus on the
-           * smallest stake the machine takes and claim the eight on the largest.
-           */
-          const owed = freeSpins.get(userId);
-          const wasFree = owed !== undefined && owed.left > 0;
-          const stake = wasFree && owed !== undefined ? owed.stake : asked;
-          const lines = wasFree && owed !== undefined ? owed.lines : askedLines;
+          await slotsBank.serially(async () => {
+            /*
+             * A free spin replays the bet that won it. The stake and the line
+             * count come off the server's own record of the trigger, never off
+             * this message — otherwise the play is to trigger the bonus on the
+             * smallest stake the machine takes and claim the eight on the largest.
+             */
+            const owed = freeSpins.get(userId);
+            const wasFree = owed !== undefined && owed.left > 0;
+            const stake = wasFree && owed !== undefined ? owed.stake : asked;
+            const lines = wasFree && owed !== undefined ? owed.lines : askedLines;
 
-          /*
-           * Two caps, and the free one is the stricter. A paid spin's stake is
-           * in the bank by the time anything is owed; a free spin's never was,
-           * so the same worst case has to come out of a bank one stake shallower.
-           */
-          const cap = wasFree ? maxFreeStake(await store.bank("slots")) : maxStake(await store.bank("slots"));
-          if (stake > cap) {
-            if (wasFree) {
-              /*
-               * The bank has been walked down by the run itself and can no
-               * longer cover what is left. The rest are forfeit, which is the
-               * only honest answer: a free spin the bank cannot pay out on is
-               * not a free spin, it is a promise this machine does not keep.
-               */
-              freeSpins.delete(userId);
-              ack({ ok: false, error: "The bank cannot cover the rest of the free spins." });
+            /*
+             * Two caps, and the free one is the stricter. A paid spin's stake is
+             * in the bank by the time anything is owed; a free spin's never was,
+             * so the same worst case has to come out of a bank one stake shallower.
+             */
+            const cap = wasFree ? maxFreeStake(await store.bank("slots")) : maxStake(await store.bank("slots"));
+            if (stake > cap) {
+              if (wasFree) {
+                /*
+                 * The bank has been walked down by the run itself and can no
+                 * longer cover what is left. The rest are forfeit, which is the
+                 * only honest answer: a free spin the bank cannot pay out on is
+                 * not a free spin, it is a promise this machine does not keep.
+                 */
+                freeSpins.delete(userId);
+                ack({ ok: false, error: "The bank cannot cover the rest of the free spins." });
+                return;
+              }
+              ack({
+                ok: false,
+                error:
+                  cap < 1
+                    ? "The bank is empty. Nothing to play for yet."
+                    : `The bank covers ${cap} a spin at the moment.`,
+              });
               return;
             }
-            ack({
-              ok: false,
-              error:
-                cap < 1
-                  ? "The bank is empty. Nothing to play for yet."
-                  : `The bank covers ${cap} a spin at the moment.`,
-            });
-            return;
-          }
 
-          /*
-           * Nothing is taken for a free spin and nothing enters the bank — which
-           * is exactly why the free cap above is the stricter one. Every other
-           * step below is identical, deliberately: a free spin is the same spin,
-           * paid for earlier.
-           */
-          if (!wasFree) {
-            if (!(await deps.take(userId, stake))) {
-              ack({ ok: false, error: "Not enough chips." });
-              return;
-            }
-            await store.bankAdd("slots", stake);
-          }
-
-          const grid = drawGrid(spinRandom);
-          const { lines: paid, fixed, jackpot } = evaluate(grid, stake, lines);
-          const won = fixed + (jackpot ? jackpotPay(await store.bank("slots")) : 0);
-
-          /*
-           * Paid out of the bank, and only if the bank actually has it. The
-           * stake cap means this cannot refuse, which is exactly why it is
-           * checked: the alternative to checking is a bank that goes negative in
-           * silence and a machine that has quietly started minting chips.
-           */
-          if (won > 0 && !(await store.bankTake("slots", won))) {
+            /*
+             * Nothing is taken for a free spin and nothing enters the bank — which
+             * is exactly why the free cap above is the stricter one. Every other
+             * step below is identical, deliberately: a free spin is the same spin,
+             * paid for earlier.
+             */
             if (!wasFree) {
-              await store.bankAdd("slots", -stake);
-              await deps.give(userId, stake);
+              if (!(await deps.take(userId, stake))) {
+                ack({ ok: false, error: "Not enough chips." });
+                return;
+              }
+              await store.bankAdd("slots", stake);
             }
-            ack({ ok: false, error: "The bank is short. Nothing was staked." });
-            return;
-          }
-          if (won > 0) {
-            await deps.give(userId, won);
-          }
 
-          /*
-           * The bonus. Counted after the lines are paid because it changes
-           * nothing about them — three bonuses anywhere is a run of spins, not a
-           * multiplier — and awarded only on a spin somebody paid for, so a run
-           * of free spins is a run of known length rather than a series.
-           */
-          const scatters = countScatters(grid);
-          const awarded = wasFree ? 0 : freeSpinsFor(scatters);
-          const left = (wasFree && owed !== undefined ? owed.left - 1 : 0) + awarded;
-          if (left > 0) {
-            freeSpins.set(userId, { left, stake, lines });
-          } else {
-            freeSpins.delete(userId);
-          }
+            const grid = drawGrid(spinRandom);
+            const { lines: paid, fixed, jackpot } = evaluate(grid, stake, lines);
+            const won = fixed + (jackpot ? jackpotPay(await store.bank("slots")) : 0);
 
-          /*
-           * Told to everybody at the machine, spinner included. Only chips
-           * spins: a for-fun purse was never anybody's, and putting its wins on
-           * the wall would advertise a room busier than it is.
-           *
-           * A free spin goes up with a stake of nothing, because that is what it
-           * cost. Reporting the replayed bet would put chips on the wall that
-           * nobody put down.
-           */
-          const news: SpinNews = {
-            id: `${socket.id}-${Date.now()}-${recentSpins.length}`,
-            name: socket.data.name ?? "Someone",
-            avatar: socket.data.identity?.avatar ?? null,
-            stake: wasFree ? 0 : stake,
-            won,
-            jackpot,
-            at: Date.now(),
-          };
-          recentSpins.unshift(news);
-          recentSpins.length = Math.min(recentSpins.length, 24);
-          io.to(SLOTS_ROOM).emit("slots:spun", news);
+            /*
+             * Paid out of the bank, and only if the bank actually has it. The
+             * stake cap means this cannot refuse, which is exactly why it is
+             * checked: the alternative to checking is a bank that goes negative in
+             * silence and a machine that has quietly started minting chips.
+             */
+            if (won > 0 && !(await store.bankTake("slots", won))) {
+              if (!wasFree) {
+                await store.bankAdd("slots", -stake);
+                await deps.give(userId, stake);
+              }
+              ack({ ok: false, error: "The bank is short. Nothing was staked." });
+              return;
+            }
+            if (won > 0) {
+              await deps.give(userId, won);
+            }
 
-          const cost = wasFree ? 0 : stake;
-          await deps.record(userId, {
-            shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost, chipsStaked: cost },
-            game: SLOTS.id,
-            add: { spins: 1, staked: cost, jackpots: jackpot ? 1 : 0 },
-            // A best spin is a maximum, and only the machine knows that.
-            max: { bestSpin: won },
-          });
+            /*
+             * The bonus. Counted after the lines are paid because it changes
+             * nothing about them — three bonuses anywhere is a run of spins, not a
+             * multiplier — and awarded only on a spin somebody paid for, so a run
+             * of free spins is a run of known length rather than a series.
+             */
+            const scatters = countScatters(grid);
+            const awarded = wasFree ? 0 : freeSpinsFor(scatters);
+            const left = (wasFree && owed !== undefined ? owed.left - 1 : 0) + awarded;
+            if (left > 0) {
+              freeSpins.set(userId, { left, stake, lines });
+            } else {
+              freeSpins.delete(userId);
+            }
 
-          ack({
-            ok: true,
-            grid,
-            lines: paid,
-            won,
-            stake,
-            linesPlayed: lines,
-            jackpot,
-            scatters,
-            awarded,
-            freeLeft: left,
-            wasFree,
-            bank: await store.bank("slots"),
-            balance: (await store.get(userId))?.chips ?? 0,
+            /*
+             * Told to everybody at the machine, spinner included. Only chips
+             * spins: a for-fun purse was never anybody's, and putting its wins on
+             * the wall would advertise a room busier than it is.
+             *
+             * A free spin goes up with a stake of nothing, because that is what it
+             * cost. Reporting the replayed bet would put chips on the wall that
+             * nobody put down.
+             */
+            const news: SpinNews = {
+              id: `${socket.id}-${Date.now()}-${recentSpins.length}`,
+              name: socket.data.name ?? "Someone",
+              avatar: socket.data.identity?.avatar ?? null,
+              stake: wasFree ? 0 : stake,
+              won,
+              jackpot,
+              at: Date.now(),
+            };
+            recentSpins.unshift(news);
+            recentSpins.length = Math.min(recentSpins.length, 24);
+            io.to(SLOTS_ROOM).emit("slots:spun", news);
+
+            const cost = wasFree ? 0 : stake;
+            await deps.record(userId, {
+              shared: { games: 1, wins: won > cost ? 1 : 0, chipsWon: won - cost, chipsStaked: cost },
+              game: SLOTS.id,
+              add: { spins: 1, staked: cost, jackpots: jackpot ? 1 : 0 },
+              // A best spin is a maximum, and only the machine knows that.
+              max: { bestSpin: won },
+            });
+
+            ack({
+              ok: true,
+              grid,
+              lines: paid,
+              won,
+              stake,
+              linesPlayed: lines,
+              jackpot,
+              scatters,
+              awarded,
+              freeLeft: left,
+              wasFree,
+              bank: await store.bank("slots"),
+              balance: (await store.get(userId))?.chips ?? 0,
+            });
           });
         } finally {
           // In a finally so a throw cannot wedge an account out of its own

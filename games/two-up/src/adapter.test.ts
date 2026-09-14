@@ -1,6 +1,6 @@
 import type { GameDeps } from "@backroom/core";
 import { TableError } from "@backroom/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { twoUpAdapter } from "./adapter.js";
 import { needed } from "./bank.js";
 import { toBets } from "./bets.js";
@@ -183,6 +183,106 @@ describe("settling a casino round", () => {
     await adapter.settle(table, deps);
     expect(held["u0"]).toBe(1_100);
     expect(read()).toBe(99_900);
+  });
+});
+
+/*
+ * Every casino school in the building is paid from one bank, and each used to
+ * measure its cap against that bank minus only its own cloth — so a second
+ * table read the first table's chips as bank and promised them again, and
+ * whichever settled second found the bank empty and did not pay its winner.
+ */
+describe("a bank more than one casino table is paid from", () => {
+  const heads = () => 0.1;
+  const tails = () => 0.9;
+
+  /** Shuts the window and throws until the round is called. */
+  const playOut = (table: Table, coins: () => number) => {
+    table.closeBetting();
+    if (table.phase !== "kip") {
+      return;
+    }
+    table.boxerThrows(coins);
+    table.land();
+    table.read(coins);
+  };
+
+  it("does not let one table promise chips another table's cloth is owed", async () => {
+    const { held, deps } = purse({ u0: 1_000, u1: 1_000, u2: 3_000 });
+    const { bank, read } = bankOf(1_000);
+    const adapter = twoUpAdapter({ bank });
+    const a = adapter.create("AAAA", { ruleset: "casino" });
+    const b = adapter.create("BBBB", { ruleset: "casino" });
+    sit(a, "s0", "u0");
+    sit(a, "s1", "u1");
+    sit(b, "s0", "u2");
+
+    // Matched, so it asks nothing of the bank and puts 2,000 into it.
+    await adapter.act(a, "s0", { type: "place", on: "heads", chips: 1_000 }, deps);
+    await adapter.act(a, "s1", { type: "place", on: "tails", chips: 1_000 }, deps);
+    await adapter.act(b, "s0", { type: "place", on: "tails", chips: 3_000 }, deps).catch((error) => {
+      expect(error).toBeInstanceOf(TableError);
+    });
+
+    playOut(b, tails);
+    await adapter.settle(b, deps);
+    playOut(a, heads);
+    expect(a.called).toBe("heads");
+    await adapter.settle(a, deps);
+
+    expect(held["u0"]).toBe(2_000);
+    expect(read()).toBeGreaterThanOrEqual(0);
+  });
+
+  it.each([
+    { type: "take", on: "heads", chips: 100 },
+    { type: "undo" },
+    { type: "clear" },
+  ])("will not hand a chip back ($type) when the rest of the cloth would go unpaid", async (move) => {
+    /*
+     * Heads went down against the bank; tails was then allowed to lean on
+     * heads. Take heads back and tails is owed 400 out of a bank of 300.
+     */
+    const { held, deps } = purse({ u0: 1_000, u1: 1_000 });
+    const { bank } = bankOf(100);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+    await adapter.act(table, "s1", { type: "place", on: "tails", chips: 200 }, deps);
+    await adapter.act(table, "s0", move, deps).catch((error) => {
+      expect(error).toBeInstanceOf(TableError);
+    });
+
+    playOut(table, tails);
+    expect(table.called).toBe("tails");
+    await adapter.settle(table, deps);
+
+    expect(held["u1"]).toBe(1_200);
+  });
+
+  it("says so when the bank will not pay a winner", async () => {
+    const complain = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { held, deps } = purse({ u0: 1_000 });
+      const { bank, read } = bankOf(100_000);
+      const adapter = twoUpAdapter({ bank });
+      const table = adapter.create("ABCD", { ruleset: "casino" });
+      sit(table, "s0", "u0");
+
+      await adapter.act(table, "s0", { type: "place", on: "heads", chips: 100 }, deps);
+      // Drained from somewhere nothing in this building accounts for.
+      await bank.take(read());
+      playOut(table, heads);
+      await adapter.settle(table, deps);
+
+      expect(held["u0"]).toBe(900);
+      expect(complain).toHaveBeenCalled();
+    } finally {
+      complain.mockRestore();
+    }
   });
 });
 

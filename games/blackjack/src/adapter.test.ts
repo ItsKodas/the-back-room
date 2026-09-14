@@ -481,9 +481,10 @@ describe("what the bank can cover across a whole table", () => {
     /*
      * The floor under the round budget, and the reason it stays.
      *
-     * The budget is a promise about one table, and both blackjack tables in
-     * the building are paid from the same bank — one settling mid-round can
-     * still leave another short. When that happens the seat keeps its stake
+     * The budget now counts every table paid from this bank, so nothing in
+     * this building can leave a round short. Something outside it still can —
+     * another process, or a hand on the database. When that happens the seat
+     * keeps its stake
      * instead of its winnings, which is the one answer that moves no chips
      * that do not exist. It has to be the stake the bank can actually find:
      * paying back a stake out of a bank that no longer holds it is minting,
@@ -513,5 +514,69 @@ describe("what the bank can cover across a whole table", () => {
     expect(holds()).toBeGreaterThanOrEqual(0);
     // Not a chip more than there was, which is the only rule that matters here.
     expect((balances["u1"] as number) + holds()).toBe(chipsBefore);
+  });
+
+  it("says so when the bank cannot pay a winner in full", async () => {
+    const complain = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { bank, holds } = vault(40_000);
+      const game = blackjackAdapter({ bank });
+      const table = game.create("TEST1");
+      table.join("a", "Ada", identity("u1"));
+      const { deps } = ledger({ u1: 10_000 });
+
+      await game.act(table, "a", { type: "bet", amount: 1_000 }, deps);
+      stack(table, ["A", "7", "K", "7"]);
+      await game.act(table, "a", { type: "deal" }, deps);
+      while (table.phase === "playing") {
+        await game.act(table, "a", { type: "stand" }, deps);
+      }
+      await bank.take(holds() - 400);
+      await game.settle(table, deps);
+
+      expect(complain).toHaveBeenCalled();
+    } finally {
+      complain.mockRestore();
+    }
+  });
+
+  it("does not offer one table chips another table's worst hand is counting on", async () => {
+    /*
+     * Every blackjack table in the building is paid from one bank, and each
+     * used to budget only its own felt. The first table's stake went into the
+     * bank and the second read it as headroom — the very chips the first
+     * table's split-and-doubled hand would be paid out of. The second table
+     * settled first, and the first table's winner got their stake back.
+     */
+    const { bank, holds } = vault(4_000);
+    const game = blackjackAdapter({ bank });
+    const first = game.create("TEST1");
+    const second = game.create("TEST2");
+    first.join("a", "Ada", identity("u1"));
+    second.join("b", "Bo", identity("u2"));
+    const { deps, balances } = ledger({ u1: 10_000, u2: 10_000 });
+
+    await game.act(first, "a", { type: "bet", amount: 1_000 }, deps);
+    // What a table budgeting only itself would offer. Refusing it is the fix.
+    await game.act(second, "b", { type: "bet", amount: maxStake(5_000) }, deps).catch(() => {});
+
+    // Eights against a seven, split, and both halves doubled into twenty-one.
+    stack(first, ["8", "7", "8", "7", "3", "3", "K", "K"]);
+    await game.act(first, "a", { type: "deal" }, deps);
+    await game.act(first, "a", { type: "split" }, deps);
+    await game.act(first, "a", { type: "double" }, deps);
+    await game.act(first, "a", { type: "double" }, deps);
+    expect(first.phase).toBe("settled");
+
+    // A blackjack at the other table, if it was let in, and settled first.
+    if ((second.seats[0]?.hands[0]?.bet ?? 0) > 0) {
+      stack(second, ["A", "7", "K", "7"]);
+      await game.act(second, "b", { type: "deal" }, deps);
+      await game.settle(second, deps);
+    }
+    await game.settle(first, deps);
+
+    expect(balances["u1"]).toBe(10_000 - 4_000 + 8_000);
+    expect(holds()).toBeGreaterThanOrEqual(0);
   });
 });

@@ -1,7 +1,7 @@
 import type { BotMove, Clock, GameAdapter } from "@backroom/core";
-import { seatLimit, TableError } from "@backroom/core";
+import { ledgerOf, seatLimit, TableError } from "@backroom/core";
 import { betFor, decide, thinkingTime, upcardValue } from "./bot.js";
-import { maxStake, maxStakeAgainst } from "./bank.js";
+import { maxStake, maxStakeAgainst, stillOwed } from "./bank.js";
 import { value } from "./hand.js";
 import { BLACKJACK } from "./listing.js";
 import { Table, TURN_MS } from "./table.js";
@@ -54,6 +54,59 @@ export function blackjackAdapter(
   const turnMs = options.turnMs ?? TURN_MS;
   const bank = options.bank ?? null;
 
+  /*
+   * The book every table paid from this bank keeps together.
+   *
+   * Every blackjack table in the building is paid from one bank, so a round
+   * budget worked out against this felt alone reads every other felt's stakes
+   * as headroom — chips those tables' winners may be owed. See `BankLedger`
+   * for the whole of why.
+   */
+  const ledger = bank === null ? null : ledgerOf(bank);
+
+  /** Whether this table's chips are the bank's, and so in the book. */
+  const banked = (table: Table): boolean => ledger !== null && !table.forFun;
+
+  /** Rounds that have been paid, known by the dealer's hand each one dealt. */
+  const paidOut = new WeakSet<object>();
+
+  /**
+   * A round handed to `settle` and still waiting its turn in the queue.
+   *
+   * Counted apart from the table, because the table does not wait for it: a
+   * felt cleared for the next round no longer says what the last one is owed.
+   */
+  const unpaid = new WeakMap<Table, { round: object; back: number }>();
+
+  /** The most this table could still take out of the bank. */
+  const owing = (table: Table): number => {
+    const waiting = unpaid.get(table);
+    let total = waiting?.back ?? 0;
+    if (table.dealer !== waiting?.round && !paidOut.has(table.dealer)) {
+      for (const seat of table.seats) {
+        total += stillOwed(seat.hands);
+      }
+    }
+    return total;
+  };
+
+  /**
+   * Runs something that moves this table's chips in the bank's own queue, and
+   * tells the book what the table owes once it has.
+   */
+  const serially = async <T>(table: Table, work: () => Promise<T>): Promise<T> => {
+    if (ledger === null || !banked(table)) {
+      return work();
+    }
+    return ledger.serially(async () => {
+      try {
+        return await work();
+      } finally {
+        ledger.owes(table, () => owing(table));
+      }
+    });
+  };
+
   return {
     listing: BLACKJACK,
 
@@ -94,191 +147,197 @@ export function blackjackAdapter(
         throw new TableError("You are not at this table.");
       }
 
-      switch (move.type) {
-        case "bet": {
-          const amount = Number(move.amount);
-          // Betting happens before any split, so there is one hand to stake.
-          const already = seat.hands[0]?.bet ?? 0;
-          // Validated by the table first, so a refusal costs nobody anything.
-          table.bet(seatId, amount);
-          /*
-           * Play money never leaves the table, so there is nothing here to do
-           * and nobody to ask — which is exactly what lets a guest sit down.
-           */
-          if (table.forFun) {
-            return;
-          }
-          if (seat.userId === null) {
-            throw new TableError("Sign in to play for chips.");
-          }
-          /*
-           * What the bank can cover, checked before the chips move. The whole
-           * worst hand — split, both doubled, both won — has to be payable out
-           * of what is in there, and a bet the bank cannot cover is refused
-           * rather than paid out of nothing later.
-           *
-           * A budget for the round rather than an allowance per chair, because
-           * the dealer turns one hand over and every seat settles against it.
-           * Six players each holding the per-seat cap is six times the
-           * exposure that cap was derived to cover: the bank emptied partway
-           * down the row and the last winner got their stake back instead of
-           * their winnings.
-           */
-          if (bank !== null) {
+      await serially(table, async () => {
+        switch (move.type) {
+          case "bet": {
+            const amount = Number(move.amount);
+            // Betting happens before any split, so there is one hand to stake.
+            const already = seat.hands[0]?.bet ?? 0;
+            // Validated by the table first, so a refusal costs nobody anything.
+            table.bet(seatId, amount);
             /*
-             * The stakes already on this felt come back out of what the bank
-             * holds. They went in as they were placed, so asking the bank
-             * partway through a betting window gives a fatter answer every
-             * time somebody bets — and the chips making it fatter are the very
-             * ones those seats may have to be paid out of. Counting them as
-             * headroom is how a table talked itself into a round it could not
-             * settle.
+             * Play money never leaves the table, so there is nothing here to do
+             * and nobody to ask — which is exactly what lets a guest sit down.
              */
-            // Asked first, and the felt read after it without yielding in
-            // between: a bet landing mid-question would otherwise be counted
-            // in the bank and not on the table, which is the fatter answer
-            // again by another route.
-            const held = await bank.holds();
-            const others = table.seats
-              .filter((other) => other.id !== seatId)
-              .map((other) => other.hands[0]?.bet ?? 0);
-            const free = held - others.reduce((total, bet) => total + bet, 0) - already;
-            const cap = maxStakeAgainst(free, others);
-            if (amount > cap) {
-              table.bet(seatId, already);
-              throw new TableError(
-                cap < 1
-                  ? maxStake(free) < 1
-                    ? "The bank is empty. Nothing to play for yet."
-                    : "The bank is covering the rest of this hand. Wait for the next one."
-                  : `The bank covers ${cap.toLocaleString("en-US")} more on this hand.`,
-              );
+            if (table.forFun) {
+              return;
             }
-          }
-          // Only the difference, so changing a bet before the deal does not
-          // charge twice for the same hand.
-          const owed = amount - already;
-          if (owed > 0 && !(await deps.take(seat.userId, owed))) {
-            // Back to what was on the felt before, which zero can now express.
-            table.bet(seatId, already);
-            throw new TableError("You cannot cover that bet.");
-          }
-          if (owed < 0) {
-            await deps.give(seat.userId, -owed);
-          }
-          /*
-           * Into the bank as it leaves the account, and back out of it if the
-           * bet shrinks. The stake is in there before the cards are dealt,
-           * which is what makes the payout arithmetic hold.
-           */
-          await bank?.add(owed);
-          /*
-           * The last bet can be the thing that finishes the window: somebody
-           * who was already ready, then bet, is ready again the moment the
-           * chips land. Without this the table would sit waiting for a click
-           * that has already happened.
-           */
-          if (table.everyoneReady) {
-            table.deal();
-          }
-          return;
-        }
-        case "deal":
-          /*
-           * Hurrying the clock along, not starting the round — the round
-           * starts itself. Kept to the host because cutting short everybody
-           * else's time to bet is not a thing any seat should be able to do.
-           */
-          if (seatId !== table.hostId) {
-            throw new TableError("Only the host can deal early.");
-          }
-          table.deal();
-          return;
-        case "ready": {
-          /*
-           * Not the host's call, unlike dealing early. Saying you have
-           * finished betting is a statement about your own hand; it only ends
-           * the window once everybody else has said it too, so it takes
-           * nobody's time away from them.
-           */
-          table.setReady(seatId, move.ready !== false);
-          if (table.everyoneReady) {
-            table.deal();
-          }
-          return;
-        }
-        case "window":
-          /*
-           * How long everybody gets to bet, which is the host's call for the
-           * same reason dealing early is: it is a decision about everybody
-           * else's time rather than about one hand.
-           */
-          if (seatId !== table.hostId) {
-            throw new TableError("Only the host can change the window.");
-          }
-          table.setWindow(Number(move.ms));
-          return;
-        case "hit":
-          table.hit(seatId);
-          return;
-        case "stand":
-          table.stand(seatId);
-          return;
-        case "double": {
-          if (table.forFun) {
-            // The table keeps the purse; doubling against it is its own affair.
-            table.double(seatId);
+            if (seat.userId === null) {
+              throw new TableError("Sign in to play for chips.");
+            }
+            /*
+             * What the bank can cover, checked before the chips move. The whole
+             * worst hand — split, both doubled, both won — has to be payable out
+             * of what is in there, and a bet the bank cannot cover is refused
+             * rather than paid out of nothing later.
+             *
+             * A budget for the round rather than an allowance per chair, because
+             * the dealer turns one hand over and every seat settles against it.
+             * Six players each holding the per-seat cap is six times the
+             * exposure that cap was derived to cover: the bank emptied partway
+             * down the row and the last winner got their stake back instead of
+             * their winnings.
+             */
+            if (bank !== null) {
+              /*
+               * The stakes already on this felt come back out of what the bank
+               * holds. They went in as they were placed, so asking the bank
+               * partway through a betting window gives a fatter answer every
+               * time somebody bets — and the chips making it fatter are the very
+               * ones those seats may have to be paid out of. Counting them as
+               * headroom is how a table talked itself into a round it could not
+               * settle.
+               */
+              // Asked first, and the felt read after it without yielding in
+              // between: a bet landing mid-question would otherwise be counted
+              // in the bank and not on the table, which is the fatter answer
+              // again by another route.
+              //
+              // Less what every other table on this bank could owe, for the same
+              // reason one level up: their stakes are in there too, and they are
+              // the chips those tables' winners would be paid out of.
+              const held = (await bank.holds()) - (ledger?.owedElsewhere(table) ?? 0);
+              const others = table.seats
+                .filter((other) => other.id !== seatId)
+                .map((other) => other.hands[0]?.bet ?? 0);
+              const free = held - others.reduce((total, bet) => total + bet, 0) - already;
+              const cap = maxStakeAgainst(free, others);
+              if (amount > cap) {
+                table.bet(seatId, already);
+                throw new TableError(
+                  cap < 1
+                    ? maxStake(free) < 1
+                      ? "The bank is empty. Nothing to play for yet."
+                      : "The bank is covering the rest of this hand. Wait for the next one."
+                    : `The bank covers ${cap.toLocaleString("en-US")} more on this hand.`,
+                );
+              }
+            }
+            // Only the difference, so changing a bet before the deal does not
+            // charge twice for the same hand.
+            const owed = amount - already;
+            if (owed > 0 && !(await deps.take(seat.userId, owed))) {
+              // Back to what was on the felt before, which zero can now express.
+              table.bet(seatId, already);
+              throw new TableError("You cannot cover that bet.");
+            }
+            if (owed < 0) {
+              await deps.give(seat.userId, -owed);
+            }
+            /*
+             * Into the bank as it leaves the account, and back out of it if the
+             * bet shrinks. The stake is in there before the cards are dealt,
+             * which is what makes the payout arithmetic hold.
+             */
+            await bank?.add(owed);
+            /*
+             * The last bet can be the thing that finishes the window: somebody
+             * who was already ready, then bet, is ready again the moment the
+             * chips land. Without this the table would sit waiting for a click
+             * that has already happened.
+             */
+            if (table.everyoneReady) {
+              table.deal();
+            }
             return;
           }
-          if (seat.userId === null) {
-            throw new TableError("Sign in to play for chips.");
-          }
-          // Asked for before it happens: doubling into chips you do not have
-          // would leave a hand staked at more than was ever taken.
-          const extra = seat.hands[seat.active]?.bet ?? 0;
-          if (!(await deps.take(seat.userId, extra))) {
-            throw new TableError("You cannot cover a double.");
-          }
-          try {
-            table.double(seatId);
-          } catch (error) {
-            await deps.give(seat.userId, extra);
-            throw error;
-          }
-          // In before the card is turned, like every other stake here.
-          await bank?.add(extra);
-          return;
-        }
-        case "split": {
-          if (table.forFun) {
-            // The table keeps the purse; splitting against it is its own affair.
-            table.split(seatId);
+          case "deal":
+            /*
+             * Hurrying the clock along, not starting the round — the round
+             * starts itself. Kept to the host because cutting short everybody
+             * else's time to bet is not a thing any seat should be able to do.
+             */
+            if (seatId !== table.hostId) {
+              throw new TableError("Only the host can deal early.");
+            }
+            table.deal();
+            return;
+          case "ready": {
+            /*
+             * Not the host's call, unlike dealing early. Saying you have
+             * finished betting is a statement about your own hand; it only ends
+             * the window once everybody else has said it too, so it takes
+             * nobody's time away from them.
+             */
+            table.setReady(seatId, move.ready !== false);
+            if (table.everyoneReady) {
+              table.deal();
+            }
             return;
           }
-          if (seat.userId === null) {
-            throw new TableError("Sign in to play for chips.");
+          case "window":
+            /*
+             * How long everybody gets to bet, which is the host's call for the
+             * same reason dealing early is: it is a decision about everybody
+             * else's time rather than about one hand.
+             */
+            if (seatId !== table.hostId) {
+              throw new TableError("Only the host can change the window.");
+            }
+            table.setWindow(Number(move.ms));
+            return;
+          case "hit":
+            table.hit(seatId);
+            return;
+          case "stand":
+            table.stand(seatId);
+            return;
+          case "double": {
+            if (table.forFun) {
+              // The table keeps the purse; doubling against it is its own affair.
+              table.double(seatId);
+              return;
+            }
+            if (seat.userId === null) {
+              throw new TableError("Sign in to play for chips.");
+            }
+            // Asked for before it happens: doubling into chips you do not have
+            // would leave a hand staked at more than was ever taken.
+            const extra = seat.hands[seat.active]?.bet ?? 0;
+            if (!(await deps.take(seat.userId, extra))) {
+              throw new TableError("You cannot cover a double.");
+            }
+            try {
+              table.double(seatId);
+            } catch (error) {
+              await deps.give(seat.userId, extra);
+              throw error;
+            }
+            // In before the card is turned, like every other stake here.
+            await bank?.add(extra);
+            return;
           }
-          /*
-           * The second hand costs the same as the first, and is asked for
-           * before the cards move for the same reason a double is: a split
-           * paid for afterwards is two hands staked on one hand's chips.
-           */
-          const stake = seat.hands[seat.active]?.bet ?? 0;
-          if (!(await deps.take(seat.userId, stake))) {
-            throw new TableError("You cannot cover a split.");
+          case "split": {
+            if (table.forFun) {
+              // The table keeps the purse; splitting against it is its own affair.
+              table.split(seatId);
+              return;
+            }
+            if (seat.userId === null) {
+              throw new TableError("Sign in to play for chips.");
+            }
+            /*
+             * The second hand costs the same as the first, and is asked for
+             * before the cards move for the same reason a double is: a split
+             * paid for afterwards is two hands staked on one hand's chips.
+             */
+            const stake = seat.hands[seat.active]?.bet ?? 0;
+            if (!(await deps.take(seat.userId, stake))) {
+              throw new TableError("You cannot cover a split.");
+            }
+            try {
+              table.split(seatId);
+            } catch (error) {
+              await deps.give(seat.userId, stake);
+              throw error;
+            }
+            await bank?.add(stake);
+            return;
           }
-          try {
-            table.split(seatId);
-          } catch (error) {
-            await deps.give(seat.userId, stake);
-            throw error;
-          }
-          await bank?.add(stake);
-          return;
+          default:
+            throw new TableError("That is not something you can do here.");
         }
-        default:
-          throw new TableError("That is not something you can do here.");
-      }
+      });
     },
 
     isSettled(table) {
@@ -502,91 +561,100 @@ export function blackjackAdapter(
           score: Math.max(...seat.hands.map((hand) => value(hand.cards).total)),
           seatId: seat.id,
         }));
-
-      for (const seat of played) {
-        if (seat.userId === null) {
-          continue;
-        }
-        /*
-         * The seat's whole account for the hand, not one of its hands.
-         *
-         * A split can win on one and lose on the other, and paying or counting
-         * those separately would make one deal look like two games — the win
-         * rate would drift every time somebody split, which is exactly the
-         * kind of quiet wrongness a stats page never admits to.
-         */
-        if (seat.back > 0) {
-          /*
-           * Out of the bank before it reaches the account, and only if the
-           * bank actually holds it.
-           *
-           * What the round budget guarantees is this table: every seat's worst
-           * hand was checked against the bank as it stood before any of this
-           * round's chips landed, so no arrangement of this felt can empty it.
-           * What it cannot guarantee is the building — every blackjack table
-           * is paid from the one bank, and another of them settling between
-           * this seat and the next takes chips this round was counting on. So
-           * it is still asked rather than assumed, because the alternative to
-           * asking is a bank that goes negative in silence and a table that
-           * has quietly started minting chips, which is the thing this whole
-           * arrangement exists to prevent.
-           *
-           * If it does refuse, the player keeps their stake rather than being
-           * paid winnings the building has not got — and only as much of it as
-           * the bank can still find, because handing back a stake out of a
-           * bank that no longer holds it is minting in the one branch nobody
-           * watches.
-           */
-          if (bank !== null && !(await bank.take(seat.back))) {
-            const rescued = Math.min(seat.out, await bank.holds());
-            if (rescued > 0 && (await bank.take(rescued))) {
-              await deps.give(seat.userId, rescued);
-            }
-          } else {
-            await deps.give(seat.userId, seat.back);
-          }
-        }
-        await deps.record(seat.userId, {
-          shared: {
-            games: 1,
-            wins: seat.back > seat.out ? 1 : 0,
-            chipsWon: seat.back - seat.out,
-            chipsStaked: seat.out,
-          },
-          game: BLACKJACK.id,
-          add: {
-            blackjacks: seat.outcomes.filter((outcome) => outcome === "blackjack").length,
-            busts: seat.outcomes.filter((outcome) => outcome === "bust").length,
-            // A split that pushes both hands is one push, not two: this counts
-            // hands where the outcome was a push, which is what it says.
-            pushes: seat.outcomes.filter((outcome) => outcome === "push").length,
-          },
-          max: { biggestWin: Math.max(0, seat.back - seat.out) },
-        });
+      // And counted in the book as owed until it is paid, for the same reason.
+      const round = table.dealer;
+      if (banked(table)) {
+        unpaid.set(table, { round, back: played.reduce((total, seat) => total + seat.back, 0) });
       }
 
-      await deps.finished({
-        code: table.code,
-        rulesetName: "Blackjack",
-        // A hand has no single stake and no pot to divide; the totals are what
-        // the history can honestly say about it.
-        buyIn: 0,
-        pot: played.reduce((total, seat) => total + seat.out, 0),
-        players: played.map((seat) => ({
-          userId: seat.userId,
-          name: seat.name,
-          score: seat.score,
-          isBot: seat.isBot,
-          // The stake was taken as it was placed, so this is the whole story
-          // of the hand: what came back, less what went out.
-          net: seat.back - seat.out,
-        })),
-        // Up on the deal, however many hands it took. One hand winning while
-        // the other loses more is not a win, and should not be recorded as one.
-        winnerIds: played
-          .filter((seat) => seat.back > seat.out)
-          .map((seat) => seat.userId ?? seat.seatId),
-        endedAt: Date.now(),
+      await serially(table, async () => {
+        for (const seat of played) {
+          if (seat.userId === null) {
+            continue;
+          }
+          /*
+           * The seat's whole account for the hand, not one of its hands.
+           *
+           * A split can win on one and lose on the other, and paying or counting
+           * those separately would make one deal look like two games — the win
+           * rate would drift every time somebody split, which is exactly the
+           * kind of quiet wrongness a stats page never admits to.
+           */
+          if (seat.back > 0) {
+            /*
+             * Out of the bank before it reaches the account, and only if the
+             * bank actually holds it.
+             *
+             * Every seat's worst hand was budgeted against the bank less what
+             * every other table on it could owe, so nothing in this building can
+             * make this refuse. It is still asked rather than assumed, because
+             * the alternative to asking is a bank that goes negative in silence
+             * and a table that has quietly started minting chips — and a bank
+             * moved from outside the book, by another process or a hand on the
+             * database, is not something this table can rule out.
+             *
+             * If it does refuse, the player keeps their stake rather than being
+             * paid winnings the building has not got — and only as much of it as
+             * the bank can still find, because handing back a stake out of a
+             * bank that no longer holds it is minting in the one branch nobody
+             * watches. Loudly, because that player has been short-paid.
+             */
+            if (bank !== null && !(await bank.take(seat.back))) {
+              console.error(
+                `blackjack ${table.code}: the bank refused ${seat.back} owed to ${seat.userId}`,
+              );
+              const rescued = Math.min(seat.out, await bank.holds());
+              if (rescued > 0 && (await bank.take(rescued))) {
+                await deps.give(seat.userId, rescued);
+              }
+            } else {
+              await deps.give(seat.userId, seat.back);
+            }
+          }
+          await deps.record(seat.userId, {
+            shared: {
+              games: 1,
+              wins: seat.back > seat.out ? 1 : 0,
+              chipsWon: seat.back - seat.out,
+              chipsStaked: seat.out,
+            },
+            game: BLACKJACK.id,
+            add: {
+              blackjacks: seat.outcomes.filter((outcome) => outcome === "blackjack").length,
+              busts: seat.outcomes.filter((outcome) => outcome === "bust").length,
+              // A split that pushes both hands is one push, not two: this counts
+              // hands where the outcome was a push, which is what it says.
+              pushes: seat.outcomes.filter((outcome) => outcome === "push").length,
+            },
+            max: { biggestWin: Math.max(0, seat.back - seat.out) },
+          });
+        }
+
+        await deps.finished({
+          code: table.code,
+          rulesetName: "Blackjack",
+          // A hand has no single stake and no pot to divide; the totals are what
+          // the history can honestly say about it.
+          buyIn: 0,
+          pot: played.reduce((total, seat) => total + seat.out, 0),
+          players: played.map((seat) => ({
+            userId: seat.userId,
+            name: seat.name,
+            score: seat.score,
+            isBot: seat.isBot,
+            // The stake was taken as it was placed, so this is the whole story
+            // of the hand: what came back, less what went out.
+            net: seat.back - seat.out,
+          })),
+          // Up on the deal, however many hands it took. One hand winning while
+          // the other loses more is not a win, and should not be recorded as one.
+          winnerIds: played
+            .filter((seat) => seat.back > seat.out)
+            .map((seat) => seat.userId ?? seat.seatId),
+          endedAt: Date.now(),
+        });
+        paidOut.add(round);
+        unpaid.delete(table);
       });
     },
   };
