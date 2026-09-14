@@ -1,5 +1,5 @@
 import type { BotSkill, Seat as TableSeat, SeatIdentity, TableStatus } from "@backroom/core";
-import { MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
+import { Escrow, MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
 import type { Card } from "./cards.js";
 import { Shoe } from "./cards.js";
 import { isBlackjack, value } from "./hand.js";
@@ -262,6 +262,11 @@ export class Table {
   lastEvent: string | null = null;
   dealer: Card[] = [];
   /**
+   * Every stake on the felt right now, by account: bets, doubles and splits,
+   * until the dealer settles them.
+   */
+  readonly escrow = new Escrow();
+  /**
    * When the current phase runs out, as an absolute time.
    *
    * Absolute rather than a countdown, and stored rather than recomputed: every
@@ -488,6 +493,15 @@ export class Table {
   removeSeat(seatId: string): void {
     if (this.status !== "lobby") {
       return;
+    }
+    /*
+     * Bets are still open, so the chips on this seat are still theirs to take
+     * back — they could have pressed zero a moment ago. Queued, because this
+     * cannot await the bank; the adapter pays it on the next broadcast.
+     */
+    const leaving = this.seating.find(seatId);
+    if (leaving?.userId != null && !this.forFun) {
+      this.escrow.refund(leaving.userId);
     }
     this.seating.remove(seatId);
   }
@@ -963,6 +977,9 @@ export class Table {
       }
     }
 
+    // The dealer has played, so every stake on the felt now belongs to its
+    // result rather than to whichever account it came from.
+    this.escrow.settle();
     this.phase = "settled";
     this.status = "over";
     /*
