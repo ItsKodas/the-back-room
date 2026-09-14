@@ -1,7 +1,9 @@
+import { OPENING } from "@backroom/game-death-roll";
 import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import type { Face } from "@backroom/game-slots";
 import { ChipFace } from "../chips/Chip.js";
 import { FaceDefs, ReelFace } from "../slots/Symbols.js";
+import { CoinFace } from "../twoup/Coin.js";
 
 /**
  * What a game keeps in the corner of its tile.
@@ -386,8 +388,93 @@ export function WheelArt() {
   );
 }
 
+/**
+ * Death roll's number, falling.
+ *
+ * The room has nothing in it but one lit figure, so that is all the corner
+ * carries: a duel's worth of rolls, from where a table opens down to the one
+ * that ends it. Each roll is its own element and the stylesheet lights them in
+ * turn — SVG text cannot change what it says from CSS, and a single element
+ * asked to settle seven times over would be seven motions fighting over one
+ * thing.
+ *
+ * Every roll is under the one before it, the way the rules have it. A run that
+ * went back up would be a card advertising a game that does not exist.
+ */
+export const DUEL = [OPENING, 412, 97, 38, 11, 4, 1] as const;
+
+export function DuelArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      {/* Two groups: the outer slides up out of the corner, the numbers inside
+          it settle. A CSS transform replaces rather than composes. */}
+      <g className="art__duel">
+        {DUEL.map((n, at) => (
+          <text
+            key={n}
+            x="84"
+            y="96"
+            textAnchor="middle"
+            data-roll={n}
+            className={`art__roll art__roll--${at + 1}${n === 1 ? " art__roll--one" : ""}`}
+          >
+            {n}
+          </text>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * Two pennies, tossed.
+ *
+ * The room's own coin faces, taken at a fraction of the size, for the reason
+ * the chips are the building's chip: a penny here is the same object as the
+ * one in the ring. They tumble about their horizontal axis the way a coin off
+ * a kip does, and land heads — four half-turns, so the face they come down on
+ * is the face they sat on, and nothing changes when the pointer leaves.
+ *
+ * Three groups a coin, one per motion: the piece is thrown out of the corner,
+ * the toss inside it rises and falls, and the flip inside that turns.
+ */
+const TILE_COINS = [
+  { x: 44, y: 62 },
+  { x: 98, y: 44 },
+];
+const COIN_SIZE = 62;
+
+export function CoinsArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      {TILE_COINS.map((coin, index) => (
+        <Piece key={coin.x} n={index + 1}>
+          <g className="art__coin-toss">
+            <g className="art__coin-flip">
+              <svg x={coin.x} y={coin.y} width={COIN_SIZE} height={COIN_SIZE} aria-hidden="true">
+                <CoinFace tail={false} />
+              </svg>
+              <g className="art__coin-tails">
+                <svg x={coin.x} y={coin.y} width={COIN_SIZE} height={COIN_SIZE} aria-hidden="true">
+                  <CoinFace tail />
+                </svg>
+              </g>
+            </g>
+          </g>
+        </Piece>
+      ))}
+    </svg>
+  );
+}
+
 /** The furniture a game keeps, by which game it is. */
 export function TileArt({ game }: { game: string }) {
+  if (game === "death-roll") {
+    return <DuelArt />;
+  }
+  if (game === "two-up") {
+    return <CoinsArt />;
+  }
   if (game === "greed") {
     return <DiceArt />;
   }
