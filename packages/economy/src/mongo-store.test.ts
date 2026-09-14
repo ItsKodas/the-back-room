@@ -606,9 +606,30 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
           { userId: bo.id, name: "Bo", score: 1, isBot: false },
         ],
       });
+      // Ada plus a bot: once the `$pull` takes Ada out, the only player left
+      // has a `null` userId, which is exactly the shape the final cleanup is
+      // supposed to catch — `recentGames` can never show this record was
+      // removed, because the `$pull` alone already hides it from anyone's
+      // history. A unique code is what lets this test go and look at the
+      // record itself, on a database shared with everyone else's fixtures.
+      const soloCode = `O${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await store.recordGame({
+        code: soloCode, rulesetName: "greed", buyIn: 0, pot: 0, winnerIds: [], endedAt: Date.now(),
+        players: [
+          { userId: ada.id, name: "Ada", score: 1, isBot: false },
+          { userId: null, name: "Bot", score: 1, isBot: true },
+        ],
+      });
+
       await store.resetUsers({ target: { ids: [ada.id] }, parts: ["history"] });
+
       expect(await store.recentGames(ada.id, 10)).toEqual([]);
       expect((await store.recentGames(bo.id, 10))[0]?.players).toHaveLength(1);
+
+      const direct = await mongoose.createConnection(url as string).asPromise();
+      const solo = await direct.collection("games").findOne({ code: soloCode });
+      await direct.close();
+      expect(solo).toBeNull();
     });
 
     it("empties a bank and deletes an emote", async () => {
