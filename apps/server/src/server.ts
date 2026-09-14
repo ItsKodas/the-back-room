@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
 import { BankLedger, Catalogue, COMING, Taunts } from "@backroom/core";
-import type { BankName, Store } from "@backroom/economy";
+import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
   BLACKJACK,
@@ -73,6 +73,7 @@ import session from "express-session";
 import type { DefaultEventsMap } from "socket.io";
 import { Server } from "socket.io";
 import { readAdmins } from "./admin.js";
+import { ADMIN_BULK_PATHS, mountAdminDesk } from "./admin-desk.js";
 import type { AuthConfig } from "./auth.js";
 import { mountAuth, readAuthConfig } from "./auth.js";
 import { friendlyRedirect } from "./domains.js";
@@ -445,14 +446,15 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * silently behaves as though it were sent empty.
    */
   /*
-   * Every path but one. An emote upload carries a picture, which is several
-   * hundred times this limit — and a body refused at eight kilobytes cannot be
-   * un-refused by a larger parser mounted further down, so the small one has
-   * to decline to look at that route rather than reject it.
+   * Every path but a few. An emote upload carries a picture, which is several
+   * hundred times this limit, and the admin desk's bulk routes can carry five
+   * hundred ids — and a body refused at eight kilobytes cannot be un-refused
+   * by a larger parser mounted further down, so the small one has to decline
+   * to look at those routes rather than reject them.
    */
   const smallJson = express.json({ limit: "8kb" });
   app.use((request, response, next) => {
-    if (request.path === EMOTE_UPLOAD_PATH) {
+    if (request.path === EMOTE_UPLOAD_PATH || ADMIN_BULK_PATHS.includes(request.path)) {
       next();
       return;
     }
@@ -827,6 +829,19 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     }
   }
 
+  /** `tellChips` for everybody an admin action reached who has a screen open. */
+  async function tellChipsTo(target: AdminTarget): Promise<void> {
+    const connected = new Set<string>();
+    for (const socket of io.sockets.sockets.values()) {
+      const userId = socket.data.identity?.userId;
+      if (typeof userId === "string") {
+        connected.add(userId);
+      }
+    }
+    const wanted = "all" in target ? connected : new Set(target.ids.filter((id) => connected.has(id)));
+    await Promise.all([...wanted].map((userId) => tellChips(userId)));
+  }
+
   const deps: GameDeps = {
     take: async (userId, amount) => {
       if (amount <= 0) {
@@ -1041,6 +1056,18 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     withinBudget: (id, max, windowMs) => withinBudget(boardBudgets, id, max, windowMs),
   });
 
+  mountAdminDesk(app, {
+    store,
+    requireAdmin,
+    whoIs: async (request) => {
+      const profile = await whoIs(request);
+      return profile === null ? null : { id: profile.id, name: profile.name };
+    },
+    tellChipsTo,
+    tables: () => [...rooms.values()].map((room) => room.table),
+    forgetEmote: (id) => emotesSeen.delete(id),
+  });
+
   app.get("/api/admin/codes", requireAdmin, (_request, response) => {
     void (async () => {
       response.json({ codes: await store.listCodes(50) });
@@ -1164,6 +1191,18 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return;
       }
       await store.bankAdd(which, amount);
+      const profile = await whoIs(request);
+      await store.logAdmin({
+        by: profile?.id ?? "unknown",
+        byName: profile?.name ?? "unknown",
+        kind: "float",
+        amount,
+        affected: 0,
+        target: "all",
+        parts: null,
+        subject: which,
+        note: "",
+      });
       const bank = await store.bank(which);
       response.json({ bank, maxStake: capOf(which, bank) });
     })();
