@@ -15,6 +15,7 @@
     "react-router-dom": "^6.26.0",
     "socket.io-client": "^4.8.3",
     "@backroom/game-slots": "*",
-    "@backroom/game-tips": "*"
+    "@backroom/game-tips": "*",
+    "@backroom/game-two-up": "*"
   }
 }

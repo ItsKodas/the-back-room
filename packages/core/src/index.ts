@@ -27,5 +27,6 @@ export type {
   StatBumpLike,
 } from "./game.js";
 export { COMING } from "./coming.js";
+export { BankLedger, ledgerOf } from "./ledger.js";
 export { Taunts } from "./taunts.js";
 export type { Resolution, Taunt, TauntPayout } from "./taunts.js";

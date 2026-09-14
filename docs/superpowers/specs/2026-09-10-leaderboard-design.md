@@ -48,13 +48,31 @@ It joins `ProfileStats` beside the other three:
 
 ```ts
 export interface ProfileStats {
-  games: number;
-  wins: number;
+  rounds: number;
+  roundsWon: number;
   chipsWon: number;
   /** Chips put on the felt, win or lose. A free round stakes nothing. */
   chipsStaked: number;
 }
 ```
+
+**Rounds, not games.** This originally shipped with a `games`/`wins` pair that
+every game bumped — and slots bumped it once per spin, a spin every couple of
+seconds. A slots regular's W–L came out as 1,203–32,367, every hand they had
+ever played buried under spins. So a *round* is a contest you win or lose (a
+game of greed, a hand of blackjack, a spin of the wheel, a duel, a toss of the
+coins), and the machine puts its chips on the record and no round.
+
+The old pair was replaced rather than corrected, because it could not be:
+slots kept its own spin count but never its own wins, so subtracting spins
+without their wins would drive some records negative. It is left on the
+documents, read by nothing, and rounds count from zero. The board says so, as
+it does for staking. The sort keys stay `games` and `wins`, so a link to the
+board keeps working.
+
+A ring at two-up pays only its winners, so its record is written for every
+seat that staked rather than every seat that was paid — otherwise every ring
+would record a winner and never a loser.
 
 Every game already writes a `shared` bump at the end of a hand with the two
 numbers it needs to compute the net. The stake is the left-hand side of that
@@ -67,6 +85,8 @@ subtraction, so in every case it is a figure the adapter is already holding:
 | roulette | `paid.back - paid.staked` | `paid.staked` |
 | slots | `won - cost` | `cost` |
 | death roll | `duel.netFor(seat)` | `duel.ante + duel.spentBy(seat)` |
+| two-up, casino | `paid.back - paid.staked` | `paid.staked` |
+| two-up, ring | `back - table.stakedIn(seat)` | `table.stakedIn(seat)`, for every seat that staked |
 | the tip jar | *(writes no `shared` bump)* | *(nothing)* |
 | poker | *(writes no `shared` bump)* | *(nothing)* |
 

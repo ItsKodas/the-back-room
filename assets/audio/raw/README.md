@@ -24,6 +24,16 @@ don't worry about format consistency, loudness matching, or trimming.
 
 Search: `dice roll wood`, `dice shake cup`, `single die drop felt`, `dice clatter table`
 
+### `coins/`
+- 3+ single coin-on-wood impacts (60-150ms) -> the landing, randomized per coin
+- a coin spinning down to rest on a hard surface (1-2s) -> the settle
+- optional: coins chinking together in a hand
+
+These take over from synthesis the moment they exist — the toss is
+synthesised today only because there was nothing to sample.
+
+Search: `coin drop wood`, `coin spin table`, `penny drop`, `coin chink`
+
 ### `chips/`
 - single chip place, chip stack, chips sliding across felt, pot push
 - 3+ variations of the single-chip sound if you can

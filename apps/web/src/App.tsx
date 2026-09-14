@@ -14,6 +14,7 @@ import { Room } from "./room/Room.js";
 import { TableLink } from "./room/TableLink.js";
 import { Gallery } from "./style/Gallery.js";
 import Tips from "./tips/Tips.js";
+import { TwoUp } from "./twoup/TwoUp.js";
 
 export default function App() {
   // Every press on the site, from one listener. Mounted here because it
@@ -48,6 +49,8 @@ export default function App() {
       <Route path="/roulette/:code" element={<Roulette />} />
       <Route path="/slots" element={<Slots />} />
       <Route path="/tips" element={<Tips />} />
+      <Route path="/two-up" element={<TwoUp />} />
+      <Route path="/two-up/:code" element={<TwoUp />} />
       <Route path="/blackjack/:code" element={<Blackjack />} />
       {/*
         * A bare code at the root, so a link that was shared before there were

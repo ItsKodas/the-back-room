@@ -1,0 +1,86 @@
+/*
+ * The two-up room.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. So this repaints the surfaces and touches nothing that
+ * carries meaning — neon stays the building's, chip stays gold, good and bad
+ * stay what they are everywhere else.
+ *
+ * What makes this room its own is that it is not a room at all. It is a shed:
+ * a chalked ring on bare boards, a bare bulb over it, two copper pennies. The
+ * wheel's room is the hottest thing in the building because a wheel is
+ * mahogany and brass under a low warm pool of light; this is the coldest,
+ * because a shed is not lit, it is just not dark — a single bulb over bare
+ * boards, and everything under it reads grey.
+ *
+ * So where roulette pushed its palette warm, this one is pushed the other
+ * way: greys with a touch of blue rather than red, the felt a flat slate
+ * rather than a cloth, the light a plain incandescent white rather than a
+ * coloured wash. The one warm thing left standing in it is the coins, the way
+ * the wheel's ivory ball is the one cool thing left standing in a red room.
+ */
+:root[data-game="two-up"],
+[data-game="two-up"] {
+  --gr-color-night: #141618;
+  --gr-color-slate: #1c1f22;
+  --gr-color-shadow: #0a0b0c;
+  --gr-color-smoke: #202325;
+  --gr-color-smoke-lit: #2a2e31;
+
+  /*
+   * A shed floor, not a cloth. Roulette's felt is dyed for what sits on it;
+   * this one is just the colour bare boards go under a bulb, which is why it
+   * reads closer to slate than to green or red — it is not a game surface
+   * being lit, it is a floor.
+   */
+  --gr-color-felt: #232a2e;
+  --gr-color-felt-lit: #2c343a;
+  --gr-color-felt-deep: #171c1f;
+
+  /*
+   * The air over the ring. A shed bulb throws a cooler, flatter light than a
+   * table lamp does, so this stays close to the felt's own hue rather than
+   * warming it the way roulette's air warms toward the wheel.
+   */
+  --gr-color-air: #333c41;
+  --gr-color-air-hi: #7d8b92;
+
+  /*
+   * The tube, relit for this room the way every room relights it — what it
+   * *means* does not change, a lit edge is still something happening now,
+   * only what it is made of.
+   *
+   * Roulette turned it red and Greed burns it brass; this one barely turns it
+   * at all, because a shed has nothing coloured in it to answer to. It is
+   * daylight-cool, almost the neutral grey of an unlit tube, which is the
+   * plainest version this building's neon comes in and exactly what a bare
+   * bulb over bare boards is.
+   */
+  --gr-color-neon-core: #f5f8f9;
+  --gr-color-neon-hi: #dfe6ea;
+  --gr-color-neon: #8a9299;
+  --gr-color-neon-dim: #565d63;
+  --gr-color-neon-deep: #3d4348;
+
+  --gr-color-ink: #dde2e5;
+  --gr-color-ink-lit: #f5f8f9;
+  --gr-color-ink-dim: #8b9298;
+  --gr-color-ink-faint: #5c6266;
+
+  /*
+   * The coins' own materials.
+   *
+   * Here rather than in twoup.css because they are what this room is made of,
+   * the same way the felt is — and because the mockup and the table both need
+   * them and neither should own them.
+   */
+  --tu-copper: #9c6136;
+  --tu-copper-lit: #d99a5e;
+  --tu-copper-deep: #4e2f19;
+  /* The milled edge, which catches the light differently from the faces. */
+  --tu-copper-edge: #7a4a28;
+  /* Chalk. The one white thing in the room, and the thing you read a throw by. */
+  --tu-chalk: #f2efe6;
+  /* The boards the ring is drawn on. */
+  --tu-boards: #2b2521;
+}

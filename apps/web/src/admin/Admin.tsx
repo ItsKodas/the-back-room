@@ -115,6 +115,7 @@ export const BANKS = [
   { game: "slots", label: "Slots", per: "a spin" },
   { game: "blackjack", label: "Blackjack", per: "a hand" },
   { game: "roulette", label: "Roulette", per: "straight up" },
+  { game: "two-up", label: "Two-up", per: "a five-odds chip" },
 ] as const;
 
 function Bank({ game, label, per }: { game: string; label: string; per: string }) {
