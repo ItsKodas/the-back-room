@@ -9,7 +9,9 @@ const PARTS = [
   { id: "balance", label: "Balance", hint: "back to the starting 10,000" },
   { id: "stats", label: "Stats", hint: "totals and every game's figures" },
   { id: "jar", label: "Tip jar", hint: "level, favours and tonight's pay" },
-  { id: "history", label: "History", hint: "transfers, redeemed codes, past games" },
+  // Wiping redemptions is what reopens a code, so the hint says so: that is
+  // chips, not just a record.
+  { id: "history", label: "History", hint: "transfers, past games; codes they redeemed can be redeemed again" },
 ] as const;
 
 type Part = (typeof PARTS)[number]["id"];

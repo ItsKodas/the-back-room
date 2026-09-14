@@ -113,6 +113,20 @@ describe("the players tab", () => {
     expect(within(dialog).queryByLabelText("Type RESET to confirm")).toBeNull();
   });
 
+  /*
+   * Wiping a player's history deletes their redemptions, which is what lets
+   * a used code be redeemed again — and for everyone, every capped code's
+   * uses go back. That is chips, so the dialog says it before it is pressed.
+   */
+  it("says resetting history lets used codes be redeemed again", async () => {
+    stubFetch();
+    render(<Players />);
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Reset everyone…" }));
+    const history = within(screen.getByRole("dialog")).getByText(/^History/).closest("label");
+    expect(history?.textContent).toMatch(/codes they redeemed can be redeemed again/i);
+  });
+
   it("shows the server's refusal when players are still seated", async () => {
     stubFetch({ status: 409, body: { error: "2 tables still have them seated.", seatedAt: 2 } });
     render(<Players />);
