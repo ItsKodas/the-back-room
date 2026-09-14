@@ -1,5 +1,5 @@
-import type { TableView } from "@backroom/game-death-roll";
-import { CEILINGS, lossOdds, STAKES } from "@backroom/game-death-roll";
+import type { SeatView, TableView } from "@backroom/game-death-roll";
+import { CEILINGS, DEATH_ROLL, STAKES } from "@backroom/game-death-roll";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -8,12 +8,15 @@ import { play, preload, unlock } from "../game/audio.js";
 import { Chat } from "../game/Chat.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
+import { useCountdown } from "../game/useCountdown.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
 import { PublicTables } from "../table/PublicTables.js";
+import { SeatCount } from "../table/SeatCount.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Falling } from "./Falling.js";
+import { goesOut, moveLine } from "./lines.js";
 import type { Intent } from "./useIntent.js";
 import { useIntent } from "./useIntent.js";
 import "@backroom/game-death-roll/theme.css";
@@ -22,10 +25,10 @@ import "./deathroll.css";
 /**
  * Death roll, wired up.
  *
- * A duel has no cloth to read and no layout to learn: the whole game is one
- * number and what it costs to hand the roll back rather than face it. So
- * unlike every felt in the building this page has nothing to draw beyond
- * that number, which is what makes it the smallest one here.
+ * A duel was the whole game once, and this page still draws almost nothing
+ * beyond the number and the seats around it — but there are now up to six of
+ * them, in an order a player has to read, so the felt gained a rail on a
+ * desk, a grid on a phone, and a ready screen for the gap between games.
  */
 
 type Table = TableSocketHook<TableView>;
@@ -112,20 +115,31 @@ export function Felt({
   const mine = state.you;
   const myTurn = state.phase === "playing" && seatId !== null && state.toRoll === seatId;
   const intent = useIntent(state, seatId, table.act, table.error);
-  useDuelSound(state, seatId);
+  useTableSound(state, seatId);
   // A pass's chips only ever need to land once, right as they are pressed —
   // not for as long as the ask stays outstanding, which is what watching
   // `pending` itself would do.
   const justPaid = usePaidFlourish(intent.pending > 0);
+  const countdown = useCountdown(state.countdownEndsAt);
+  // A courtesy, not a rule: the server refuses a second pass and a roll
+  // passed to you regardless of what this button shows.
+  const passHidden = mine === null || mine.passed || state.passedTo === seatId;
 
   /*
    * What the big number ought to show. The ceiling everywhere but the one
-   * moment a duel ends on a 1 — the table leaves the ceiling exactly where it
-   * was for that roll rather than setting it to the number that killed it, so
-   * showing it here instead is the only way the felt ever says "1" at all.
+   * moment a round ends on a 1 — the table leaves the ceiling exactly where
+   * it was for that roll rather than setting it to the number that killed
+   * it, so showing it here instead is the only way the felt ever says "1"
+   * at all. Between games it is the opening ceiling, dimmed.
    */
   const shown =
-    state.phase === "over" && state.lastRoll !== null ? state.lastRoll.result : state.ceiling;
+    state.phase === "over" && state.lastRoll !== null
+      ? state.lastRoll.result
+      : state.phase === "waiting"
+        ? state.opening
+        : state.ceiling;
+
+  const chance = goesOut(state);
 
   return (
     <section className="dr" data-game="death-roll">
@@ -133,24 +147,23 @@ export function Felt({
       <Bots table={table} state={state} />
 
       <div className="dr__stage">
-        {/* Hidden from assistive tech only between duels: once one is running
+        {/* Hidden from assistive tech only between games: once one is running
             or has just ended, this number is the one fact worth announcing. */}
-        <div aria-hidden={state.phase === "waiting"}>
+        <div aria-hidden={state.phase === "waiting"} className={state.phase === "waiting" ? "dr__number--dim" : ""}>
           <Falling value={shown} rolling={intent.rolling} />
         </div>
 
-        {state.phase === "playing" &&
-        state.alive.length === 2 &&
-        state.seats.every((seat) => !seat.inGame || seat.passed) ? (
-          <p className="dr__odds">
-            {(lossOdds(state.ceiling) * 100).toFixed(1)}% chance of losing this roll
-          </p>
-        ) : null}
+        <Standing state={state} seatId={seatId} countdown={countdown} />
 
-        <Standing state={state} />
+        {chance === null ? null : (
+          <p className="dr__odds">
+            {state.toRoll === seatId ? "You go" : `${nameOf(state, state.toRoll as string)} goes`}{" "}
+            out this round: {(chance * 100).toFixed(1)}%
+          </p>
+        )}
 
         {/*
-          Not shown once a duel is over: the felt already says who takes it,
+          Not shown once a game is over: the felt already says who takes it,
           and a second line repeating the same figure is a place for a stray
           number to disagree with the sentence beside it. `pending` is added in
           rather than waited for, so a pass lands on the pot the moment it is
@@ -158,6 +171,7 @@ export function Felt({
         */}
         {state.phase === "playing" && state.pot + intent.pending > 0 ? (
           <p className="dr__pot">
+            Pot{" "}
             <span
               className={`dr__pot-figure${state.forFun ? "" : " dr__pot-figure--chip"}${
                 justPaid ? " dr__pot-figure--paid" : ""
@@ -165,11 +179,14 @@ export function Felt({
             >
               {fmt(state.pot + intent.pending)}
             </span>{" "}
-            in the pot
+            · round {state.round} of {state.rounds}
           </p>
         ) : null}
       </div>
 
+      {/* Roll and ready share one slot — dr__controls — so the thumb's place
+          on a phone does not move between a game running and the gap before
+          the next one. */}
       {state.phase === "waiting" && mine !== null ? (
         <div className="dr__controls">
           <button
@@ -184,7 +201,7 @@ export function Felt({
       ) : null}
 
       {mine === null || !myTurn ? null : (
-        <Controls state={state} intent={intent} passed={mine.passed} />
+        <Controls state={state} intent={intent} passHidden={passHidden} />
       )}
 
       <History rolls={state.history} seatName={(id) => nameOf(state, id)} />
@@ -193,12 +210,12 @@ export function Felt({
 }
 
 /**
- * Turns a change in the duel into sound, the same way every other table's
+ * Turns a change at the table into sound, the same way every other table's
  * follows a comparison rather than an event: an opponent's throw earns the
  * same rattle this seat's own got on the press, and a table that only ever
  * made a noise for you would be a table you were playing alone.
  */
-function useDuelSound(state: TableView, seatId: string | null): void {
+function useTableSound(state: TableView, seatId: string | null): void {
   const previous = useRef<TableView | null>(null);
 
   // Fetching needs nothing from the browser; playing does. So the files are
@@ -269,18 +286,31 @@ function nameOf(state: TableView, seatId: string): string {
 /**
  * What the table is doing, in one line.
  *
- * The one thing every state has in common: a duel is either waiting on
- * somebody, being played, or already decided, and this is the sentence that
- * says which. Nothing here enforces anything — a table refusing a move
- * refuses it in words of its own, this is only what a player reads.
+ * Every phase has exactly one thing worth saying at a glance — waiting on
+ * players, a move to make, somebody just out between rounds, or a game
+ * decided — and this is the sentence that says it. Nothing here enforces
+ * anything: a table refusing a move refuses it in words of its own, this is
+ * only what a player reads.
  */
-function Standing({ state }: { state: TableView }) {
+function Standing({
+  state,
+  seatId,
+  countdown,
+}: {
+  state: TableView;
+  seatId: string | null;
+  countdown: number | null;
+}) {
   if (state.phase === "waiting") {
+    const line =
+      state.waitingFor === "players"
+        ? "Waiting for players."
+        : countdown !== null
+          ? `Dealing in ${countdown}s — ${state.readyCount} of ${state.seats.length} ready.`
+          : `${state.readyCount} of ${state.seats.length} ready.`;
     return (
       <p className="dr__standing" role="status">
-        {state.waitingFor === "players"
-          ? "Waiting for players."
-          : `${state.readyCount} of ${state.seats.length} ready.`}
+        {line}
       </p>
     );
   }
@@ -294,10 +324,18 @@ function Standing({ state }: { state: TableView }) {
     );
   }
 
-  const toRoll = state.toRoll === null ? null : nameOf(state, state.toRoll);
+  // Between rounds: the round just ended on somebody, not on a move to make.
+  if (state.toRoll === null) {
+    return (
+      <p className="dr__standing" role="status">
+        {state.lastOut === null ? "" : `${nameOf(state, state.lastOut)} is out.`}
+      </p>
+    );
+  }
+
   return (
     <p className="dr__standing" role="status">
-      {toRoll === null ? "" : `${toRoll} to roll.`}
+      {moveLine(state, seatId)}
     </p>
   );
 }
@@ -306,11 +344,11 @@ function Standing({ state }: { state: TableView }) {
 function Controls({
   state,
   intent,
-  passed,
+  passHidden,
 }: {
   state: TableView;
   intent: Intent;
-  passed: boolean;
+  passHidden: boolean;
 }) {
   // Busy the moment either press lands, not only while the socket itself is —
   // a second click before the table has caught up would ask it something it
@@ -332,11 +370,12 @@ function Controls({
         Roll
       </button>
       {/*
-        Hidden once spent rather than shown disabled. Hiding it is a courtesy
-        — the server refuses a second pass either way — and a button nobody
-        may ever press again is not information worth a slot on the felt.
+        Hidden once spent, or once the roll in hand arrived by a pass, rather
+        than shown disabled. Hiding it is a courtesy — the server refuses
+        either kind of second pass regardless — and a button nobody may ever
+        press again is not information worth a slot on the felt.
       */}
-      {passed ? null : (
+      {passHidden ? null : (
         <button
           type="button"
           className="btn btn--ghost dr__pass"
@@ -356,12 +395,12 @@ function Controls({
 }
 
 /**
- * Somebody to duel, when there is nobody.
+ * Somebody to play, when there is nobody.
  *
- * A duel needs two and this table has no lobby to wait in, so a for-fun table
- * opened on your own would otherwise sit there for ever — which is the whole
- * reason bots exist in this building. Shown right under the empty seat,
- * because that seat is the thing it fills.
+ * A chips table needs real people and this one has no lobby to wait in, so a
+ * for-fun table opened on your own would otherwise sit there for ever —
+ * which is the whole reason bots exist in this building. Shown right under
+ * the empty seats, because those are the seats it fills.
  *
  * Only at a table playing for nothing: chips are only won from real people,
  * and a bot has no account to take them from or pay them to. The table
@@ -390,9 +429,21 @@ function Bots({ table, state }: { table: Table; state: TableView }) {
   );
 }
 
-/** The two seats in the duel, whichever of them have arrived yet. */
+/**
+ * Every seat at the table, in turn order.
+ *
+ * Turn order rather than seating order, because with a pass that cannot be
+ * handed back, where a pass would land is the thing a player has to read off
+ * this list — and between games `order` is everybody seated, so the list
+ * still means something before a game has dealt anybody in. Padded to the
+ * table's full size with dashed open seats, since a table of six does not
+ * draw the same as a table of two.
+ */
 function Seats({ state, seatId }: { state: TableView; seatId: string | null }) {
-  const slots: (TableView["seats"][number] | null)[] = [...state.seats];
+  const seated = state.order
+    .map((id) => state.seats.find((seat) => seat.id === id))
+    .filter((seat): seat is SeatView => seat !== undefined);
+  const slots: (SeatView | null)[] = [...seated];
   while (slots.length < state.maxSeats) {
     slots.push(null);
   }
@@ -402,35 +453,73 @@ function Seats({ state, seatId }: { state: TableView; seatId: string | null }) {
       {slots.map((seat, at) =>
         seat === null ? (
           <li key={`empty-${at}`} className="dr__seat dr__seat--empty">
-            <span className="dr__seat-name">Waiting for a player…</span>
+            <span className="dr__seat-name">Open seat</span>
           </li>
         ) : (
-          <li
-            key={seat.id}
-            className={`dr__seat${seat.id === state.toRoll ? " dr__seat--turn" : ""}${
-              seat.connected ? "" : " dr__seat--away"
-            }`}
-          >
-            <Avatar name={seat.name} avatar={seat.avatar} accentColor={seat.accentColor} />
-            <span className="dr__seat-name">
-              {seat.name}
-              {seat.id === seatId ? " (you)" : ""}
-            </span>
-            {/* Who you are actually duelling, said on the seat rather than
-                left to be guessed from how fast the other side rolls. */}
-            {seat.isBot ? <span className="dr__seat-bot">bot</span> : null}
-            {seat.passed ? <span className="dr__seat-passed">Passed</span> : null}
-            {state.forFun && seat.purse !== null ? (
-              <span className="dr__seat-purse">{fmt(seat.purse)} play money</span>
-            ) : null}
-          </li>
+          <SeatRow key={seat.id} seat={seat} state={state} mine={seat.id === seatId} />
         ),
       )}
     </ul>
   );
 }
 
-/** Every roll of the duel, oldest first, in its own scrolling strip. */
+/** One seat's whole story, read at a glance rather than worked out from the number. */
+function SeatRow({
+  seat,
+  state,
+  mine,
+}: {
+  seat: SeatView;
+  state: TableView;
+  mine: boolean;
+}) {
+  const isTurn = seat.id === state.toRoll;
+  const forced = isTurn && state.passedTo === seat.id;
+  // Marks the one seat the felt just announced going out, for the one short
+  // motion it gets — cleared the moment the next round's first roll lands,
+  // same as `lastOut` itself.
+  const justOut = seat.id === state.lastOut;
+
+  return (
+    <li
+      className={[
+        "dr__seat",
+        isTurn ? "dr__seat--turn" : "",
+        forced ? "dr__seat--forced" : "",
+        seat.out ? "dr__seat--out" : "",
+        seat.connected ? "" : "dr__seat--away",
+        justOut ? "dr__seat--just-out" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <Avatar name={seat.name} avatar={seat.avatar} accentColor={seat.accentColor} />
+      <span className="dr__seat-name">
+        {seat.name}
+        {mine ? " (you)" : ""}
+      </span>
+      {/* Who is actually at the table, said on the seat rather than left to
+          be guessed from how fast a side rolls. */}
+      {seat.isBot ? <span className="dr__seat-bot">bot</span> : null}
+      {state.phase === "waiting" ? (
+        <span className="dr__seat-ready">{seat.ready ? "ready" : "not ready"}</span>
+      ) : null}
+      {state.phase === "playing" && seat.inGame && !seat.out ? (
+        <span className="dr__seat-pass">{seat.passed ? "passed" : "pass"}</span>
+      ) : null}
+      {seat.out ? <span className="dr__seat-out">out</span> : null}
+      {isTurn ? (
+        <span className="dr__seat-turn-marker">{forced ? "must roll" : "your roll"}</span>
+      ) : null}
+      {seat.short ? <span className="dr__seat-short">short of the ante</span> : null}
+      {state.forFun && seat.purse !== null ? (
+        <span className="dr__seat-purse">{fmt(seat.purse)} play money</span>
+      ) : null}
+    </li>
+  );
+}
+
+/** Every roll of the round on the felt, oldest first, in its own scrolling strip. */
 function History({
   rolls,
   seatName,
@@ -442,7 +531,7 @@ function History({
     return null;
   }
   return (
-    <ol className="dr__history" aria-label="Rolls this duel, oldest first">
+    <ol className="dr__history" aria-label="Rolls this round, oldest first">
       {rolls.map((rolled, at) => (
         <li
           // The position is the identity: the same ceiling can come up twice
@@ -460,7 +549,7 @@ function History({
 
 /* ------------------------------------------------------------- the lobby */
 
-function Sit({
+export function Sit({
   table,
   invited,
   account,
@@ -483,14 +572,17 @@ function Sit({
   const forFun = chosen ?? guest;
   const [stake, setStake] = useState<number>(STAKES[1]);
   const [ceiling, setCeiling] = useState<number>(CEILINGS[1]);
+  // Six is a full table; the host may want a smaller one.
+  const [seats, setSeats] = useState<number>(DEATH_ROLL.maxSeats);
   const name = account.profile?.name ?? typed.trim();
   const named = name.length > 0;
 
   return (
     <div className="join">
       <p className="join__pitch">
-        Two people, and a number that only goes down. Roll uniformly under the ceiling or pay a
-        tenth of the ante to hand the roll back — whoever rolls a one loses the pot.
+        Two to six players and a number that only goes down. Roll under the ceiling or pay a
+        tenth of the ante to hand the roll back — roll a one and you are out, and the last one
+        left takes the pot.
       </p>
 
       {account.loading || !guest ? null : (
@@ -610,15 +702,25 @@ function Sit({
             </div>
           </div>
 
+          {/*
+            * How many seats the evening has. The house's own picker: a game
+            * that only ever held two had nowhere to put it, and now that a
+            * table can hold up to six it is the host's to set, and fixed once
+            * the table is open, the same as the ante and the opening ceiling.
+            */}
+          <SeatCount value={seats} onChange={setSeats} ceiling={DEATH_ROLL.maxSeats} />
+
           <p className="panel__note">
-            You get a five-character code to share. Two people, one ante each
+            You get a five-character code to share. One ante each
             {forFun ? ", and play money that lives at the table." : "."}
           </p>
           <button
             type="button"
             className="btn btn--wide"
             disabled={table.busy || !named}
-            onClick={() => table.create(name, { game: "death-roll", forFun, buyIn: stake, ceiling })}
+            onClick={() =>
+              table.create(name, { game: "death-roll", forFun, buyIn: stake, ceiling, maxSeats: seats })
+            }
           >
             Open a table
           </button>

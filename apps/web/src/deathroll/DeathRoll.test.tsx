@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-death-roll";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Account } from "../game/useAccount.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
-import { Felt } from "./DeathRoll.js";
+import { Felt, Sit } from "./DeathRoll.js";
 
 afterEach(cleanup);
 
@@ -200,5 +201,149 @@ describe("the death roll felt", () => {
     render(<Felt table={stub().table} state={state} seatId="s1" />);
 
     expect(screen.getByText(/^bot$/i)).toBeTruthy();
+  });
+});
+
+/**
+ * Six at a table rather than two, so the felt now has an order to draw
+ * seats in, seats that can be out or dashed empty, and a ready screen
+ * between games instead of only a duel already running.
+ */
+describe("the table of up to six", () => {
+  it("lists seats in turn order and marks who is out, passed, and to roll", () => {
+    const state = view({
+      order: ["s3", "s1", "s2"],
+      alive: ["s1", "s2", "s3"],
+      seats: [
+        seat({ id: "s1", name: "Ada", passed: true }),
+        seat({ id: "s2", name: "Bram", out: true }),
+        seat({ id: "s3", name: "Cleo" }),
+      ],
+      toRoll: "s3",
+      you: seat({ id: "s3", name: "Cleo" }),
+    });
+    const { container } = render(<Felt table={stub().table} state={state} seatId="s3" />);
+
+    // Drawn in state.order, not seating order — Cleo, then Ada, then Bram.
+    const names = [...container.querySelectorAll(".dr__seat-name")].map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(names).toEqual(["Cleo (you)", "Ada", "Bram"]);
+    expect(screen.getByText("out")).toBeTruthy();
+  });
+
+  it("hides pass on a roll passed to you, and says you must roll it", () => {
+    const state = view({
+      toRoll: "s1",
+      passedTo: "s1",
+      lastPass: { seatId: "s2", paid: 50, to: "s1" },
+      you: seat({ id: "s1", name: "Ada" }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
+
+    expect(screen.queryByRole("button", { name: /Pass/i })).toBeNull();
+    expect(screen.getByText(/so you must roll/)).toBeTruthy();
+  });
+
+  it("reads the odds off the same solver the bot plays, to one decimal", () => {
+    const state = view({ toRoll: "s1", you: seat({ id: "s2", name: "Bram" }) });
+    render(<Felt table={stub().table} state={state} seatId="s2" />);
+
+    expect(screen.getByText(/goes out this round: \d+\.\d%/)).toBeTruthy();
+  });
+
+  it("shows the ready screen: the countdown, the ready count, and the open seats", () => {
+    const state = view({
+      phase: "waiting",
+      waitingFor: null,
+      toRoll: null,
+      pot: 0,
+      countdownEndsAt: Date.now() + 14_000,
+      readyCount: 2,
+      maxSeats: 6,
+      order: ["s1", "s2", "s3", "s4"],
+      alive: [],
+      seats: [
+        seat({ id: "s1", name: "Ada" }),
+        seat({ id: "s2", name: "Bram" }),
+        seat({ id: "s3", name: "Cleo" }),
+        seat({ id: "s4", name: "Dee" }),
+      ],
+      you: seat({ id: "s1", name: "Ada" }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
+
+    expect(screen.getByText(/Dealing in/)).toBeTruthy();
+    expect(screen.getByText(/2 of 4 ready/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /I'm ready/i })).toBeTruthy();
+    expect(screen.getAllByText(/^Open seat$/i)).toHaveLength(2);
+  });
+
+  it("shows the ready screen at a for-fun table too", () => {
+    // M5 from the Task 6 review: the ready button at a for-fun table had no
+    // test of its own.
+    const state = view({
+      phase: "waiting",
+      forFun: true,
+      waitingFor: null,
+      toRoll: null,
+      pot: 0,
+      countdownEndsAt: null,
+      readyCount: 1,
+      maxSeats: 2,
+      order: ["s1"],
+      alive: [],
+      seats: [seat({ id: "s1", name: "Ada", purse: 10_000 })],
+      you: seat({ id: "s1", name: "Ada", purse: 10_000 }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
+
+    expect(screen.getByRole("button", { name: /I'm ready/i })).toBeTruthy();
+    expect(screen.getByText(/1 of 1 ready/)).toBeTruthy();
+  });
+
+  it("says who just went out, between rounds", () => {
+    const state = view({
+      toRoll: null,
+      lastOut: "s2",
+      round: 2,
+      rounds: 3,
+      alive: ["s1"],
+      seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram", out: true })],
+      you: seat({ id: "s1", name: "Ada" }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
+
+    expect(screen.getByText(/Bram is out/)).toBeTruthy();
+  });
+
+  it("offers 2, 4 and 6 seats when hosting, and sends the choice on opening", () => {
+    const create = vi.fn();
+    const table = {
+      busy: false,
+      join: vi.fn(),
+      watch: vi.fn(),
+      create,
+    } as unknown as TableSocketHook<TableView>;
+    const account: Account = {
+      profile: null,
+      available: true,
+      loading: false,
+      refresh: vi.fn(),
+      setChips: vi.fn(),
+      signOut: vi.fn(),
+    };
+
+    render(<Sit table={table} invited="" account={account} />);
+
+    expect(screen.getByRole("radio", { name: "2" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "4" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "6" })).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText("Ada"), { target: { value: "Ada" } });
+    fireEvent.click(screen.getByRole("radio", { name: "4" }));
+    fireEvent.click(screen.getByRole("button", { name: /Open a table/i }));
+
+    expect(create).toHaveBeenCalledWith("Ada", expect.objectContaining({ maxSeats: 4 }));
   });
 });
