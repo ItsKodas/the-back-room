@@ -697,7 +697,7 @@ describe("the bet keys", () => {
 
 describe("betting a figure of your own", () => {
   const box = (container: HTMLElement) =>
-    within(container).getByRole("textbox", { name: "Your own bet a line" });
+    within(container).getByRole("textbox", { name: "Custom bet a line" });
   const said = (container: HTMLElement) => container.querySelector(".bet__said")?.textContent ?? "";
 
   it("bets what was typed", () => {
