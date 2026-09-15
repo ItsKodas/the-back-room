@@ -2,7 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Standings } from "./Standings.js";
+import { RAIL_PLACES, Standings } from "./Standings.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -56,15 +56,48 @@ describe("who's ahead, from the front door", () => {
       })),
     );
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <Standings />
       </MemoryRouter>,
     );
 
     expect(await screen.findByText("Ada")).toBeTruthy();
-    expect(screen.getByText(/12/)).toBeTruthy();
+    expect(container.querySelector(".standings__you")?.textContent).toBe("You are 12 of 40");
     expect(screen.getByRole("link").getAttribute("href")).toBe("/leaderboard");
+    // Not in the list, so pinned under it at your real place rather than left off.
+    const below = container.querySelector(".standings__below .standings__place--you");
+    expect(below?.querySelector("b")?.textContent).toBe("12");
+    expect(below?.textContent).toContain("You");
+  });
+
+  it("lists no more than the rail holds, and does not pin you twice when you are in it", async () => {
+    const rows = Array.from({ length: 40 }, (_, index) => ({
+      id: `p${index}`,
+      name: `Player ${index}`,
+      avatar: null,
+      accentColor: null,
+      chips: 10_000 - index,
+      stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ sort: "chips", total: 40, rows, you: { row: rows[3], rank: 4 } }),
+      })),
+    );
+
+    const { container } = render(
+      <MemoryRouter>
+        <Standings />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Player 0");
+    expect(container.querySelectorAll(".standings__place")).toHaveLength(RAIL_PLACES);
+    expect(container.querySelector(".standings__below")).toBeNull();
+    expect(container.querySelectorAll(".standings__place--you")).toHaveLength(1);
   });
 
   it("still points at the board when nobody is signed in", async () => {
@@ -78,7 +111,7 @@ describe("who's ahead, from the front door", () => {
     expect(screen.getByRole("link").getAttribute("href")).toBe("/leaderboard");
   });
 
-  it("ranks the top three the way the board does, ties and all", async () => {
+  it("ranks the places the way the board does, ties and all", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -135,7 +168,7 @@ describe("who's ahead, from the front door", () => {
     // Bram and Cyd are tied on chips: the board gives them both rank 2, so
     // the front door has to agree rather than counting list position.
     const ranks = Array.from(container.querySelectorAll(".standings__place b")).map((b) => b.textContent);
-    expect(ranks).toEqual(["1", "2", "2"]);
+    expect(ranks).toEqual(["1", "2", "2", "4"]);
   });
 
   it("says nothing about being signed out while the first answer is still on its way", () => {

@@ -128,8 +128,17 @@
   padding-top: 0;
 }
 
-.shell__bar + .room {
+.shell__bar + .room,
+.shell__bar + .lobby > .room {
   padding-top: var(--gr-space-2);
+}
+
+/* The rails start level with the room under the bar, not a page's padding
+   below it. Only while they are columns: a drawer runs from the window's top. */
+@media (min-width: 1280px) {
+  .shell__bar + .lobby > .rail {
+    margin-top: var(--gr-space-2);
+  }
 }
 
 .shell__bar:has(+ .tips),
@@ -195,9 +204,99 @@
   color: var(--gr-color-neon);
 }
 
-.nav__spacer {
-  flex: 1;
-  min-width: var(--gr-space-2);
+.nav__brand,
+.nav__who,
+.nav__keys {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-2);
+}
+
+.nav__brand {
+  gap: var(--gr-space-3);
+  min-width: 0;
+}
+
+/* The sign never gives way: the game's name beside it does. Squeezed, it
+   broke "Back Room" over two lines and stopped reading as a sign. */
+.nav__mark {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Pushes who you are and the keys to the far side, as the spacer used to. */
+.nav__who {
+  margin-left: auto;
+  min-width: 0;
+}
+
+.nav__keys {
+  flex: none;
+}
+
+/*
+ * A phone: the sign and the keys share the top line, who you are takes the
+ * whole of the second. Wrapping a flex row put whichever child ran out of
+ * width on a line of its own — a lone sound key under the account pill — so
+ * the rows are laid out deliberately instead of left to the leftovers.
+ */
+@media (max-width: 640px) {
+  .nav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand keys"
+      "who who";
+    row-gap: var(--gr-space-3);
+    column-gap: var(--gr-space-2);
+    padding-bottom: var(--gr-space-3);
+  }
+
+  .nav__brand {
+    grid-area: brand;
+  }
+
+  .nav__keys {
+    grid-area: keys;
+  }
+
+  .nav__who {
+    grid-area: who;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  /* Still asking who you are: no empty second row holding a gap open. */
+  .nav__who:empty {
+    display: none;
+  }
+
+  .nav__game {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--gr-text-lg);
+  }
+}
+
+/* Two-word names — Death Roll, Liar's Dice — fit beside the sign at a
+   phone's narrowest only a step smaller; the ellipsis is the last resort. */
+@media (max-width: 420px) {
+  .nav__game {
+    font-size: var(--gr-text-base);
+  }
+}
+
+@media (max-width: 640px) {
+
+  /* Your name gives way before the table or the chips do. */
+  .nav__table {
+    flex: none;
+  }
+
+  .me {
+    min-width: 0;
+  }
 }
 
 /*
@@ -359,6 +458,9 @@
 }
 
 .me__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: var(--gr-text-sm);
   color: var(--gr-color-ink);
 }
@@ -1509,21 +1611,218 @@
 }
 
 /*
- * The strip under the sign: the board and the bar, neither of them a game you
- * sit at. Fixed tracks rather than auto-fit, so the board does not stretch
- * across the room and then jump back when the bar's listing arrives.
+ * The room between its two rails: what is happening on the left, who is
+ * ahead on the right. The side tracks share whatever the room leaves, and
+ * each rail keeps to the window's edge, so the room stays the centre of the
+ * page and the rails read as furniture around it rather than part of it.
  */
-.room__front {
+.lobby {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: var(--gr-space-3);
-  margin-top: var(--gr-space-4);
+  grid-template-columns: minmax(220px, 1fr) minmax(0, var(--page-width)) minmax(220px, 1fr);
+  column-gap: var(--gr-space-4);
+  padding-inline: var(--gr-space-4);
+  align-items: start;
 }
 
-@media (max-width: 640px) {
-  .room__front {
-    grid-template-columns: minmax(0, 1fr);
+.lobby > .room {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+}
+
+.rail {
+  grid-row: 1;
+  position: sticky;
+  top: var(--gr-space-4);
+  margin-top: var(--gr-space-6);
+  width: 100%;
+  max-width: 320px;
+  max-height: calc(100dvh - 2 * var(--gr-space-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-3);
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent),
+    var(--gr-color-slate);
+  box-shadow: var(--gr-lip);
+}
+
+.rail--left {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.rail--right {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* Only a drawer has a way in and a way out. */
+.rail__tab,
+.rail__scrim,
+.rail__close {
+  display: none;
+}
+
+/*
+ * Too narrow for three columns: the rails leave the page and wait off its
+ * edges, each behind a tab. Hidden with visibility as well as moved, so a
+ * shut drawer is out of the tab order, and the visibility change waits for
+ * the slide to finish so it is not snapped out of sight mid-motion.
+ */
+@media (max-width: 1279px) {
+  .lobby {
+    display: block;
+    padding-inline: 0;
   }
+
+  .rail {
+    position: fixed;
+    z-index: 60;
+    top: 0;
+    bottom: 0;
+    margin: 0;
+    width: min(320px, 86vw);
+    max-width: none;
+    max-height: none;
+    padding-top: var(--gr-space-2);
+    visibility: hidden;
+    transition:
+      transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 360ms;
+  }
+
+  .rail--left {
+    left: 0;
+    border-radius: 0 14px 14px 0;
+    transform: translateX(-104%);
+  }
+
+  .rail--right {
+    right: 0;
+    border-radius: 14px 0 0 14px;
+    transform: translateX(104%);
+  }
+
+  .rail[data-open] {
+    visibility: visible;
+    transform: none;
+    transition:
+      transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s;
+  }
+
+  .rail__close {
+    display: grid;
+    place-items: center;
+    align-self: flex-end;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    padding: 10px;
+    border: 0;
+    background: none;
+    color: var(--gr-color-ink-dim);
+    cursor: pointer;
+  }
+
+  .rail__close svg,
+  .rail__tab svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* On the edge and low enough to reach with the thumb holding the phone. */
+  .rail__tab {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    z-index: 40;
+    top: 60%;
+    width: 36px;
+    height: 60px;
+    padding: 0;
+    border: 1px solid rgb(0 0 0 / 0.62);
+    background: var(--gr-color-slate);
+    box-shadow: var(--gr-lip);
+    color: var(--gr-color-neon);
+    cursor: pointer;
+  }
+
+  .rail__tab--left {
+    left: 0;
+    border-left: 0;
+    border-radius: 0 12px 12px 0;
+  }
+
+  .rail__tab--right {
+    right: 0;
+    border-right: 0;
+    border-radius: 12px 0 0 12px;
+  }
+
+  .rail__tab:focus-visible,
+  .rail__close:focus-visible {
+    outline: 2px solid var(--gr-color-neon);
+    outline-offset: -2px;
+  }
+
+  .rail__scrim {
+    display: block;
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: rgb(0 0 0 / 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 240ms ease-out;
+  }
+
+  .rail__scrim[data-open] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .rail[data-open],
+  .rail__scrim {
+    transition: none;
+  }
+}
+
+/*
+ * The machine and the jar, side by side above the tables. The jar stands up
+ * like the cabinet next to it here, so the pair read as two of a kind rather
+ * than a card and a strip.
+ */
+.room__wall {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gr-space-3);
+}
+
+.room__wall .barsign {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-3);
+  text-align: center;
+}
+
+.room__wall .barsign__art {
+  width: auto;
+  height: 84px;
+}
+
+.room__wall .barsign__words {
+  align-items: center;
 }
 
 .barsign {
@@ -2305,12 +2604,6 @@
  * rather than a different one, so the footprint matches now and the drawing
  * inside it does the work instead.
  */
-.room__machines {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: var(--gr-space-3);
-}
-
 .cabinet {
   width: 100%;
   display: flex;
