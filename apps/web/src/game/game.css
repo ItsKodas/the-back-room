@@ -1587,10 +1587,13 @@ a.btn {
   min-height: 44px;
   padding: var(--gr-space-2) var(--gr-space-3);
   border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-sm);
+  border-radius: var(--gr-radius-cab);
   background:
     radial-gradient(80% 60% at 20% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
     linear-gradient(180deg, var(--gr-color-smoke), var(--gr-color-shadow));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
   text-decoration: none;
   color: inherit;
 }
@@ -1735,12 +1738,15 @@ a.btn {
   padding: var(--gr-space-4);
   min-height: 168px;
   overflow: hidden;
-  border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-sm);
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  /* The game's felt glowing up from the bottom, under a housing lit from above. */
   background:
     radial-gradient(88% 120% at 50% 128%, var(--gr-color-felt) 0%, transparent 72%),
-    radial-gradient(70% 90% at 8% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
-    var(--gr-color-night);
+    linear-gradient(180deg, var(--gr-color-smoke-lit) 0%, var(--gr-color-smoke) 12%, var(--gr-color-night) 60%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
   text-decoration: none;
   color: inherit;
 }
@@ -1757,7 +1763,7 @@ a.btn {
 }
 
 .tile:hover {
-  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+  border-color: color-mix(in srgb, var(--gr-color-neon) 50%, black);
 }
 
 .tile:focus-visible {
@@ -2366,10 +2372,13 @@ a.btn {
   gap: var(--gr-space-2);
   padding: var(--gr-space-3) var(--gr-space-3) var(--gr-space-3);
   border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-md) var(--gr-radius-md) var(--gr-radius-sm) var(--gr-radius-sm);
+  border-radius: var(--gr-radius-cab);
   background:
     radial-gradient(80% 60% at 50% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
     linear-gradient(180deg, var(--gr-color-smoke), var(--gr-color-shadow));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
   text-align: center;
   text-decoration: none;
   color: inherit;
