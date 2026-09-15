@@ -19,6 +19,25 @@ const line = (id: string, pts: number[], ink: StrokeMark["ink"] = "red", size = 
 
 const box = (id: string): StrokeMark => line(id, [300, 300, 400, 300, 400, 400, 300, 400, 300, 300], "black");
 
+/*
+ * Deep equality on a 3 MB typed array is seconds of chai walking every byte,
+ * which is fast enough alone but tips over vitest's default timeout the
+ * moment the rest of the suite is contending for CPU — and a flake is a bug
+ * here, not something to wait out. Comparing by hand asserts the same fact
+ * in milliseconds.
+ */
+const firstDifference = (a: Uint8ClampedArray, b: Uint8ClampedArray): number => {
+  if (a.length !== b.length) {
+    return Math.min(a.length, b.length);
+  }
+  for (let at = 0; at < a.length; at += 1) {
+    if (a[at] !== b[at]) {
+      return at;
+    }
+  }
+  return -1;
+};
+
 describe("the napkin's rasteriser", () => {
   it("starts as paper", () => {
     const raster = new Raster();
@@ -62,7 +81,7 @@ describe("the napkin's rasteriser", () => {
     expect(batched.update([line("k1", [10, 10, 60, 40])])).toBe(false);
     batched.update([line("k1", [10, 10, 60, 40, 120, 90, 200, 90])]);
 
-    expect(batched.pixels).toEqual(whole.pixels);
+    expect(firstDifference(batched.pixels, whole.pixels)).toBe(-1);
   });
 
   it("redraws in order when a line behind a fill grows, rather than painting over the fill", () => {
@@ -76,7 +95,7 @@ describe("the napkin's rasteriser", () => {
     stepped.update([line("k0", [320, 320], "black"), ...marks([0, 0])]);
     stepped.update(grown);
 
-    expect(stepped.pixels).toEqual(fresh.pixels);
+    expect(firstDifference(stepped.pixels, fresh.pixels)).toBe(-1);
   });
 
   it("starts again from paper when a mark is undone", () => {
