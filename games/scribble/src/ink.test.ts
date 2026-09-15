@@ -64,6 +64,14 @@ describe("the stroke log", () => {
     expect(() => log.stroke("b", batch("k1", 1, [2, 2]))).toThrow(TableError);
   });
 
+  it("ignores a line that reuses a fill's id", () => {
+    const log = new InkLog();
+    log.fill("a", { id: "x1", ink: "red", x: 5, y: 5 });
+    expect(log.stroke("a", batch("x1", 0, [1, 1]))).toBeNull();
+    expect(log.marks).toHaveLength(1);
+    expect(log.points).toBe(1);
+  });
+
   it("undoes only the undoer's own latest mark", () => {
     const log = new InkLog();
     log.stroke("a", batch("k1", 0, [1, 1]));

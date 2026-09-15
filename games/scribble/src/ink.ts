@@ -151,6 +151,10 @@ export class InkLog {
     if (this.gone.has(batch.id)) {
       return null;
     }
+    // A fill already holds this id: ids are shared across kinds, so a stroke reusing one is ignored, not layered on top.
+    if (this.list.some((mark) => mark.kind !== "stroke" && mark.id === batch.id)) {
+      return null;
+    }
     const existing = this.list.find((mark): mark is StrokeMark => mark.kind === "stroke" && mark.id === batch.id);
     if (existing !== undefined && existing.by !== by) {
       throw new TableError("That line is not yours.");
