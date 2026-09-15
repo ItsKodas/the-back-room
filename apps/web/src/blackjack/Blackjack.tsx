@@ -806,25 +806,31 @@ function SignInToJoin({ code, onWatch }: { code: string; onWatch: () => void }) 
 
   return (
     <div className="join join--gate">
-      <div className="panel gate">
-        <p className="panel__label">Table {code}</p>
-        <h2 className="gate__title">This one plays for chips</h2>
-        <p className="gate__note">
-          Chips come from an account, so there is one step before you sit down. Sign in and you
-          will land back at this table.
-        </p>
-        <a className="btn btn--wide btn--icon gate__in" href={back}>
-          <DiscordIcon />
-          <span>Sign in with Discord</span>
-        </a>
-        <button type="button" className="btn btn--ghost btn--wide" onClick={onWatch}>
-          Just watch this one
-        </button>
-        <p className="panel__note">
-          Or <Link to="/blackjack">open a table of your own</Link> — a for-fun one deals play
-          money and anybody can sit down.
-        </p>
-      </div>
+      <section className="housing gate" aria-labelledby="gate-title">
+        <div className="housing__head">
+          <p className="label">Table {code}</p>
+        </div>
+        <div className="housing__body">
+          <h2 className="gate__title" id="gate-title">
+            This one plays for chips
+          </h2>
+          <p className="gate__note">
+            Chips come from an account, so there is one step before you sit down. Sign in and you
+            will land back at this table.
+          </p>
+          <a className="slab slab--wide slab--discord" href={back}>
+            <DiscordIcon />
+            <span>Sign in with Discord</span>
+          </a>
+          <button type="button" className="key key--wide" onClick={onWatch}>
+            Just watch this one
+          </button>
+          <p className="panel__note">
+            Or <Link to="/blackjack">open a table of your own</Link> — a for-fun one deals play
+            money and anybody can sit down.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

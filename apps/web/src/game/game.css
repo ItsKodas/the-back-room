@@ -681,61 +681,17 @@
   align-items: stretch;
 }
 
-/*
- * Label at the top, button at the bottom, code taking whatever is left. That
- * is what makes the tile fill its height instead of leaving a gap under it.
- */
-.lobby__share {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-}
-
 .lobby__share-body {
-  display: grid;
   align-content: center;
-  justify-items: center;
-  gap: var(--gr-space-3);
-  padding: var(--gr-space-3) 0;
+  justify-items: stretch;
 }
 
 .lobby__link {
-  width: 100%;
-  max-width: 22rem;
+  min-height: 40px;
   font-family: var(--gr-font-data);
   font-size: var(--gr-text-xs);
   text-align: center;
   color: var(--gr-color-ink-dim);
-  background: rgb(0 0 0 / 0.3);
-  border: var(--gr-edge-hair);
-  border-radius: var(--gr-radius-sm);
-  padding: var(--gr-space-2);
-}
-
-.lobby__link:focus-visible {
-  outline: 2px solid var(--gr-color-neon);
-  outline-offset: 2px;
-}
-
-/* Wider than a ghost button and quieter than the deal button: this is the
-   thing you reach for in a lobby, but it is not what starts the game. */
-.btn.lobby__copy {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--gr-color-neon) 30%, transparent),
-    color-mix(in srgb, var(--gr-color-neon-dim) 24%, transparent)
-  );
-  border: 1px solid var(--gr-color-neon-dim);
-  color: var(--gr-color-ink-lit);
-}
-
-.btn.lobby__copy:hover {
-  border-color: var(--gr-color-neon);
-  color: var(--gr-color-ink-lit);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--gr-color-neon) 44%, transparent),
-    color-mix(in srgb, var(--gr-color-neon-dim) 34%, transparent)
-  );
 }
 
 .lobby__code {
@@ -744,16 +700,15 @@
   /* Trailing space, so the tracking does not leave the last letter short. */
   letter-spacing: 0.3em;
   text-indent: 0.3em;
-  color: var(--gr-color-neon-hi);
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi), 0 0 24px var(--gr-color-neon);
   line-height: 1;
-  padding: var(--gr-space-2) 0 var(--gr-space-3);
   text-align: center;
 }
 
 .lobby__seats {
   display: grid;
   gap: var(--gr-space-2);
-  margin-bottom: var(--gr-space-4);
 }
 
 /* The seat rows already carry their own edges, so they set their own width
@@ -1523,81 +1478,29 @@ a.btn {
 
 /* ------------------------------------------------------ house rules */
 
-.rules {
-  padding: var(--gr-space-4);
-  background: rgb(0 0 0 / 0.24);
-  border: var(--gr-edge-hair);
-  border-radius: var(--gr-radius-sm);
-}
-
 .rules__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gr-space-3);
-  margin-bottom: var(--gr-space-2);
   flex-wrap: wrap;
 }
 
-.rules__label {
-  font-size: var(--gr-text-sm);
-  color: var(--gr-color-ink-dim);
-}
-
-.rules__choices {
-  display: flex;
-  gap: 4px;
-}
-
-.rules__choice,
-.rules__toggle {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-xs);
-  padding: 4px var(--gr-space-2);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(0 0 0 / 0.3);
-  border: var(--gr-edge-soft);
-  color: var(--gr-color-ink-dim);
-  cursor: pointer;
-}
-
-.rules__choice--on,
-.rules__toggle--on {
-  border-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 16%, transparent);
-  color: var(--gr-color-ink);
-}
-
-.rules__choice:disabled,
-.rules__toggle:disabled {
-  cursor: default;
-  opacity: 0.75;
-}
-
-.rules__choice:focus-visible,
-.rules__toggle:focus-visible {
-  outline: 2px solid var(--gr-color-neon-hi);
-  outline-offset: 2px;
+.rules__row .lamps {
+  flex: 1 1 14rem;
+  justify-content: flex-end;
 }
 
 .rules__toggles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 4px;
-  margin-top: var(--gr-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 6px;
 }
 
 .rules__toggle {
   display: flex;
   justify-content: space-between;
   gap: var(--gr-space-2);
-  text-align: left;
-}
-
-.rules__note {
-  margin: var(--gr-space-3) 0 0;
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-dim);
 }
 
 .lobby__wide {
@@ -1637,13 +1540,9 @@ a.btn {
  * Everything that is chips, wearing the one warm colour in the building. The
  * rule only works because it is kept: a gold figure is always money.
  */
-.rules__choice--on,
-.chips {
+.chips,
+.rules__chips {
   color: var(--gr-color-chip-hi);
-}
-
-.rules__note {
-  color: var(--gr-color-chip);
 }
 
 /* ------------------------------------------------------------------- room */
@@ -2895,8 +2794,6 @@ a.btn {
 }
 
 .gate {
-  display: grid;
-  gap: var(--gr-space-3);
   text-align: center;
 }
 
@@ -2911,20 +2808,6 @@ a.btn {
   margin: 0;
   color: var(--gr-color-ink-dim);
   line-height: 1.55;
-}
-
-/* Discord's own blurple, because it names Discord. The one place in the
-   building a colour is somebody else's rather than the room's. */
-.gate__in {
-  background: #5865f2;
-  border-color: #5865f2;
-  color: #fff;
-  text-decoration: none;
-}
-
-.gate__in:hover {
-  background: #4752c4;
-  border-color: #4752c4;
 }
 
 /*

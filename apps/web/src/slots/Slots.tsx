@@ -1905,20 +1905,22 @@ export function Controls({
  */
 function SignInToPlay({ available }: { available: boolean }) {
   return (
-    <div className="panel gate slots__gate">
-      <h2 className="gate__title">This one plays for chips</h2>
-      <p className="gate__note">
-        The bank is real chips other people staked, so there is one step before you pull the
-        lever. Sign in and you will land back here.
-      </p>
-      {available ? (
-        <a className="btn btn--wide btn--icon gate__in" href="/auth/discord?to=%2Fslots">
-          <DiscordIcon />
-          <span>Sign in with Discord</span>
-        </a>
-      ) : (
-        <p className="panel__note">Signing in is not set up on this server.</p>
-      )}
+    <div className="housing gate slots__gate">
+      <div className="housing__body">
+        <h2 className="gate__title">This one plays for chips</h2>
+        <p className="gate__note">
+          The bank is real chips other people staked, so there is one step before you pull the
+          lever. Sign in and you will land back here.
+        </p>
+        {available ? (
+          <a className="slab slab--wide slab--discord" href="/auth/discord?to=%2Fslots">
+            <DiscordIcon />
+            <span>Sign in with Discord</span>
+          </a>
+        ) : (
+          <p className="panel__note">Signing in is not set up on this server.</p>
+        )}
+      </div>
     </div>
   );
 }
