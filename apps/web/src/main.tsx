@@ -12,6 +12,11 @@ import "./global.css";
  */
 import "./game/game.css";
 /*
+ * The fittings every page is built from. After game.css, because .field is
+ * declared in both and a page's version has to win.
+ */
+import "./fittings/fittings.css";
+/*
  * Here for the same reason: taunts are the building's furniture rather than
  * any one game's, and every table can carry them.
  */

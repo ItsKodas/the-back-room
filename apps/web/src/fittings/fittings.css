@@ -1,0 +1,1118 @@
+/*
+ * The fittings: what every page in the building is built from.
+ *
+ * Taken from the two screens that already felt finished — the slot machine and
+ * the leaderboard — and written down once so the rest of the building can
+ * stop drawing outlines round empty boxes. The rule in one line: things you
+ * press stand up off the panel, things you choose sink into it, and the one
+ * thing that matters on a screen is lit.
+ *
+ * Deliberately new names rather than a restyle of .btn and .panel. Those are
+ * still worn on every felt, and a felt is not a page: changing them here would
+ * repaint the tables too.
+ *
+ * Every colour comes from the room's own tokens, so a fitting dropped into any
+ * game's page comes out in that game's light.
+ */
+
+/* ================================================================== keys */
+
+/*
+ * The slab: the spin button, scaled down to something every page can own.
+ *
+ * Three layers in a fixed order — the dark well the button is, the screen
+ * glowing inside it (::before), and the glass over the top (::after) — on a
+ * solid slab drawn as a hard shadow. Down is instant and up springs past
+ * itself; a press that eases feels like treacle and a release that stops dead
+ * feels like nothing happened.
+ *
+ * One per screen. It is the thing the page is for.
+ */
+.slab {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gr-space-2);
+  min-height: 48px;
+  padding: 0 var(--gr-space-5);
+  border: 0;
+  border-radius: var(--gr-radius-key);
+  background: var(--gr-color-shadow);
+  color: var(--gr-color-neon-core);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-decoration: none;
+  /* The label lit off the screen rather than printed on it. */
+  text-shadow:
+    0 0 10px rgb(255 255 255 / 0.4),
+    0 0 22px var(--gr-color-neon-hi),
+    0 1px 0 rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  box-shadow:
+    0 var(--gr-press) 0 var(--gr-color-neon-deep),
+    0 calc(var(--gr-press) + 5px) 14px rgb(0 0 0 / 0.5),
+    var(--gr-bezel);
+  /* The slab is drawn as a shadow and takes no room, so reserve it. */
+  margin-bottom: var(--gr-press);
+  transform: translateY(0);
+  transition:
+    transform 460ms var(--gr-spring),
+    box-shadow 460ms var(--gr-spring),
+    filter 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The screen. Lit from below and never quite still, because it is on. */
+.slab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(70% 130% at 28% 118%, color-mix(in srgb, var(--gr-color-neon) 85%, #fff) 0%, transparent 60%),
+    radial-gradient(60% 120% at 80% -18%, color-mix(in srgb, var(--gr-color-neon-hi) 50%, transparent) 0%, transparent 62%),
+    linear-gradient(
+      180deg,
+      var(--gr-color-neon-dim) 0%,
+      color-mix(in srgb, var(--gr-color-neon-deep) 40%, var(--gr-color-shadow)) 100%
+    );
+  background-size: 190% 190%;
+  animation: fit-alive 5.2s ease-in-out infinite;
+}
+
+.slab::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    var(--gr-glass),
+    radial-gradient(90% 60% at 50% 108%, rgb(255 255 255 / 0.14), transparent 70%);
+}
+
+.slab svg {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+}
+
+@keyframes fit-alive {
+  0%,
+  100% {
+    background-position: 22% 60%;
+  }
+  50% {
+    background-position: 78% 40%;
+  }
+}
+
+.slab:hover:not(:disabled) {
+  filter: brightness(1.08) saturate(1.06);
+}
+
+.slab:active:not(:disabled) {
+  transform: translateY(var(--gr-press));
+  box-shadow:
+    0 0 0 var(--gr-color-neon-deep),
+    0 2px 6px rgb(0 0 0 / 0.45),
+    var(--gr-bezel);
+  transition-timing-function: cubic-bezier(0.3, 0.7, 0.4, 1);
+  transition-duration: 55ms, 55ms, 160ms;
+}
+
+.slab:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 4px;
+}
+
+/* Unable: the screen goes out, and the slab is already down. */
+.slab:disabled {
+  cursor: default;
+  color: var(--gr-color-ink-faint);
+  text-shadow: none;
+  box-shadow: var(--gr-sink);
+  transform: translateY(var(--gr-press));
+}
+
+.slab:disabled:not(.is-busy)::before {
+  background: var(--gr-color-smoke);
+  animation: none;
+}
+
+.slab:disabled:not(.is-busy)::after {
+  opacity: 0.2;
+}
+
+/*
+ * Busy: held down and still lit, the light moving faster.
+ *
+ * A different thing from unable, so it looks different. Set on the press, not
+ * on the answer — the building's rule is that a press lands at once — and
+ * cleared when the answer or the refusal arrives. A busy slab keeps the
+ * normal screen and glass; only the pace of the light changes, faster while
+ * it works.
+ */
+.slab.is-busy:disabled {
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 10px rgb(255 255 255 / 0.4),
+    0 0 22px var(--gr-color-neon-hi);
+  box-shadow:
+    0 0 0 var(--gr-color-neon-deep),
+    0 2px 6px rgb(0 0 0 / 0.45),
+    var(--gr-bezel);
+}
+
+.slab.is-busy:disabled::before {
+  animation-duration: 1.4s;
+}
+
+/*
+ * Discord's own blurple, because it names Discord: the one place in the
+ * building a colour is somebody else's. Only the screen changes.
+ */
+.slab--discord {
+  color: #fff;
+  box-shadow:
+    0 var(--gr-press) 0 #3c45a5,
+    0 calc(var(--gr-press) + 5px) 14px rgb(0 0 0 / 0.5),
+    var(--gr-bezel);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.35);
+}
+
+.slab--discord::before {
+  background: linear-gradient(180deg, #5865f2 0%, #4752c4 100%);
+  animation: none;
+}
+
+/*
+ * The key: a dark raised cap for every other action. Pressable, not lit —
+ * a screen with two lit buttons has no obvious one.
+ */
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gr-space-2);
+  min-height: 48px;
+  padding: 0 var(--gr-space-5);
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: var(--gr-radius-key);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(0 0 0 / 0.22)),
+    var(--gr-color-smoke);
+  color: var(--gr-color-ink);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-base);
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow:
+    var(--gr-lip),
+    0 3px 0 rgb(0 0 0 / 0.45),
+    0 5px 10px rgb(0 0 0 / 0.25);
+  transform: translateY(0);
+  transition:
+    transform 380ms var(--gr-spring),
+    box-shadow 380ms var(--gr-spring),
+    border-color 160ms ease,
+    color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.key svg {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+}
+
+.key:hover:not(:disabled) {
+  color: var(--gr-color-ink-lit);
+  border-color: color-mix(in srgb, var(--gr-color-neon) 50%, black);
+}
+
+.key:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    var(--gr-lip),
+    0 0 0 rgb(0 0 0 / 0.45),
+    var(--gr-sink);
+  transition-duration: 55ms;
+  transition-timing-function: ease-out;
+}
+
+.key:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 3px;
+}
+
+.key:disabled {
+  cursor: default;
+  color: var(--gr-color-ink-faint);
+  background: rgb(0 0 0 / 0.2);
+  box-shadow: var(--gr-sink);
+  transform: translateY(3px);
+}
+
+/* Something that cannot be taken back. Said in the outcome colour, not lit. */
+.key--danger:not(:disabled) {
+  color: var(--gr-color-bad);
+  border-color: color-mix(in srgb, var(--gr-color-bad) 55%, black);
+}
+
+/* A cap with only a picture on it. Named by aria-label, always. */
+.key--icon {
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+.key--icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Words that act: cancel, back, keep it open. No surface until touched. */
+.quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--gr-space-3);
+  border: 0;
+  border-radius: var(--gr-radius-key);
+  background: transparent;
+  color: var(--gr-color-ink-dim);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-base);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.quiet:hover:not(:disabled) {
+  color: var(--gr-color-ink-lit);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.quiet:active:not(:disabled) {
+  background: rgb(0 0 0 / 0.25);
+}
+
+.quiet:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+.quiet:disabled {
+  cursor: default;
+  color: var(--gr-color-ink-faint);
+}
+
+.slab--wide,
+.key--wide,
+.quiet--wide {
+  width: 100%;
+}
+
+/* Only inside rows and dialogs, never a screen's main action. */
+.slab--small,
+.key--small {
+  min-height: 38px;
+  padding: 0 var(--gr-space-3);
+  font-size: var(--gr-text-sm);
+  border-radius: 10px;
+}
+
+.slab--small {
+  --gr-press: 4px;
+}
+
+/* ============================================================== choosing */
+
+/*
+ * One question, two or three answers, and a lit thumb that slides between
+ * them. The thumb is placed by Seg.tsx, because only layout knows where an
+ * answer is.
+ */
+.seg {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--gr-radius-pill);
+  background: rgb(0 0 0 / 0.38);
+  box-shadow:
+    var(--gr-sink),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.seg__thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 0;
+  border-radius: var(--gr-radius-pill);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gr-color-neon) 42%, transparent),
+    color-mix(in srgb, var(--gr-color-neon) 20%, transparent)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--gr-color-neon) 70%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    0 0 16px color-mix(in srgb, var(--gr-color-neon) 38%, transparent);
+  transition:
+    transform 420ms var(--gr-settle),
+    width 420ms var(--gr-settle);
+}
+
+.seg__answer {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 var(--gr-space-4);
+  border: 0;
+  border-radius: var(--gr-radius-pill);
+  background: none;
+  color: var(--gr-color-ink-dim);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.seg__answer[aria-pressed="true"] {
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 10px var(--gr-color-neon-hi);
+}
+
+.seg__answer:hover:not([aria-pressed="true"]):not(:disabled) {
+  color: var(--gr-color-ink-lit);
+}
+
+.seg__answer:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+.seg__answer:disabled {
+  cursor: default;
+}
+
+/*
+ * Numbers sunk into the panel, like the slot machine's line plates. The one in
+ * play lights up out of its well. Chosen is either aria-checked (a radio) or
+ * aria-pressed (a toggle), whichever the control really is.
+ */
+.lamps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lamp {
+  flex: 1 1 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--gr-space-2);
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.03), rgb(0 0 0 / 0.34));
+  color: var(--gr-color-ink-dim);
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-transform: capitalize;
+  cursor: pointer;
+  box-shadow:
+    var(--gr-sink),
+    inset 0 0 0 1px rgb(255 255 255 / 0.03);
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 200ms ease;
+}
+
+.lamp:hover:not([aria-checked="true"]):not([aria-pressed="true"]):not(:disabled) {
+  color: var(--gr-color-ink);
+  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, black);
+}
+
+.lamp[aria-checked="true"],
+.lamp[aria-pressed="true"] {
+  border-color: var(--gr-color-neon);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gr-color-neon) 36%, transparent),
+    color-mix(in srgb, var(--gr-color-neon) 14%, transparent)
+  );
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 0 14px color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
+}
+
+/* A lamp whose number is chips: lit gold, because gold is money. */
+.lamp--chips[aria-checked="true"],
+.lamp--chips[aria-pressed="true"] {
+  border-color: var(--gr-color-chip);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gr-color-chip) 30%, transparent),
+    color-mix(in srgb, var(--gr-color-chip) 10%, transparent)
+  );
+  color: var(--gr-color-chip-hi);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--gr-color-chip) 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 0 14px color-mix(in srgb, var(--gr-color-chip) 30%, transparent);
+}
+
+/* A labelled on/off, where a number would be a lamp. */
+.lamp--word {
+  font-family: var(--gr-font-ui);
+  font-weight: 500;
+  text-transform: none;
+  text-align: left;
+}
+
+.lamp:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+.lamp:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* A choice with a sentence under it. The lamp in the corner says which. */
+.plates {
+  display: grid;
+  gap: var(--gr-space-2);
+}
+
+.plate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 2px var(--gr-space-3);
+  width: 100%;
+  padding: var(--gr-space-3) 14px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(0 0 0 / 0.22));
+  color: var(--gr-color-ink);
+  font-family: var(--gr-font-ui);
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    var(--gr-lip),
+    0 2px 0 rgb(0 0 0 / 0.3);
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.plate::before {
+  content: "";
+  grid-row: span 2;
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.5);
+  box-shadow:
+    var(--gr-sink),
+    0 1px 0 rgb(255 255 255 / 0.06);
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.plate:hover:not([aria-checked="true"]):not(:disabled) {
+  border-color: color-mix(in srgb, var(--gr-color-neon) 40%, black);
+}
+
+.plate__name {
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+}
+
+.plate__note {
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.plate[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--gr-color-neon) 80%, transparent);
+  background:
+    radial-gradient(80% 140% at 0% 0%, color-mix(in srgb, var(--gr-color-neon) 22%, transparent), transparent 70%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(0 0 0 / 0.22));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 0 18px color-mix(in srgb, var(--gr-color-neon) 22%, transparent);
+}
+
+.plate[aria-checked="true"]::before {
+  background: radial-gradient(
+    circle at 40% 35%,
+    var(--gr-color-neon-core),
+    var(--gr-color-neon-hi) 45%,
+    var(--gr-color-neon)
+  );
+  box-shadow:
+    0 0 8px var(--gr-color-neon-hi),
+    0 0 18px var(--gr-color-neon);
+}
+
+.plate[aria-checked="true"] .plate__name {
+  color: var(--gr-color-ink-lit);
+}
+
+.plate:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+.plate:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/*
+ * The leaderboard's filter, promoted. Quieter than .seg on purpose: it orders
+ * a list, it does not decide anything, so what is chosen is marked rather than
+ * lit.
+ */
+.sorts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sort {
+  min-height: 40px;
+  padding: 0 var(--gr-space-4);
+  border: 1px solid var(--gr-color-smoke-lit);
+  border-radius: var(--gr-radius-pill);
+  background: var(--gr-color-slate);
+  color: var(--gr-color-ink-dim);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-sm);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.sort[aria-pressed="true"] {
+  border-color: var(--gr-color-chip-dim);
+  background: var(--gr-color-smoke-lit);
+  color: var(--gr-color-ink-lit);
+}
+
+.sort:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+/* ================================================================ typing */
+
+/*
+ * .field already exists in game.css for the felts' chat box; this sheet loads
+ * after it, so these win on a page and the old sizing is undone here.
+ */
+.field {
+  display: grid;
+  gap: 6px;
+  max-width: none;
+  margin: 0;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: var(--gr-radius-key);
+  background: rgb(0 0 0 / 0.38);
+  color: var(--gr-color-ink-lit);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-base);
+  box-shadow:
+    var(--gr-sink),
+    0 1px 0 rgb(255 255 255 / 0.05);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.input::placeholder {
+  color: var(--gr-color-ink-faint);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--gr-color-neon);
+  box-shadow:
+    var(--gr-sink),
+    0 0 0 3px color-mix(in srgb, var(--gr-color-neon) 28%, transparent);
+}
+
+.field--bad .input {
+  border-color: var(--gr-color-bad);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+.field--bad .hint {
+  color: var(--gr-color-bad);
+}
+
+/*
+ * The table code on a lit screen, a cell per character.
+ *
+ * A real input lies over the cells, transparent, so typing, pasting, autofill
+ * and a screen reader all meet an ordinary text field; the cells are only what
+ * it looks like.
+ */
+.lcd {
+  position: relative;
+  display: block;
+  border: 1px solid rgb(0 0 0 / 0.7);
+  border-radius: var(--gr-radius-key);
+  background:
+    var(--gr-scan),
+    radial-gradient(70% 140% at 50% -20%, color-mix(in srgb, var(--gr-color-neon) 16%, transparent), transparent 70%),
+    color-mix(in srgb, var(--gr-color-shadow) 88%, black);
+  box-shadow:
+    inset 0 3px 12px rgb(0 0 0 / 0.8),
+    0 1px 0 rgb(255 255 255 / 0.06);
+  cursor: text;
+}
+
+.lcd:focus-within {
+  border-color: var(--gr-color-neon);
+}
+
+.lcd__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  cursor: text;
+}
+
+.lcd__cells {
+  display: flex;
+  justify-content: center;
+  gap: clamp(6px, 3vw, 16px);
+  padding: 14px 10px;
+  pointer-events: none;
+}
+
+.lcd__cell {
+  position: relative;
+  width: 1.1em;
+  text-align: center;
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-2xl);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 6px var(--gr-color-neon-hi),
+    0 0 20px var(--gr-color-neon);
+}
+
+/* The example code, faint, until it is typed over. */
+.lcd__cell--empty {
+  color: color-mix(in srgb, var(--gr-color-ink-faint) 45%, transparent);
+  text-shadow: none;
+}
+
+.lcd__cell--next::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 8px var(--gr-color-neon);
+  opacity: 0;
+}
+
+/* The caret blinks only while the field has focus, because only then is it true. */
+.lcd:focus-within .lcd__cell--next::after {
+  animation: fit-caret 1s steps(1) infinite;
+}
+
+@keyframes fit-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ============================================================ containers */
+
+/*
+ * The housing: a page's main panel, lit from above like the machine standing
+ * under a ceiling light. A lit strip across the top with the label in it, a
+ * body, and a darker foot for the slab.
+ */
+.housing {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  background: linear-gradient(
+    180deg,
+    var(--gr-color-smoke-lit) 0%,
+    var(--gr-color-smoke) 14%,
+    var(--gr-color-slate) 55%,
+    color-mix(in srgb, var(--gr-color-slate) 55%, var(--gr-color-shadow)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
+  overflow: hidden;
+}
+
+.housing__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-3) 18px 10px;
+  border-bottom: 1px solid rgb(0 0 0 / 0.45);
+  background:
+    radial-gradient(70% 180% at 50% -40%, color-mix(in srgb, var(--gr-color-neon) 20%, transparent), transparent 70%),
+    rgb(0 0 0 / 0.18);
+}
+
+.housing__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  padding: 18px;
+}
+
+/* Paragraphs in a housing are spaced by its gap, not by their own margins. */
+.housing__body > p,
+.housing__foot > p {
+  margin: 0;
+}
+
+.housing__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-3) 18px var(--gr-space-4);
+  border-top: 1px solid rgb(0 0 0 / 0.4);
+  background: rgb(0 0 0 / 0.14);
+}
+
+/* A slab in the foot sits on the foot's padding, not on its own margin too. */
+.housing__foot > .slab {
+  margin-bottom: var(--gr-press);
+}
+
+/* A recess inside a housing, for things that belong together. */
+.well {
+  display: grid;
+  gap: var(--gr-space-3);
+  padding: 14px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.26);
+  box-shadow:
+    inset 0 5px 10px rgb(0 0 0 / 0.42),
+    inset 0 -3px 8px rgb(0 0 0 / 0.3),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+/* The leaderboard's row, for any list of like things. */
+.rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--gr-space-3);
+  padding: 10px var(--gr-space-3);
+  border-radius: var(--gr-radius-key);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent),
+    var(--gr-color-slate);
+  box-shadow: var(--gr-lip);
+}
+
+.row--you {
+  outline: 1px solid var(--gr-color-chip-dim);
+  background: var(--gr-color-smoke);
+}
+
+.row__code {
+  font-family: var(--gr-font-data);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--gr-color-neon) 60%, transparent);
+}
+
+.row__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+.row__end {
+  display: flex;
+  gap: 6px;
+}
+
+/* Seats as lamps: lit is taken. */
+.pips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.5);
+  box-shadow: var(--gr-sink);
+}
+
+.pip--on {
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 6px var(--gr-color-neon);
+}
+
+/* One figure a panel is about, on a screen. */
+.readout {
+  display: grid;
+  gap: 2px;
+  padding: var(--gr-space-3) var(--gr-space-4) 14px;
+  border: 1px solid rgb(0 0 0 / 0.7);
+  border-radius: 14px;
+  text-align: center;
+  background:
+    var(--gr-scan),
+    radial-gradient(70% 160% at 50% -30%, color-mix(in srgb, var(--gr-color-neon) 20%, transparent), transparent 70%),
+    color-mix(in srgb, var(--gr-color-shadow) 88%, black);
+  box-shadow:
+    inset 0 3px 12px rgb(0 0 0 / 0.8),
+    0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.readout__figure {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--gr-color-ink-lit);
+}
+
+/* Chips, so gold, and lit the way the jackpot is. */
+.readout__figure--chips {
+  color: var(--gr-color-chip-hi);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--gr-color-chip) 70%, transparent),
+    0 0 24px color-mix(in srgb, var(--gr-color-chip) 35%, transparent);
+}
+
+.readout__note {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+/* A small state on a thing. Its lamp moves only while the state is live. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border-radius: var(--gr-radius-pill);
+  background: rgb(0 0 0 / 0.3);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  color: var(--gr-color-ink-dim);
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gr-color-ink-faint);
+}
+
+.tag--live {
+  color: var(--gr-color-neon-hi);
+}
+
+.tag--live::before {
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 6px var(--gr-color-neon);
+  animation: fit-breathe 1.8s ease-in-out infinite;
+}
+
+.tag--chips {
+  color: var(--gr-color-chip-hi);
+}
+
+.tag--chips::before {
+  background: var(--gr-color-chip);
+}
+
+@keyframes fit-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* The server or the table saying something. Good and bad are outcomes, never the accent. */
+.notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin: 0;
+  padding: var(--gr-space-3) 14px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.2)),
+    var(--gr-color-smoke);
+  box-shadow:
+    var(--gr-lip),
+    0 10px 24px rgb(0 0 0 / 0.35);
+  font-size: var(--gr-text-sm);
+}
+
+.notice::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--gr-color-ink-dim);
+}
+
+.notice--good::before {
+  background: var(--gr-color-good);
+  box-shadow: 0 0 8px var(--gr-color-good);
+}
+
+.notice--bad::before {
+  background: var(--gr-color-bad);
+  box-shadow: 0 0 8px var(--gr-color-bad);
+}
+
+/* ============================================================ off switch */
+
+/*
+ * Every selector that moves, repeated verbatim so each one wins on weight
+ * rather than on a shorter selector that would silently lose. The fittings
+ * test fails if a moving rule is missing from here. Every state still reads
+ * without motion: lit against unlit, down against up.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .slab,
+  .slab::before,
+  .slab:active:not(:disabled),
+  .slab.is-busy:disabled::before,
+  .key,
+  .key:active:not(:disabled),
+  .quiet,
+  .seg__thumb,
+  .seg__answer,
+  .lamp,
+  .plate,
+  .plate::before,
+  .sort,
+  .input,
+  .lcd:focus-within .lcd__cell--next::after,
+  .tag--live::before {
+    animation: none;
+    transition: none;
+  }
+
+  /* Without the blink, the caret still has to show where the next letter goes. */
+  .lcd:focus-within .lcd__cell--next::after {
+    opacity: 1;
+  }
+}
