@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /*
@@ -100,5 +100,26 @@ describe("motion at a table", () => {
     for (const selector of animated) {
       expect(offSwitches, `${selector} has no off switch`).toContain(selector);
     }
+  });
+});
+
+describe("the activity log's name", () => {
+  /*
+   * The floor's "On the floor" panel was a .activity too, in a sheet that loads
+   * after this one, so its display: flex quietly rebuilt every table's log. A
+   * name the shared log depends on belongs to the shared log.
+   */
+  it("is declared by no stylesheet but this one", () => {
+    const root = [resolve(process.cwd(), "apps/web/src"), resolve(process.cwd(), "src")].find((each) =>
+      existsSync(join(each, "table/table.css")),
+    );
+    expect(root, "apps/web/src not found").toBeDefined();
+    const claimants = (readdirSync(root as string, { recursive: true }) as string[])
+      .map((file) => file.replace(/\\/g, "/"))
+      .filter((file) => file.endsWith(".css") && file !== "table/table.css")
+      .filter((file) =>
+        /^\.activity\s*[,{]/m.test(readFileSync(join(root as string, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")),
+      );
+    expect(claimants).toEqual([]);
   });
 });

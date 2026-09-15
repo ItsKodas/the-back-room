@@ -8,7 +8,7 @@
  */
 export function Activity() {
   return (
-    <section className="activity">
+    <section className="floor-activity">
       <header className="standings__head">
         <span className="standings__title">On the floor</span>
       </header>
