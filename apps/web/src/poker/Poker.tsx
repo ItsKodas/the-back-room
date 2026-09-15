@@ -286,6 +286,7 @@ export function Felt({
         <button
           type="button"
           className="pk__helpbtn"
+          data-quiet
           aria-label="What beats what"
           title="What beats what"
           onClick={() => setHelping(true)}

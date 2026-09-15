@@ -1,10 +1,12 @@
 /**
  * The game's sound.
  *
- * Two sources, deliberately. Recorded samples for the physical sounds — dice
- * on wood is not something synthesis does convincingly — and Web Audio for the
- * interface, where a synthesised tone is smaller, needs no files, and can be
- * pitch-varied per press so repeats never sound machine-gunned.
+ * Two sources. Recorded samples wherever there is one worth using — dice on
+ * wood is not something synthesis does convincingly, and the interface's
+ * clicks and chimes now come from `ui/` too — and Web Audio for the rest: the
+ * cues whose pitch carries meaning, the ones that fire too often for a sample
+ * to wear well, and the fallback for every sampled cue when its file is not
+ * there.
  */
 
 export type Cue =
@@ -25,8 +27,10 @@ export type Cue =
   /* Money, in both directions: staked, and counted back to you. */
   | "bet"
   | "payout"
-  /* The interface itself: any press, anywhere. */
+  /* The interface itself: any press, anywhere, and a dialog opening and shutting. */
   | "tap"
+  | "open"
+  | "close"
   /* The machine: the lever, a reel settling, and what it pays. */
   | "lever"
   | "reelStop"
@@ -531,6 +535,53 @@ interface SampleOptions {
   vary?: boolean;
 }
 
+/**
+ * How far into a clip its sound actually begins, in seconds.
+ *
+ * Files are dropped in as they were downloaded, and nothing on the way to the
+ * browser trims them. soft_click.mp3 arrived with 216ms of silence in front of
+ * the click — played from the top, every press on the site would have sounded
+ * a fifth of a second after the finger went down, which reads as the button
+ * being slow rather than the file being untidy. Measured here, once per
+ * buffer, so a file added tomorrow is covered without anybody remembering to.
+ *
+ * -45dB is below anything audible under a room and above the hiss an encoder
+ * leaves; 3ms is backed off so the attack itself is not shaved.
+ */
+export function onset(channels: readonly Float32Array[], sampleRate: number): number {
+  const threshold = 10 ** (-45 / 20);
+  let first = Number.POSITIVE_INFINITY;
+  for (const data of channels) {
+    const limit = Math.min(data.length, first);
+    for (let n = 0; n < limit; n += 1) {
+      if (Math.abs(data[n] as number) > threshold) {
+        first = n;
+        break;
+      }
+    }
+  }
+  if (!Number.isFinite(first)) {
+    // Silent throughout: nothing to skip to, so play it as it is.
+    return 0;
+  }
+  return Math.max(0, first / sampleRate - 0.003);
+}
+
+const onsets = new WeakMap<AudioBuffer, number>();
+
+function startOf(audio: AudioBuffer): number {
+  let at = onsets.get(audio);
+  if (at === undefined) {
+    const channels: Float32Array[] = [];
+    for (let channel = 0; channel < audio.numberOfChannels; channel += 1) {
+      channels.push(audio.getChannelData(channel));
+    }
+    at = onset(channels, audio.sampleRate);
+    onsets.set(audio, at);
+  }
+  return at;
+}
+
 /** Plays a sample with a little pitch variation so repeats stay alive. */
 async function sample(
   url: string | null,
@@ -569,7 +620,7 @@ async function sample(
   const level = context.createGain();
   level.gain.value = gain;
   source.connect(level).connect(master);
-  source.start();
+  source.start(0, startOf(playing));
   return true;
 }
 
@@ -667,25 +718,51 @@ export function play(
         }
       });
       break;
+    /*
+     * The interface, sampled.
+     *
+     * Every file name below is looked up in full. "click" alone matches both
+     * soft_click and hard_click, and a partial match does not fail — it plays
+     * either one at random, forever.
+     */
     case "pick":
-      noise(0.03, 2200, 0.18);
-      tone({ frequency: 880, duration: 0.05, type: "triangle", gain: 0.07 });
+      void sample(pickNamed("ui", "pop"), 0.6).then((played) => {
+        if (!played) {
+          noise(0.03, 2200, 0.18);
+          tone({ frequency: 880, duration: 0.05, type: "triangle", gain: 0.07 });
+        }
+      });
       break;
     case "drop":
-      noise(0.03, 1400, 0.12);
+      void sample(pickNamed("ui", "hard_click"), 0.35).then((played) => {
+        if (!played) {
+          noise(0.03, 1400, 0.12);
+        }
+      });
       break;
     case "tap":
       /*
-       * Under everything, so it is closer to felt than to a click — low, wide
-       * and very quiet, with no tone on top of it at all. This fires on every
-       * press on the site, and anything with body to it is a nag by the
-       * twentieth time somebody hears it.
-       *
-       * At this level it will be the first thing to disappear on small
-       * speakers, which is the right way round: a press people cannot hear is
-       * better than one they get tired of.
+       * This fires on every press on the site, so it stays well under
+       * everything: anything with body to it is a nag by the twentieth time
+       * somebody hears it. The pitch wobble in `sample` is what keeps a run of
+       * presses from sounding like one press on repeat.
        */
-      noise(0.032, 520, 0.022, 0.5);
+      void sample(pickNamed("ui", "soft_click"), 0.35).then((played) => {
+        if (!played) {
+          noise(0.032, 520, 0.022, 0.5);
+        }
+      });
+      break;
+    /*
+     * A dialog opening and shutting. No synthesised fallback: a chart coming
+     * up has always been silent, and silence is a fine thing for it to go back
+     * to when the file is missing.
+     */
+    case "open":
+      void sample(pickNamed("ui", "ui_open"), 0.35);
+      break;
+    case "close":
+      void sample(pickNamed("ui", "ui_close"), 0.35);
       break;
     case "bank":
       void sample(pickNamed("chips", "placing"), 0.8).then((played) => {
@@ -696,8 +773,12 @@ export function play(
       });
       break;
     case "farkle":
-      tone({ frequency: 220, to: 70, duration: 0.5, type: "sawtooth", gain: 0.14 });
-      noise(0.25, 260, 0.2);
+      void sample(pickNamed("ui", "error"), 0.55).then((played) => {
+        if (!played) {
+          tone({ frequency: 220, to: 70, duration: 0.5, type: "sawtooth", gain: 0.14 });
+          noise(0.25, 260, 0.2);
+        }
+      });
       break;
     case "greed": {
       // One note per letter, climbing, timed to the dice revealing in turn —
@@ -712,8 +793,12 @@ export function play(
       break;
     }
     case "hotDice":
-      [523, 659, 784, 1046].forEach((frequency, step) => {
-        tone({ frequency, duration: 0.16, type: "triangle", gain: 0.13, delay: step * 0.07 });
+      void sample(pickNamed("ui", "happy_notify"), 0.45).then((played) => {
+        if (!played) {
+          [523, 659, 784, 1046].forEach((frequency, step) => {
+            tone({ frequency, duration: 0.16, type: "triangle", gain: 0.13, delay: step * 0.07 });
+          });
+        }
       });
       break;
     case "potPush":
@@ -731,14 +816,19 @@ export function play(
       });
       break;
     /*
-     * Two firm knocks, the way a croupier raps the rim. Deliberately not a
-     * chime: this is an instruction and the last moment a chip can move, so it
-     * wants to sound like somebody's hand rather than like a notification.
+     * The window shutting: the last moment a chip can move, so it is a
+     * warning. Played louder than the other interface samples because warn.mp3
+     * is mastered well under them, and this one has to be heard over a wheel.
+     * The fallback is the croupier's two knocks on the rim it used to be.
      */
     case "noMoreBets":
-      noise(0.05, 320, 0.22, 0.7);
-      noise(0.05, 300, 0.18, 0.7);
-      tone({ frequency: 210, duration: 0.14, type: "sine", gain: 0.1, delay: 0.11 });
+      void sample(pickNamed("ui", "warn"), 0.8).then((played) => {
+        if (!played) {
+          noise(0.05, 320, 0.22, 0.7);
+          noise(0.05, 300, 0.18, 0.7);
+          tone({ frequency: 210, duration: 0.14, type: "sine", gain: 0.1, delay: 0.11 });
+        }
+      });
       return;
 
     /*
@@ -806,9 +896,13 @@ export function play(
       });
       break;
     case "yourTurn":
-      // A small brass bell: fundamental plus a fifth above it.
-      tone({ frequency: 784, duration: 0.5, gain: 0.12 });
-      tone({ frequency: 1176, duration: 0.4, gain: 0.06, delay: 0.01 });
+      void sample(pickNamed("ui", "notification"), 0.45).then((played) => {
+        if (!played) {
+          // A small brass bell: fundamental plus a fifth above it.
+          tone({ frequency: 784, duration: 0.5, gain: 0.12 });
+          tone({ frequency: 1176, duration: 0.4, gain: 0.06, delay: 0.01 });
+        }
+      });
       break;
     case "win":
       [523, 659, 784, 1046, 1318].forEach((frequency, step) => {

@@ -1203,6 +1203,7 @@ export default function Slots() {
               <button
                 type="button"
                 className="slots__paysbtn"
+                data-quiet
                 aria-label="Paytable"
                 title="Paytable"
                 onClick={() => setReadingPays(true)}

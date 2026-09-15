@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { pitchShift, preferring } from "./audio.js";
+import { onset, pitchShift, preferring } from "./audio.js";
 
 /**
  * The sound files themselves, read where they are dropped.
@@ -72,6 +72,15 @@ describe("the words the cues search for still find files", () => {
     ["bonus", "slots", "slots_bonus"],
     ["bonusAppear", "slots", "bonus_appear"],
     ["coin", "slots", "coin"],
+    ["tap", "ui", "soft_click"],
+    ["pick", "ui", "pop"],
+    ["drop", "ui", "hard_click"],
+    ["yourTurn", "ui", "notification"],
+    ["hotDice", "ui", "happy_notify"],
+    ["farkle", "ui", "error"],
+    ["noMoreBets", "ui", "warn"],
+    ["open", "ui", "ui_open"],
+    ["close", "ui", "ui_close"],
   ];
 
   for (const [cue, folder, word] of wanted) {
@@ -97,6 +106,51 @@ describe("the words the cues search for still find files", () => {
     }
     // A hand is four sounds drawn at random; one file would machine-gun.
     expect(cards.length).toBeGreaterThan(1);
+  });
+});
+
+/*
+ * Where a clip actually starts.
+ *
+ * The files dropped in are not trimmed, and a press that plays 200ms of
+ * nothing before its click is a press that feels broken. Measured, not
+ * assumed: soft_click.mp3 arrived with 216ms of silence in front of it.
+ */
+describe("finding where a sample starts", () => {
+  const rate = 1000;
+
+  function clip(silent: number, length: number): Float32Array {
+    const data = new Float32Array(length);
+    for (let n = silent; n < length; n += 1) {
+      data[n] = 0.5;
+    }
+    return data;
+  }
+
+  it("skips the silence in front of the sound", () => {
+    // 200 silent samples at 1kHz is 200ms; backed off 3ms so the attack survives.
+    expect(onset([clip(200, 400)], rate)).toBeCloseTo(0.197, 5);
+  });
+
+  it("starts at once when there is nothing to skip", () => {
+    expect(onset([clip(0, 400)], rate)).toBe(0);
+  });
+
+  it("ignores noise under the threshold", () => {
+    const data = clip(200, 400);
+    for (let n = 0; n < 200; n += 1) {
+      data[n] = 0.001; // about -60dB: hiss, not sound
+    }
+    expect(onset([data], rate)).toBeCloseTo(0.197, 5);
+  });
+
+  it("starts where the earliest channel does", () => {
+    expect(onset([clip(300, 400), clip(100, 400)], rate)).toBeCloseTo(0.097, 5);
+  });
+
+  it("plays a clip that is silent throughout from the top", () => {
+    // Nothing to find is not a reason to skip the whole thing.
+    expect(onset([new Float32Array(400)], rate)).toBe(0);
   });
 });
 

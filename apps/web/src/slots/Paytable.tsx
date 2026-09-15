@@ -8,6 +8,7 @@ import {
   PAYS,
 } from "@backroom/game-slots";
 import { useEffect, useRef } from "react";
+import { play } from "../game/audio.js";
 import { exact } from "../game/money.js";
 import { FACE_SIZE, ReelFace } from "./Symbols.js";
 
@@ -54,10 +55,14 @@ export function Paytable({
     if (dialog === null) {
       return;
     }
+    // Sounded here rather than on the buttons: every way in and out ends as
+    // this effect, so there is one place for it and no way to miss one.
     if (open && !dialog.open) {
       dialog.showModal();
+      play("open");
     } else if (!open && dialog.open) {
       dialog.close();
+      play("close");
     }
   }, [open]);
 
@@ -84,7 +89,7 @@ export function Paytable({
       <div className="pt__inner">
         <div className="pt__head">
           <h2 className="pt__title">Paytable</h2>
-          <button type="button" className="pt__shut" onClick={onClose}>
+          <button type="button" className="pt__shut" data-quiet onClick={onClose}>
             Close
           </button>
         </div>
