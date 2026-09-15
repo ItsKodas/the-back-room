@@ -870,15 +870,36 @@
 }
 
 /*
+ * The reel's window while it turns: the same three faces tall as the glass
+ * (FACE_SIZE × 3 rows in Reel.tsx, so 1 : 3), clipping the strip the way the
+ * glass's own viewBox does.
+ */
+.reel__window {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 3;
+  overflow: hidden;
+}
+
+/*
  * The strip going past.
  *
  * Moved by the Web Animations API rather than from here, because where it has
  * to stop is not known until the server answers — a keyframe would have to be
- * written per landing. What is left here is only that it must not be caught by
- * anything else that transitions.
+ * written per landing. `will-change` is what makes it a layer of its own, and
+ * this is an HTML element precisely so that it can be one: the drawing inside
+ * is painted once per spin and slid by the GPU, where a group inside an SVG
+ * was repainted every frame.
  */
 .reel__strip {
   will-change: transform;
+}
+
+/* One face per reel's width, exactly as the glass draws them. */
+.reel__drawing {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 /*
