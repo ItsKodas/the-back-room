@@ -31,3 +31,5 @@ export { GRID_HEIGHT, GRID_WIDTH, INKS, InkLog, MAX_BATCH, MAX_POINTS, readBatch
 export type { Phase, TableDeps, Timings, TurnResult } from "./table.js";
 export { COUNTDOWN_MS, PICK_MS, RESULT_MS, REVEAL_MS, ScribbleTable } from "./table.js";
 export type { ChatKind, Said, SeatView, TableView, TeamView } from "./table.js";
+export type { ScribbleAdapterOptions } from "./adapter.js";
+export { scribbleAdapter } from "./adapter.js";

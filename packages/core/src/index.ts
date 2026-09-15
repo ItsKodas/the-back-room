@@ -18,7 +18,9 @@ export { Seating } from "./seating.js";
 export { Catalogue } from "./catalogue.js";
 export type { GameListing } from "./catalogue.js";
 export type {
+  ActResult,
   BotMove,
+  ChatRoute,
   Clock,
   FinishedGame,
   GameAdapter,

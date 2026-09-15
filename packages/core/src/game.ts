@@ -67,6 +67,40 @@ export interface BotMove {
 }
 
 /**
+ * What an action may hand back instead of nothing.
+ *
+ * Every action normally ends in a full broadcast: each socket at the table is
+ * sent its own `view()`. That is right for a move that changes the table, and
+ * ruinous for a line being drawn twenty times a second. An action returning a
+ * relay is sent to everybody else at the table as it is, and nothing is
+ * broadcast. It still went through the same rate limit and seat check as any
+ * other action — this is a smaller answer, not a way round the rules.
+ *
+ * A relay may only carry what `view()` would also show, so somebody who
+ * reconnects loses nothing. `null` means there was nothing worth telling
+ * anyone, such as a batch the table already had.
+ */
+export interface ActResult {
+  relay: unknown;
+}
+
+/**
+ * Where a line of chat goes, for a game that has to decide.
+ *
+ * The room sends chat to everybody. A game in which chat can give the answer
+ * away — the drawer typing the word — decides instead.
+ */
+export interface ChatRoute {
+  /** The whole room, or only these seats. */
+  to: "room" | readonly string[];
+  /** What sort of line it is, for the client to show it as. */
+  kind?: string;
+  text: string;
+  /** True when the line changed the table, so everybody is sent the new state. */
+  changed: boolean;
+}
+
+/**
  * Everything the socket layer needs from a game that it cannot work out from
  * the table alone.
  *
@@ -92,7 +126,7 @@ export interface GameAdapter<T extends PlayTable = PlayTable> {
    * has no business knowing what "double" or "bank" mean, only that a game
    * refused something and why, which arrives as a TableError.
    */
-  act(table: T, seatId: string, action: unknown, deps: GameDeps): Promise<void> | void;
+  act(table: T, seatId: string, action: unknown, deps: GameDeps): Promise<undefined | ActResult> | undefined | ActResult;
 
   /** True once a hand or game has finished and its chips should move. */
   isSettled(table: T): boolean;
@@ -182,6 +216,8 @@ export interface GameAdapter<T extends PlayTable = PlayTable> {
    * betting window before clearing a hand that finished in three.
    */
   pause?(table: T): { key: string; ms: number; run(): void } | null;
+  /** Where a line of chat goes. Left undefined, it goes to the whole room. */
+  chat?(table: T, seatId: string, text: string): ChatRoute | null;
 }
 
 /** What a game is handed when it needs to move money or ask who somebody is. */
