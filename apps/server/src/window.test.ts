@@ -6,6 +6,7 @@ import type { Socket } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * One window per game, per account.
@@ -58,7 +59,7 @@ async function start(order: Array<string | null>): Promise<number> {
       return id;
     },
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return (server.http.address() as AddressInfo).port;
 }
 

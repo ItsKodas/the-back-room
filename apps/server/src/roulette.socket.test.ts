@@ -6,6 +6,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * The wheel, tested where the felt is actually told what the bank holds.
@@ -53,7 +54,7 @@ async function openTable(): Promise<Client> {
     identify: () => player.id,
     identifyRequest: () => player.id,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   const port = (server.http.address() as AddressInfo).port;
 
   const socket = connect(`http://localhost:${port}`, {

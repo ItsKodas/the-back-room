@@ -3,7 +3,7 @@ import type { AdminTarget, BankName } from "@backroom/economy";
 import { BANKS, MemoryStore, STARTING_CHIPS } from "@backroom/economy";
 import type { ClientToServer, ServerToClient } from "@backroom/shared";
 import express from "express";
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
 import type { Socket } from "socket.io-client";
 import { io as connectSocket } from "socket.io-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import type { SeatedTable } from "./admin-desk.js";
 import { mountAdminDesk, tablesHolding } from "./admin-desk.js";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * A store that can hold a slot pull open mid-round, so a test can prove a
@@ -111,14 +112,13 @@ async function desk(options: { tables?: SeatedTable[] } = {}) {
     },
     emoteDeleted: (id) => deleted.push(id),
   });
-  // Captured from `listen`'s own return, not read back off the module-level
-  // `http` — that one exists for `afterEach` to close, and is only ever
-  // `null` before this line runs and after the suite is done with it.
-  const listening: Server = await new Promise((resolve) => {
-    const instance = app.listen(0, () => resolve(instance));
-  });
+  // Kept in a local, not read back off the module-level `http` — that one
+  // exists for `afterEach` to close, and is only ever `null` before this line
+  // runs and after the suite is done with it.
+  const listening: Server = createServer(app);
+  const port = await listenForFetch(listening);
   http = listening;
-  const base = `http://localhost:${(listening.address() as AddressInfo).port}`;
+  const base = `http://localhost:${port}`;
   return { store, admin, told, deleted, base };
 }
 
@@ -317,7 +317,7 @@ describe("the log route", () => {
 describe("through the real server", () => {
   async function start(store: MemoryStore, as: string | null) {
     server = createBackRoomServer({ store, auth: null, serveClient: false, identify: () => as, identifyRequest: () => as });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     return `http://localhost:${(server.http.address() as AddressInfo).port}`;
   }
 
@@ -404,7 +404,7 @@ describe("through the real server", () => {
       identify: () => gambler.id,
       identifyRequest: () => admin.id,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const base = `http://localhost:${(server.http.address() as AddressInfo).port}`;
 
     const client: Socket<ServerToClient, ClientToServer> = connectSocket(base, {

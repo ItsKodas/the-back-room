@@ -11,6 +11,7 @@ import {
   resolveSessionSecret,
   resolveTrustProxy,
 } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * These drive the real socket layer with real clients.
@@ -47,10 +48,7 @@ async function start(roll?: () => Die[]): Promise<void> {
     reconnectGraceMs: 300,
     emptyRoomTtlMs: 200,
   });
-  await new Promise<void>((resolve) => {
-    server.http.listen(0, () => resolve());
-  });
-  port = (server.http.address() as AddressInfo).port;
+  port = await listenForFetch(server.http);
 }
 
 function client(): Promise<Client> {

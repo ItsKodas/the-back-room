@@ -3,6 +3,7 @@ import { MemoryStore, STARTING_CHIPS } from "@backroom/economy";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 let server: BackRoomServer | null = null;
 
@@ -36,7 +37,7 @@ async function start(store: MemoryStore, as: string | null) {
     // asking without standing up a real sign-in.
     identifyRequest: () => as,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return `http://localhost:${(server.http.address() as AddressInfo).port}`;
 }
 

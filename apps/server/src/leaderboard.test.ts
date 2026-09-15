@@ -3,6 +3,7 @@ import { MemoryStore } from "@backroom/economy";
 import { afterEach, describe, expect, it } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * The one route in the building that publishes balances.
@@ -29,7 +30,7 @@ async function start(store: MemoryStore, as: string | null): Promise<string> {
     identify: () => as,
     identifyRequest: () => as,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return `http://localhost:${(server.http.address() as AddressInfo).port}`;
 }
 

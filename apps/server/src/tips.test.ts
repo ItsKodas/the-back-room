@@ -7,6 +7,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * The jar, tested where the money actually moves.
@@ -63,7 +64,7 @@ async function standAtTheJar(options: { signedIn?: boolean } = {}): Promise<AtTh
     identify: () => as,
     identifyRequest: () => as,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   const port = (server.http.address() as AddressInfo).port;
 
   const socket: Client = connect(`http://localhost:${port}`, {
