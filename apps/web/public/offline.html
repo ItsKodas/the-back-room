@@ -24,6 +24,72 @@
         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         text-align: center;
       }
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /*
+       * The sign, on the blink.
+       *
+       * Built like the one on the bar — white-hot core, then the tube's colour
+       * spreading out — but in purple, and failing. No web font: this page
+       * cannot fetch one, so the stack names the joined scripts phones already
+       * carry (Android's own cursive is Dancing Script, the sign's real face).
+       */
+      .sign {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        margin: 0 0 clamp(28px, 8vw, 48px);
+        font-family: "Dancing Script", "Snell Roundhand", "Segoe Script", "Brush Script MT", cursive;
+        font-weight: 700;
+        font-size: clamp(3.2rem, 17vw, 6.5rem);
+        line-height: 1.1;
+        color: #f6f0ff;
+        transform: rotate(-2.4deg);
+        text-shadow:
+          0 0 2px #f6f0ff,
+          0 0 6px #f6f0ff,
+          0 0 14px #b39cff,
+          0 0 28px #6b4bd6,
+          0 0 56px #4b2fb0;
+        animation: sign-flicker 7s step-end infinite;
+      }
+      .sign__the {
+        font-size: 0.44em;
+        margin-left: 1.9em;
+        margin-bottom: -0.88em;
+        transform: rotate(-2deg);
+      }
+
+      /*
+       * Mostly lit, then stuttering — and never faster than a couple of
+       * flashes a second. A sign blinking evenly reads as an alarm; one that
+       * catches and drops out now and then reads as a bad transformer. The
+       * spacing also keeps it well clear of the three-flashes-a-second line
+       * that can set off a photosensitive seizure.
+       *
+       * Looping is the point here: it is still happening, for as long as the
+       * room stays dark. Off is the glass unlit, not invisible, so the words
+       * never disappear from the page.
+       */
+      @keyframes sign-flicker {
+        0% { color: #f6f0ff; text-shadow: 0 0 2px #f6f0ff, 0 0 6px #f6f0ff, 0 0 14px #b39cff, 0 0 28px #6b4bd6, 0 0 56px #4b2fb0; }
+        38% { color: #4a3c73; text-shadow: none; }
+        40% { color: #f6f0ff; text-shadow: 0 0 2px #f6f0ff, 0 0 6px #f6f0ff, 0 0 14px #b39cff, 0 0 28px #6b4bd6, 0 0 56px #4b2fb0; }
+        43% { color: #4a3c73; text-shadow: none; }
+        48% { color: #f6f0ff; text-shadow: 0 0 2px #f6f0ff, 0 0 6px #f6f0ff, 0 0 14px #b39cff, 0 0 28px #6b4bd6, 0 0 56px #4b2fb0; }
+        78% { color: #4a3c73; text-shadow: none; }
+        86% { color: #f6f0ff; text-shadow: 0 0 2px #f6f0ff, 0 0 6px #f6f0ff, 0 0 14px #b39cff, 0 0 28px #6b4bd6, 0 0 56px #4b2fb0; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        /* Lit and steady: the page says the same thing without the stutter. */
+        .sign { animation: none; }
+      }
+
       h1 { margin: 0 0 8px; font-size: 1.6rem; font-weight: 600; }
       p { margin: 0 0 20px; color: #8b97a8; }
       button {
@@ -40,6 +106,10 @@
   </head>
   <body>
     <main>
+      <div class="sign" role="img" aria-label="The Back Room">
+        <span class="sign__the" aria-hidden="true">The</span>
+        <span aria-hidden="true">Back Room</span>
+      </div>
       <h1>The room's dark.</h1>
       <p>You're offline. The tables will still be here when you get back.</p>
       <button type="button" onclick="location.reload()">Try again</button>
