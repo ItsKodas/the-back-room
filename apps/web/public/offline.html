@@ -45,7 +45,12 @@
         margin: 0 0 clamp(28px, 8vw, 48px);
         font-family: "Dancing Script", "Snell Roundhand", "Segoe Script", "Brush Script MT", cursive;
         font-weight: 700;
-        font-size: clamp(3.2rem, 17vw, 6.5rem);
+        /*
+         * Scaled to the screen rather than wrapped: a sign is one line of tube,
+         * and "Room" dropping under "Back" read as two signs.
+         */
+        font-size: min(6.5rem, 14vw);
+        white-space: nowrap;
         line-height: 1.1;
         color: #f6f0ff;
         transform: rotate(-2.4deg);
