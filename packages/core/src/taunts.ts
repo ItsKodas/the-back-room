@@ -160,18 +160,6 @@ export class Taunts {
   }
 
   /**
-   * Drops a table's pool without paying any of it.
-   *
-   * The old burn-on-close path, kept for callers that want it. When a table is
-   * called off, those chips are burned, which is the same answer the rules give
-   * for a taunt whose target lost — the game did not reach a result, so nobody
-   * won one.
-   */
-  forget(code: string): void {
-    this.pools.delete(code);
-  }
-
-  /**
    * Takes a table's pool away to be handed back to whoever threw each taunt.
    *
    * For a table called off before its hand reached a result. Nobody lost, so

@@ -174,18 +174,6 @@ describe("Taunts", () => {
     });
   });
 
-  describe("forgetting", () => {
-    it("drops a closing table's pool without paying any of it", () => {
-      const taunts = new Taunts();
-      taunts.add("ABCDE", taunt({ chips: 100 }));
-
-      taunts.forget("ABCDE");
-
-      expect(taunts.held("ABCDE", "seat-b")).toBe(0);
-      expect(taunts.resolve("ABCDE", ["seat-b"])).toEqual({ paid: [], burned: [] });
-    });
-  });
-
   describe("a table called off before anybody won", () => {
     it("hands every taunt back and empties the pool", () => {
       const taunts = new Taunts();
