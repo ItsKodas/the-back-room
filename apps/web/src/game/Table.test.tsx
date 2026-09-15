@@ -189,31 +189,48 @@ describe("the Greed table", () => {
       expect(moves.roll).toHaveBeenCalledOnce();
     });
 
-    const ctrl = { key: "Control", code: "ControlLeft" };
+    const b = { key: "b", code: "KeyB" };
 
-    it("banks on Ctrl, once it is let go, when Bank itself could be pressed", () => {
+    it("banks on B, when Bank itself could be pressed", () => {
       const moves = withActions(room());
-      fireEvent.keyDown(window, { ...ctrl, ctrlKey: true });
-      expect(moves.bank).not.toHaveBeenCalled();
-      fireEvent.keyUp(window, ctrl);
+      fireEvent.keyDown(window, b);
       expect(moves.bank).toHaveBeenCalledOnce();
       expect(moves.roll).not.toHaveBeenCalled();
     });
 
-    it("leaves Ctrl to a shortcut when another key goes down with it", () => {
+    it("banks on B with caps lock on, and with a clicked key still holding the focus", () => {
       const moves = withActions(room());
-      fireEvent.keyDown(window, { ...ctrl, ctrlKey: true });
-      fireEvent.keyDown(window, { key: "c", code: "KeyC", ctrlKey: true });
-      fireEvent.keyUp(window, ctrl);
+      const roll = screen.getByRole("button", { name: /^Roll/ });
+      fireEvent.keyDown(roll, { key: "B", code: "KeyB" });
+      expect(moves.bank).toHaveBeenCalledOnce();
+    });
+
+    it("leaves a b typed into a field as a letter", () => {
+      const moves = withActions(room());
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Message" }), b);
       expect(moves.bank).not.toHaveBeenCalled();
     });
 
-    it("does not bank on Ctrl with nothing worth banking picked up", () => {
+    it("leaves Ctrl+B and the other shortcuts to the browser", () => {
+      const moves = withActions(room());
+      fireEvent.keyDown(window, { ...b, ctrlKey: true });
+      fireEvent.keyDown(window, { ...b, metaKey: true });
+      fireEvent.keyDown(window, { ...b, altKey: true });
+      expect(moves.bank).not.toHaveBeenCalled();
+    });
+
+    it("does not bank twice for a B held down", () => {
+      const moves = withActions(room());
+      fireEvent.keyDown(window, b);
+      fireEvent.keyDown(window, { ...b, repeat: true });
+      expect(moves.bank).toHaveBeenCalledOnce();
+    });
+
+    it("does not bank on B with nothing worth banking picked up", () => {
       const moves = withActions(
         room({ turn: turn({ held: [false, false, false, false, true], selection: 0, selectionValid: false }) }),
       );
-      fireEvent.keyDown(window, { ...ctrl, ctrlKey: true });
-      fireEvent.keyUp(window, ctrl);
+      fireEvent.keyDown(window, b);
       expect(moves.bank).not.toHaveBeenCalled();
     });
 
