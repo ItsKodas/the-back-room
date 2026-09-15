@@ -569,72 +569,29 @@
  */
 
 .open-tables {
+  display: grid;
+  gap: var(--gr-space-2);
   padding-top: var(--gr-space-2);
 }
 
 .open-tables__count {
   margin-left: var(--gr-space-2);
   font-family: var(--gr-font-data);
-  color: var(--gr-color-ink-faint);
-}
-
-.open-tables__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--gr-space-2);
-}
-
-.open-table {
-  display: grid;
-  grid-template-columns: minmax(0, 7em) minmax(0, 1fr) minmax(0, auto) minmax(0, 5.5em) auto auto;
-  align-items: center;
-  gap: var(--gr-space-3);
-  padding: var(--gr-space-2) var(--gr-space-3);
-  border: var(--gr-edge-soft);
-  border-left: 3px solid var(--gr-color-neon-dim);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(0 0 0 / 0.24);
-}
-
-.open-table__code {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-base);
-  letter-spacing: 0.16em;
-  color: var(--gr-color-ink-lit);
-}
-
-.open-table__host,
-.open-table__seats {
-  font-size: var(--gr-text-sm);
+  letter-spacing: 0;
   color: var(--gr-color-ink-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.open-table__state {
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-faint);
-  white-space: nowrap;
-}
-
-/* Lit means it is happening now, the same promise as everywhere else. */
-.open-table__state--live {
-  color: var(--gr-color-neon-hi);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--gr-color-neon) 55%, transparent);
-}
-
+/*
+ * On a phone the code takes the whole top line and the host and state go
+ * under it, rather than four columns squeezing one name to an ellipsis.
+ */
 @media (max-width: 640px) {
   .open-table {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
-  /* The host and the state go, not the seats: whether there is room is the
-     one thing worth keeping when there is no width for all of it. */
-  .open-table__host,
-  .open-table__state {
-    display: none;
+
+  .open-table .row__code {
+    grid-column: 1 / -1;
   }
 }
 
@@ -655,14 +612,18 @@
 
 .join__split {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--gr-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--gr-space-5);
 }
 
 .join__warn {
   color: var(--gr-color-ink-dim);
   font-size: var(--gr-text-sm);
   margin: 0;
+}
+
+.join__name {
+  max-width: 340px;
 }
 
 .field {

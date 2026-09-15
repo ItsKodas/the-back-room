@@ -603,20 +603,20 @@ function Sit({
       playsFor={{ fun: "Play money, and you can deal bots in. Anybody can sit down." }}
       options={
         <>
-          <div className="variants" role="radiogroup" aria-label="Which school">
+          <div className="plates" role="radiogroup" aria-label="Which school">
             {(["casino", "school"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
                 role="radio"
                 aria-checked={ruleset === option}
-                className={`variant${ruleset === option ? " variant--on" : ""}`}
+                className="plate"
                 onClick={() => setRuleset(option)}
               >
-                <span className="variant__name">
+                <span className="plate__name">
                   {option === "casino" ? "Casino" : "Traditional"}
                 </span>
-                <span className="variant__note">
+                <span className="plate__note">
                   {option === "casino"
                     ? "Back heads, tails or five odds against the house."
                     : "A spinner and a ring, covering each other's chips."}

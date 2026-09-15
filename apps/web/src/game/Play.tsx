@@ -260,10 +260,10 @@ function Join({
           {askName ? "Put in a name and sit down." : "Take a seat."}
         </p>
         {askName ? (
-          <label className="field">
-            <span className="field__label">Your name</span>
+          <label className="entry">
+            <span className="label">Your name</span>
             <input
-              className="field__input"
+              className="input"
               value={typed}
               maxLength={20}
               placeholder="Ada"
@@ -281,7 +281,7 @@ function Join({
         <div className="join__invited">
           <button
             type="button"
-            className="btn"
+            className="slab"
             disabled={!ready}
             onClick={() => actions.join(name, invited)}
           >
@@ -304,18 +304,18 @@ function Join({
       onJoin={actions.join}
       onWatch={actions.watch}
       options={
-        <div className="variants" role="radiogroup" aria-label="Which dice">
+        <div className="plates" role="radiogroup" aria-label="Which dice">
           {RULESETS.map((option) => (
             <button
               key={option.name}
               type="button"
               role="radio"
               aria-checked={option.name === ruleset}
-              className={`variant${option.name === ruleset ? " variant--on" : ""}`}
+              className="plate"
               onClick={() => setRuleset(option.name)}
             >
-              <span className="variant__name">{option.name}</span>
-              <span className="variant__note">
+              <span className="plate__name">{option.name}</span>
+              <span className="plate__note">
                 {option.skin === "letters"
                   ? "$ G R E E D faces. First to 5,000."
                   : "Ordinary pips. First to 10,000."}

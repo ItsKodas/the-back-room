@@ -30,23 +30,25 @@ export function SeatCount({
   );
 
   return (
-    <div className="bots">
-      <span className="bots__label">Seats</span>
-      <div className="bots__row" role="radiogroup" aria-label="How many seats">
+    <div className="entry">
+      <span className="label" id="seat-count-label">
+        Seats
+      </span>
+      <div className="lamps" role="radiogroup" aria-labelledby="seat-count-label">
         {offered.map((seats) => (
           <button
             key={seats}
             type="button"
             role="radio"
             aria-checked={value === seats}
-            className={`btn btn--small${value === seats ? "" : " btn--ghost"}`}
+            className="lamp"
             onClick={() => onChange(seats)}
           >
             {seats}
           </button>
         ))}
       </div>
-      <p className="bots__hint">Set when the table opens, and fixed after that.</p>
+      <p className="hint">Set when the table opens, and fixed after that.</p>
     </div>
   );
 }
