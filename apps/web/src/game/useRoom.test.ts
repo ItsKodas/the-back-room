@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const handlers = new Map<string, (arg: unknown) => void>();
@@ -95,8 +95,15 @@ describe("what a Greed window tells the server about itself", () => {
   it("ignores the close of a table it is not at", async () => {
     const { result } = renderHook(() => useRoom(), { wrapper });
     handlers.get("room:state")?.({ game: "greed", code: "ABCDE", listed: true, taunts: [], seats: [] });
-    handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Seated first: a room that has not rendered yet is null for reasons that
+    // have nothing to do with the close, and under load it often hasn't.
+    await waitFor(() => expect(result.current.room).not.toBeNull());
+
+    // act rather than a tick, so a close wrongly obeyed has certainly landed
+    // by the assertion instead of passing because it had not rendered yet.
+    await act(async () => {
+      handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
+    });
     expect(result.current.room).not.toBeNull();
   });
 });
