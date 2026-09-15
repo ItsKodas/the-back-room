@@ -11,6 +11,7 @@ import type {
 } from "@backroom/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import { rejoinOnReturn } from "../net/wake.js";
 import { windowId } from "../net/windowId.js";
 
 /**
@@ -159,6 +160,7 @@ export function useTableSocket<TView>(
       auth: { game, window: windowId() },
     });
     socketRef.current = socket;
+    const stopRejoining = rejoinOnReturn(socket);
 
     socket.on("connect", () => {
       setTaken(null);
@@ -211,6 +213,7 @@ export function useTableSocket<TView>(
     );
 
     return () => {
+      stopRejoining();
       socket.close();
       socketRef.current = null;
     };

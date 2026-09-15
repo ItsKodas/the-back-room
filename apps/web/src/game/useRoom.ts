@@ -11,6 +11,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
+import { rejoinOnReturn } from "../net/wake.js";
 import { windowId } from "../net/windowId.js";
 import type { PendingRoll } from "./useRollAnimation.js";
 
@@ -197,6 +198,7 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
       auth: { game: "greed", window: windowId() },
     });
     socketRef.current = socket;
+    const stopRejoining = rejoinOnReturn(socket);
 
     socket.on("connect", () => {
       setTaken(null);
@@ -277,6 +279,7 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
     });
 
     return () => {
+      stopRejoining();
       socket.close();
       socketRef.current = null;
     };
