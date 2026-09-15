@@ -136,29 +136,25 @@ export function Table({
   };
 
   /*
-   * Space rolls and Ctrl banks, whenever Roll or Bank itself could be pressed.
+   * Space rolls and B banks, whenever Roll or Bank itself could be pressed.
    * Read through refs so the listeners are bound once rather than on every pick.
    *
-   * Left alone: a key pressed in a field, anything inside a sheet, and a
-   * focused key that is not a die — Bank or the taunt answer to their own keys.
-   * A die somebody clicked is the exception on purpose: pick a die, press
-   * space, is the whole rhythm of a turn, and toggling that die back is never
-   * what was meant. A die reached by keyboard keeps its own space, since
-   * pressing it is how a keyboard picks dice at all.
-   *
-   * Ctrl banks on its own release, not its press: it is also half of every
-   * shortcut in the browser, and Ctrl+C mid-turn must copy rather than bank.
-   * Anything else pressed or clicked while it is held calls the bank off.
+   * Left alone: a key pressed in a field and anything inside a sheet, so a b
+   * typed into talk is a letter rather than a bank. Space also leaves a focused
+   * key that is not a die to its own activation. A die somebody clicked is the
+   * exception on purpose: pick a die, press space, is the whole rhythm of a
+   * turn, and toggling that die back is never what was meant. A die reached by
+   * keyboard keeps its own space, since pressing it is how a keyboard picks
+   * dice at all. B has no meaning on a button, so it banks wherever focus is.
    */
   const keyRoll = useRef<(() => void) | null>(null);
   keyRoll.current = canRoll ? rollNow : null;
   const keyBank = useRef<(() => void) | null>(null);
   keyBank.current = canAct && !busy ? actions.bank : null;
   useEffect(() => {
-    let ctrlAlone = false;
-    const leftAlone = (target: EventTarget | null) =>
+    const typing = (target: EventTarget | null) =>
       target instanceof Element &&
-      target.closest("input, textarea, select, [contenteditable], [role='dialog'], a, button:not(.die)") !== null;
+      target.closest("input, textarea, select, [contenteditable], [role='dialog']") !== null;
     /*
      * The die a pointer last went down on. Remembered here rather than asked of
      * the browser: Chrome reports a clicked button as :focus-visible the moment
@@ -168,18 +164,25 @@ export function Table({
     let clicked: Element | null = null;
 
     const onDown = (event: KeyboardEvent) => {
-      if (event.key === "Control") {
-        if (!event.repeat) {
-          ctrlAlone = !event.altKey && !event.metaKey && !event.shiftKey;
-        }
-        return;
-      }
-      ctrlAlone = false;
-      if (event.key !== " " || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+      // A modifier makes it somebody else's shortcut; a held key is one press.
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
         return;
       }
       const target = event.target;
-      if (leftAlone(target) || (target instanceof Element && target.matches(".die") && target !== clicked)) {
+      if (typing(target)) {
+        return;
+      }
+      if (event.key === "b" || event.key === "B") {
+        keyBank.current?.();
+        return;
+      }
+      if (event.key !== " " || event.shiftKey) {
+        return;
+      }
+      if (
+        target instanceof Element &&
+        (target.closest("a, button:not(.die)") !== null || (target.matches(".die") && target !== clicked))
+      ) {
         return;
       }
       const roll = keyRoll.current;
@@ -190,21 +193,7 @@ export function Table({
       event.preventDefault();
       roll();
     };
-    const onUp = (event: KeyboardEvent) => {
-      if (event.key !== "Control") {
-        return;
-      }
-      const alone = ctrlAlone;
-      ctrlAlone = false;
-      if (alone && !leftAlone(event.target)) {
-        keyBank.current?.();
-      }
-    };
-    const callOff = () => {
-      ctrlAlone = false;
-    };
     const onPointer = (event: PointerEvent) => {
-      callOff();
       clicked = event.target instanceof Element ? event.target.closest(".die") : null;
     };
     const onFocus = (event: FocusEvent) => {
@@ -214,16 +203,12 @@ export function Table({
     };
 
     window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
     window.addEventListener("pointerdown", onPointer);
     window.addEventListener("focusin", onFocus);
-    window.addEventListener("blur", callOff);
     return () => {
       window.removeEventListener("keydown", onDown);
-      window.removeEventListener("keyup", onUp);
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("focusin", onFocus);
-      window.removeEventListener("blur", callOff);
     };
   }, []);
 
@@ -464,7 +449,7 @@ export function Table({
                 type="button"
                 className="key"
                 disabled={!canAct}
-                aria-keyshortcuts="Control"
+                aria-keyshortcuts="B"
                 onClick={actions.bank}
               >
                 <small>Bank</small>
