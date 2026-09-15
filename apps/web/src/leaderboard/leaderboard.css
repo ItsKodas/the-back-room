@@ -14,29 +14,7 @@
 }
 
 .board__head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
   padding: 0 0.6rem 0.4rem;
-}
-
-.board__sort {
-  /* A control during a glance, so it is big enough to hit with a thumb. */
-  min-height: 2.5rem;
-  padding: 0 0.9rem;
-  border-radius: 999px;
-  border: 1px solid var(--gr-color-smoke-lit);
-  background: var(--gr-color-slate);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-sm);
-  cursor: pointer;
-}
-
-.board__sort--on {
-  border-color: var(--gr-color-chip-dim);
-  background: var(--gr-color-smoke-lit);
-  color: var(--gr-color-ink-lit);
 }
 
 .board__row {
@@ -46,8 +24,9 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0.6rem;
-  border-radius: 0.6rem;
+  border-radius: var(--gr-radius-key);
   background: var(--gr-color-slate);
+  box-shadow: var(--gr-lip);
   /* The one motion a row has: where it sits on the board. Task 8 drives it. */
   transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
