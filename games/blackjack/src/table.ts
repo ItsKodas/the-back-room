@@ -124,6 +124,12 @@ export interface TableView {
   hostId: string | null;
   watching: number;
   lastEvent: string | null;
+  /**
+   * Moves on every time the table says something, the same words again
+   * included. The activity log keys on it, so "Ada is ready" twice running is
+   * two lines rather than one.
+   */
+  eventSeq: number;
   dealer: {
     cards: Card[];
     /** Of the cards shown. While one is face down, that is all it counts. */
@@ -260,6 +266,8 @@ export class Table {
   status: TableStatus = "lobby";
   phase: Phase = "betting";
   lastEvent: string | null = null;
+  /** How many things the table has said, for telling a repeat from a rebroadcast. */
+  eventSeq = 0;
   dealer: Card[] = [];
   /**
    * Every stake on the felt right now, by account: bets, doubles and splits,
@@ -329,6 +337,17 @@ export class Table {
   /** When this turn runs out, or null when nobody is being waited on. */
   get turnEndsAt(): number | null {
     return this.turnSince === null ? null : this.turnSince + this.turnMs;
+  }
+
+  /**
+   * Says what just happened.
+   *
+   * The only place lastEvent is set, so the counter cannot be forgotten at one
+   * of the dozen places the table talks.
+   */
+  private say(text: string): void {
+    this.lastEvent = text;
+    this.eventSeq += 1;
   }
   private readonly seating: Seating;
   private readonly shoe: Shoe;
@@ -437,7 +456,7 @@ export class Table {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun) as Seat;
     this.clear(seat);
     seat.purse = this.forFun ? FUN_PURSE : 0;
-    this.lastEvent = `${seat.name} sat down`;
+    this.say(`${seat.name} sat down`);
     return seat;
   }
 
@@ -473,7 +492,7 @@ export class Table {
     if (seat === null) {
       return;
     }
-    this.lastEvent = `${seat.name} dropped out`;
+    this.say(`${seat.name} dropped out`);
     // A hand does not wait for somebody who has gone.
     if (this.phase === "playing" && this.currentSeat()?.id === seatId) {
       const going = this.currentSeat() as Seat;
@@ -572,9 +591,7 @@ export class Table {
     hand.bet = amount;
     // Changing your mind about the bet is changing your mind about being ready.
     seat.ready = false;
-    this.lastEvent = withdrawn
-      ? `${seat.name} took their chips back`
-      : `${seat.name} bet ${amount.toLocaleString("en-US")}`;
+    this.say(withdrawn ? `${seat.name} took their chips back` : `${seat.name} bet ${amount.toLocaleString("en-US")}`);
   }
 
   /**
@@ -626,7 +643,7 @@ export class Table {
     }
 
     this.phase = "playing";
-    this.lastEvent = "Cards out";
+    this.say("Cards out");
     // Nothing to count down to while a hand is being played: the clock on a
     // turn belongs to whoever is taking it, not to the table.
     this.deadline = null;
@@ -656,7 +673,7 @@ export class Table {
       throw new TableError("You are not at this table.");
     }
     seat.ready = ready;
-    this.lastEvent = ready ? `${seat.name} is ready` : `${seat.name} is thinking again`;
+    this.say(ready ? `${seat.name} is ready` : `${seat.name} is thinking again`);
   }
 
   /**
@@ -701,7 +718,7 @@ export class Table {
      */
     if (!this.canDeal) {
       this.deadline = Date.now() + this.bettingMs;
-      this.lastEvent = "Waiting for another player";
+      this.say("Waiting for another player");
       return;
     }
     if (this.playing.length === 0) {
@@ -731,7 +748,7 @@ export class Table {
     if (worth.bust) {
       hand.done = true;
       hand.outcome = "bust";
-      this.lastEvent = `${seat.name} bust on ${worth.total}`;
+      this.say(`${seat.name} bust on ${worth.total}`);
       this.advance();
       return;
     }
@@ -796,7 +813,7 @@ export class Table {
       made.done = true;
     }
 
-    this.lastEvent = `${seat.name} split`;
+    this.say(`${seat.name} split`);
     // The first of the two may already be finished — a split ace, or a
     // twenty-one — so ask rather than assume there is still a decision here.
     if (hand.done) {
@@ -830,7 +847,7 @@ export class Table {
     if (value(hand.cards).bust) {
       hand.outcome = "bust";
     }
-    this.lastEvent = `${seat.name} doubled`;
+    this.say(`${seat.name} doubled`);
     this.advance();
     return extra;
   }
@@ -847,7 +864,7 @@ export class Table {
       return;
     }
     const seat = this.currentSeat() as Seat;
-    this.lastEvent = `${seat.name} ran out of time`;
+    this.say(`${seat.name} ran out of time`);
     // Every hand of theirs: a split leaves two, and taking only the first
     // would hand the clock straight back to somebody who is not there.
     for (const hand of seat.hands) {
@@ -988,7 +1005,7 @@ export class Table {
      * few seconds everybody else is looking at, rather than a fresh count.
      */
     this.deadline = Date.now() + this.settleMs;
-    this.lastEvent = dealer.bust ? `Dealer bust on ${dealer.total}` : `Dealer has ${dealer.total}`;
+    this.say(dealer.bust ? `Dealer bust on ${dealer.total}` : `Dealer has ${dealer.total}`);
   }
 
   /**
@@ -1019,7 +1036,7 @@ export class Table {
     this.status = "lobby";
     this.turnIndex = -1;
     this.deadline = Date.now() + this.bettingMs;
-    this.lastEvent = "Place your bets";
+    this.say("Place your bets");
   }
 
   // -------------------------------------------------------------- the view
@@ -1044,6 +1061,7 @@ export class Table {
       hostId: this.hostId,
       watching: this.seating.watching,
       lastEvent: this.lastEvent,
+      eventSeq: this.eventSeq,
       turnSeatId: current?.id ?? null,
       turnEndsAt: this.turnEndsAt,
       turnMs: this.turnMs,
