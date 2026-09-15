@@ -56,6 +56,12 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// Fakes only the flush loop's timers: the frame stub above has to keep
+// running frames at once, and vi.useFakeTimers() with no `toFake` list would
+// otherwise replace it with a fake requestAnimationFrame that never fires
+// without an explicit advance — painting nothing before a test can look.
+const fakeFlushTimers = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+
 const pen: Tool = { ink: "red", size: 1, mode: "pen" };
 
 function Harness({ table, state, seatId, tool = pen }: { table: InkTable; state: TableView; seatId: string; tool?: Tool }) {
@@ -73,7 +79,7 @@ const drawerView = () => viewOf({ you: seat("s0", { drawing: true }) });
 
 describe("the napkin", () => {
   it("puts your line on it the moment you draw, long before the server could answer", () => {
-    vi.useFakeTimers();
+    fakeFlushTimers();
     const act = vi.fn();
     const table: InkTable = { act, error: null, onRelay: () => () => {} };
     const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
@@ -92,7 +98,7 @@ describe("the napkin", () => {
   });
 
   it("sends the last of a line as soon as the finger lifts", () => {
-    vi.useFakeTimers();
+    fakeFlushTimers();
     const act = vi.fn();
     const { container } = render(<Harness table={{ act, error: null, onRelay: () => () => {} }} state={drawerView()} seatId="s0" />);
     const canvas = container.querySelector("canvas") as HTMLCanvasElement;
