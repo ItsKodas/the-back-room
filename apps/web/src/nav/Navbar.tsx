@@ -48,44 +48,54 @@ export function Navbar({ game, table, account, connected }: NavbarProps) {
   const { pathname } = useLocation();
   return (
     <header className="nav">
-      <h1 className="nav__mark">
-        <Link
-          to="/"
-          aria-label="The Back Room"
-          onClick={(event) => {
-            // Already in the room, the sign goes nowhere and nothing shuts.
-            if (pathname !== "/") {
-              throughTheDoor(event, "close");
-            }
-          }}
-        >
-          <Sign />
-        </Link>
-      </h1>
-      {game !== undefined ? <span className="nav__game">{game}</span> : null}
+      {/* Three groups rather than a row of loose children, so a narrow bar can
+          lay them out as two tidy rows instead of wrapping wherever the width
+          happens to run out. */}
+      <div className="nav__brand">
+        <h1 className="nav__mark">
+          <Link
+            to="/"
+            aria-label="The Back Room"
+            onClick={(event) => {
+              // Already in the room, the sign goes nowhere and nothing shuts.
+              if (pathname !== "/") {
+                throughTheDoor(event, "close");
+              }
+            }}
+          >
+            <Sign />
+          </Link>
+        </h1>
+        {game !== undefined ? <span className="nav__game">{game}</span> : null}
+      </div>
 
-      <span className="nav__spacer" />
+      <div className="nav__who">
+        {/* The table you are at, as one object — the same shape as the account
+            beside it, because both are a thing you are in rather than a control.
+            Leaving lives inside it: the way out belongs to the table, not to
+            the bar, and it says "Leave" rather than only drawing an arrow. */}
+        {table !== undefined ? (
+          <span className="nav__table">
+            <CopyCode code={table.code} />
+            <LeaveButton table={table} />
+          </span>
+        ) : null}
+        <Who account={account} />
+        {/* With who you are rather than with the keys: it is a state, not a
+            control, and worded as "offline" it is too wide to share the top
+            line of a phone with the sign. */}
+        {connected === undefined ? null : <Connection up={connected} />}
+      </div>
 
-      {/* The table you are at, as one object — the same shape as the account
-          beside it, because both are a thing you are in rather than a control.
-          Leaving lives inside it: the way out belongs to the table, not to
-          the bar, and it says "Leave" rather than only drawing an arrow. */}
-      {table !== undefined ? (
-        <span className="nav__table">
-          <CopyCode code={table.code} />
-          <LeaveButton table={table} />
-        </span>
-      ) : null}
-
-      <Who account={account} />
-      {account.admin ? (
-        <Link to="/admin" className="key key--icon" aria-label="Admin desk" title="Admin desk">
-          <KeyIcon />
-        </Link>
-      ) : null}
-      <Install />
-      <Sound />
-      {connected === undefined ? null : <Connection up={connected} />}
+      <div className="nav__keys">
+        {account.admin ? (
+          <Link to="/admin" className="key key--icon" aria-label="Admin desk" title="Admin desk">
+            <KeyIcon />
+          </Link>
+        ) : null}
+        <Install />
+        <Sound />
+      </div>
     </header>
   );
 }
