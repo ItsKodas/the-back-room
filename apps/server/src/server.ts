@@ -2,7 +2,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Server as HttpServer } from "node:http";
 import { createServer as createHttpServer } from "node:http";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
 import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core";
@@ -1314,7 +1314,21 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
      * og:image is a *relative* path, and a relative one reaches nobody. Every
      * other address was fine, so nothing looked wrong anywhere.
      */
-    app.use(express.static(clientDist, { index: false }));
+    app.use(
+      express.static(clientDist, {
+        index: false,
+        /*
+         * The worker, and only the worker, is always re-checked. A browser looks
+         * for a new one by fetching this file, and a cached answer to that is an
+         * installed app that never hears about a deploy.
+         */
+        setHeaders: (response, path) => {
+          if (basename(path) === "sw.js") {
+            response.setHeader("Cache-Control", "no-cache");
+          }
+        },
+      }),
+    );
 
     /**
      * The built page, read once.
