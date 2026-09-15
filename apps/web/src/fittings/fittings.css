@@ -737,6 +737,9 @@
   height: 100%;
   opacity: 0;
   border: 0;
+  /* iOS Safari zooms the page in on a focused input under 16px, even one
+     this transparent — the field is real, whatever it looks like. */
+  font-size: 16px;
   cursor: text;
 }
 
@@ -857,11 +860,6 @@
   padding: var(--gr-space-3) 18px var(--gr-space-4);
   border-top: 1px solid rgb(0 0 0 / 0.4);
   background: rgb(0 0 0 / 0.14);
-}
-
-/* A slab in the foot sits on the foot's padding, not on its own margin too. */
-.housing__foot > .slab {
-  margin-bottom: var(--gr-press);
 }
 
 /* A recess inside a housing, for things that belong together. */

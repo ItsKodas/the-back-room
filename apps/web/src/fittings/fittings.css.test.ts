@@ -88,4 +88,9 @@ describe("the fittings' stylesheet", () => {
     // silently strip every page's own cap and margins on its wrapper.
     expect(css).not.toMatch(/(^|[},\s])\.field(?![\w-])[^{]*\{/m);
   });
+
+  it("keeps the table-code field at 16px, so iOS Safari does not zoom in on focus", () => {
+    const body = css.slice(css.indexOf(".lcd__input {"), css.indexOf("}", css.indexOf(".lcd__input {")));
+    expect(body).toMatch(/font-size:\s*16px/);
+  });
 });
