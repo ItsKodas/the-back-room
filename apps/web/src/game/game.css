@@ -554,7 +554,9 @@
  * under it, rather than four columns squeezing one name to an ellipsis.
  */
 @media (max-width: 640px) {
-  .open-table {
+  /* Compounded with .row: same weight as fittings.css's own .row rule, which
+     loads after this file and would otherwise always win the tie. */
+  .row.open-table {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
@@ -628,7 +630,9 @@
   align-items: stretch;
 }
 
-.lobby__link {
+/* Compounded with .input: same weight as fittings.css's own .input rule,
+   which loads after this file and would otherwise always win the tie. */
+.input.lobby__link {
   min-height: 40px;
   font-family: var(--gr-font-data);
   font-size: var(--gr-text-xs);
@@ -1416,8 +1420,11 @@
  * Everything that is chips, wearing the one warm colour in the building. The
  * rule only works because it is kept: a gold figure is always money.
  */
+/* .rules__chips compounded with .hint: same weight as fittings.css's own
+   .hint rule, which loads after this file and would otherwise always win
+   the tie. */
 .chips,
-.rules__chips {
+.hint.rules__chips {
   color: var(--gr-color-chip-hi);
 }
 
@@ -2382,7 +2389,9 @@
   color: var(--gr-color-ink-dim);
 }
 
-.profile__out:hover {
+/* Compounded with .quiet: .quiet:hover:not(:disabled) in fittings.css is
+   (0,3,0), loads after this file, and would otherwise always win the tie. */
+.quiet.profile__out:hover:not(:disabled) {
   color: var(--gr-color-bad);
 }
 
@@ -2584,7 +2593,9 @@
   gap: var(--gr-space-2);
 }
 
-.redeem__input {
+/* Compounded with .input: same weight as fittings.css's own .input rule,
+   which loads after this file and would otherwise always win the tie. */
+.input.redeem__input {
   min-width: 0;
   font-family: var(--gr-font-data);
   letter-spacing: 0.08em;
