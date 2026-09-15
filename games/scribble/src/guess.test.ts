@@ -6,6 +6,10 @@ describe("normalising", () => {
     expect(normalise("  Crème-Brûlée ")).toBe("creme brulee");
     expect(normalise("Kev's   van")).toBe("kevs van");
   });
+
+  it("removes smart quotes that keyboards insert", () => {
+    expect(normalise("Kev’s van")).toBe("kevs van");
+  });
 });
 
 describe("a correct guess", () => {
