@@ -8,6 +8,7 @@ import { compact, exact } from "../game/money.js";
 import { Sign } from "../game/Sign.js";
 import type { Account } from "../game/useAccount.js";
 import { CopyCode } from "./CopyCode.js";
+import { Install } from "./Install.js";
 import { Sound } from "./Sound.js";
 
 /** The table you are sitting at, when you are sitting at one. */
@@ -71,6 +72,7 @@ export function Navbar({ game, table, account, connected }: NavbarProps) {
           <KeyIcon />
         </Link>
       ) : null}
+      <Install />
       <Sound />
       {connected === undefined ? null : <Connection up={connected} />}
     </header>
