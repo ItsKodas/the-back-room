@@ -1959,7 +1959,7 @@ function betSaid({
 
   // Mid-spin the stake is out of the balance, so this would flicker for nothing.
   const off = busy ? undefined : keys.find((bet) => bet !== stake && !covers(bet, reach));
-  const choose = stake === 0 ? "Choose a key, or type your own." : "";
+  const choose = stake === 0 ? "Choose a key, or type a custom bet." : "";
   if (off === undefined) {
     return choose;
   }
@@ -2074,7 +2074,7 @@ function BetKeys({
 
       <div className="own" data-held={ownHeld || undefined}>
         <label className="own__label" htmlFor={`${id}-own`}>
-          Your own
+          Custom bet
         </label>
         <span className="own__field">
           <ChipMark size={14} />
@@ -2084,7 +2084,7 @@ function BetKeys({
             inputMode="numeric"
             enterKeyHint="done"
             autoComplete="off"
-            aria-label="Your own bet a line"
+            aria-label="Custom bet a line"
             placeholder={most >= MIN_STAKE ? `${exact(MIN_STAKE)} – ${exact(most)}` : "Can't cover a line"}
             value={draft}
             disabled={busy}
