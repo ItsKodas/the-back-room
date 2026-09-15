@@ -143,7 +143,15 @@ export function Haze() {
       last = now;
 
       const base = Math.hypot(width, height) * 0.26 * HAZE.size;
-      context.clearRect(0, 0, width, height);
+      /*
+       * Cleared in the canvas's own pixels. The window is rarely a whole
+       * number of them across — 375 wide is 187.5 — and a clear measured in
+       * window pixels left half of the last column standing, which `lighter`
+       * then added the next frame onto: a line of doubled haze down the edge.
+       */
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.setTransform(BACKING_SCALE, 0, 0, BACKING_SCALE, 0, 0);
       context.globalCompositeOperation = "lighter";
 
       for (const cloud of clouds) {

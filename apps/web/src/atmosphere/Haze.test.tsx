@@ -14,13 +14,20 @@ import { BACKING_SCALE, Haze } from "./Haze.js";
 let frames: FrameRequestCallback[] = [];
 let arcs: Array<{ x: number; y: number }> = [];
 let reduced = false;
+/** Each clear, measured in the canvas's own pixels. */
+let clears: Array<{ width: number; height: number }> = [];
 
 function fakeContext() {
+  let scale = 1;
   return {
     globalCompositeOperation: "source-over",
     fillStyle: "",
-    clearRect: () => {},
-    setTransform: () => {},
+    clearRect: (_x: number, _y: number, width: number, height: number) => {
+      clears.push({ width: width * scale, height: height * scale });
+    },
+    setTransform: (horizontal: number) => {
+      scale = horizontal;
+    },
     beginPath: () => {},
     fill: () => {},
     arc: (x: number, y: number) => {
@@ -53,6 +60,7 @@ function colourReads(spy: { mock: { calls: unknown[][] } }): number {
 beforeEach(() => {
   frames = [];
   arcs = [];
+  clears = [];
   reduced = false;
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
     () => fakeContext() as unknown as CanvasRenderingContext2D,
@@ -155,5 +163,22 @@ describe("the work each frame does", () => {
     runFrames(1);
     expect(arcs).toHaveLength(12);
     expect(frames).toHaveLength(0);
+  });
+
+  it("clears all of the last frame when the window does not divide into whole canvas pixels", () => {
+    /*
+     * A phone 375 wide is 187.5 canvas pixels, so the canvas is 188 — and a
+     * clear measured in window pixels stopped half a pixel short. `lighter`
+     * added every frame on top of what that column kept, so the right edge of
+     * the window carried a line of haze twice as bright as the air beside it.
+     */
+    set("innerWidth", 375);
+    const { container } = render(<Haze />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    runFrames(1);
+
+    const cleared = clears.at(-1);
+    expect(cleared?.width).toBeGreaterThanOrEqual(canvas.width);
+    expect(cleared?.height).toBeGreaterThanOrEqual(canvas.height);
   });
 });
