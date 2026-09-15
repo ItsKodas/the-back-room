@@ -318,38 +318,6 @@
   flex: none;
 }
 
-/* ------------------------------------------------------------- icon buttons */
-
-.iconbtn {
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: var(--gr-radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--gr-color-ink-dim);
-  cursor: pointer;
-  flex: none;
-}
-
-.iconbtn:hover {
-  color: var(--gr-color-neon-hi);
-  border-color: color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
-}
-
-.iconbtn:focus-visible {
-  outline: 2px solid var(--gr-color-neon-hi);
-  outline-offset: 1px;
-}
-
-.iconbtn svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-}
-
 /* ----------------------------------------------------------------- volume */
 
 .vol {
@@ -626,18 +594,6 @@
   max-width: 340px;
 }
 
-.field {
-  display: block;
-  max-width: 340px;
-}
-
-.field__label {
-  display: block;
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-dim);
-  margin-bottom: var(--gr-space-1);
-}
-
 .field__input {
   width: 100%;
   padding: var(--gr-space-3);
@@ -652,15 +608,6 @@
 .field__input:focus-visible {
   outline: 2px solid var(--gr-color-neon);
   outline-offset: 1px;
-}
-
-.field__input--code {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-xl);
-  letter-spacing: 0.3em;
-  text-align: center;
-  color: var(--gr-color-ink-lit);
-  margin-bottom: var(--gr-space-3);
 }
 
 /* ---------------------------------------------------------------- lobby */
@@ -679,11 +626,6 @@
   gap: var(--gr-space-4);
   /* Stretch, so the code tile is as tall as the seating beside it. */
   align-items: stretch;
-}
-
-.lobby__share-body {
-  align-content: center;
-  justify-items: stretch;
 }
 
 .lobby__link {
@@ -1034,25 +976,6 @@
   background: color-mix(in srgb, var(--gr-color-neon) 8%, transparent);
 }
 
-/*
- * A link wearing a button.
- *
- * .btn was written when every one of them was a <button>, which centres its
- * own label and never underlines it. An <a> does neither, so the first link
- * to borrow the class came out underlined and ragged-left with the fill
- * sitting behind it. Written against `a.btn` rather than folded into `.btn`
- * itself: every other .btn in the building is a real button already laying
- * itself out correctly, and changing their display to suit two links is a
- * wider blast radius than this is worth.
- */
-a.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  text-decoration: none;
-}
-
 .btn--wide {
   width: 100%;
 }
@@ -1098,53 +1021,6 @@ a.btn {
 /* R, following the printed dice. */
 .die__letter--red {
   color: var(--gr-color-bad);
-}
-
-/* ---------------------------------------------------- variant picker */
-
-.variants {
-  display: grid;
-  gap: var(--gr-space-2);
-  margin-bottom: var(--gr-space-3);
-}
-
-.variant {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: var(--gr-space-2) var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(0 0 0 / 0.28);
-  border: var(--gr-edge-soft);
-  color: var(--gr-color-ink);
-  font-family: var(--gr-font-ui);
-  cursor: pointer;
-}
-
-.variant:hover {
-  border-color: var(--gr-color-neon-dim);
-}
-
-.variant--on {
-  border-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 13%, transparent);
-}
-
-.variant:focus-visible {
-  outline: 2px solid var(--gr-color-neon-hi);
-  outline-offset: 2px;
-}
-
-.variant__name {
-  display: block;
-  font-size: var(--gr-text-sm);
-  font-weight: 500;
-}
-
-.variant__note {
-  display: block;
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-dim);
 }
 
 /* ------------------------------------------------------------- bots */
