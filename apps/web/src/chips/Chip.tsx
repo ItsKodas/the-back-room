@@ -163,41 +163,58 @@ export function ChipFace({
   );
 }
 
-/**
- * The house's own clay, for a chip that stands for money rather than for an
- * amount.
- *
- * A balance is not a denomination — nobody holds "ten thousand" as one plate —
- * so a mark beside a figure is painted in the gold that means money at every
- * table in the building rather than borrowing some particular chip's colour.
- */
-const HOUSE: Face = {
-  body: "var(--gr-color-chip)",
-  trim: "var(--gr-color-chip-dim)",
-  spots: 6,
-};
+/** Where the rim is cut, a notch every eighth of the way round. */
+const NOTCHES = [0, 45, 90, 135, 180, 225, 270, 315];
 
 /**
- * A chip as a mark, small, beside a figure.
+ * The building's sign for chips, small, beside a figure.
  *
- * No value printed on it: ChipFace already refuses below about twenty pixels,
- * because a number that small reads as dirt rather than as a denomination —
- * and the figure it sits beside is the number anyway.
+ * The house chip reduced to the two things that make it a chip: a notched rim
+ * and an inlay. The full chip drawn at fourteen pixels was gold on dark gold,
+ * which is a disc with a smudge in it.
  *
- * aria-hidden, for the same reason. The balance is already announced by the
- * text; a second reading of it as "chip" is noise to anybody listening.
+ * Cut out rather than painted, so the whole mark is one colour and that colour
+ * is the text's. Gold beside a balance, faint on a key nobody can press — and
+ * never a patch of some other background showing through the holes.
+ *
+ * No value printed on it, and aria-hidden: the figure it sits beside is the
+ * number, and a second reading of it as "chip" is noise to anybody listening.
  */
 export function ChipMark({ size = 14 }: { size?: number }) {
+  // One mask per mark: two sharing an id would have the second cut by the first.
+  const cut = useId();
   return (
     <svg
       className="chip-mark"
-      viewBox="0 0 100 100"
+      viewBox="0 0 24 24"
       width={size}
       height={size}
       aria-hidden="true"
       focusable="false"
     >
-      <ChipFace cx={50} cy={50} r={48} amount={0} face={HOUSE} />
+      <defs>
+        <mask id={cut} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+          <circle cx="12" cy="12" r="11.5" fill="#fff" />
+          {NOTCHES.map((turn) => (
+            <rect
+              key={turn}
+              x="10.9"
+              y="-0.6"
+              width="2.2"
+              height="3.1"
+              fill="#000"
+              transform={`rotate(${turn} 12 12)`}
+            />
+          ))}
+          <circle cx="12" cy="12" r="6.4" fill="none" stroke="#000" strokeWidth="1.7" />
+          {/* A second ring only once there is room for it; below this it
+              closes up and the mark goes muddy. */}
+          {size >= 28 ? (
+            <circle cx="12" cy="12" r="9.1" fill="none" stroke="#000" strokeWidth="0.55" />
+          ) : null}
+        </mask>
+      </defs>
+      <rect width="24" height="24" fill="currentColor" mask={`url(#${cut})`} />
     </svg>
   );
 }

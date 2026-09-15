@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { MIN_STAKE, STAKE_DIVISOR, type Face } from "@backroom/game-slots";
 import type { SpinNews } from "@backroom/shared";
 import { exact } from "../game/money.js";
@@ -14,7 +14,10 @@ import {
   bonusRun,
   celebrationMs,
   Controls,
+  covers,
   HOLD_MS,
+  keptAcrossSwitch,
+  readBet,
   HOLD_STEP_MS,
   HOLD_TOP_MS,
   holdsFor,
@@ -553,29 +556,246 @@ describe("the run of bonuses in a spin", () => {
  * mid-run is looking at the thing they are about to hit — and the question
  * they are asking of it is whether this press costs anything.
  */
+const controls = (props: Partial<Parameters<typeof Controls>[0]>) =>
+  render(
+    <Controls
+      stake={100}
+      onStake={() => {}}
+      highStakes={false}
+      onHighStakes={() => {}}
+      released={null}
+      busy={false}
+      balance={50_000}
+      cap={5000}
+      forFun={true}
+      lineCount={9}
+      onLines={() => {}}
+      onPull={() => {}}
+      canPull={true}
+      auto={false}
+      onAuto={() => {}}
+      freeLeft={0}
+      {...props}
+    />,
+  );
+
+describe("the bet keys", () => {
+  const row = (container: HTMLElement) =>
+    within(within(container).getByRole("radiogroup", { name: "Bet a line" }));
+  const said = (container: HTMLElement) => container.querySelector(".bet__said")?.textContent ?? "";
+
+  it("offers the standard keys", () => {
+    const { container } = controls({});
+    expect(row(container).getAllByRole("radio").map((key) => key.textContent)).toEqual([
+      "10",
+      "50",
+      "100",
+      "250",
+      "500",
+      "1,000",
+    ]);
+  });
+
+  it("offers the high stakes keys once the switch is on", () => {
+    const { container } = controls({ highStakes: true });
+    expect(row(container).getAllByRole("radio").map((key) => key.textContent)).toEqual([
+      "1,000",
+      "2,500",
+      "5,000",
+      "10,000",
+    ]);
+  });
+
+  it("asks for the other row when the switch is flipped", () => {
+    const onHighStakes = vi.fn();
+    const { container } = controls({ onHighStakes });
+    const flip = within(container).getByRole("switch", { name: "High stakes" });
+    expect(flip.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(flip);
+    expect(onHighStakes).toHaveBeenCalledWith(true);
+  });
+
+  it("sets the bet to the key pressed rather than adding to it", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 100, onStake });
+    fireEvent.click(row(container).getByRole("radio", { name: "250" }));
+    expect(onStake).toHaveBeenCalledWith(250);
+  });
+
+  it("holds in the key that is the bet and no other", () => {
+    const { container } = controls({ stake: 250 });
+    const held = row(container)
+      .getAllByRole("radio")
+      .filter((key) => key.getAttribute("aria-checked") === "true")
+      .map((key) => key.textContent);
+    expect(held).toEqual(["250"]);
+  });
+
+  it("turns off a key the balance cannot cover across the lines", () => {
+    const { container } = controls({ stake: 0, balance: 2000, lineCount: 3, cap: 100_000 });
+    expect((row(container).getByRole("radio", { name: "1,000" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("turns off a key the bank cannot cover, whatever the balance", () => {
+    const { container } = controls({ stake: 0, balance: 1_000_000, lineCount: 3, cap: 2000 });
+    expect((row(container).getByRole("radio", { name: "1,000" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("says why a key is off without anybody having to hover it", () => {
+    const { container } = controls({ stake: 0, balance: 2000, lineCount: 3, cap: 100_000 });
+    expect(said(container)).toContain("1,000 and up");
+  });
+
+  it("keeps the held key lit mid-spin, while its stake is out of the balance", () => {
+    /*
+     * The stake leaves the shown balance on the press, so a thousand held on a
+     * balance of a thousand reads as uncovered for the whole spin. The key it
+     * is riding on must not go dark under the reels.
+     */
+    const { container } = controls({ stake: 1000, busy: true, balance: 0, lineCount: 1, cap: 100_000 });
+    const key = row(container).getByRole("radio", { name: "1,000" }) as HTMLButtonElement;
+    expect(key.disabled).toBe(false);
+    expect(key.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("does not change the bet while the reels are turning", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 100, busy: true, onStake });
+    fireEvent.click(row(container).getByRole("radio", { name: "250" }));
+    expect(onStake).not.toHaveBeenCalled();
+  });
+
+  it("says why a bet it could no longer cover was let go", () => {
+    const { container } = controls({
+      stake: 0,
+      released: { bet: 1000, why: "cover" },
+      balance: 2000,
+      lineCount: 3,
+      cap: 100_000,
+    });
+    expect(said(container)).toContain("1,000");
+    expect(said(container)).toContain("released");
+  });
+
+  it("says the switch let a bet go", () => {
+    const { container } = controls({
+      stake: 0,
+      highStakes: true,
+      released: { bet: 250, why: "switch" },
+    });
+    expect(said(container)).toContain("250");
+    expect(said(container)).toContain("high stakes");
+  });
+
+  it("asks for a bet when nothing is held", () => {
+    const { container } = controls({ stake: 0, cap: 100_000 });
+    expect(said(container)).toContain("Choose a key");
+  });
+});
+
+describe("betting a figure of your own", () => {
+  const box = (container: HTMLElement) =>
+    within(container).getByRole("textbox", { name: "Your own bet a line" });
+  const said = (container: HTMLElement) => container.querySelector(".bet__said")?.textContent ?? "";
+
+  it("bets what was typed", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 0, onStake });
+    fireEvent.change(box(container), { target: { value: "37" } });
+    fireEvent.click(within(container).getByRole("button", { name: "Bet it" }));
+    expect(onStake).toHaveBeenCalledWith(37);
+  });
+
+  it("bets on Enter as well", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 0, onStake });
+    fireEvent.change(box(container), { target: { value: "37" } });
+    fireEvent.keyDown(box(container), { key: "Enter" });
+    expect(onStake).toHaveBeenCalledWith(37);
+  });
+
+  it("goes as low as a single chip", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 0, onStake, lineCount: 9 });
+    fireEvent.change(box(container), { target: { value: "1" } });
+    fireEvent.click(within(container).getByRole("button", { name: "Bet it" }));
+    expect(onStake).toHaveBeenCalledWith(1);
+  });
+
+  it("will not bet nothing", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 0, onStake });
+    fireEvent.change(box(container), { target: { value: "0" } });
+    const bet = within(container).getByRole("button", { name: "Bet it" }) as HTMLButtonElement;
+    expect(bet.disabled).toBe(true);
+    fireEvent.keyDown(box(container), { key: "Enter" });
+    expect(onStake).not.toHaveBeenCalled();
+    expect(said(container)).toContain("Bets start at 1 a line.");
+  });
+
+  it("will not bet more than can be covered, and says what can", () => {
+    const onStake = vi.fn();
+    const { container } = controls({ stake: 0, onStake, balance: 100, lineCount: 3, cap: 100_000 });
+    fireEvent.change(box(container), { target: { value: "50" } });
+    const bet = within(container).getByRole("button", { name: "Bet it" }) as HTMLButtonElement;
+    expect(bet.disabled).toBe(true);
+    expect(said(container)).toContain("The most you can bet on 3 lines is 33 a line.");
+  });
+
+  it("holds the box in for a figure that is not a key", () => {
+    const { container } = controls({ stake: 37, cap: 100_000 });
+    const held = within(container).getByRole("button", { name: "Held" });
+    expect(held.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector(".own")?.hasAttribute("data-held")).toBe(true);
+  });
+
+  it("leaves the box dark when the bet is a key", () => {
+    const { container } = controls({ stake: 250, cap: 100_000 });
+    expect(within(container).queryByRole("button", { name: "Held" })).toBeNull();
+    expect(container.querySelector(".own")?.hasAttribute("data-held")).toBe(false);
+  });
+});
+
+describe("what a bet has to be", () => {
+  it("takes a single chip a line", () => {
+    expect(MIN_STAKE).toBe(1);
+  });
+
+  it("is covered only when both the balance and the bank can take it across the lines", () => {
+    expect(covers(100, { lines: 3, cap: 1000, balance: 1000 })).toBe(true);
+    expect(covers(400, { lines: 3, cap: 1000, balance: 5000 })).toBe(false);
+    expect(covers(400, { lines: 3, cap: 5000, balance: 1000 })).toBe(false);
+    expect(covers(0, { lines: 3, cap: 5000, balance: 5000 })).toBe(false);
+    expect(covers(10, { lines: 3, cap: 5000, balance: null })).toBe(false);
+  });
+
+  it("keeps 1,000 held across the switch, since both rows have it", () => {
+    expect(keptAcrossSwitch(1000, true)).toBe(true);
+    expect(keptAcrossSwitch(1000, false)).toBe(true);
+  });
+
+  it("keeps a figure of your own across the switch, since neither row has it", () => {
+    expect(keptAcrossSwitch(37, true)).toBe(true);
+    expect(keptAcrossSwitch(37, false)).toBe(true);
+  });
+
+  it("lets go of a key the other row does not have", () => {
+    expect(keptAcrossSwitch(250, true)).toBe(false);
+    expect(keptAcrossSwitch(5000, false)).toBe(false);
+  });
+
+  it("reads a typed figure with or without its commas", () => {
+    expect(readBet("1,250")).toBe(1250);
+    expect(readBet("37")).toBe(37);
+    expect(readBet("")).toBeNull();
+    expect(readBet("abc")).toBeNull();
+  });
+});
+
 describe("the spin button", () => {
-  const press = (props: Partial<Parameters<typeof Controls>[0]>) =>
-    render(
-      <Controls
-        stake={100}
-        onAdd={() => {}}
-        onClear={() => {}}
-        canAdd={() => true}
-        busy={false}
-        balance={50_000}
-        cap={5000}
-        forFun={true}
-        lineCount={9}
-        onLines={() => {}}
-        total={900}
-        onPull={() => {}}
-        canPull={true}
-        auto={false}
-        onAuto={() => {}}
-        freeLeft={0}
-        {...props}
-      />,
-    );
+  const press = controls;
 
   it("says Spin when the next one costs something", () => {
     const { container } = press({});

@@ -1406,132 +1406,394 @@
   gap: var(--gr-space-3);
 }
 
-/* ---- the tray */
+/* ---- the bet */
 
-.slots__tray {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  justify-content: center;
+/*
+ * The keys, the switch over them, and the box for a figure of your own.
+ *
+ * A container rather than a media query, because what decides whether six
+ * keys fit across is the belly's width, not the window's: the cabinet stops
+ * growing at 560px however wide the screen is.
+ */
+.bet {
+  container: bet / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-3);
+}
+
+.bet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--gr-space-2);
 }
 
+.bet__label {
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
 /*
- * The chip is drawn, not styled — see Chip.tsx. What is left here is how it
- * behaves under a thumb, so the button is a hit area with no box of its own
- * showing through the round shape inside it.
+ * High stakes is on or off, so this one is a switch — unlike the machine
+ * picker at the top, where neither "for chips" nor "for fun" is off.
+ *
+ * Under the bet's own name: poker.css already owns a bare `.stakes`, it is
+ * loaded on every page, and it stood this switch's label on its end.
  */
-.slots__chip {
-  display: grid;
-  place-items: center;
-  padding: 4px;
+.bet__stakes {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 2px;
   border: 0;
   background: none;
+  color: var(--gr-color-ink-dim);
+  font: inherit;
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.16, 1.06, 0.28, 1);
 }
 
-.slots__chip:hover:not(:disabled) {
-  transform: translateY(-3px);
-}
-
-.slots__chip:active:not(:disabled) {
-  transform: translateY(-1px) scale(0.96);
-}
-
-.slots__chip:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.slots__chip:focus-visible {
+.bet__stakes:focus-visible {
   outline: 2px solid var(--gr-color-neon);
-  outline-offset: 2px;
-  border-radius: 999px;
+  outline-offset: 3px;
+  border-radius: var(--gr-radius-pill);
 }
 
-.slots__chip svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-width: 54px;
+.bet__stakes:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
-/* ---- what is on */
-
-.slots__bet {
-  display: flex;
-  align-items: center;
-  gap: var(--gr-space-3);
-  min-height: 52px;
-  padding: 0 var(--gr-space-2);
-  font-family: var(--gr-font-data);
-  font-variant-numeric: tabular-nums;
-  color: var(--gr-color-ink-faint);
+.bet__track {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex: none;
+  border-radius: var(--gr-radius-pill);
+  background: rgb(0 0 0 / 0.45);
+  box-shadow:
+    inset 0 2px 5px rgb(0 0 0 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
-.slots__bet-total {
-  font-size: var(--gr-text-lg);
-  color: var(--gr-color-chip);
+.bet__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--gr-color-ink-lit), var(--gr-color-ink-dim));
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.5);
+  transition: transform 360ms var(--gr-settle);
 }
 
-.slots__bet-empty {
-  font-size: var(--gr-text-sm);
+.bet__stakes[aria-checked="true"] {
+  color: var(--gr-color-ink-lit);
+}
+
+.bet__stakes[aria-checked="true"] .bet__track {
+  background: linear-gradient(180deg, var(--gr-color-neon), var(--gr-color-neon-dim));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 0 14px color-mix(in srgb, var(--gr-color-neon) 55%, transparent);
+}
+
+.bet__stakes[aria-checked="true"] .bet__thumb {
+  transform: translateX(20px);
 }
 
 /*
- * Taking it back off the felt.
+ * ---- the keys
  *
- * Built like the auto button rather than like a link — a well with something
- * in it — because it lives in a row of chips and figures, and the only thing
- * on this machine that should look like text is text.
- *
- * Pushed to the far end, so it is never next to the thumb that is stacking.
+ * Under the bet's name rather than a bare `.key`, which is the building's own
+ * fitting in fittings.css and would lend these its padding and its disabled
+ * look through every tie.
  */
-.take {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--gr-space-2);
-  height: 44px;
-  padding: 0 var(--gr-space-3);
-  flex: none;
-  border: 1px solid rgb(0 0 0 / 0.6);
-  border-radius: 9px;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(0 0 0 / 0.32));
-  color: var(--gr-color-ink-faint);
-  cursor: pointer;
-  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.5);
-  transition:
-    color 160ms ease,
-    border-color 160ms ease;
+
+.bet__keys {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  /* Room under the row for the slab the keys stand on. */
+  padding-bottom: var(--gr-press);
 }
 
-.take:hover:not(:disabled) {
+.bet__keys--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/*
+ * A key stands proud of the panel on a dark slab exactly as tall as it
+ * travels. Held in, it latches down and lights; let go, it springs back up
+ * past its own height. Down is instant and up springs, the same bargain as the
+ * spin button's.
+ */
+.bet__key {
+  position: relative;
+  isolation: isolate;
+  min-height: 52px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--gr-radius-key);
+  background: linear-gradient(180deg, var(--gr-color-smoke-lit), var(--gr-color-smoke));
   color: var(--gr-color-ink);
-  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  box-shadow:
+    0 var(--gr-press) 0 var(--gr-color-shadow),
+    0 calc(var(--gr-press) + 4px) 10px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 0 1px rgb(0 0 0 / 0.35);
+  transform: translateY(0);
+  transition:
+    transform 460ms var(--gr-spring),
+    box-shadow 460ms var(--gr-spring),
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
-.take:disabled {
+/* A new row comes up out of the slab. A key that stays across the switch is
+   the same element, so it does not rise twice. */
+.bet__keys .bet__key {
+  animation: key-rise 420ms var(--gr-settle) backwards;
+}
+
+@keyframes key-rise {
+  from {
+    transform: translateY(var(--gr-press));
+    opacity: 0;
+    box-shadow: none;
+  }
+}
+
+.bet__face {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* The glass over a lit key: off until it is. */
+.bet__key::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: var(--gr-glass);
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.bet__key:hover:not(:disabled):not([aria-checked="true"]):not([aria-pressed="true"]) {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gr-color-smoke-lit) 85%, #fff),
+    color-mix(in srgb, var(--gr-color-smoke) 90%, #fff)
+  );
+}
+
+/* Down, and immediately: a press just stops. */
+.bet__key:active:not(:disabled) {
+  transform: translateY(var(--gr-press));
+  box-shadow:
+    0 0 0 var(--gr-color-shadow),
+    0 1px 3px rgb(0 0 0 / 0.5),
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 0 0 1px rgb(0 0 0 / 0.35);
+  transition-timing-function: cubic-bezier(0.3, 0.7, 0.4, 1);
+  transition-duration: 55ms, 55ms, 160ms, 160ms;
+}
+
+/* Held in: latched down and lit. This is the bet until something lets it go. */
+.bet__key[aria-checked="true"],
+.bet__key[aria-pressed="true"] {
+  transform: translateY(var(--gr-press));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gr-color-neon) 62%, var(--gr-color-shadow)),
+    color-mix(in srgb, var(--gr-color-neon) 34%, var(--gr-color-shadow))
+  );
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi);
+  box-shadow:
+    0 0 0 var(--gr-color-shadow),
+    0 0 18px color-mix(in srgb, var(--gr-color-neon) 55%, transparent),
+    inset 0 0 0 1px var(--gr-color-neon-hi);
+}
+
+.bet__key[aria-checked="true"]::after,
+.bet__key[aria-pressed="true"]::after {
+  opacity: 0.55;
+}
+
+/*
+ * Can't be covered: flush with the panel and unlit, because there is nothing
+ * to push. Its height says so as well as its colour.
+ */
+.bet__key:disabled {
   cursor: default;
-  opacity: 0.4;
+  transform: translateY(var(--gr-press));
+  background: rgb(0 0 0 / 0.32);
+  color: var(--gr-color-ink-faint);
+  text-shadow: none;
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.55),
+    inset 0 0 0 1px rgb(255 255 255 / 0.03);
 }
 
-.take:focus-visible {
-  outline: 2px solid var(--gr-color-neon);
+/* The mark is money only while the key is; on a dead key it goes with the figure. */
+.bet__key:disabled .chip-mark {
+  color: var(--gr-color-ink-faint);
+}
+
+.bet__key:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
   outline-offset: 3px;
 }
 
-.take__icon {
-  width: 18px;
-  height: 18px;
-  display: block;
-  flex: none;
+/* Mid-spin: whatever is held stays lit, and nothing else can be pressed. */
+.bet__keys[data-busy] .bet__key {
+  pointer-events: none;
 }
 
-.take__word {
-  font-size: var(--gr-text-sm);
+.bet__keys[data-busy] .bet__key:not([aria-checked="true"]):not(:disabled) {
+  opacity: 0.55;
+}
+
+@container bet (max-width: 440px) {
+  .bet__keys--6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 10px;
+  }
+
+  .bet__key {
+    font-size: var(--gr-text-sm);
+  }
+}
+
+/* ---- a figure of your own */
+
+.own {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px 9px var(--gr-space-3);
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--gr-radius-key);
+  background: rgb(0 0 0 / 0.3);
+  box-shadow: var(--gr-sink);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.own:focus-within {
+  border-color: color-mix(in srgb, var(--gr-color-neon) 60%, transparent);
+}
+
+.own[data-held] {
+  border-color: var(--gr-color-neon);
+  box-shadow:
+    var(--gr-sink),
+    0 0 16px color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
+}
+
+.own__label {
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
   white-space: nowrap;
+}
+
+.own[data-held] .own__label {
+  color: var(--gr-color-neon-hi);
+}
+
+.own__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Sixteen pixels, or iOS zooms the whole page the moment the box takes focus. */
+.own__field input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--gr-color-ink-lit);
+  font-family: var(--gr-font-data);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.own__field input::placeholder {
+  color: var(--gr-color-ink-faint);
+  font-weight: 500;
+}
+
+.own .own__set {
+  --gr-press: 4px;
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 0 14px;
+  font-size: var(--gr-text-sm);
+  letter-spacing: 0.06em;
+}
+
+@container bet (max-width: 440px) {
+  .own {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+
+  .own__label {
+    grid-column: 1 / -1;
+    padding-top: 4px;
+  }
+}
+
+.bet__said {
+  min-height: 1.45em;
+  margin: -4px 0 0;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+  text-wrap: balance;
+}
+
+/* The machine let a bet go, which is news rather than a standing fact. */
+.bet__said--news {
+  color: var(--gr-color-neon-hi);
+}
+
+.slots__sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .slots__shut {
@@ -1793,7 +2055,7 @@
 @media (prefers-reduced-motion: reduce) {
   .payline,
   .slots__said--big,
-  .slots__chip,
+  .bet__keys .bet__key,
   [data-won] .sf-move,
   [data-won] .sf-die,
   [data-won] .sf-gem,
@@ -1813,7 +2075,11 @@
   .picker__pick,
   .spin,
   .auto,
-  .take,
+  .bet__key,
+  .bet__key::after,
+  .own,
+  .bet__track,
+  .bet__thumb,
   .roll__strip {
     transition: none;
   }
