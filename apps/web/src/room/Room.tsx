@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { throughTheDoor } from "../game/doors.js";
 import { useAccount } from "../game/useAccount.js";
 import { Navbar } from "../nav/Navbar.js";
+import { Activity } from "./Activity.js";
+import { SideRail } from "./SideRail.js";
 import { Standings } from "./Standings.js";
 import { TileArt } from "./TileArt.js";
 // Every room's colours, because the tiles below are dressed in them.
@@ -69,50 +71,87 @@ export function Room() {
   const party = games.filter((game) => game.shape === "party");
 
   return (
-    <main className="room">
-      <Navbar account={account} />
+    <div className="lobby">
+      <SideRail side="left" label="On the floor" icon={<FloorIcon />}>
+        <Activity />
+      </SideRail>
 
-      {/* Neither of these is a game you sit down at, so neither is dressed as
-          one: a glance at the board and a jar on the counter, in a strip you
-          pass on the way in rather than sections of their own further down. */}
-      <section className="room__front" aria-label="Who's ahead, and the bar">
-        <Standings />
-        {bar.map((game) => (
-          <BarSign key={game.id} game={game} />
-        ))}
-      </section>
+      <main className="room">
+        <Navbar account={account} />
 
-      <p className="room__label">At the tables</p>
+        {/* The two things you walk up to on your own, side by side and first:
+            a machine and a jar take a press, not a table's worth of people. */}
+        {machines.length + bar.length > 0 ? (
+          <>
+            <p className="room__label">At the bar</p>
+            <div className="room__wall">
+              {machines.map((game) => (
+                <Cabinet key={game.id} game={game} />
+              ))}
+              {bar.map((game) => (
+                <BarSign key={game.id} game={game} />
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        <p className="room__label">At the tables</p>
       <div className="room__tables">
         {tables.map((game) => (
           <TableTile key={game.id} game={game} />
         ))}
       </div>
 
-      {machines.length > 0 ? (
-        <>
-          <p className="room__label">Against the wall</p>
-          <div className="room__machines">
-            {machines.map((game) => (
-              <Cabinet key={game.id} game={game} />
-            ))}
-          </div>
-        </>
-      ) : null}
+        {/* Its own section, and last, because it is the part of the building
+            that is not about money at all. */}
+        {party.length > 0 ? (
+          <>
+            <p className="room__label">In the back</p>
+            <div className="room__few">
+              {party.map((game) => (
+                <TableTile key={game.id} game={game} />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </main>
 
-      {/* Its own section, and last, because it is the part of the building
-          that is not about money at all. */}
-      {party.length > 0 ? (
-        <>
-          <p className="room__label">In the back</p>
-          <div className="room__few">
-            {party.map((game) => (
-              <TableTile key={game.id} game={game} />
-            ))}
-          </div>
-        </>
-      ) : null}
-    </main>
+      <SideRail side="right" label="Who's ahead" icon={<BoardIcon />}>
+        <Standings />
+      </SideRail>
+    </div>
+  );
+}
+
+function BoardIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" />
+    </svg>
+  );
+}
+
+function FloorIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12h4l3-8 4 16 3-8h4" />
+    </svg>
   );
 }
 
