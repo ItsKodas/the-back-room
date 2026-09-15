@@ -152,9 +152,10 @@
   align-items: center;
   gap: var(--gr-space-2);
   padding: 0 3px 0 var(--gr-space-4);
-  border: var(--gr-edge-soft);
+  border: 1px solid rgb(0 0 0 / 0.55);
   border-radius: 999px;
-  background: rgb(0 0 0 / 0.26);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.25)), var(--gr-color-slate);
+  box-shadow: var(--gr-lip), 0 2px 0 rgb(0 0 0 / 0.3);
   white-space: nowrap;
 }
 
@@ -165,11 +166,11 @@
  * control — so they should read as a pair. Left to their contents they will
  * not: one is sized by an avatar and the other by a button, and they landed
  * two pixels apart, which is close enough to look like a mistake and not
- * close enough to look like anything else.
+ * close enough to look like anything else. Now at 40px to match the key height.
  */
 .me,
 .nav__table {
-  height: 34px;
+  height: 40px;
 }
 
 /* Pressable, because a code is only any use once it is somewhere else. */
@@ -254,17 +255,23 @@
   display: inline-flex;
   align-items: center;
   gap: var(--gr-space-2);
-  padding: 3px var(--gr-space-3) 3px 3px;
-  border: var(--gr-edge-soft);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.26);
+  padding: 4px var(--gr-space-3) 4px 4px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--gr-radius-pill);
+  /* Raised like a key, because it is one: it takes you to your own page. */
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.25)),
+    var(--gr-color-slate);
+  box-shadow:
+    var(--gr-lip),
+    0 2px 0 rgb(0 0 0 / 0.3);
   white-space: nowrap;
   text-decoration: none;
   color: inherit;
 }
 
 .me:hover {
-  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+  border-color: color-mix(in srgb, var(--gr-color-neon) 50%, black);
 }
 
 .me:focus-visible {
@@ -273,8 +280,8 @@
 }
 
 .me__face {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   overflow: hidden;
   display: grid;
@@ -499,7 +506,7 @@
   height: 100%;
 }
 
-.vol--muted .iconbtn {
+.vol--muted .key--icon {
   color: var(--gr-color-bad);
 }
 

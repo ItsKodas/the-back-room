@@ -122,7 +122,7 @@ export function Sound() {
     >
       <button
         type="button"
-        className="iconbtn vol__btn"
+        className="key key--icon vol__btn"
         aria-label={muted ? "Unmute everything" : "Mute everything"}
         title={muted ? "Unmute" : "Mute"}
         onClick={() => flip(!muted)}
@@ -167,14 +167,14 @@ export function Sound() {
         <div className="vol__music">
           <button
             type="button"
-            className="btn btn--ghost btn--small"
+            className="key key--small"
             onClick={() => setMusicOn(!music.on)}
           >
             {music.on ? "Stop" : "Play"}
           </button>
           <button
             type="button"
-            className="iconbtn"
+            className="key key--icon"
             aria-label="Next track"
             title="Next track"
             disabled={!music.on}
