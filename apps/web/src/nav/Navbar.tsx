@@ -212,12 +212,26 @@ function Who({ account }: { account: Account }) {
     return null;
   }
   if (account.profile === null) {
+    /*
+     * A key either way, never a sentence about being a guest: signing in is
+     * the thing a guest can do about it. On a server with no Discord
+     * credentials the key is still there but down, and says why, rather than
+     * leading to an endpoint that only answers that sign-in is not set up.
+     */
     return account.available ? (
       <a className="key key--small" href="/auth/discord">
         Sign in
       </a>
     ) : (
-      <span className="nav__guest">playing as a guest</span>
+      <button
+        type="button"
+        className="key key--small"
+        disabled
+        title="Sign-in is not set up on this server"
+        aria-description="Sign-in is not set up on this server"
+      >
+        Sign in
+      </button>
     );
   }
 

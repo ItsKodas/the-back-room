@@ -115,6 +115,8 @@ export interface RoomHook {
   chat: ChatMessage[];
   seatId: string | null;
   error: string | null;
+  /** Moves on for every refusal, so the same words twice are still shown twice. */
+  errorKey: number;
   connected: boolean;
   /**
    * The server's reason for turning this window away, or null.
@@ -158,6 +160,18 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
   const [listed, setListedHere] = useState(true);
   const [seatId, setSeatId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * Moves on for every refusal, the same words twice included. The server
+   * turning the same press down again is news again — a table that shows it
+   * once and then goes quiet looks like it stopped listening — and React will
+   * not re-render for a string it already has.
+   */
+  const [errorKey, setErrorKey] = useState(0);
+  /** The table or the server saying no to something this player did. */
+  const refuse = useCallback((message: string) => {
+    setError(message);
+    setErrorKey((key) => key + 1);
+  }, []);
   const [connected, setConnected] = useState(false);
   /**
    * The server's reason for turning this window away, or null. Apart from
@@ -271,7 +285,7 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
       }
     });
     socket.on("room:error", (message) => {
-      setError(message);
+      refuse(message);
       // A refused throw is never answered, so the dice would hang in the air.
       setPendingRoll(null);
     });
@@ -310,16 +324,19 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
       socket.close();
       socketRef.current = null;
     };
-  }, []);
+  }, [refuse]);
 
   // Errors clear themselves so the strip does not accumulate stale complaints.
+  // Keyed on the refusal as well as the words, so a second identical refusal
+  // gets its full four seconds instead of vanishing on the first one's clock.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error === null) {
       return;
     }
     const timer = setTimeout(() => setError(null), 4000);
     return () => clearTimeout(timer);
-  }, [error]);
+  }, [error, errorKey]);
 
   const create = useCallback((name: string, ruleset: string, maxSeats?: number) => {
     const socket = socketRef.current;
@@ -333,10 +350,10 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
         setSeatId(result.seatId);
         writeSeat({ code: result.code, seatId: result.seatId });
       } else {
-        setError(result.error);
+        refuse(result.error);
       }
     });
-  }, []);
+  }, [refuse]);
 
   const join = useCallback((name: string, code: string) => {
     const socket = socketRef.current;
@@ -350,10 +367,10 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
         setSeatId(result.seatId);
         writeSeat({ code: result.code, seatId: result.seatId });
       } else {
-        setError(result.error);
+        refuse(result.error);
       }
     });
-  }, []);
+  }, [refuse]);
 
   const watch = useCallback((code: string) => {
     const socket = socketRef.current;
@@ -368,10 +385,10 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
         writeSeat(null);
         setSeatId(null);
       } else {
-        setError(result.error);
+        refuse(result.error);
       }
     });
-  }, []);
+  }, [refuse]);
 
   const addBot = useCallback(
     (skill: "easy" | "normal" | "hard") => socketRef.current?.emit("lobby:addBot", { skill }),
@@ -392,12 +409,12 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
         // Somebody just spent chips, or thought they had; a refusal is worth
         // saying out loud rather than swallowing.
         if (!result.ok) {
-          setError(result.error);
+          refuse(result.error);
         }
         done?.(result);
       });
     },
-    [],
+    [refuse],
   );
   const setRules = useCallback(
     (changes: Partial<HouseRules>) => socketRef.current?.emit("lobby:setRules", changes),
@@ -487,6 +504,7 @@ export function useRoom(onChips?: (chips: number) => void): RoomHook {
     chat,
     seatId,
     error,
+    errorKey,
     connected,
     taken,
     retry,

@@ -35,11 +35,20 @@ export interface TauntPickerProps {
    * on the press without going back to the catalogue to find out what it was.
    */
   onThrow: (emote: EmoteView, seatId: string) => void;
+  /** How the opening button is dressed, for a table built from the fittings. */
+  openClassName?: string;
 }
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-export function TauntPicker({ seats, seatId, chips, stakes, onThrow }: TauntPickerProps) {
+export function TauntPicker({
+  seats,
+  seatId,
+  chips,
+  stakes,
+  onThrow,
+  openClassName = "btn btn--ghost",
+}: TauntPickerProps) {
   const emotes = useEmotes();
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<EmoteView | null>(null);
@@ -82,7 +91,7 @@ export function TauntPicker({ seats, seatId, chips, stakes, onThrow }: TauntPick
     <div className="taunt-picker">
       <button
         type="button"
-        className="btn btn--ghost taunt-picker__open"
+        className={`${openClassName} taunt-picker__open`}
         aria-expanded={open}
         onClick={() => {
           setOpen((was) => !was);
