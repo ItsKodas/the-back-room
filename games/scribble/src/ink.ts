@@ -60,9 +60,20 @@ export type InkRelay =
   | { kind: "stroke"; id: string; by: string; ink: Ink; size: number; seq: number; pts: number[] }
   | { kind: "fill"; mark: FillMark }
   | { kind: "undo"; by: string; id: string }
-  | { kind: "clear" };
+  | { kind: "clear"; ids: string[] };
 
 const NOT_A_LINE = "That is not a line.";
+const NOT_YOUR_LINE = "That line is not yours.";
+const NAPKIN_FULL = "The napkin's full.";
+export const MUST_DRAW = "Only the people drawing can draw.";
+
+/*
+ * The exact player-facing strings ink ever refuses with. A client matches on
+ * these to know a refusal was about the drawing rather than anything else at
+ * the table, so the messages living in one list is what keeps that matching
+ * from drifting quietly out of step with what is actually thrown.
+ */
+export const INK_REFUSALS: readonly string[] = [NOT_A_LINE, NOT_YOUR_LINE, NAPKIN_FULL, MUST_DRAW];
 
 function readId(value: unknown): string {
   if (typeof value !== "string" || value.length < 1 || value.length > 24) {
@@ -157,7 +168,7 @@ export class InkLog {
     }
     const existing = this.list.find((mark): mark is StrokeMark => mark.kind === "stroke" && mark.id === batch.id);
     if (existing !== undefined && existing.by !== by) {
-      throw new TableError("That line is not yours.");
+      throw new TableError(NOT_YOUR_LINE);
     }
     const last = this.seqs.get(batch.id);
     if (last !== undefined && batch.seq <= last) {
@@ -165,7 +176,7 @@ export class InkLog {
     }
     const added = batch.pts.length / 2;
     if (this.count + added > MAX_POINTS) {
-      throw new TableError("The napkin's full.");
+      throw new TableError(NAPKIN_FULL);
     }
     const mark: StrokeMark = existing ?? { kind: "stroke", id: batch.id, by, ink: batch.ink, size: batch.size, pts: [] };
     if (existing === undefined) {
@@ -183,7 +194,7 @@ export class InkLog {
       return null;
     }
     if (this.count + 1 > MAX_POINTS) {
-      throw new TableError("The napkin's full.");
+      throw new TableError(NAPKIN_FULL);
     }
     const mark: FillMark = { kind: "fill", id: request.id, by, ink: request.ink, x: request.x, y: request.y };
     this.list.push(mark);
@@ -206,11 +217,12 @@ export class InkLog {
   }
 
   clear(): InkRelay {
-    for (const mark of this.list) {
-      this.gone.add(mark.id);
+    const ids = this.list.map((mark) => mark.id);
+    for (const id of ids) {
+      this.gone.add(id);
     }
     this.list.length = 0;
     this.count = 0;
-    return { kind: "clear" };
+    return { kind: "clear", ids };
   }
 }

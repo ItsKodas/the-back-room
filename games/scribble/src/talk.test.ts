@@ -1,6 +1,17 @@
 import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { tableFor } from "./fixtures.js";
+import { INK_REFUSALS } from "./ink.js";
+
+/** Runs `fn`, and hands back the message it threw rather than letting it propagate. */
+const messageOf = (fn: () => void): string => {
+  try {
+    fn();
+  } catch (err) {
+    return (err as Error).message;
+  }
+  throw new Error("expected a throw");
+};
 
 /* Three seated, s0 drawing "lighthouse". */
 function drawingSolo(seated = 3) {
@@ -111,6 +122,14 @@ describe("ink", () => {
     expect(table.stroke("s0", line)).toMatchObject({ kind: "stroke", by: "s0" });
   });
 
+  it("throws only messages from the fixed refusal list", () => {
+    const { table } = drawingSolo();
+    expect(INK_REFUSALS).toContain(messageOf(() => table.stroke("s1", line)));
+    table.deadline = table.now();
+    table.advanceDrawing();
+    expect(INK_REFUSALS).toContain(messageOf(() => table.stroke("s0", line)));
+  });
+
   it("is refused once the turn is over", () => {
     const { table } = drawingSolo();
     table.deadline = table.now();
@@ -123,7 +142,7 @@ describe("ink", () => {
     table.stroke("s0", line);
     expect(table.undo("s0")).toEqual({ kind: "undo", by: "s0", id: "k1" });
     table.fill("s0", { id: "f1", ink: "red", x: 1, y: 1 });
-    expect(table.clear("s0")).toEqual({ kind: "clear" });
+    expect(table.clear("s0")).toEqual({ kind: "clear", ids: ["f1"] });
     expect(table.ink.marks).toEqual([]);
   });
 });

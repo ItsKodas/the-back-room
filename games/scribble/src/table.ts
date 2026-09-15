@@ -4,7 +4,7 @@ import { containsWord, isClose, isCorrect, normalise } from "./guess.js";
 import type { Hint } from "./hints.js";
 import { hintMs, hintsDue, mask, planHints } from "./hints.js";
 import type { FillRequest, InkRelay, Mark, StrokeBatch } from "./ink.js";
-import { InkLog } from "./ink.js";
+import { InkLog, MUST_DRAW } from "./ink.js";
 import type { HintLevel, Mode, ScribbleOptions } from "./options.js";
 import { minimumPlayers, TEAM_NAMES } from "./options.js";
 import type { Turn } from "./rotation.js";
@@ -635,7 +635,7 @@ export class ScribbleTable implements PlayTable {
 
   private mustDraw(seatId: string): void {
     if (this.phase !== "drawing" || this.turn === null || !this.turn.drawers.includes(seatId)) {
-      throw new TableError("Only the people drawing can draw.");
+      throw new TableError(MUST_DRAW);
     }
   }
 

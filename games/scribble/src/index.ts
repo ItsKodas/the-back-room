@@ -27,7 +27,7 @@ export type { Hint } from "./hints.js";
 export { hintMs, hintsDue, mask, planHints } from "./hints.js";
 export { drawerPoints, guesserPoints } from "./scoring.js";
 export type { FillMark, FillRequest, Ink, InkRelay, Mark, StrokeBatch, StrokeMark } from "./ink.js";
-export { GRID_HEIGHT, GRID_WIDTH, INKS, InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill, SIZES } from "./ink.js";
+export { GRID_HEIGHT, GRID_WIDTH, INK_REFUSALS, INKS, InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill, SIZES } from "./ink.js";
 export type { Phase, TableDeps, Timings, TurnResult } from "./table.js";
 export { COUNTDOWN_MS, PICK_MS, RESULT_MS, REVEAL_MS, ScribbleTable } from "./table.js";
 export type { ChatKind, Said, SeatView, TableView, TeamView } from "./table.js";

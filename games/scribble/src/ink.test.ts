@@ -1,6 +1,16 @@
 import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
-import { InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill } from "./ink.js";
+import { INK_REFUSALS, InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill } from "./ink.js";
+
+/** Runs `fn`, and hands back the message it threw rather than letting it propagate. */
+const messageOf = (fn: () => void): string => {
+  try {
+    fn();
+  } catch (err) {
+    return (err as Error).message;
+  }
+  throw new Error("expected a throw");
+};
 
 const batch = (id: string, seq: number, pts: number[], ink = "black" as const) => ({ id, seq, ink, size: 1, pts });
 
@@ -99,8 +109,25 @@ describe("the stroke log", () => {
       seq += 1;
     }
     expect(() => log.stroke("a", batch("over", 0, pts))).toThrow("The napkin's full.");
-    expect(log.clear()).toEqual({ kind: "clear" });
+    const ids = log.marks.map((mark) => mark.id);
+    expect(log.clear()).toEqual({ kind: "clear", ids });
     expect(log.points).toBe(0);
     expect(log.stroke("a", batch("after", 0, pts))).not.toBeNull();
+  });
+});
+
+describe("the fixed set of ink refusals", () => {
+  it("lists every message InkLog actually throws", () => {
+    expect(INK_REFUSALS).toContain(messageOf(() => readBatch({ id: "" })));
+    const log = new InkLog();
+    log.stroke("a", batch("k1", 0, [1, 1]));
+    expect(INK_REFUSALS).toContain(messageOf(() => log.stroke("b", batch("k1", 1, [2, 2]))));
+    const pts = Array.from({ length: MAX_BATCH * 2 }, () => 1);
+    let seq = 0;
+    while (log.points + MAX_BATCH <= MAX_POINTS) {
+      log.stroke("a", batch(`k${seq}`, 0, pts));
+      seq += 1;
+    }
+    expect(INK_REFUSALS).toContain(messageOf(() => log.stroke("a", batch("over", 0, pts))));
   });
 });
