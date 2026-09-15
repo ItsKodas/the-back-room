@@ -23,9 +23,24 @@ describe("cleanCode", () => {
 });
 
 describe("CodeScreen", () => {
+  /*
+   * A DOM maxLength truncates the raw pasted text — separators and all —
+   * before onChange (and so cleanCode) ever sees it, so pasting "xk-q37"
+   * arrived as "xk-q3" and cleaned down to "XKQ3", a character short.
+   * cleanCode already caps the result on its own, so the field carries no
+   * length limit of its own to get in front of it. jsdom's fireEvent.change
+   * bypasses a real maxLength truncation, so the field's own attribute is
+   * what a test here can actually watch fail.
+   */
   it("is an ordinary named text field, so paste and screen readers just work", () => {
     render(<Harness />);
-    expect(field().maxLength).toBe(CODE_LENGTH);
+    expect(field().maxLength).toBe(-1);
+  });
+
+  it("keeps every character of a pasted code, separators and all", () => {
+    render(<Harness />);
+    fireEvent.change(field(), { target: { value: "xk-q37" } });
+    expect(field().value).toBe("XKQ37");
   });
 
   it("shows the example faint until it is typed over", () => {

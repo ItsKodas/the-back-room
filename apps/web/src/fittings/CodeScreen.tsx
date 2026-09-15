@@ -48,7 +48,10 @@ export function CodeScreen({
       <input
         className="lcd__input"
         value={value}
-        maxLength={CODE_LENGTH}
+        // No maxLength here: a native one truncates the raw pasted text —
+        // separators included — before cleanCode ever runs, which turned
+        // "xk-q37" into "xk-q3" and then "XKQ3", a character short.
+        // cleanCode caps the cleaned result on its own.
         aria-label={label}
         autoComplete="off"
         autoCapitalize="characters"
