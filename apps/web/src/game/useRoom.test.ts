@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const handlers = new Map<string, (arg: unknown) => void>();
@@ -92,11 +92,24 @@ describe("what a Greed window tells the server about itself", () => {
     expect(fake.emit).not.toHaveBeenCalledWith("lobby:leave");
   });
 
-  it("ignores the close of a table it is not at", async () => {
+  it("ignores the close of a table it is not at", () => {
+    /*
+     * Each event goes through act so its render has happened before anything
+     * is read back. Outside act, React renders on a setImmediate, and the
+     * setTimeout(0) this used to wait on could fire first on a busy event
+     * loop — leaving `room` null because the table had not yet been drawn,
+     * not because the close was mistaken for this one's.
+     */
     const { result } = renderHook(() => useRoom(), { wrapper });
-    handlers.get("room:state")?.({ game: "greed", code: "ABCDE", listed: true, taunts: [], seats: [] });
-    handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    act(() => {
+      handlers.get("room:state")?.({ game: "greed", code: "ABCDE", listed: true, taunts: [], seats: [] });
+    });
     expect(result.current.room).not.toBeNull();
+
+    act(() => {
+      handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
+    });
+    expect(result.current.room).not.toBeNull();
+    expect(result.current.error).toBeNull();
   });
 });
