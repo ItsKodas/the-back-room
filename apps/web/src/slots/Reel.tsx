@@ -149,7 +149,7 @@ export function Reel({
   const wasSpinning = useRef(spinning);
   /** Whether this reel has ever been asked to turn, which ends the rest state. */
   const everSpun = useRef(false);
-  const strip = useRef<SVGGElement | null>(null);
+  const strip = useRef<HTMLDivElement | null>(null);
   /*
    * Held in a ref so a caller that rebuilds the callback each render does not
    * restart the timer underneath a spin that is already in the air.
@@ -236,6 +236,7 @@ export function Reel({
   const isLanding = runUp !== null;
   const runUpCount = landing?.runUp ?? 0;
   const landingMs = landing?.ms ?? 0;
+  const stripLength = passing?.length ?? 0;
   useEffect(() => {
     const element = strip.current;
     /*
@@ -243,15 +244,25 @@ export function Reel({
      * reel is still correct without it — the strip is drawn, the timer still
      * lands it — so this is a guard rather than a bail-out.
      */
-    if (element === null || still || typeof element.animate !== "function") {
+    if (element === null || still || stripLength === 0 || typeof element.animate !== "function") {
       return;
     }
+    /*
+     * A distance along the strip, counted in faces.
+     *
+     * As a share of the strip's own height rather than in pixels, because a
+     * face is as tall as the reel is wide and the reel is as wide as the
+     * cabinet lets it be. The same faces per millisecond at any size, and the
+     * same numbers the reel always moved by, only counted in faces.
+     */
+    const along = (faces: number) => `translateY(${(-faces / stripLength) * 100}%)`;
 
     if (!isLanding) {
-      const animation = element.animate(
-        [{ transform: "translateY(0)" }, { transform: `translateY(${-LOOP_FACES * FACE_SIZE}px)` }],
-        { duration: LOOP_FACES * FACE_MS, iterations: Number.POSITIVE_INFINITY, easing: "linear" },
-      );
+      const animation = element.animate([{ transform: along(0) }, { transform: along(LOOP_FACES) }], {
+        duration: LOOP_FACES * FACE_MS,
+        iterations: Number.POSITIVE_INFINITY,
+        easing: "linear",
+      });
       return () => animation.cancel();
     }
 
@@ -260,94 +271,113 @@ export function Reel({
     }
     // Far enough to bring the run-up through and leave the last three in the
     // window, which is exactly the length of the run-up.
-    const target = -runUpCount * FACE_SIZE;
     const brake = Math.min(landingMs * BRAKE_SHARE, BRAKE_MS);
     const cruise = Math.max(0, landingMs - brake);
     const held = cruise / landingMs;
-    const speed = FACE_SIZE / FACE_MS;
     const animation = element.animate(
       [
         // Still at full tilt: the reel has not been told to stop yet, and this
         // is the stretch that makes it read as one still turning.
-        { transform: "translateY(0)", offset: 0, easing: "linear" },
-        { transform: `translateY(${-speed * cruise}px)`, offset: held, easing: "ease-out" },
+        { transform: along(0), offset: 0, easing: "linear" },
+        { transform: along(cruise / FACE_MS), offset: held, easing: "ease-out" },
         // Past the mark and back, because a reel on a spring does not stop
         // dead on the number it was heading for.
-        { transform: `translateY(${target - OVERSHOOT}px)`, offset: 0.94 },
-        { transform: `translateY(${target}px)`, offset: 1 },
+        { transform: along(runUpCount + OVERSHOOT / FACE_SIZE), offset: 0.94 },
+        { transform: along(runUpCount), offset: 1 },
       ],
       { duration: landingMs, fill: "forwards" },
     );
     return () => animation.cancel();
-  }, [isLanding, runUpCount, landingMs, still]);
+  }, [isLanding, runUpCount, landingMs, still, stripLength]);
 
   return (
     <div
       className={`reel${turning ? " reel--spinning" : ""}${atRest === undefined ? "" : " reel--resting"}`}
     >
-      <svg
-        className="reel__glass"
-        viewBox={`0 0 ${FACE_SIZE} ${FACE_SIZE * ROWS.length}`}
-        role="img"
-        aria-label={turning ? "Spinning" : (settled ?? []).join(", ")}
-      >
-        {settled !== undefined ? (
-          settled.map((face, row) => (
-            <g
-              key={ROWS[row] ?? row}
-              transform={`translate(0 ${row * FACE_SIZE})`}
-              data-final=""
-              // Absent rather than "false": a face that did not win should
-              // match nothing, and [data-won] matches an empty attribute.
-              data-won={won?.[row] === true ? "" : undefined}
+      {settled === undefined && !still ? (
+        /*
+         * The strip going past, as an HTML layer holding one drawing.
+         *
+         * It used to be a group inside the glass below, and a group inside an
+         * SVG has no layer of its own: every frame of a spin repainted all
+         * five reels — faces, gradients, clips — on the main thread. A desktop
+         * absorbs that; a phone shows it as a stutter. A layer is painted once
+         * and slid by the GPU. The drawing in it is the same faces at the same
+         * scale, so nothing about how the reel looks has changed.
+         */
+        <div className="reel__window">
+          <div className="reel__strip" ref={strip}>
+            <svg
+              className="reel__drawing"
+              viewBox={`0 0 ${FACE_SIZE} ${FACE_SIZE * stripLength}`}
+              role="img"
+              aria-label="Spinning"
             >
-              <ReelFace face={face} />
-            </g>
-          ))
-        ) : still ? (
-          /*
-           * Motion turned off. The strip is not drawn at all rather than drawn
-           * standing still: three faces sitting there unmoving read as a
-           * result, and this reel does not have one yet.
-           */
-          <g className="reel__blur">
-            {[0, 1, 2, 3].map((band) => (
-              <rect
-                key={band}
-                x="8"
-                y={band * FACE_SIZE * 0.75 + 6}
-                width={FACE_SIZE - 16}
-                height={FACE_SIZE * 0.42}
-                rx="8"
-                fill="currentColor"
-                opacity={0.16 + (band % 2) * 0.06}
-              />
-            ))}
-          </g>
-        ) : (
-          <g className="reel__strip" ref={strip}>
-            {(passing ?? []).map((face, step) => (
+              {(passing ?? []).map((face, step) => (
+                <g
+                  // Position on the strip is the identity here: it is a fixed
+                  // run of cells that never reorder, and the same face turns up
+                  // several times over in it — keying by face would collide.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: the strip is positional
+                  key={`${step}-${face}`}
+                  transform={`translate(0 ${step * FACE_SIZE})`}
+                  /*
+                   * Not data-final. These are the server's faces, but they are
+                   * moving into place rather than presented as the answer —
+                   * `final` means resting under the payline, and a test holds
+                   * that line.
+                   */
+                  {...(runUp !== null && step >= runUpCount ? { "data-landing": "" } : {})}
+                >
+                  <ReelFace face={face} />
+                </g>
+              ))}
+            </svg>
+          </div>
+        </div>
+      ) : (
+        <svg
+          className="reel__glass"
+          viewBox={`0 0 ${FACE_SIZE} ${FACE_SIZE * ROWS.length}`}
+          role="img"
+          aria-label={turning ? "Spinning" : (settled ?? []).join(", ")}
+        >
+          {settled !== undefined ? (
+            settled.map((face, row) => (
               <g
-                // Position on the strip is the identity here: it is a fixed
-                // run of cells that never reorder, and the same face turns up
-                // several times over in it — keying by face would collide.
-                // biome-ignore lint/suspicious/noArrayIndexKey: the strip is positional
-                key={`${step}-${face}`}
-                transform={`translate(0 ${step * FACE_SIZE})`}
-                /*
-                 * Not data-final. These are the server's faces, but they are
-                 * moving into place rather than presented as the answer —
-                 * `final` means resting under the payline, and a test holds
-                 * that line.
-                 */
-                {...(runUp !== null && step >= runUpCount ? { "data-landing": "" } : {})}
+                key={ROWS[row] ?? row}
+                transform={`translate(0 ${row * FACE_SIZE})`}
+                data-final=""
+                // Absent rather than "false": a face that did not win should
+                // match nothing, and [data-won] matches an empty attribute.
+                data-won={won?.[row] === true ? "" : undefined}
               >
                 <ReelFace face={face} />
               </g>
-            ))}
-          </g>
-        )}
-      </svg>
+            ))
+          ) : (
+            /*
+             * Motion turned off. The strip is not drawn at all rather than drawn
+             * standing still: three faces sitting there unmoving read as a
+             * result, and this reel does not have one yet.
+             */
+            <g className="reel__blur">
+              {[0, 1, 2, 3].map((band) => (
+                <rect
+                  key={band}
+                  x="8"
+                  y={band * FACE_SIZE * 0.75 + 6}
+                  width={FACE_SIZE - 16}
+                  height={FACE_SIZE * 0.42}
+                  rx="8"
+                  fill="currentColor"
+                  opacity={0.16 + (band % 2) * 0.06}
+                />
+              ))}
+            </g>
+          )}
+        </svg>
+      )}
     </div>
   );
 }

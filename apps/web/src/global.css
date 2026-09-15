@@ -10,25 +10,13 @@
 }
 
 /*
- * The room you are standing in.
- *
- * Not one flat colour: the floor comes up from below and the light from the
- * sign falls across one upper corner, which is what makes a page read as
- * somewhere rather than as a dark rectangle. The same two washes the tiles on
- * the front page are painted with, so walking into a room looks like the tile
- * you walked in through.
- *
- * Fixed rather than scrolling, so a long page does not drag the floor up past
- * the ceiling — and painted on the body itself, under the haze, which sits a
- * layer above it.
+ * The page under everything: the room's plain dark, which is what shows for
+ * the moment before the haze has mounted. The room's light is painted on the
+ * haze itself, below.
  */
 body {
   margin: 0;
-  background:
-    radial-gradient(85% 62% at 50% 104%, var(--gr-color-felt) 0%, transparent 78%),
-    radial-gradient(62% 46% at 4% -6%, var(--gr-color-smoke-lit) 0%, transparent 76%),
-    var(--gr-color-night);
-  background-attachment: fixed;
+  background: var(--gr-color-night);
   color: var(--gr-color-ink);
   font-family: var(--gr-font-ui);
   line-height: 1.55;
@@ -54,6 +42,20 @@ body {
  * longer in the document, left behind when a shorter page replaced a taller
  * one. Zero and one say the same thing about which is in front, and stay in
  * the order everything else is painted in.
+ *
+ * And it is the room you are standing in, painted on the air. Not one flat
+ * colour: the floor comes up from below and the light from the sign falls
+ * across one upper corner, which is what makes a page read as somewhere rather
+ * than as a dark rectangle. The same two washes the tiles on the front page are
+ * painted with, so walking into a room looks like the tile you walked in
+ * through.
+ *
+ * On this layer rather than on body. It has to stay put while the page
+ * scrolls, and a background attached to the viewport — how body did that — makes a
+ * phone repaint the whole window on every scroll, while iOS ignores it and
+ * dragged the floor up past the ceiling anyway. This element is already fixed
+ * and already the size of the window, and a canvas cleared to nothing shows
+ * its own background, so the clouds are drawn over exactly what was there.
  */
 .haze {
   position: fixed;
@@ -63,6 +65,10 @@ body {
   height: 100%;
   pointer-events: none;
   display: block;
+  background:
+    radial-gradient(85% 62% at 50% 104%, var(--gr-color-felt) 0%, transparent 78%),
+    radial-gradient(62% 46% at 4% -6%, var(--gr-color-smoke-lit) 0%, transparent 76%),
+    var(--gr-color-night);
 }
 
 /*

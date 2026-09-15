@@ -3,6 +3,7 @@ import type { Face } from "@backroom/game-slots";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REEL_STAGGER_MS, Reel, SPIN_UP_MS } from "./Reel.js";
+import { FACE_SIZE } from "./Symbols.js";
 
 /**
  * A reel asked to spin, and the faces that come back.
@@ -169,5 +170,79 @@ describe("a reel that won", () => {
   it("marks nothing before the lines light", () => {
     const { container } = render(<Reel column={column} spinning={false} index={0} />);
     expect(container.querySelectorAll("[data-won]")).toHaveLength(0);
+  });
+});
+
+describe("the strip going past", () => {
+  let animate: ReturnType<typeof vi.fn>;
+  /** The element each `animate` call was made on, in order. */
+  let targets: Element[];
+
+  beforeEach(() => {
+    // jsdom has no Web Animations; this records what the reel asks for, and of what.
+    targets = [];
+    animate = vi.fn(function (this: Element) {
+      targets.push(this);
+      return { cancel: () => {} };
+    });
+    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, "animate");
+  });
+
+  it("is an HTML layer rather than a group inside the drawing, so a phone can slide it without repainting it", () => {
+    /*
+     * A group inside an SVG has no layer of its own. Every frame of a spin
+     * repainted all five reels' faces, gradients and clips on the main thread,
+     * which a desktop absorbs and a phone shows as a stutter.
+     */
+    const { container } = render(<Reel column={undefined} spinning index={0} />);
+    const strip = container.querySelector(".reel__strip");
+
+    expect(strip?.namespaceURI).toBe("http://www.w3.org/1999/xhtml");
+    expect(strip?.closest("svg")).toBeNull();
+    expect(targets[0]).toBe(strip);
+  });
+
+  it("draws the faces going past at the same scale as the ones that land", () => {
+    const { container } = render(<Reel column={undefined} spinning index={0} />);
+    const drawing = container.querySelector(".reel__strip svg");
+    const faces = container.querySelectorAll(".reel__strip [data-face]").length;
+
+    expect(faces).toBeGreaterThan(0);
+    expect(drawing?.getAttribute("viewBox")).toBe(`0 0 ${FACE_SIZE} ${faces * FACE_SIZE}`);
+  });
+
+  it("still tells a screen reader it is spinning", () => {
+    const { getByRole } = render(<Reel column={undefined} spinning index={0} />);
+    expect(getByRole("img", { name: "Spinning" })).not.toBeNull();
+  });
+
+  it("loops by exactly one run of faces, so the wrap has no seam", () => {
+    render(<Reel column={undefined} spinning index={0} />);
+    const [keyframes, options] = animate.mock.calls[0] as [Keyframe[], KeyframeAnimationOptions];
+
+    // The strip is that run twice over, so one run is half its height.
+    expect(keyframes.map((frame) => frame.transform)).toEqual(["translateY(0%)", "translateY(-50%)"]);
+    expect(options.iterations).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("lands past the mark and settles back onto it, the way it always has", () => {
+    const { rerender } = render(<Reel column={undefined} spinning index={0} />);
+    rerender(<Reel column={column} spinning={false} index={0} />);
+
+    const landing = animate.mock.calls.at(-1) as [Keyframe[], KeyframeAnimationOptions];
+    const [keyframes, options] = landing;
+    const along = (frame: Keyframe) => Number(/translateY\((-?[\d.]+)%\)/.exec(String(frame.transform))?.[1]);
+
+    expect(keyframes).toHaveLength(4);
+    expect(options.fill).toBe("forwards");
+    const overshoot = along(keyframes[2] as Keyframe);
+    const settled = along(keyframes[3] as Keyframe);
+    // Further along the strip is further negative.
+    expect(overshoot).toBeLessThan(settled);
+    expect(settled).toBeLessThan(0);
   });
 });
