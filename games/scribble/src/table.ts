@@ -199,6 +199,8 @@ export class ScribbleTable implements PlayTable {
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     // Guests are welcome: nothing here is anybody's money.
     const seat = this.seating.join(id, name, this.status, identity, false);
+    // Scribble has no "next game" to wait for: a mid-game joiner can talk and guess at once.
+    this.seating.dealInWaiting();
     const midGame = this.options.mode === "teams" && this.phase !== "waiting";
     const team = midGame ? smallestTeam(this.teamSizes()) : null;
     this.players.set(seat.id, { name: seat.name, team, score: 0, present: true });
@@ -300,6 +302,7 @@ export class ScribbleTable implements PlayTable {
     this.played.clear();
     this.winners = [];
     this.lastEvent = null;
+    this.seating.dealInWaiting();
     for (const player of this.players.values()) {
       player.score = 0;
     }
@@ -315,9 +318,44 @@ export class ScribbleTable implements PlayTable {
           player.team = team;
         }
       }
+      this.rebalanceTeams();
     }
     this.queue = this.buildRound();
     this.nextTurn();
+  }
+
+  /**
+   * Teams carry between games, and departures can leave one heavier than the
+   * rest by more than the placement loop above ever fixes on its own — it
+   * only ever settles a player newly arriving, not a team that lost people
+   * between games. So the biggest team's newest arrival moves to the
+   * smallest, repeatedly, until no team is more than one bigger than another.
+   */
+  private rebalanceTeams(): void {
+    for (;;) {
+      let largest = 0;
+      let smallest = 0;
+      for (let team = 1; team < this.teams.length; team += 1) {
+        const size = (this.teams[team] as string[]).length;
+        if (size > (this.teams[largest] as string[]).length) {
+          largest = team;
+        }
+        if (size < (this.teams[smallest] as string[]).length) {
+          smallest = team;
+        }
+      }
+      const from = this.teams[largest] as string[];
+      const to = this.teams[smallest] as string[];
+      if (from.length - to.length <= 1) {
+        return;
+      }
+      const moved = from.pop() as string;
+      to.push(moved);
+      const player = this.players.get(moved);
+      if (player !== undefined) {
+        player.team = smallest;
+      }
+    }
   }
 
   private buildRound(): Turn[] {

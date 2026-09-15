@@ -1,6 +1,7 @@
 import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { tableFor } from "./fixtures.js";
+import { drawerPoints } from "./scoring.js";
 
 describe("waiting for enough people", () => {
   it("does not start counting down until there are three", () => {
@@ -199,5 +200,132 @@ describe("teams", () => {
       table.endReveal();
     }
     expect(new Set(table.winners)).toEqual(new Set(table.teams[1]));
+  });
+});
+
+describe("team balance across games", () => {
+  it("rebalances a team left too big after someone quits in the lobby", () => {
+    const { table } = tableFor({ mode: "teams", teams: 2 }, 5);
+    table.pickTeam("s0", 0);
+    table.pickTeam("s1", 1);
+    table.pickTeam("s2", 0);
+    table.pickTeam("s3", 1);
+    table.pickTeam("s4", 0);
+    expect(table.teams).toEqual([
+      ["s0", "s2", "s4"],
+      ["s1", "s3"],
+    ]);
+    // While waiting, a leave goes through the players.delete path, not mid-game bookkeeping.
+    table.removeSeat("s3");
+    expect(table.teams).toEqual([["s0", "s2", "s4"], ["s1"]]);
+    table.deal();
+    expect(table.teams.map((members) => members.length)).toEqual([2, 2]);
+    expect(table.teams[1]).toContain("s4");
+    expect(table.players.get("s4")?.team).toBe(1);
+  });
+
+  it("brings an emptied team back up to at least two, every team within one of another", () => {
+    const { table } = tableFor({ mode: "teams", teams: 3 }, 6);
+    // Teams carried over from an earlier game, left lopsided (3, 3, 0) by departures.
+    table.teams = [
+      ["s0", "s1", "s2"],
+      ["s3", "s4", "s5"],
+      [],
+    ];
+    for (const id of ["s0", "s1", "s2"]) {
+      const player = table.players.get(id);
+      if (player !== undefined) {
+        player.team = 0;
+      }
+    }
+    for (const id of ["s3", "s4", "s5"]) {
+      const player = table.players.get(id);
+      if (player !== undefined) {
+        player.team = 1;
+      }
+    }
+    table.deal();
+    const sizes = table.teams.map((members) => members.length);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+    expect(sizes.every((size) => size >= 2)).toBe(true);
+  });
+});
+
+describe("mid-game joiners", () => {
+  it("deals a mid-game joiner straight in, rather than leaving them waiting forever", () => {
+    const { table } = tableFor({}, 3);
+    table.deal();
+    table.join("s3", "P3", null);
+    expect(table.seats.find((seat) => seat.id === "s3")?.waiting).toBe(false);
+  });
+});
+
+describe("scoring a turn", () => {
+  it("pays each guesser what they were owed, and splits the drawer's share by who got it", () => {
+    const { table } = tableFor({}, 4);
+    table.deal();
+    table.pick("s0", 0);
+    table.guessed.set("s1", 100);
+    table.deadline = table.now();
+    table.advanceDrawing();
+    expect(table.phase).toBe("reveal");
+    const each = drawerPoints(1, 3); // s1 guessed; s2 and s3 were still eligible to.
+    expect(table.reveal?.scored).toEqual(
+      expect.arrayContaining([
+        { seatId: "s1", points: 100, drew: false },
+        { seatId: "s0", points: each, drew: true },
+      ]),
+    );
+    expect(table.players.get("s1")?.score).toBe(100);
+    expect(table.players.get("s0")?.score).toBe(each);
+  });
+
+  it("still pays and counts a guesser who left before the turn ended", () => {
+    const { table } = tableFor({}, 4);
+    table.deal();
+    table.pick("s0", 0);
+    table.guessed.set("s1", 100);
+    table.removeSeat("s1");
+    // s2 and s3 have still not guessed, so the turn does not end early.
+    expect(table.phase).toBe("drawing");
+    table.deadline = table.now();
+    table.advanceDrawing();
+    const each = drawerPoints(1, 3);
+    expect(table.reveal?.scored).toEqual(
+      expect.arrayContaining([
+        { seatId: "s1", points: 100, drew: false },
+        { seatId: "s0", points: each, drew: true },
+      ]),
+    );
+  });
+
+  it("keeps a scored player's points on their team's score after they leave", () => {
+    const { table } = tableFor({ mode: "teams", teams: 2 }, 5);
+    table.pickTeam("s0", 0);
+    table.pickTeam("s1", 1);
+    table.pickTeam("s2", 0);
+    table.pickTeam("s3", 1);
+    table.pickTeam("s4", 1);
+    table.deal();
+    expect(table.turn?.team).toBe(0);
+    table.pick("s0", 0);
+    table.guessed.set("s1", 100);
+    table.deadline = table.now();
+    table.advanceDrawing();
+    expect(table.phase).toBe("reveal");
+    const before = table.teamScores[1];
+    table.removeSeat("s1");
+    expect(table.teamScores[1]).toBe(before);
+  });
+
+  it("ends the drawing once the last player who has not guessed leaves", () => {
+    const { table } = tableFor({}, 4);
+    table.deal();
+    table.pick("s0", 0);
+    table.guessed.set("s1", 100);
+    table.guessed.set("s2", 90);
+    table.removeSeat("s3");
+    expect(table.phase).toBe("reveal");
+    expect(table.reveal?.abandoned).toBe(false);
   });
 });
