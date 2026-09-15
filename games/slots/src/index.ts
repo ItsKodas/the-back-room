@@ -23,9 +23,10 @@ export {
   scatterOddsOn,
 } from "./rtp.js";
 export {
-  CHIPS,
+  BET_KEYS,
   FUN_BANK,
   FUN_PURSE,
+  HIGH_STAKES_KEYS,
   JACKPOT_SHARE,
   jackpotPay,
   MAX_LINE_PAY,

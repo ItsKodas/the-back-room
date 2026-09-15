@@ -112,29 +112,35 @@ export function worstCase(bank: number, stake: number): number {
  * cap, the same share of the bank — run against figures that were never
  * anybody's.
  *
- * The bank is seeded past 1296 x the largest chip on the tray, so the whole
- * tray is playable from the first pull rather than greying out until an
- * imaginary bank has filled.
+ * The bank is seeded deep enough that the machine opens with a real range of
+ * bets on it, rather than greying keys out until an imaginary bank has filled.
  */
 export const FUN_PURSE = 25_000;
 export const FUN_BANK = 8_000_000;
 
 /**
- * The chips this machine takes, largest first.
+ * The smallest bet a line takes: one chip.
  *
- * The same denominations the card tables mint, because they are the same
- * chips: a player who has learned that purple is five hundred should not have
- * to learn it again twenty feet away. The artwork lives with the chips in the
- * client; what belongs here is which of them this game accepts.
- *
- * Every one of these needs a bank of 1296 times it before the machine will
- * take it, so the tray fills up as the bank does rather than all at once.
- *
- * The fifty is the machine's own, below anything the card tables take: a
- * spin is a smaller thing than a hand, and nine lines at fifty is already
- * four hundred and fifty on the felt.
+ * Its own number rather than the smallest key, because the keys are only what
+ * one press offers — any whole number of chips a line is a bet, and a single
+ * chip is still a spin the bank has to be able to cover. The paytable stays
+ * whole at one: `evaluate` divides a spin by the lines it was spread across,
+ * and a spin the machine sends is always a whole bet on each of them.
  */
-export const CHIPS = [5000, 1000, 500, 250, 100, 50] as const;
+export const MIN_STAKE = 1;
 
-/** The smallest thing anybody can put in. */
-export const MIN_STAKE = CHIPS[CHIPS.length - 1];
+/**
+ * The bets on the keys, smallest first.
+ *
+ * What one press sets the bet a line to. None of these is a limit: whether the
+ * bank can cover a bet is the cap's to say at spin time, key or not.
+ */
+export const BET_KEYS: readonly number[] = [10, 50, 100, 250, 500, 1000];
+
+/**
+ * The keys once high stakes is switched on.
+ *
+ * Starting where the ordinary row stops, so a thousand held on one row is still
+ * held on the other and flipping the switch does not take somebody's bet away.
+ */
+export const HIGH_STAKES_KEYS: readonly number[] = [1000, 2500, 5000, 10000];

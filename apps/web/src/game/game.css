@@ -379,6 +379,8 @@
 .chip-mark {
   display: block;
   flex: none;
+  /* Gold unless something says otherwise; the mark is drawn in currentColor. */
+  color: var(--gr-color-chip);
 }
 
 /* ----------------------------------------------------------------- volume */
