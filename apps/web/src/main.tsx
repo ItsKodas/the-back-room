@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.js";
+import { registerServiceWorker } from "./pwa/register.js";
 import "@backroom/ui/tokens.css";
 import "./global.css";
 /*
@@ -36,3 +37,5 @@ createRoot(container).render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+registerServiceWorker(import.meta.env.PROD);
