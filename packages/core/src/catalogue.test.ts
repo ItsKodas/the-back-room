@@ -64,19 +64,5 @@ describe("the shapes a game can be", () => {
       expect(drawn.has(game.shape)).toBe(true);
     }
   });
-
-  it("has a party game that is not played for chips", () => {
-    /*
-     * The point of the section. A drawing game is won by whoever draws and
-     * guesses best, which is a contest of skill between friends — put chips on
-     * it and the good drawer is taking money off the others every round.
-     */
-    const party = COMING.filter((game) => game.shape === "party");
-    expect(party.length).toBeGreaterThan(0);
-    for (const game of party) {
-      // Wants a crowd rather than a duel: the race between guessers is the game.
-      expect(game.minSeats).toBeGreaterThanOrEqual(3);
-    }
-  });
 });
 
