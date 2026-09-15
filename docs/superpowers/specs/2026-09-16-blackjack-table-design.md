@@ -44,7 +44,9 @@ the move hanging. Each is switched to watch `errorKey`:
 - `apps/web/src/deathroll/useIntent.ts`
 - `apps/web/src/twoup/TwoUp.tsx` (two effects)
 
-The hooks take `errorKey` in place of `error`: a key that moves clears the move.
+The hooks take `errorKey` alongside `error`, and clear on either moving. Taking
+the key alone would make a test that passes against the old code, since a
+number is never null, so it could not be watched failing.
 Each fix gets a test watched failing against the old code.
 
 ### Shared components move to `apps/web/src/table/`
