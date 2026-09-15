@@ -114,6 +114,21 @@ stays in `greed.css`.
 
 ## PR 2 — Blackjack
 
+**Approved mockups:** `docs/design/2026-09-16-blackjack-mockups.html`
+(published as the artifact "Blackjack Felt Mockups"). Where this section and
+the mockups disagree about how something looks, the mockups win; where they
+disagree about what the table does, this section wins.
+
+### First: the floor's `.activity` gives up the name (H2)
+
+`apps/web/src/room/Activity.tsx` renders `section.activity` and
+`apps/web/src/leaderboard/leaderboard.css` styles `.activity { display: flex … }`.
+That sheet loads after `table/table.css` and overrides the shared activity log
+on every page. The room's copy is renamed `.floor-activity` (component, sheet,
+`Room.test.tsx`), with a stylesheet test that no sheet but `table/table.css`
+declares a top-level `.activity` rule. Greed's log then renders as `table.css`
+intended; check it by hand.
+
 ### Server: `eventSeq` (A4)
 
 `TableView` in `games/blackjack/src/table.ts` gains `eventSeq: number`, bumped
@@ -128,13 +143,34 @@ moves `eventSeq` twice.
   **readout** (`auto`), **felt** (`minmax(0, 1fr)`), **controls** (`auto`).
 - The felt is a `container: bj-felt / size` holding the dealer's patch on top and
   the seats below.
-  - Your seat comes first.
-  - Other seats are compact plates. When there are more than fit, the seats
-    scroll inside the felt (M2 bar), never the page.
-- Card width is set on the felt only, as
-  `--bj-card-w: clamp(…, min(…cqi, …cqh), …)`, and inherited by `.bj-card`, which
-  does not declare it itself (L4). The dealer's cards get their own variable the
-  same way.
+  - Your seat comes first, full size: big cards and a big total.
+  - Other seats are compact plates, two across on a phone: small cards, total,
+    stake, state tag. When there are more than fit, the felt scrolls inside
+    itself with the room's bar, never the page.
+- **Cards take the room the felt has.** Widths are set on containers only and
+  inherited by `.bj-card`, which never declares `--bj-card-w` itself (L4):
+  - phone: dealer `clamp(34px, min(19cqi, 15cqh), 74px)`, your seat
+    `clamp(38px, min(22cqi, 18cqh), 84px)`, other seats
+    `clamp(20px, min(9.5cqi, 8.5cqh), 38px)` — the height terms are what keep
+    all three inside the felt on a short phone;
+  - desk (`@container bj (min-width: 760px)`): dealer
+    `clamp(40px, min(12cqi, 20cqh), 124px)`, your seat
+    `clamp(40px, min(9.5cqi, 17cqh), 100px)`, other seats
+    `clamp(24px, min(6.2cqi, 12cqh), 70px)`; seats run along the bottom of the
+    felt with yours wider (`1.5fr` against `1fr` each).
+- **A dealt hand overlaps** by 28% of a card's width, so every card's corner
+  index still shows. The dealer's hand does not overlap.
+- **Splits.** A split seat keeps one plate and grows a box per hand, each with
+  its own stake, cards (overlapping 42%), total and outcome tag. The box the
+  controls act on is lit neon; the other is dimmed while it waits. Card width in
+  a split seat is `clamp(26px, min(12cqi, 15cqh), 52px)`. Another player's split
+  shows as two small hands on their compact plate with a hairline between. The
+  readout's label becomes "Hand N of M" and its stake is that hand's.
+  The table splits once per seat; the layout also holds four boxes (a stress
+  case, not a rule change), four across with the total wrapping under.
+- **Scrolling.** Anything that scrolls — the felt, the talk and Table sheets,
+  the activity log — wears `.table-scroll` from `table/table.css` (M2), so no
+  system scrollbar with arrows appears anywhere on the table.
 - `@container bj (min-width: 760px)`: the felt on the left spanning every row,
   and a side column on the right with readout, rules, activity and controls
   (L5).
@@ -192,8 +228,8 @@ on the right, at least 52px tall.
 
 | State | Left (`.key`) | Right |
 |---|---|---|
-| Betting | the chip tray; **Take it back**; host only: **Deal now** | `.slab` **Ready** (Space). Once pressed it reads "Waiting for the others" and pressing again un-readies. Disabled when the stake is above zero and below the minimum. |
-| Your turn | **Stand** (S); **Double** (D) and **Split** (P), each with its cost on the key (F5) | `.slab` **Hit** (Space), `.is-busy` from the press until the table answers or refuses (F4) |
+| Betting | a row above: the chip tray, five chips in a sunk `.well`; below it **Take it back** (icon key, 52px square) and, host only, **Deal now** | `.slab` **Ready** (Space), with the betting clock under the label. Once pressed it reads "Waiting… for the others" and pressing again un-readies. Disabled when the stake is above zero and below the minimum. |
+| Your turn | **Stand** (S) across two columns on top; **Double** (D) and **Split** (P) under it, each with its cost or the reason it is out on the key (F5: "+500", "3 cards", "no pair", "once a seat"). After a split, Stand and Hit say which hand ("hand 2"). | `.slab` **Hit** (Space) in the third column, spanning both rows, `.is-busy` from the press until the table answers or refuses (F4) |
 | Someone else's turn | — | disabled `.slab` "Ada's turn" with the time left; taunt key on the right (K5) |
 | Settled | — | disabled `.slab` "Next hand in 5s"; taunt key |
 | Watching | the watching note | — |
