@@ -22,7 +22,7 @@
  * read. So the page widens for this room only, and the things that are still
  * reading matter — the controls, the chat — keep their own widths below.
  */
-:root[data-game="poker"] .play {
+.play.play--poker {
   max-width: 1600px;
 }
 

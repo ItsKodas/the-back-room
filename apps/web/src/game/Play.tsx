@@ -1,7 +1,7 @@
 import { RULESETS } from "@backroom/rules";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
-import { PublicTables } from "../table/PublicTables.js";
+import { TableSetup } from "../table/TableSetup.js";
 import { SeatAvatar } from "./Avatar.js";
 import "@backroom/game-greed/theme.css";
 import type { ChatMessage, RoomView } from "@backroom/shared";
@@ -17,7 +17,6 @@ import { TauntPicker } from "../taunt/TauntPicker.js";
 import { TauntStage } from "../taunt/TauntStage.js";
 import type { RoomActions } from "./useRoom.js";
 import { useRoom } from "./useRoom.js";
-import { SeatCount } from "../table/SeatCount.js";
 import { useSound } from "./useSound.js";
 
 export function Play() {
@@ -242,10 +241,7 @@ function Join({
   account: Account;
 }) {
   const [typed, setTyped] = useState("");
-  const [code, setCode] = useState(invited);
   const [ruleset, setRuleset] = useState(RULESETS[0]?.name ?? "Farkle");
-  // Six at a table of dice, which the host may make bigger or smaller.
-  const [maxSeats, setMaxSeats] = useState(6);
 
   // Someone signed in already has a name, and the server will seat them under
   // it whatever this sends — so asking for one would be a question with no
@@ -298,110 +294,39 @@ function Join({
   }
 
   return (
-    <div className="join">
-      <p className="join__pitch">
-        Roll six dice. Set aside what scores. Roll again for more, or bank it and pass the cup — but
-        roll nothing scoring and you lose the lot.
-      </p>
-
-      {askName ? (
-        <label className="field">
-          <span className="field__label">Your name</span>
-          <input
-            className="field__input"
-            value={typed}
-            maxLength={20}
-            placeholder="Ada"
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        </label>
-      ) : null}
-
-      <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={5}
-            placeholder="X7KQ3"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && ready && code.length === 5) {
-                actions.join(name, code);
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || code.length !== 5}
-            onClick={() => actions.join(name, code)}
-          >
-            Take a seat
-          </button>
-          {/* Needs no name: a watcher is nobody at the table. Useful when it is
-              full, or when you only want to see how it goes. */}
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!connected || busy || code.length !== 5}
-            onClick={() => actions.watch(code)}
-          >
-            Just watch
-          </button>
+    <TableSetup
+      game="greed"
+      pitch="Roll six dice. Set aside what scores. Roll again for more, or bank it and pass the cup — but roll nothing scoring and you lose the lot."
+      invited={invited}
+      account={account}
+      busy={busy}
+      connected={connected}
+      onJoin={actions.join}
+      onWatch={actions.watch}
+      options={
+        <div className="variants" role="radiogroup" aria-label="Which dice">
+          {RULESETS.map((option) => (
+            <button
+              key={option.name}
+              type="button"
+              role="radio"
+              aria-checked={option.name === ruleset}
+              className={`variant${option.name === ruleset ? " variant--on" : ""}`}
+              onClick={() => setRuleset(option.name)}
+            >
+              <span className="variant__name">{option.name}</span>
+              <span className="variant__note">
+                {option.skin === "letters"
+                  ? "$ G R E E D faces. First to 5,000."
+                  : "Ordinary pips. First to 10,000."}
+              </span>
+            </button>
+          ))}
         </div>
-
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
-
-          <div className="variants" role="radiogroup" aria-label="Which dice">
-            {RULESETS.map((option) => (
-              <button
-                key={option.name}
-                type="button"
-                role="radio"
-                aria-checked={option.name === ruleset}
-                className={`variant${option.name === ruleset ? " variant--on" : ""}`}
-                onClick={() => setRuleset(option.name)}
-              >
-                <span className="variant__name">{option.name}</span>
-                <span className="variant__note">
-                  {option.skin === "letters"
-                    ? "$ G R E E D faces. First to 5,000."
-                    : "Ordinary pips. First to 10,000."}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <SeatCount value={maxSeats} onChange={setMaxSeats} />
-
-          <p className="panel__note">
-            You get a five-character code to share, or start alone to practise.
-          </p>
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => actions.create(name, ruleset, maxSeats)}
-          >
-            Open a table
-          </button>
-        </div>
-      </div>
-
-      <PublicTables
-        game="greed"
-        busy={busy || !connected}
-        canSit={ready}
-        whyNotSit={askName ? "Put in a name first." : "Waiting for the server…"}
-        onJoin={(open) => actions.join(name, open)}
-        onWatch={(open) => actions.watch(open)}
-      />
-
-      {!connected ? <p className="join__warn">Waiting for the server…</p> : null}
-    </div>
+      }
+      note={() => "You get a five-character code to share, or start alone to practise."}
+      onCreate={(name, { maxSeats }) => actions.create(name, ruleset, maxSeats)}
+    />
   );
 }
 

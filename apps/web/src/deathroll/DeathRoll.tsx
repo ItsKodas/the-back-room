@@ -11,8 +11,7 @@ import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
-import { PublicTables } from "../table/PublicTables.js";
-import { SeatCount } from "../table/SeatCount.js";
+import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Falling } from "./Falling.js";
@@ -589,114 +588,31 @@ export function Sit({
   invited: string;
   account: Account;
 }) {
-  const [code, setCode] = useState(invited);
-  const ready = code.length === CODE_LENGTH && !table.busy;
-  const guest = account.profile === null;
-  const [typed, setTyped] = useState("");
-  /*
-   * Null until the host picks, rather than seeded from `guest`. Seeding
-   * freezes the answer at the first render, which happens while the account
-   * is still on its way — and a profile that has not arrived looks exactly
-   * like a guest.
-   */
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const forFun = chosen ?? guest;
   const [stake, setStake] = useState<number>(STAKES[1]);
   const [ceiling, setCeiling] = useState<number>(CEILINGS[1]);
-  // Six is a full table; the host may want a smaller one.
-  const [seats, setSeats] = useState<number>(DEATH_ROLL.maxSeats);
-  const name = account.profile?.name ?? typed.trim();
-  const named = name.length > 0;
 
   return (
-    <div className="join">
-      <p className="join__pitch">
-        Two to six players and a number that only goes down. Roll under the ceiling or pay a
-        tenth of the ante to hand the roll back — roll a one and you are out, and the last one
-        left takes the pot.
-      </p>
-
-      {account.loading || !guest ? null : (
-        <label className="field">
-          <span className="field__label">Your name</span>
-          <input
-            className="field__input"
-            value={typed}
-            maxLength={20}
-            placeholder="Ada"
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        </label>
-      )}
-
-      {account.loading || !guest ? null : (
-        <p className="join__warn">
-          Playing for fun deals you play money that lives at the table and nowhere else. Sign in
-          to play for real chips.
-        </p>
-      )}
-
-      <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={CODE_LENGTH}
-            placeholder="XKQ37"
-            aria-label="Table code"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || !named}
-            onClick={() => table.join(name, code)}
-          >
-            Take a seat
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => table.watch(code)}
-          >
-            Just watch
-          </button>
-        </div>
-
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
-
-          <div className="variants" role="radiogroup" aria-label="What the table plays for">
-            {[false, true].map((option) => (
-              <button
-                key={String(option)}
-                type="button"
-                role="radio"
-                aria-checked={forFun === option}
-                disabled={!option && guest}
-                className={`variant${forFun === option ? " variant--on" : ""}`}
-                onClick={() => setChosen(option)}
-              >
-                <span className="variant__name">{option ? "For fun" : "For chips"}</span>
-                <span className="variant__note">
-                  {option
-                    ? "Play money, and the table is yours to shape. Anybody can sit down."
-                    : guest
-                      ? "Sign in to play for real chips."
-                      : "Real chips, from your balance."}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/*
-            * What a game here costs, and where it starts. Both are decisions
-            * about the whole evening rather than one player's, the same way a
-            * betting window belongs to whoever opens a roulette table — so
-            * they are picked here, once, by the host.
-            */}
+    <TableSetup
+      game="death-roll"
+      pitch="Two to six players and a number that only goes down. Roll under the ceiling or pay a tenth of the ante to hand the roll back — roll a one and you are out, and the last one left takes the pot."
+      invited={invited}
+      account={account}
+      busy={table.busy}
+      connected={table.connected}
+      onJoin={table.join}
+      onWatch={table.watch}
+      playsFor={{ fun: "Play money, and the table is yours to shape. Anybody can sit down." }}
+      // Up to six, and fixed once the table is open, the same as the ante and
+      // the opening ceiling.
+      seats={{ initial: DEATH_ROLL.maxSeats, ceiling: DEATH_ROLL.maxSeats }}
+      options={
+        /*
+         * What a game here costs, and where it starts. Both are decisions
+         * about the whole evening rather than one player's, the same way a
+         * betting window belongs to whoever opens a roulette table — so they
+         * are picked here, once, by the host.
+         */
+        <>
           <div className="dr__pickrow" role="radiogroup" aria-label="What a game costs">
             <span className="dr__pickrow-label">Ante</span>
             <div className="dr__pick-options">
@@ -732,41 +648,15 @@ export function Sit({
               ))}
             </div>
           </div>
-
-          {/*
-            * How many seats the evening has. The house's own picker: a game
-            * that only ever held two had nowhere to put it, and now that a
-            * table can hold up to six it is the host's to set, and fixed once
-            * the table is open, the same as the ante and the opening ceiling.
-            */}
-          <SeatCount value={seats} onChange={setSeats} ceiling={DEATH_ROLL.maxSeats} />
-
-          <p className="panel__note">
-            You get a five-character code to share. One ante each
-            {forFun ? ", and play money that lives at the table." : "."}
-          </p>
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={table.busy || !named}
-            onClick={() =>
-              table.create(name, { game: "death-roll", forFun, buyIn: stake, ceiling, maxSeats: seats })
-            }
-          >
-            Open a table
-          </button>
-        </div>
-      </div>
-
-      <PublicTables
-        game="death-roll"
-        busy={table.busy}
-        canSit={named}
-        whyNotSit="Put in a name first."
-        onJoin={(open) => table.join(name, open)}
-        onWatch={(open) => table.watch(open)}
-      />
-    </div>
+        </>
+      }
+      note={({ forFun }) =>
+        `You get a five-character code to share. One ante each${forFun ? ", and play money that lives at the table." : "."}`
+      }
+      onCreate={(name, { forFun, maxSeats }) =>
+        table.create(name, { game: "death-roll", forFun, buyIn: stake, ceiling, maxSeats })
+      }
+    />
   );
 }
 

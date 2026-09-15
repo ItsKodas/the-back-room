@@ -1,7 +1,7 @@
 import type { TableView } from "@backroom/game-blackjack";
 import { LAST_CALL_MS, value, WINDOWS } from "@backroom/game-blackjack";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Chip, ChipMark, MINTED } from "../chips/Chip.js";
 import { ChipStack } from "../chips/ChipStack.js";
@@ -16,11 +16,10 @@ import { TurnRing } from "../game/TurnRing.js";
 import { useCountdown } from "../game/useCountdown.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
-import { PublicTables } from "../table/PublicTables.js";
+import { TableSetup } from "../table/TableSetup.js";
 import { TauntPicker } from "../taunt/TauntPicker.js";
 import { TauntStage } from "../taunt/TauntStage.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
-import { SeatCount } from "../table/SeatCount.js";
 import { useTablePeek } from "../table/useTablePeek.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Hand } from "./Cards.js";
@@ -830,19 +829,6 @@ function SignInToJoin({ code, onWatch }: { code: string; onWatch: () => void }) 
   );
 }
 
-/**
- * What a table opens as: what the host chose, or the sensible default until
- * they choose.
- *
- * The default has to be read at render rather than frozen at mount. Whether
- * somebody is a guest is not known when this panel first draws — the account
- * is still on its way — and "not known yet" looks exactly like "guest", so a
- * default captured then is the wrong one for everybody who is signed in.
- */
-export function opensForFun(chosen: boolean | null, guest: boolean): boolean {
-  return chosen ?? guest;
-}
-
 function Sit({
   table,
   invited,
@@ -852,9 +838,6 @@ function Sit({
   invited: string;
   account: Account;
 }) {
-  const [code, setCode] = useState(invited);
-  const ready = code.length === CODE_LENGTH && !table.busy;
-  const guest = account.profile === null;
   /*
    * What the link they followed actually leads to.
    *
@@ -863,148 +846,32 @@ function Sit({
    * opening a table of your own.
    */
   const peek = useTablePeek(invited);
-  const [typed, setTyped] = useState("");
-  /*
-   * A guest has no chips to stake, so their table is the play-money one. A
-   * signed-in player is offered the choice and starts on the real thing,
-   * which is what they came for.
-   *
-   * Null until the host actually picks, rather than a boolean seeded from
-   * `guest`. Seeding froze it at the first render, which happens while the
-   * account is still being fetched — and a profile that has not arrived reads
-   * as a guest, so a signed-in host was quietly defaulted to play money and
-   * only noticed when their table would not take a chip.
-   */
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const forFun = opensForFun(chosen, guest);
-  // Six is a card table; the host may want a bigger or a smaller one.
-  const [maxSeats, setMaxSeats] = useState(6);
-  /*
-   * A signed-in player's name is the account's and the server will use it
-   * whatever is sent here. A guest has none, so at a for-fun table they type
-   * one — which is the only reason this field exists at all.
-   */
-  const name = account.profile?.name ?? typed.trim();
-  const named = name.length > 0;
-
-  /*
-   * Below every hook on purpose. This screen has two shapes and the one it
-   * takes is decided here, which means the decision has to come after the
-   * state rather than in the middle of it.
-   */
   const waiting = peek.table;
-  if (waiting !== null && !waiting.forFun && guest && !account.loading) {
+  if (waiting !== null && !waiting.forFun && account.profile === null && !account.loading) {
     return <SignInToJoin code={waiting.code} onWatch={() => table.watch(waiting.code)} />;
   }
 
   return (
-    <div className="join">
-      <p className="join__pitch">
-        Beat the dealer to twenty-one without going past it. Blackjack pays three to two, the
-        dealer stands on seventeen.
-      </p>
-      {account.loading || !guest ? null : (
-        <label className="field">
-          <span className="field__label">Your name</span>
-          <input
-            className="field__input"
-            value={typed}
-            maxLength={20}
-            placeholder="Ada"
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        </label>
-      )}
-
-      {account.loading || !guest ? null : (
-        <p className="join__warn">
-          Playing for fun deals you five thousand chips that live at the table and nowhere else.
-          Sign in to play for real ones.
-        </p>
-      )}
-      <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={CODE_LENGTH}
-            placeholder="XKQ37"
-            aria-label="Table code"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-          {/* Not gated on signing in: whether a guest may sit depends on the
-              table, which only the server knows. It refuses in words. */}
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || !named}
-            onClick={() => table.join(name, code)}
-          >
-            Take a seat
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => table.watch(code)}
-          >
-            Just watch
-          </button>
-        </div>
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
-
-          <div className="variants" role="radiogroup" aria-label="What the table plays for">
-            {[false, true].map((option) => (
-              <button
-                key={String(option)}
-                type="button"
-                role="radio"
-                aria-checked={forFun === option}
-                // A guest has nothing real to stake, so the choice is not
-                // offered rather than offered and refused.
-                disabled={!option && guest}
-                className={`variant${forFun === option ? " variant--on" : ""}`}
-                onClick={() => setChosen(option)}
-              >
-                <span className="variant__name">{option ? "For fun" : "For chips"}</span>
-                <span className="variant__note">
-                  {option
-                    ? "Play money that lives at the table. Anybody can sit down."
-                    : guest
-                      ? "Sign in to play for real chips."
-                      : "Real chips, from your balance."}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <SeatCount value={maxSeats} onChange={setMaxSeats} />
-
-          <p className="panel__note">
-            You get a five-character code to share. Everybody plays the dealer rather than each
-            other.
-          </p>
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={table.busy || !named}
-            onClick={() => table.create(name, { game: "blackjack", forFun, maxSeats })}
-          >
-            Open a table
-          </button>
-        </div>
-      </div>
-
-      <PublicTables
-        game="blackjack"
-        busy={table.busy}
-        canSit={named}
-        whyNotSit="Put in a name first."
-        onJoin={(open) => table.join(name, open)}
-        onWatch={(open) => table.watch(open)}
-      />
-    </div>
+    <TableSetup
+      game="blackjack"
+      pitch="Beat the dealer to twenty-one without going past it. Blackjack pays three to two, the dealer stands on seventeen."
+      invited={invited}
+      account={account}
+      busy={table.busy}
+      connected={table.connected}
+      onJoin={table.join}
+      onWatch={table.watch}
+      playsFor={{
+        fun: "Play money that lives at the table. Anybody can sit down.",
+        guestWarning:
+          "Playing for fun deals you five thousand chips that live at the table and nowhere else. Sign in to play for real ones.",
+      }}
+      note={() =>
+        "You get a five-character code to share. Everybody plays the dealer rather than each other."
+      }
+      onCreate={(name, { forFun, maxSeats }) =>
+        table.create(name, { game: "blackjack", forFun, maxSeats })
+      }
+    />
   );
 }

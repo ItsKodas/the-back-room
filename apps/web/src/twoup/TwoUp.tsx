@@ -13,8 +13,7 @@ import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
-import { PublicTables } from "../table/PublicTables.js";
-import { SeatCount } from "../table/SeatCount.js";
+import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Board } from "./Board.js";
@@ -588,77 +587,22 @@ function Sit({
   invited: string;
   account: Account;
 }) {
-  const [code, setCode] = useState(invited);
-  const ready = code.length === CODE_LENGTH && !table.busy;
-  const guest = account.profile === null;
-  const [maxSeats, setMaxSeats] = useState(6);
   const [window, setWindow] = useState<number>(WINDOWS[1]);
-  const [typed, setTyped] = useState("");
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const forFun = chosen ?? guest;
   const [ruleset, setRuleset] = useState<"casino" | "school">("casino");
-  const name = account.profile?.name ?? typed.trim();
-  const named = name.length > 0;
 
   return (
-    <div className="join">
-      <p className="join__pitch">
-        Two coins, tossed from a kip. Back heads or tails against the house, or stand in the ring
-        and cover another player's centre — the same toss, two different games.
-      </p>
-
-      {account.loading || !guest ? null : (
-        <label className="field">
-          <span className="field__label">Your name</span>
-          <input
-            className="field__input"
-            value={typed}
-            maxLength={20}
-            placeholder="Ada"
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        </label>
-      )}
-
-      {account.loading || !guest ? null : (
-        <p className="join__warn">
-          Playing for fun deals you play money that lives at the table and nowhere else. Sign in to
-          play for real chips.
-        </p>
-      )}
-
-      <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={CODE_LENGTH}
-            placeholder="XKQ37"
-            aria-label="Table code"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || !named}
-            onClick={() => table.join(name, code)}
-          >
-            Take a seat
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => table.watch(code)}
-          >
-            Just watch
-          </button>
-        </div>
-
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
-
+    <TableSetup
+      game="two-up"
+      pitch="Two coins, tossed from a kip. Back heads or tails against the house, or stand in the ring and cover another player's centre — the same toss, two different games."
+      invited={invited}
+      account={account}
+      busy={table.busy}
+      connected={table.connected}
+      onJoin={table.join}
+      onWatch={table.watch}
+      playsFor={{ fun: "Play money, and you can deal bots in. Anybody can sit down." }}
+      options={
+        <>
           <div className="variants" role="radiogroup" aria-label="Which school">
             {(["casino", "school"] as const).map((option) => (
               <button
@@ -669,7 +613,9 @@ function Sit({
                 className={`variant${ruleset === option ? " variant--on" : ""}`}
                 onClick={() => setRuleset(option)}
               >
-                <span className="variant__name">{option === "casino" ? "Casino" : "Traditional"}</span>
+                <span className="variant__name">
+                  {option === "casino" ? "Casino" : "Traditional"}
+                </span>
                 <span className="variant__note">
                   {option === "casino"
                     ? "Back heads, tails or five odds against the house."
@@ -678,31 +624,6 @@ function Sit({
               </button>
             ))}
           </div>
-
-          <div className="variants" role="radiogroup" aria-label="What the table plays for">
-            {[false, true].map((option) => (
-              <button
-                key={String(option)}
-                type="button"
-                role="radio"
-                aria-checked={forFun === option}
-                disabled={!option && guest}
-                className={`variant${forFun === option ? " variant--on" : ""}`}
-                onClick={() => setChosen(option)}
-              >
-                <span className="variant__name">{option ? "For fun" : "For chips"}</span>
-                <span className="variant__note">
-                  {option
-                    ? "Play money, and you can deal bots in. Anybody can sit down."
-                    : guest
-                      ? "Sign in to play for real chips."
-                      : "Real chips, from your balance."}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <SeatCount value={maxSeats} onChange={setMaxSeats} />
 
           {/*
             * How long the felt stays open, or how long a centre stays up
@@ -728,34 +649,19 @@ function Sit({
               ))}
             </div>
           </div>
-
-          <p className="panel__note">
-            You get a five-character code to share.{" "}
-            {ruleset === "school"
-              ? "The ring needs two real players before it deals; a lone host waits."
-              : `The kip comes round on its own every ${window / 1000} seconds.`}{" "}
-            {forFun ? "Play money lives at the table." : "Chips leave your balance as they go down."}
-          </p>
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={table.busy || !named}
-            onClick={() => table.create(name, { game: "two-up", forFun, maxSeats, window, ruleset })}
-          >
-            Open a table
-          </button>
-        </div>
-      </div>
-
-      <PublicTables
-        game="two-up"
-        busy={table.busy}
-        canSit={named}
-        whyNotSit="Put in a name first."
-        onJoin={(open) => table.join(name, open)}
-        onWatch={(open) => table.watch(open)}
-      />
-    </div>
+        </>
+      }
+      note={({ forFun }) =>
+        `You get a five-character code to share. ${
+          ruleset === "school"
+            ? "The ring needs two real players before it deals; a lone host waits."
+            : `The kip comes round on its own every ${window / 1000} seconds.`
+        } ${forFun ? "Play money lives at the table." : "Chips leave your balance as they go down."}`
+      }
+      onCreate={(name, { forFun, maxSeats }) =>
+        table.create(name, { game: "two-up", forFun, maxSeats, window, ruleset })
+      }
+    />
   );
 }
 

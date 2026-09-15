@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { opensForFun } from "./Blackjack.js";
+import { opensForFun } from "../table/TableSetup.js";
 
 /*
  * What a table opens as.

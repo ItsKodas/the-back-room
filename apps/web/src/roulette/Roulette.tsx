@@ -11,8 +11,7 @@ import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
-import { PublicTables } from "../table/PublicTables.js";
-import { SeatCount } from "../table/SeatCount.js";
+import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Cloth } from "./Cloth.js";
@@ -67,7 +66,8 @@ export function Roulette() {
   }
 
   return (
-    <main className="play play--wheel">
+    // Wider only at the cloth: the screen before it is the building's width.
+    <main className={state === null ? "play" : "play play--wheel"}>
       <Navbar
         game="Roulette"
         {...(state !== null
@@ -426,156 +426,56 @@ function Sit({
   invited: string;
   account: Account;
 }) {
-  const [code, setCode] = useState(invited);
-  const ready = code.length === CODE_LENGTH && !table.busy;
-  const guest = account.profile === null;
-  const [maxSeats, setMaxSeats] = useState(6);
   const [window, setWindow] = useState<number>(WINDOWS[1]);
-  const [typed, setTyped] = useState("");
-  /*
-   * Null until the host picks, rather than seeded from `guest`. Seeding freezes
-   * the answer at the first render, which happens while the account is still on
-   * its way — and a profile that has not arrived looks exactly like a guest.
-   */
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const forFun = chosen ?? guest;
-  const name = account.profile?.name ?? typed.trim();
-  const named = name.length > 0;
 
   return (
-    <div className="join">
-      <p className="join__pitch">
-        One wheel, thirty-seven pockets, everybody at once. The table pays from a bank that players
-        alone fill, so nothing is won here that somebody put in.
-      </p>
-
-      {account.loading || !guest ? null : (
-        <label className="field">
-          <span className="field__label">Your name</span>
-          <input
-            className="field__input"
-            value={typed}
-            maxLength={20}
-            placeholder="Ada"
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        </label>
-      )}
-
-      {account.loading || !guest ? null : (
-        <p className="join__warn">
-          Playing for fun deals you play money that lives at the table and nowhere else. Sign in to
-          play for real chips.
-        </p>
-      )}
-
-      <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={CODE_LENGTH}
-            placeholder="XKQ37"
-            aria-label="Table code"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || !named}
-            onClick={() => table.join(name, code)}
-          >
-            Take a seat
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => table.watch(code)}
-          >
-            Just watch
-          </button>
-        </div>
-
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
-
-          <div className="variants" role="radiogroup" aria-label="What the table plays for">
-            {[false, true].map((option) => (
+    <TableSetup
+      game="roulette"
+      pitch="One wheel, thirty-seven pockets, everybody at once. The table pays from a bank that players alone fill, so nothing is won here that somebody put in."
+      invited={invited}
+      account={account}
+      busy={table.busy}
+      connected={table.connected}
+      onJoin={table.join}
+      onWatch={table.watch}
+      playsFor={{ fun: "Play money, and you can deal bots in. Anybody can sit down." }}
+      options={
+        /*
+         * How long the wheel takes bets for. A decision about everybody's
+         * evening rather than one player's — fifteen seconds and a minute are
+         * different games to sit at — so it belongs to the host, with the rest
+         * of the table's shape.
+         */
+        <div className="stakes" role="radiogroup" aria-label="How long bets stay open">
+          <span className="stakes__label">Betting</span>
+          <div className="stakes__row">
+            {WINDOWS.map((level) => (
               <button
-                key={String(option)}
+                key={level}
                 type="button"
                 role="radio"
-                aria-checked={forFun === option}
-                disabled={!option && guest}
-                className={`variant${forFun === option ? " variant--on" : ""}`}
-                onClick={() => setChosen(option)}
+                aria-checked={window === level}
+                aria-label={`${level / 1000} seconds a spin`}
+                className={`stakes__pick${window === level ? " stakes__pick--on" : ""}`}
+                onClick={() => setWindow(level)}
               >
-                <span className="variant__name">{option ? "For fun" : "For chips"}</span>
-                <span className="variant__note">
-                  {option
-                    ? "Play money, and you can deal bots in. Anybody can sit down."
-                    : guest
-                      ? "Sign in to play for real chips."
-                      : "Real chips, from your balance."}
-                </span>
+                <span className="stakes__cost">{level / 1000}s</span>
               </button>
             ))}
           </div>
-
-          <SeatCount value={maxSeats} onChange={setMaxSeats} />
-
-          {/*
-            * How long the wheel takes bets for. A decision about everybody's
-            * evening rather than one player's — fifteen seconds and a minute
-            * are different games to sit at — so it belongs to the host, with
-            * the rest of the table's shape.
-            */}
-          <div className="stakes" role="radiogroup" aria-label="How long bets stay open">
-            <span className="stakes__label">Betting</span>
-            <div className="stakes__row">
-              {WINDOWS.map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  role="radio"
-                  aria-checked={window === level}
-                  aria-label={`${level / 1000} seconds a spin`}
-                  className={`stakes__pick${window === level ? " stakes__pick--on" : ""}`}
-                  onClick={() => setWindow(level)}
-                >
-                  <span className="stakes__cost">{level / 1000}s</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="panel__note">
-            You get a five-character code to share. The wheel comes round on its own every{" "}
-            {window / 1000} seconds
-            {forFun ? ", with play money that lives at the table." : ", and chips leave your balance as they land on the cloth."}
-          </p>
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={table.busy || !named}
-            onClick={() => table.create(name, { game: "roulette", forFun, maxSeats, window })}
-          >
-            Open a table
-          </button>
         </div>
-      </div>
-
-      <PublicTables
-        game="roulette"
-        busy={table.busy}
-        canSit={named}
-        whyNotSit="Put in a name first."
-        onJoin={(open) => table.join(name, open)}
-        onWatch={(open) => table.watch(open)}
-      />
-    </div>
+      }
+      note={({ forFun }) =>
+        `You get a five-character code to share. The wheel comes round on its own every ${window / 1000} seconds${
+          forFun
+            ? ", with play money that lives at the table."
+            : ", and chips leave your balance as they land on the cloth."
+        }`
+      }
+      onCreate={(name, { forFun, maxSeats }) =>
+        table.create(name, { game: "roulette", forFun, maxSeats, window })
+      }
+    />
   );
 }
 

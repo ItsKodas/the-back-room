@@ -13,8 +13,7 @@ import { useAccount } from "../game/useAccount.js";
 import { TurnRing } from "../game/TurnRing.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
-import { PublicTables } from "../table/PublicTables.js";
-import { SeatCount } from "../table/SeatCount.js";
+import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Rankings } from "./Rankings.js";
@@ -167,7 +166,8 @@ export function Poker() {
   }
 
   return (
-    <main className="play">
+    // Wider only at the felt: the screen before it is the building's width.
+    <main className={state === null ? "play" : "play play--poker"}>
       <Navbar
         game="Poker"
         {...(state !== null
@@ -1184,174 +1184,64 @@ function Sit({
   invited: string;
   account: Account;
 }) {
-  const [code, setCode] = useState(invited);
-  const ready = code.length === CODE_LENGTH && !table.busy;
-  const guest = account.profile === null;
-  const [maxSeats, setMaxSeats] = useState(6);
   const [entry, setEntry] = useState<number>(BUY_IN);
   const blinds = blindsFor(entry);
-  const [typed, setTyped] = useState("");
-  /*
-   * Null until the host picks, rather than a boolean seeded from `guest`.
-   * Seeding it freezes the answer at the first render, which happens while the
-   * account is still on its way — and a profile that has not arrived looks
-   * exactly like a guest.
-   */
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const forFun = chosen ?? guest;
-  /*
-   * A signed-in player's name is the account's and the server uses that
-   * whatever is sent. A guest has none, so at a for-fun table they type one.
-   */
-  const name = account.profile?.name ?? typed.trim();
-  const named = name.length > 0;
 
   return (
-    <div className="join">
-      <p className="join__pitch">
-        Texas hold'em. Everybody plays each other, so nothing is won here that somebody at the table
-        did not put in.
-      </p>
-
-      {account.loading || !guest ? null : (
-        <label className="field">
-          <span className="field__label">Your name</span>
-          <input
-            className="field__input"
-            value={typed}
-            maxLength={20}
-            placeholder="Ada"
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        </label>
-      )}
-
-      {account.loading || !guest ? null : (
-        <p className="join__warn">
-          Playing for fun deals you play money that lives at the table and nowhere else. Sign in to
-          play for real chips.
-        </p>
-      )}
-
-      <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={CODE_LENGTH}
-            placeholder="XKQ37"
-            aria-label="Table code"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-          {/* Not gated on signing in: whether a guest may sit depends on what
-              the table plays for, which only the server knows. It refuses in
-              words. */}
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || !named}
-            onClick={() => table.join(name, code)}
-          >
-            Take a seat
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => table.watch(code)}
-          >
-            Just watch
-          </button>
-        </div>
-
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
-
-          <div className="variants" role="radiogroup" aria-label="What the table plays for">
-            {[false, true].map((option) => (
-              <button
-                key={String(option)}
-                type="button"
-                role="radio"
-                aria-checked={forFun === option}
-                // A guest has nothing real to stake, so the choice is not
-                // offered rather than offered and refused.
-                disabled={!option && guest}
-                className={`variant${forFun === option ? " variant--on" : ""}`}
-                onClick={() => setChosen(option)}
-              >
-                <span className="variant__name">{option ? "For fun" : "For chips"}</span>
-                <span className="variant__note">
-                  {option
-                    ? "Play money, and you can deal bots in. Anybody can sit down."
-                    : guest
-                      ? "Sign in to play for real chips."
-                      : "Real chips, from your balance."}
-                </span>
-              </button>
-            ))}
+    <TableSetup
+      game="poker"
+      pitch="Texas hold'em. Everybody plays each other, so nothing is won here that somebody at the table did not put in."
+      invited={invited}
+      account={account}
+      busy={table.busy}
+      connected={table.connected}
+      onJoin={table.join}
+      onWatch={table.watch}
+      playsFor={{ fun: "Play money, and you can deal bots in. Anybody can sit down." }}
+      options={
+        /*
+         * What it costs to sit down, which is the same act as choosing the
+         * stakes: every level is a hundred big blinds, so one number sets the
+         * price of entry and what the table plays for, and the two cannot end
+         * up disagreeing.
+         */
+        <div className="stakes" role="radiogroup" aria-label="What it costs to sit down">
+          <span className="stakes__label">Entry</span>
+          <div className="stakes__row">
+            {STAKES.map((level) => {
+              const at = blindsFor(level);
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  role="radio"
+                  aria-checked={entry === level}
+                  aria-label={`${compact(level)}, blinds ${at.small} and ${at.big}`}
+                  className={`stakes__pick${entry === level ? " stakes__pick--on" : ""}`}
+                  onClick={() => setEntry(level)}
+                >
+                  <span className="stakes__cost">{compact(level)}</span>
+                  <span className="stakes__blinds">
+                    {at.small}/{at.big}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-
-          <SeatCount value={maxSeats} onChange={setMaxSeats} />
-
-          {/*
-            * What it costs to sit down, which is the same act as choosing the
-            * stakes: every level is a hundred big blinds, so one number sets
-            * the price of entry and what the table plays for, and the two
-            * cannot end up disagreeing.
-            */}
-          <div className="stakes" role="radiogroup" aria-label="What it costs to sit down">
-            <span className="stakes__label">Entry</span>
-            <div className="stakes__row">
-              {STAKES.map((level) => {
-                const at = blindsFor(level);
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    role="radio"
-                    aria-checked={entry === level}
-                    aria-label={`${compact(level)}, blinds ${at.small} and ${at.big}`}
-                    className={`stakes__pick${entry === level ? " stakes__pick--on" : ""}`}
-                    onClick={() => setEntry(level)}
-                  >
-                    <span className="stakes__cost">{compact(level)}</span>
-                    <span className="stakes__blinds">
-                      {at.small}/{at.big}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <p className="panel__note">
-            You get a five-character code to share. Sitting down costs {compact(entry)}
-            {forFun ? " in play money, and blinds are " : ", blinds are "}
-            {fmt(blinds.small)} and {fmt(blinds.big)}
-            {forFun ? "." : ". What is still in front of you comes back when you stand up."}
-          </p>
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={table.busy || !named}
-            onClick={() => table.create(name, { game: "poker", forFun, maxSeats, buyIn: entry })}
-          >
-            Open a table
-          </button>
         </div>
-      </div>
-
-      <PublicTables
-        game="poker"
-        busy={table.busy}
-        canSit={named}
-        whyNotSit="Put in a name first."
-        onJoin={(open) => table.join(name, open)}
-        onWatch={(open) => table.watch(open)}
-      />
-    </div>
+      }
+      note={({ forFun }) => (
+        <>
+          You get a five-character code to share. Sitting down costs {compact(entry)}
+          {forFun ? " in play money, and blinds are " : ", blinds are "}
+          {fmt(blinds.small)} and {fmt(blinds.big)}
+          {forFun ? "." : ". What is still in front of you comes back when you stand up."}
+        </>
+      )}
+      onCreate={(name, { forFun, maxSeats }) =>
+        table.create(name, { game: "poker", forFun, maxSeats, buyIn: entry })
+      }
+    />
   );
 }
 
