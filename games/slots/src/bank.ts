@@ -135,12 +135,12 @@ export const MIN_STAKE = 1;
  * What one press sets the bet a line to. None of these is a limit: whether the
  * bank can cover a bet is the cap's to say at spin time, key or not.
  */
-export const BET_KEYS: readonly number[] = [10, 50, 100, 250, 500, 1000];
+export const BET_KEYS: readonly number[] = [10, 50, 100, 250, 500];
 
 /**
  * The keys once high stakes is switched on.
  *
- * Starting where the ordinary row stops, so a thousand held on one row is still
- * held on the other and flipping the switch does not take somebody's bet away.
+ * Starting a key past where the ordinary row stops. The rows share nothing, so
+ * a thousand is high stakes only, and switching it off lets that bet go.
  */
 export const HIGH_STAKES_KEYS: readonly number[] = [1000, 2500, 5000, 10000];

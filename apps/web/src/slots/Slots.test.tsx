@@ -592,7 +592,6 @@ describe("the bet keys", () => {
       "100",
       "250",
       "500",
-      "1,000",
     ]);
   });
 
@@ -632,30 +631,30 @@ describe("the bet keys", () => {
   });
 
   it("turns off a key the balance cannot cover across the lines", () => {
-    const { container } = controls({ stake: 0, balance: 2000, lineCount: 3, cap: 100_000 });
-    expect((row(container).getByRole("radio", { name: "1,000" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement).disabled).toBe(false);
+    const { container } = controls({ stake: 0, balance: 1000, lineCount: 3, cap: 100_000 });
+    expect((row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((row(container).getByRole("radio", { name: "250" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("turns off a key the bank cannot cover, whatever the balance", () => {
-    const { container } = controls({ stake: 0, balance: 1_000_000, lineCount: 3, cap: 2000 });
-    expect((row(container).getByRole("radio", { name: "1,000" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement).disabled).toBe(false);
+    const { container } = controls({ stake: 0, balance: 1_000_000, lineCount: 3, cap: 1000 });
+    expect((row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((row(container).getByRole("radio", { name: "250" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("says why a key is off without anybody having to hover it", () => {
-    const { container } = controls({ stake: 0, balance: 2000, lineCount: 3, cap: 100_000 });
-    expect(said(container)).toContain("1,000 and up");
+    const { container } = controls({ stake: 0, balance: 1000, lineCount: 3, cap: 100_000 });
+    expect(said(container)).toContain("500 and up");
   });
 
   it("keeps the held key lit mid-spin, while its stake is out of the balance", () => {
     /*
-     * The stake leaves the shown balance on the press, so a thousand held on a
-     * balance of a thousand reads as uncovered for the whole spin. The key it
-     * is riding on must not go dark under the reels.
+     * The stake leaves the shown balance on the press, so five hundred held on
+     * a balance of five hundred reads as uncovered for the whole spin. The key
+     * it is riding on must not go dark under the reels.
      */
-    const { container } = controls({ stake: 1000, busy: true, balance: 0, lineCount: 1, cap: 100_000 });
-    const key = row(container).getByRole("radio", { name: "1,000" }) as HTMLButtonElement;
+    const { container } = controls({ stake: 500, busy: true, balance: 0, lineCount: 1, cap: 100_000 });
+    const key = row(container).getByRole("radio", { name: "500" }) as HTMLButtonElement;
     expect(key.disabled).toBe(false);
     expect(key.getAttribute("aria-checked")).toBe("true");
   });
@@ -771,9 +770,9 @@ describe("what a bet has to be", () => {
     expect(covers(10, { lines: 3, cap: 5000, balance: null })).toBe(false);
   });
 
-  it("keeps 1,000 held across the switch, since both rows have it", () => {
+  it("lets go of 1,000 when high stakes goes off, since only that row has it", () => {
     expect(keptAcrossSwitch(1000, true)).toBe(true);
-    expect(keptAcrossSwitch(1000, false)).toBe(true);
+    expect(keptAcrossSwitch(1000, false)).toBe(false);
   });
 
   it("keeps a figure of your own across the switch, since neither row has it", () => {
