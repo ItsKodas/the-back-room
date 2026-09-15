@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 /**
  * What this page can do about putting the room on a home screen.
@@ -11,13 +11,52 @@ import { useEffect, useState } from "react";
 export type InstallOffer =
   | { kind: "installed" }
   | { kind: "prompt"; install: () => void }
-  | { kind: "ios" }
+  | { kind: "ios"; chrome: boolean }
   | { kind: "manual" };
 
 /** Chrome's install event. Not in the DOM typings because it is not a standard. */
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+/**
+ * The browser's prompt, held for the page rather than by any one bar.
+ *
+ * A browser sends it once per page load, whenever it decides the page can be
+ * installed — which can be before a bar has mounted to catch it. And every page
+ * draws its own bar, so a prompt kept inside one was thrown away the first time
+ * somebody walked from the front door to a table, after which the press could
+ * only explain instead of install. Caught here, as this module loads, it
+ * survives both.
+ */
+let held: InstallPromptEvent | null = null;
+const watchers = new Set<() => void>();
+
+function announce(): void {
+  for (const watcher of watchers) {
+    watcher();
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    // Held back, so the browser's own mini-infobar does not show on its own.
+    event.preventDefault();
+    held = event as InstallPromptEvent;
+    announce();
+  });
+}
+
+function watch(onChange: () => void): () => void {
+  watchers.add(onChange);
+  return () => {
+    watchers.delete(onChange);
+  };
+}
+
+function currentPrompt(): InstallPromptEvent | null {
+  return held;
 }
 
 /** Whether this page is already running as the installed app. */
@@ -39,44 +78,47 @@ export function isIos(userAgent: string, maxTouchPoints: number): boolean {
 }
 
 /**
+ * Whether an iOS browser is Chrome.
+ *
+ * Every browser on iOS is Safari underneath, so none of them has a prompt to
+ * give; what differs is where each keeps its Share button.
+ */
+export function isChromeOnIos(userAgent: string): boolean {
+  return /CriOS/.test(userAgent);
+}
+
+/**
  * The install offer, as it stands.
  *
- * Chrome's event is caught and held rather than left to show its own bar, so
- * the offer lives on our button — somewhere a player will find it again — and
- * not in a banner that shows once and is dismissed on the way to a table.
- *
- * Installing from this tab does not make this tab the app, so `appinstalled`
- * changes nothing here: the tab stays a browser tab and keeps its button. Only
- * a page that opened as the app hides it.
+ * Installing from this tab does not make this tab the app, so the button stays
+ * in a browser tab after an install. Only a page that opened as the app hides
+ * it.
  */
 export function useInstall(): InstallOffer {
-  const [held, setHeld] = useState<InstallPromptEvent | null>(null);
+  const prompt = useSyncExternalStore(watch, currentPrompt, () => null);
   const [standalone] = useState(() => isStandalone());
-
-  useEffect(() => {
-    const offered = (event: Event) => {
-      event.preventDefault();
-      setHeld(event as InstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", offered);
-    return () => window.removeEventListener("beforeinstallprompt", offered);
-  }, []);
 
   if (standalone) {
     return { kind: "installed" };
   }
-  if (held !== null) {
+  if (prompt !== null) {
     return {
       kind: "prompt",
       install: () => {
-        void held.prompt();
-        // A prompt is good for one use, whichever way it was answered.
-        void held.userChoice.then(() => setHeld(null));
+        /*
+         * Spent on the press rather than when it is answered. A browser answers
+         * a prompt once and refuses the second call, so a quick second press —
+         * on this bar or on the next page's — has to explain instead.
+         */
+        held = null;
+        announce();
+        void prompt.prompt();
       },
     };
   }
-  if (isIos(window.navigator.userAgent, window.navigator.maxTouchPoints)) {
-    return { kind: "ios" };
+  const agent = window.navigator.userAgent;
+  if (isIos(agent, window.navigator.maxTouchPoints)) {
+    return { kind: "ios", chrome: isChromeOnIos(agent) };
   }
   return { kind: "manual" };
 }

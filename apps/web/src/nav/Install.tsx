@@ -36,7 +36,14 @@ export function Install() {
       </button>
       {explains && open ? (
         <span className="install__hint" role="dialog" aria-label="How to install The Back Room">
-          {offer.kind === "ios" ? (
+          {offer.kind === "ios" && offer.chrome ? (
+            // Chrome on iOS keeps Share up in the address bar, not along the
+            // bottom where Safari has it.
+            <span>
+              Tap <ShareIcon /> <b>Share</b> in the address bar (or the <b>⋯</b> menu), then{" "}
+              <b>Add to Home Screen</b>.
+            </span>
+          ) : offer.kind === "ios" ? (
             <span>
               Tap <ShareIcon /> <b>Share</b>, then <b>Add to Home Screen</b>.
             </span>
