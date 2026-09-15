@@ -34,3 +34,22 @@ describe("opening a table", () => {
     expect(createSchema.safeParse({ name: "Ada" }).success).toBe(true);
   });
 });
+
+describe("opening a scribble table", () => {
+  it("carries the host's choices through", () => {
+    const parsed = createSchema.safeParse({
+      name: "Ada",
+      game: "scribble",
+      scribble: { mode: "teams", teams: 4, rounds: 3, drawSeconds: 80, hints: "few", packs: ["animals"], custom: "Kev's van", onlyCustom: false },
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.scribble?.teams).toBe(4);
+  });
+
+  it("refuses shapes no setup screen could send", () => {
+    expect(createSchema.safeParse({ name: "Ada", scribble: { teams: 9 } }).success).toBe(false);
+    expect(createSchema.safeParse({ name: "Ada", scribble: { mode: "chaos" } }).success).toBe(false);
+    expect(createSchema.safeParse({ name: "Ada", scribble: { custom: "a,".repeat(4000) } }).success).toBe(false);
+    expect(createSchema.safeParse({ name: "Ada", scribble: { packs: Array.from({ length: 17 }, () => "x") } }).success).toBe(false);
+  });
+});

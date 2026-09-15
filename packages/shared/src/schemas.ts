@@ -70,6 +70,24 @@ export const createSchema = z.object({
    * game offers, which is where the real refusal lives.
    */
   ceiling: z.number().int().min(100).max(10_000).optional(),
+  /**
+   * A scribble table's shape. Bounded here and snapped to real choices by the
+   * game, like every other option on this object. Custom words are one string
+   * rather than an array so the bound is on characters: two hundred words of
+   * up to 24 letters, with their commas and spaces.
+   */
+  scribble: z
+    .object({
+      mode: z.enum(["solo", "teams"]).optional(),
+      teams: z.number().int().min(2).max(4).optional(),
+      rounds: z.number().int().min(1).max(10).optional(),
+      drawSeconds: z.number().int().min(10).max(300).optional(),
+      hints: z.enum(["none", "few", "generous"]).optional(),
+      packs: z.array(z.string().max(24)).max(16).optional(),
+      custom: z.string().max(6_000).optional(),
+      onlyCustom: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const setListedSchema = z.object({ listed: z.boolean() });
