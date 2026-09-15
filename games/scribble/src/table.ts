@@ -1,14 +1,15 @@
 import type { PlayTable, Seat, SeatIdentity, TableStatus } from "@backroom/core";
 import { Seating, TableError } from "@backroom/core";
-import { normalise } from "./guess.js";
+import { containsWord, isClose, isCorrect, normalise } from "./guess.js";
 import type { Hint } from "./hints.js";
-import { hintMs, hintsDue, planHints } from "./hints.js";
+import { hintMs, hintsDue, mask, planHints } from "./hints.js";
+import type { FillRequest, InkRelay, Mark, StrokeBatch } from "./ink.js";
 import { InkLog } from "./ink.js";
-import type { ScribbleOptions } from "./options.js";
+import type { HintLevel, Mode, ScribbleOptions } from "./options.js";
 import { minimumPlayers, TEAM_NAMES } from "./options.js";
 import type { Turn } from "./rotation.js";
 import { mayJoin, smallestTeam, soloTurn, teamTurn } from "./rotation.js";
-import { drawerPoints } from "./scoring.js";
+import { drawerPoints, guesserPoints } from "./scoring.js";
 import { drawChoices, poolFor } from "./words/rules.js";
 
 export const COUNTDOWN_MS = 15_000;
@@ -36,6 +37,62 @@ export interface TurnResult {
   drawers: string[];
   abandoned: boolean;
   scored: { seatId: string; points: number; drew: boolean }[];
+}
+
+export type ChatKind = "guess" | "close" | "got" | "pair" | "aside";
+
+/** Where one line of chat goes. The same shape `GameAdapter.chat` returns. */
+export interface Said {
+  to: "room" | string[];
+  kind?: ChatKind;
+  text: string;
+  /** True when the line changed the table, so the room sends everybody the new state. */
+  changed: boolean;
+}
+
+export interface SeatView {
+  id: string;
+  name: string;
+  connected: boolean;
+  team: number | null;
+  score: number;
+  drawing: boolean;
+  guessed: boolean;
+}
+
+export interface TeamView {
+  index: number;
+  name: string;
+  score: number;
+  members: string[];
+}
+
+export interface TableView {
+  code: string;
+  phase: Phase;
+  deadline: number | null;
+  /** The server's clock when this was sent, so a client with a wrong clock still counts down right. */
+  now: number;
+  mode: Mode;
+  rounds: number;
+  round: number;
+  drawMs: number;
+  hints: HintLevel;
+  minimum: number;
+  maxSeats: number;
+  seats: SeatView[];
+  teams: TeamView[];
+  you: SeatView | null;
+  hostId: string | null;
+  watching: number;
+  lastEvent: string | null;
+  turn: { drawers: string[]; picker: string; team: number | null; startedAt: number | null } | null;
+  choices: string[] | null;
+  word: string | null;
+  mask: (string | null)[] | null;
+  ink: Mark[];
+  reveal: TurnResult | null;
+  winners: string[];
 }
 
 interface Player {
@@ -488,7 +545,133 @@ export class ScribbleTable implements PlayTable {
     this.settleCountdown();
   }
 
-  view(forSeatId: string | null): unknown {
-    return { code: this.code, phase: this.phase, you: forSeatId };
+  // ------------------------------------------------------------- talk
+
+  /**
+   * Where a line of chat goes, and what it did.
+   *
+   * The room would otherwise send every line to everybody, and a drawer could
+   * simply type the word. Anything that could give the word away goes to the
+   * people who already know it and nobody else.
+   */
+  say(seatId: string, text: string): Said {
+    const turn = this.turn;
+    if (turn === null || (this.phase !== "picking" && this.phase !== "drawing")) {
+      return { to: "room", text, changed: false };
+    }
+    if (turn.drawers.includes(seatId)) {
+      if (turn.drawers.length < 2) {
+        throw new TableError("You're drawing.");
+      }
+      const secrets = this.phase === "picking" ? this.choices : [this.word as string];
+      if (secrets.some((secret) => containsWord(text, secret))) {
+        throw new TableError("That gives the word away.");
+      }
+      return { to: [...turn.drawers], kind: "pair", text, changed: false };
+    }
+    if (this.phase === "picking") {
+      return { to: "room", text, changed: false };
+    }
+    const word = this.word as string;
+    if (this.guessed.has(seatId)) {
+      return { to: [...this.guessed.keys(), ...turn.drawers], kind: "aside", text, changed: false };
+    }
+    if (isCorrect(text, word)) {
+      this.guessed.set(seatId, guesserPoints((this.deadline ?? this.now()) - this.now(), this.options.drawMs));
+      this.lastEvent = `${this.players.get(seatId)?.name ?? "Somebody"} got it.`;
+      this.endIfEveryoneHasIt();
+      return { to: "room", kind: "got", text: "got it", changed: true };
+    }
+    if (containsWord(text, word) || isClose(text, word)) {
+      return { to: [seatId], kind: "close", text, changed: false };
+    }
+    return {
+      to: this.seats.map((seat) => seat.id).filter((id) => !this.guessed.has(id)),
+      kind: "guess",
+      text,
+      changed: false,
+    };
+  }
+
+  // ------------------------------------------------------------- ink
+
+  private mustDraw(seatId: string): void {
+    if (this.phase !== "drawing" || this.turn === null || !this.turn.drawers.includes(seatId)) {
+      throw new TableError("Only the people drawing can draw.");
+    }
+  }
+
+  stroke(seatId: string, batch: StrokeBatch): InkRelay | null {
+    this.mustDraw(seatId);
+    return this.ink.stroke(seatId, batch);
+  }
+
+  fill(seatId: string, request: FillRequest): InkRelay | null {
+    this.mustDraw(seatId);
+    return this.ink.fill(seatId, request);
+  }
+
+  undo(seatId: string): InkRelay | null {
+    this.mustDraw(seatId);
+    return this.ink.undo(seatId);
+  }
+
+  clear(seatId: string): InkRelay {
+    this.mustDraw(seatId);
+    return this.ink.clear();
+  }
+
+  view(forSeatId: string | null): TableView {
+    const turn = this.turn;
+    const live = this.phase === "picking" || this.phase === "drawing";
+    const drawing = (id: string) => live && (turn?.drawers.includes(id) ?? false);
+    const seats = this.seats.map((seat) => {
+      const player = this.players.get(seat.id);
+      return {
+        id: seat.id,
+        name: seat.name,
+        connected: seat.connected,
+        team: player?.team ?? null,
+        score: player?.score ?? 0,
+        drawing: drawing(seat.id),
+        guessed: this.guessed.has(seat.id),
+      };
+    });
+    const knows = forSeatId !== null && (drawing(forSeatId) || this.guessed.has(forSeatId));
+    const word = this.phase === "drawing" ? this.word : null;
+    return {
+      code: this.code,
+      phase: this.phase,
+      deadline: this.deadline,
+      now: this.now(),
+      mode: this.options.mode,
+      rounds: this.options.rounds,
+      round: this.round,
+      drawMs: this.options.drawMs,
+      hints: this.options.hints,
+      minimum: this.minimum,
+      maxSeats: this.maxSeats,
+      seats,
+      teams: this.teams.map((members, index) => ({
+        index,
+        name: TEAM_NAMES[index] as string,
+        score: this.teamScores[index] ?? 0,
+        members: [...members],
+      })),
+      you: seats.find((seat) => seat.id === forSeatId) ?? null,
+      hostId: this.hostId,
+      watching: this.watching,
+      lastEvent: this.lastEvent,
+      turn:
+        turn === null
+          ? null
+          : { drawers: [...turn.drawers], picker: turn.picker, team: turn.team, startedAt: this.startedAt },
+      choices: this.phase === "picking" && forSeatId !== null && drawing(forSeatId) ? [...this.choices] : null,
+      word: word !== null && knows ? word : null,
+      mask: word !== null && !knows ? mask(word, this.hints, this.hintsShown) : null,
+      ink: this.phase === "drawing" || this.phase === "reveal" ? [...this.ink.marks] : [],
+      reveal: this.phase === "reveal" || this.phase === "over" ? this.reveal : null,
+      winners: this.phase === "over" ? [...this.winners] : [],
+    };
   }
 }
