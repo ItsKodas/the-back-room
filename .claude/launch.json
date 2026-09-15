@@ -9,6 +9,13 @@
       "autoPort": false
     },
     {
+      "name": "backroom-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "-w", "@backroom/server", "--", "--port", "3002"],
+      "port": 3002,
+      "autoPort": false
+    },
+    {
       "name": "backroom-server",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:server"],
