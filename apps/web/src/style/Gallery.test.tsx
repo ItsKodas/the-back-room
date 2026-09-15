@@ -49,4 +49,20 @@ describe("Gallery", () => {
     const second = screen.getByTestId("texture-plaster-alt").style.backgroundImage;
     expect(first).not.toBe(second);
   });
+
+  it("shows every fitting by its class name, so a later pass has a reference to build from", () => {
+    render(<Gallery />);
+    const fittings = screen.getByRole("region", { name: /fittings/i });
+    for (const name of [".slab", ".key", ".quiet", ".seg", ".lamps", ".plates", ".sort", ".input", ".lcd", ".housing", ".well", ".rows", ".readout", ".tag", ".notice"]) {
+      expect(within(fittings).getByText(name)).toBeDefined();
+    }
+  });
+
+  it("lets the fittings be seen in every room", () => {
+    render(<Gallery />);
+    const rooms = screen.getByRole("group", { name: "Room" });
+    for (const room of ["Building", "Blackjack", "Greed", "Roulette", "Slots"]) {
+      expect(within(rooms).getByRole("button", { name: room })).toBeDefined();
+    }
+  });
 });

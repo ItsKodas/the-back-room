@@ -1,5 +1,6 @@
 import { Sign } from "../game/Sign.js";
 import { Deck } from "./Deck.js";
+import { Fittings } from "./Fittings.js";
 import { PokerMockup } from "./PokerMockup.js";
 import { RouletteMockup } from "./RouletteMockup.js";
 import { SlotMockup } from "./SlotMockup.js";
@@ -24,6 +25,7 @@ export function Gallery() {
       <Swatches />
       <TypeSpecimen />
       <TextureTiles />
+      <Fittings />
       <Deck />
       <SlotMockup />
       <PokerMockup />
