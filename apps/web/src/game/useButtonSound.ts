@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { play, unlock } from "./audio.js";
+import { play, preload, unlock } from "./audio.js";
 
 /**
  * A press, wherever it happens.
@@ -18,6 +18,16 @@ import { play, unlock } from "./audio.js";
 const PRESSABLE = 'button, [role="radio"], a.slab, a.key, a.quiet';
 
 export function useButtonSound(): void {
+  /*
+   * The files are fetched the moment the building opens, not when a game does.
+   * Presses happen on every page, and the room's doors sound on the very press
+   * that leaves it: waiting for a game to ask would be waiting until after the
+   * one sound the room itself makes.
+   */
+  useEffect(() => {
+    void preload();
+  }, []);
+
   useEffect(() => {
     const pressed = (event: PointerEvent) => {
       const target = event.target;

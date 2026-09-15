@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ChipMark } from "../chips/Chip.js";
 import { Digits } from "../game/Digits.js";
 import { Avatar } from "../game/Avatar.js";
+import { throughTheDoor } from "../game/doors.js";
 import { compact, exact } from "../game/money.js";
 import { Sign } from "../game/Sign.js";
 import type { Account } from "../game/useAccount.js";
@@ -44,10 +45,20 @@ export interface NavbarProps {
  * when you are not at a table.
  */
 export function Navbar({ game, table, account, connected }: NavbarProps) {
+  const { pathname } = useLocation();
   return (
     <header className="nav">
       <h1 className="nav__mark">
-        <Link to="/" aria-label="The Back Room">
+        <Link
+          to="/"
+          aria-label="The Back Room"
+          onClick={(event) => {
+            // Already in the room, the sign goes nowhere and nothing shuts.
+            if (pathname !== "/") {
+              throughTheDoor(event, "close");
+            }
+          }}
+        >
           <Sign />
         </Link>
       </h1>

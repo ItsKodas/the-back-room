@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { throughTheDoor } from "../game/doors.js";
 import { useAccount } from "../game/useAccount.js";
 import { Navbar } from "../nav/Navbar.js";
 import { Standings } from "./Standings.js";
@@ -172,7 +173,12 @@ function TableTile({ game }: { game: GameOnOffer }) {
    * is a window into that room rather than a picture of one.
    */
   return game.open ? (
-    <Link className="tile" data-game={game.id} to={`/${game.id}`}>
+    <Link
+      className="tile"
+      data-game={game.id}
+      to={`/${game.id}`}
+      onClick={(event) => throughTheDoor(event, "open")}
+    >
       {body}
     </Link>
   ) : (
@@ -206,7 +212,12 @@ function Cabinet({ game }: { game: GameOnOffer }) {
    * into that room rather than a picture of one.
    */
   return game.open ? (
-    <Link className="cabinet" data-game={game.id} to={`/${game.id}`}>
+    <Link
+      className="cabinet"
+      data-game={game.id}
+      to={`/${game.id}`}
+      onClick={(event) => throughTheDoor(event, "open")}
+    >
       {body}
     </Link>
   ) : (
@@ -242,7 +253,12 @@ function BarSign({ game }: { game: GameOnOffer }) {
   );
 
   return game.open ? (
-    <Link className="barsign" data-game={game.id} to={`/${game.id}`}>
+    <Link
+      className="barsign"
+      data-game={game.id}
+      to={`/${game.id}`}
+      onClick={(event) => throughTheDoor(event, "open")}
+    >
       {body}
     </Link>
   ) : (
