@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * these tests check is only whether a press on a given element asks the
  * building's one sound module to play the tap.
  */
-const played = vi.hoisted(() => ({ calls: [] as string[] }));
+const played = vi.hoisted(() => ({ calls: [] as string[], preloads: 0 }));
 vi.mock("./audio.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./audio.js")>();
   return {
@@ -17,6 +17,9 @@ vi.mock("./audio.js", async (importOriginal) => {
       played.calls.push(cue);
     },
     unlock: () => {},
+    preload: async () => {
+      played.preloads += 1;
+    },
   };
 });
 
@@ -45,6 +48,20 @@ function Harness() {
 
 afterEach(() => {
   played.calls = [];
+  played.preloads = 0;
+});
+
+describe("the building's sounds, fetched on arrival", () => {
+  it("asks for them as soon as any page mounts, not when a game does", () => {
+    /*
+     * RED before the fix: only the games preloaded, so a player who landed on
+     * the room and picked a game pressed before the manifest had been asked
+     * for, and the door opened in silence. unlock() does fetch it, but only
+     * from that same press — too late for the sound that press wants.
+     */
+    render(<Harness />);
+    expect(played.preloads).toBe(1);
+  });
 });
 
 describe("the building-wide press click", () => {

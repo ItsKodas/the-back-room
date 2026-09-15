@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { play } from "../game/audio.js";
 import { Room } from "./Room.js";
+
+vi.mock("../game/audio.js", async (original) => ({
+  ...(await original<typeof import("../game/audio.js")>()),
+  play: vi.fn(),
+  unlock: vi.fn(),
+}));
 
 const GAMES = [
   {
@@ -104,5 +111,29 @@ describe("the room's groups", () => {
 
     const tables = screen.getByText("At the tables");
     expect(front?.compareDocumentPosition(tables)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+});
+
+describe("walking into a game", () => {
+  beforeEach(() => {
+    vi.mocked(play).mockClear();
+  });
+
+  it("sounds the door opening from every kind of card", async () => {
+    stubFetch();
+    show();
+
+    for (const name of [/Greed/, /Slots/, /The Tip Jar/, /Taunts/]) {
+      vi.mocked(play).mockClear();
+      fireEvent.click(await screen.findByRole("link", { name }));
+      expect(vi.mocked(play).mock.calls).toEqual([["open"]]);
+    }
+  });
+
+  it("stays quiet when the click opens a new tab instead of walking in", async () => {
+    stubFetch();
+    show();
+    fireEvent.click(await screen.findByRole("link", { name: /Greed/ }), { ctrlKey: true });
+    expect(play).not.toHaveBeenCalled();
   });
 });
