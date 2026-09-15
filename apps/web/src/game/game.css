@@ -2508,7 +2508,6 @@ a.btn {
 
 .profile__out:hover {
   color: var(--gr-color-bad);
-  border-color: var(--gr-color-bad);
 }
 
 .profile {

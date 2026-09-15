@@ -18,7 +18,7 @@ export function Taken({
     <section className="taken" role="status" aria-live="polite">
       <p className="taken__what">{message}</p>
       <p className="taken__how">Close it and try again.</p>
-      <button type="button" className="btn taken__retry" onClick={onRetry}>
+      <button type="button" className="slab" onClick={onRetry}>
         Try again
       </button>
     </section>

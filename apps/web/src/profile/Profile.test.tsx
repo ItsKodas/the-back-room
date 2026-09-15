@@ -66,11 +66,11 @@ describe("a player's page", () => {
      * words and blackjack has no answer for them, so they must not appear
      * among the figures that belong to the player.
      */
-    const greed = screen.getByText("Greed").closest(".panel") as HTMLElement;
+    const greed = screen.getByText("Greed").closest(".housing") as HTMLElement;
     expect(within(greed).getByText("best turn")).toBeDefined();
     expect(within(greed).getByText("farkles")).toBeDefined();
 
-    const blackjack = screen.getByText("Blackjack").closest(".panel") as HTMLElement;
+    const blackjack = screen.getByText("Blackjack").closest(".housing") as HTMLElement;
     expect(within(blackjack).getByText("busts")).toBeDefined();
     expect(within(blackjack).queryByText("farkles")).toBeNull();
   });
