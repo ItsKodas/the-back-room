@@ -21,3 +21,5 @@ export {
   TEAM_COUNTS,
   TEAM_NAMES,
 } from "./options.js";
+export type { Turn } from "./rotation.js";
+export { mayJoin, smallestTeam, soloTurn, teamTurn } from "./rotation.js";
