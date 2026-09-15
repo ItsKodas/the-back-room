@@ -528,6 +528,22 @@ describe("the run of bonuses in a spin", () => {
     run.reset();
     expect(run.landed()).toBe(0);
   });
+
+  it("does not climb on a free spin, which cannot win more of them", () => {
+    // A third bonus on a free spin pays nothing, so a run that climbs towards
+    // it is the machine promising something it will not do.
+    const run = bonusRun();
+    run.reset(true);
+    expect([run.landed(), run.landed(), run.landed()]).toEqual([0, 0, 0]);
+  });
+
+  it("climbs again on the paid spin after a free one", () => {
+    const run = bonusRun();
+    run.reset(true);
+    run.landed();
+    run.reset();
+    expect([run.landed(), run.landed()]).toEqual([0, 1]);
+  });
 });
 
 /*

@@ -216,18 +216,27 @@ const ATTRACT: Face[][] = [
  * A tiny object rather than a number in a ref, because the rule worth holding
  * is when it goes back to nought, and a counter that has to be reset by
  * whoever remembers is a counter that eventually is not.
+ *
+ * A free spin does not climb. Free spins cannot win more of them, so "a third
+ * would pay" is not true on one, and a run of rising notes ending in nothing
+ * sounds like the machine forgot to pay. The bonuses still land with a note;
+ * it is only the promise that goes.
  */
-export function bonusRun(): { landed: () => number; reset: () => void } {
+export function bonusRun(): { landed: () => number; reset: (free?: boolean) => void } {
   let seen = 0;
+  let flat = false;
   return {
     /** One has just arrived: how far up the run it is, counting it in. */
     landed: () => {
       const at = seen;
-      seen += 1;
+      if (!flat) {
+        seen += 1;
+      }
       return at;
     },
-    reset: () => {
+    reset: (free = false) => {
       seen = 0;
+      flat = free;
     },
   };
 }
@@ -1069,6 +1078,12 @@ export default function Slots() {
         return;
       }
       const grid = result.grid as Face[][];
+      /*
+       * Whether this spin was free is the server's to say, not the button's:
+       * the run can be forfeit or finished by the time the answer comes. It
+       * arrives before any reel lands, which is all the notes need.
+       */
+      scattered.current.reset(result.wasFree);
       setGrid(grid);
       setFreeLeft(result.freeLeft);
       setAwarded(result.awarded);
