@@ -198,7 +198,7 @@ export function Emotes() {
               />
             </label>
           </div>
-          <button type="button" className="slab slab--wide" disabled={busy} onClick={add}>
+          <button type="button" className={`slab slab--wide${busy ? " is-busy" : ""}`} disabled={busy} onClick={add}>
             {busy ? "Uploading…" : "Add emote"}
           </button>
           <p className="panel__note">

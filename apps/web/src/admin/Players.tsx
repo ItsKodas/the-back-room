@@ -163,8 +163,10 @@ export function Players() {
             Clear
           </button>
           <span className="desk__spacer" />
+          {/* Three actions in one bar, none of them the one thing this bar is
+              for — a slab per bar, none is needed here. */}
           {(["add", "remove", "set"] as const).map((kind) => (
-            <button key={kind} type="button" className="slab slab--small" onClick={() => setOpen({ kind, who: picked, count: selected.size })}>
+            <button key={kind} type="button" className="key key--small" onClick={() => setOpen({ kind, who: picked, count: selected.size })}>
               {kind === "add" ? "Add" : kind === "remove" ? "Remove" : "Set"}
             </button>
           ))}

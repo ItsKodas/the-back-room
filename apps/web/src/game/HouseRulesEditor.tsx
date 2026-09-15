@@ -23,9 +23,11 @@ export function HouseRulesEditor({ room, editable, onChange }: EditorProps) {
   const rules = room.ruleset;
 
   return (
-    <section className="housing" aria-label="House rules">
+    <section className="housing" aria-labelledby="house-rules-title">
       <div className="housing__head">
-        <h2 className="label">House rules</h2>
+        <h2 className="label" id="house-rules-title">
+          House rules
+        </h2>
       </div>
       <div className="housing__body">
         <Choice

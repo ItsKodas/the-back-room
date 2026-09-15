@@ -107,7 +107,7 @@ function Signed({
   return (
     <div className="profile">
       <div className="profile__who">
-        <div className="housing" id="profile-who">
+        <div className="housing">
           <div className="housing__body">
             <div className="who">
               <Avatar

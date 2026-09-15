@@ -155,7 +155,7 @@ export function ChipsDialog({
           <button type="button" className="quiet" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="slab" disabled={!valid || busy}>
+          <button type="submit" className={`slab${busy ? " is-busy" : ""}`} disabled={!valid || busy}>
             {VERB[op]}
           </button>
         </div>

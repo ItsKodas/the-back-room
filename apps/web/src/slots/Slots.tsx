@@ -1905,9 +1905,11 @@ export function Controls({
  */
 function SignInToPlay({ available }: { available: boolean }) {
   return (
-    <div className="housing gate slots__gate">
+    <section className="housing gate slots__gate" aria-labelledby="slots-gate-title">
       <div className="housing__body">
-        <h2 className="gate__title">This one plays for chips</h2>
+        <h2 className="gate__title" id="slots-gate-title">
+          This one plays for chips
+        </h2>
         <p className="gate__note">
           The bank is real chips other people staked, so there is one step before you pull the
           lever. Sign in and you will land back here.
@@ -1921,6 +1923,6 @@ function SignInToPlay({ available }: { available: boolean }) {
           <p className="panel__note">Signing in is not set up on this server.</p>
         )}
       </div>
-    </div>
+    </section>
   );
 }

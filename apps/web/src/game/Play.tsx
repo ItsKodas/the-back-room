@@ -7,7 +7,7 @@ import { SeatAvatar } from "./Avatar.js";
 import "@backroom/game-greed/theme.css";
 import type { ChatMessage, RoomView } from "@backroom/shared";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Chat } from "./Chat.js";
 import { HouseRulesEditor } from "./HouseRulesEditor.js";
@@ -193,9 +193,11 @@ function BuyIn({
   const blocked = bots || guests || !signedIn;
 
   return (
-    <section className="housing" aria-label="Stake">
+    <section className="housing" aria-labelledby="stake-title">
       <div className="housing__head">
-        <h2 className="label">Stake</h2>
+        <h2 className="label" id="stake-title">
+          Stake
+        </h2>
       </div>
       <div className="housing__body">
         {blocked ? (
@@ -213,7 +215,8 @@ function BuyIn({
                 role="radio"
                 aria-checked={room.buyIn === amount}
                 disabled={!editable || amount > chips}
-                className="lamp lamp--chips"
+                // Gold means chips, and 0 is for fun — no chips are at stake.
+                className={`lamp${amount > 0 ? " lamp--chips" : ""}`}
                 onClick={() => onSet(amount)}
               >
                 {amount === 0 ? "for fun" : amount.toLocaleString("en-US")}
@@ -231,7 +234,7 @@ function BuyIn({
   );
 }
 
-function Join({
+export function Join({
   actions,
   busy,
   connected,
@@ -247,6 +250,18 @@ function Join({
 }) {
   const [typed, setTyped] = useState("");
   const [ruleset, setRuleset] = useState(RULESETS[0]?.name ?? "Farkle");
+  // `busy` here is the whole room's, not this button's own — every other
+  // press on the page sets it too. Held only between this press and the
+  // busy it caused going false again, on that true-to-false edge rather than
+  // whenever busy merely happens to be false, so a render where busy hasn't
+  // caught up to a fresh press yet does not wipe it out from under itself.
+  // Same pattern as TableSetup's own join/create press.
+  const [pressed, setPressed] = useState(false);
+  const wasBusy = useRef(busy);
+  if (wasBusy.current && !busy) {
+    setPressed(false);
+  }
+  wasBusy.current = busy;
 
   // Someone signed in already has a name, and the server will seat them under
   // it whatever this sends — so asking for one would be a question with no
@@ -286,9 +301,12 @@ function Join({
         <div className="join__invited">
           <button
             type="button"
-            className="slab"
+            className={`slab${busy && pressed ? " is-busy" : ""}`}
             disabled={!ready}
-            onClick={() => actions.join(name, invited)}
+            onClick={() => {
+              setPressed(true);
+              actions.join(name, invited);
+            }}
           >
             Take a seat
           </button>
@@ -373,7 +391,7 @@ function ShareCode({ code }: { code: string }) {
           Share this code
         </h2>
       </div>
-      <div className="housing__body lobby__share-body">
+      <div className="housing__body">
         <div className="readout">
           <span className="lobby__code">{code}</span>
         </div>
@@ -518,15 +536,18 @@ function Lobby({
                 <span className="label" id="add-bot-label">
                   Add an opponent
                 </span>
+                {/* Actions, not a choice among them — adding a bot does not
+                    replace the last one, so these are keys, not lamps. */}
                 <div className="lamps" role="group" aria-labelledby="add-bot-label">
                   {(["easy", "normal", "hard"] as const).map((skill) => (
                     <button
                       key={skill}
                       type="button"
-                      className="lamp lamp--word"
+                      className="key key--small"
                       onClick={() => actions.addBot(skill)}
                     >
-                      {skill}
+                      {skill[0]?.toUpperCase()}
+                      {skill.slice(1)}
                     </button>
                   ))}
                 </div>
