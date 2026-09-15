@@ -164,7 +164,7 @@ export function Paytable({
         </div>
         <p className="pt__note">
           The one face that ignores lines: {MIN_SCATTER} or more on different reels, in any row.
-          Free spins replay the bet that won them.
+          Free spins replay the bet that won them, and free spins cannot win more free spins.
         </p>
 
         <h3 className="pt__sub">Lines</h3>

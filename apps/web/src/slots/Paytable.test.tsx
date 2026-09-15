@@ -90,6 +90,13 @@ describe("the paytable", () => {
     }
   });
 
+  it("says free spins cannot win more free spins", () => {
+    // The server awards nothing for bonuses on a free spin. A paytable that
+    // lists the awards without saying so reads as a machine that forgot to pay.
+    const { container } = render(<Paytable {...base} />);
+    expect(container.textContent).toMatch(/free spins cannot win more free spins/i);
+  });
+
   it("draws all nine lines and dims the ones that were not bought", () => {
     const { container } = render(<Paytable {...base} lineCount={3} />);
     const lines = [...container.querySelectorAll("[data-payline]")];
