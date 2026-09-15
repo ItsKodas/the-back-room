@@ -75,6 +75,9 @@ felts still use them.
   later table pass works from.
 
 The rest of the library is classes, which is how this repo already works.
+`.cab` and `.screen` are the slot machine's and `.cabinet` is the front
+page's, which is why the mockup's panel ships as `.housing`, its screen as
+`.readout`, and its lit button as `.slab`.
 
 ## The parts
 
@@ -92,7 +95,9 @@ is what decides where it goes.
     moving faster. It is set on the press, not on the acknowledgement, and
     cleared when the answer or a refusal lands.
 - **`.key`** — the dark raised cap, for every other action. Modifiers `--wide`,
-  `--small`, `--icon` (a square cap with an SVG, replacing `.iconbtn`).
+  `--small`, `--icon` (a square cap with an SVG, replacing `.iconbtn`),
+  `--danger` (a press that cannot be taken back, in the outcome colour).
+  `.quiet--wide` for a full-width one.
 - **`.quiet`** — words that act: cancel, back, keep it open.
 - **Sign-in with Discord** keeps Discord's blurple as `.slab--discord`, which
   swaps the screen's colours and nothing else.
@@ -102,7 +107,10 @@ is what decides where it goes.
 - **`.seg`** — one question, two or three answers, a lit thumb sliding between
   them on `--gr-settle`. Needs a component (`Seg.tsx`) to place the thumb.
 - **`.lamps` / `.lamp`** — numbers sunk into the panel, the lit one in play.
-  Seats and betting window. `SeatCount.tsx` renders these.
+  Seats and betting window. `SeatCount.tsx` renders these. `.lamp--chips`
+  lights gold, for a number that is chips (a buy-in); `.lamp--word` is a
+  labelled toggle (a house rule). Lit is `aria-checked` or `aria-pressed`,
+  whichever the control really is.
 - **`.plates` / `.plate`** — a choice with a sentence under it; a lamp lights
   on the chosen one. What game variants and "For chips / For fun" become.
 - **`.sort`** — the leaderboard's filter pill, promoted so the leaderboard and
@@ -114,8 +122,9 @@ with `aria-checked` inside a `radiogroup`, as in the mockup.
 ### Typing
 
 - **`.field` / `.label` / `.input` / `.hint`**, with `.field--bad` for a refused
-  value. `.field` is already a class in `game.css`; the new sheet replaces its
-  rules, and the old `.field__input` goes once the pages have moved.
+  value. `.field` is already a class in `game.css`; the new sheet, loaded after
+  it, overrides it on a page. `.field__label` and `.field__input` stay,
+  because the chat box on the felts wears them.
 - **`.lcd`** — the table code on a scanlined screen, one cell per character,
   the example code showing faint until typed over. A real `<input>` sits over
   the cells so paste, autofill and screen readers behave as they do today.
@@ -123,7 +132,7 @@ with `aria-checked` inside a `radiogroup`, as in the mockup.
 
 ### Containers
 
-- **`.cabinet`** — the page's main panel, lit from above like the machine.
+- **`.housing`** — the page's main panel, lit from above like the machine.
   `__head` (the lit strip with a label), `__body`, `__foot` (where the slab
   goes). Replaces `.panel` on pages.
 - **`.well`** — a recess inside a cabinet for things that belong together.
@@ -135,7 +144,7 @@ with `aria-checked` inside a `radiogroup`, as in the mockup.
 - **`.tag`**, `--live`, `--chips` — a small state. Only `--live`'s lamp moves,
   and only while the thing is live.
 - **`.notice`**, `--good`, `--bad` — the table or the server saying something.
-- **Dialogs** are a `.cabinet` with `role="dialog"`; `admin/dialogs.tsx`'s
+- **Dialogs** are a `.housing` with `role="dialog"`; `admin/dialogs.tsx`'s
   `Dialog` keeps its behaviour and swaps its classes.
 
 **`.stake`** from the mockup is not built yet. Nothing on a page chooses a
@@ -153,7 +162,8 @@ Page by page, each one leaving the site working:
 4. Front page.
 5. Profile, redeem, send.
 6. Admin desk and its dialogs.
-7. Leaderboard onto `.sort` and `.rows`.
+7. Leaderboard onto `.sort`. Its rows stay `.board__row`: they are what
+   `.row` was taken from, and their seven-figure grid is the board's own.
 8. Delete the `game.css` rules nothing references any more, confirmed by grep
    rather than by eye.
 
