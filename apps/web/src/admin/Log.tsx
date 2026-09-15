@@ -110,37 +110,43 @@ export function Log() {
   };
 
   return (
-    <section className="panel">
-      <p className="panel__label">What has been done</p>
-      {entries === null ? (
-        <p className="panel__note">{failed ? "Could not read the log." : "Loading…"}</p>
-      ) : entries.length === 0 ? (
-        <p className="panel__note">Nothing yet.</p>
-      ) : (
-        <ul className="desk__log">
-          {entries.map((entry) => (
-            <li key={entry.id} className="desk__log-line">
-              <span className="desk__log-what">{describeEntry(entry)}</span>
-              <span className="desk__log-who">
-                {entry.byName} · {when(entry.at)}
-              </span>
-              {entry.note === "" ? null : <span className="desk__log-note">{entry.note}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {more ? (
-        <div className="desk__buttons">
-          <button type="button" className="btn btn--ghost btn--small" disabled={loadingMore} onClick={older}>
-            {loadingMore ? "Loading…" : "Load older"}
-          </button>
-        </div>
-      ) : null}
-      {olderFailed ? (
-        <p className="panel__note desk__bad" role="status">
-          Could not load older entries.
-        </p>
-      ) : null}
+    <section className="housing" aria-labelledby="log-title">
+      <div className="housing__head">
+        <h2 className="label" id="log-title">
+          What has been done
+        </h2>
+      </div>
+      <div className="housing__body">
+        {entries === null ? (
+          <p className="panel__note">{failed ? "Could not read the log." : "Loading…"}</p>
+        ) : entries.length === 0 ? (
+          <p className="panel__note">Nothing yet.</p>
+        ) : (
+          <ul className="desk__log">
+            {entries.map((entry) => (
+              <li key={entry.id} className="desk__log-line">
+                <span className="desk__log-what">{describeEntry(entry)}</span>
+                <span className="desk__log-who">
+                  {entry.byName} · {when(entry.at)}
+                </span>
+                {entry.note === "" ? null : <span className="desk__log-note">{entry.note}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {more ? (
+          <div className="desk__buttons">
+            <button type="button" className="key key--small" disabled={loadingMore} onClick={older}>
+              {loadingMore ? "Loading…" : "Load older"}
+            </button>
+          </div>
+        ) : null}
+        {olderFailed ? (
+          <p className="panel__note desk__bad" role="status">
+            Could not load older entries.
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }

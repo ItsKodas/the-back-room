@@ -71,44 +71,54 @@ function Bank({ game, label, per }: { game: string; label: string; per: string }
     });
   };
 
+  const id = `bank-${label.toLowerCase().replace(/\W+/g, "-")}`;
+
   return (
-    <section className="panel desk__card">
-      <p className="panel__label">{label}</p>
-      {held === null ? (
-        <p className="panel__note">Could not read it.</p>
-      ) : (
-        <>
-          <strong className="desk__figure code__chips">{fmt(held.bank)}</strong>
-          <p className="panel__note">
-            {held.maxStake < 1
-              ? `Empty, so ${label.toLowerCase()} will not take a stake at all.`
-              : `Covers ${fmt(held.maxStake)} ${per}.`}
+    <section className="housing desk__card" aria-labelledby={id}>
+      <div className="housing__head">
+        <h2 className="label" id={id}>
+          {label}
+        </h2>
+      </div>
+      <div className="housing__body">
+        {held === null ? (
+          <p className="panel__note">Could not read it.</p>
+        ) : (
+          <>
+            <div className="readout">
+              <strong className="readout__figure readout__figure--chips">{fmt(held.bank)}</strong>
+            </div>
+            <p className="panel__note">
+              {held.maxStake < 1
+                ? `Empty, so ${label.toLowerCase()} will not take a stake at all.`
+                : `Covers ${fmt(held.maxStake)} ${per}.`}
+            </p>
+          </>
+        )}
+        <form
+          className="desk__inline"
+          onSubmit={(event) => {
+            event.preventDefault();
+            float();
+          }}
+        >
+          <input
+            className="input"
+            aria-label={`Float for ${label}`}
+            value={amount}
+            inputMode="numeric"
+            onChange={(event) => setAmount(event.target.value)}
+          />
+          <button type="submit" className="slab slab--small">
+            Float
+          </button>
+        </form>
+        {said === null ? null : (
+          <p className="panel__note" role="status">
+            {said}
           </p>
-        </>
-      )}
-      <form
-        className="desk__inline"
-        onSubmit={(event) => {
-          event.preventDefault();
-          float();
-        }}
-      >
-        <input
-          className="field__input"
-          aria-label={`Float for ${label}`}
-          value={amount}
-          inputMode="numeric"
-          onChange={(event) => setAmount(event.target.value)}
-        />
-        <button type="submit" className="btn btn--small">
-          Float
-        </button>
-      </form>
-      {said === null ? null : (
-        <p className="panel__note" role="status">
-          {said}
-        </p>
-      )}
+        )}
+      </div>
     </section>
   );
 }

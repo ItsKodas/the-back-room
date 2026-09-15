@@ -150,80 +150,92 @@ export function Emotes() {
 
   return (
     <>
-      <section className="panel">
-        <p className="panel__label">New emote</p>
-        <div className="desk__two">
-          <label className="field">
-            <span className="field__label">Name</span>
-            <input
-              className="field__input"
-              value={name}
-              maxLength={MAX_NAME}
-              placeholder="Smug"
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">What a throw costs</span>
-            <input
-              className="field__input"
-              value={cost}
-              inputMode="numeric"
-              onChange={(event) => setCost(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Picture — GIF, PNG, JPEG or WebP, up to 2MB</span>
-            <input
-              className="field__input"
-              type="file"
-              ref={imageInput}
-              accept={IMAGE_TYPES}
-              onChange={(event) => setImage(event.target.files?.[0] ?? null)}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Sound — optional, MP3, OGG or WAV, up to 1MB</span>
-            <input
-              className="field__input"
-              type="file"
-              ref={soundInput}
-              accept={SOUND_TYPES}
-              onChange={(event) => setSound(event.target.files?.[0] ?? null)}
-            />
-          </label>
+      <section className="housing" aria-labelledby="emotes-new">
+        <div className="housing__head">
+          <h2 className="label" id="emotes-new">
+            New emote
+          </h2>
         </div>
-        <button type="button" className="btn btn--wide" disabled={busy} onClick={add}>
-          {busy ? "Uploading…" : "Add emote"}
-        </button>
-        <p className="panel__note">
-          Players pay to throw these at each other. The chips are staked on whoever it lands
-          on: if they win the hand they take the lot and it comes back at whoever threw it,
-          and if they lose it is gone. A sound is optional — plenty of them are funnier
-          without one.
-        </p>
-        {said === null ? null : (
-          <p className="panel__note" role="status">
-            {said}
+        <div className="housing__body">
+          <div className="desk__two">
+            <label className="entry">
+              <span className="label">Name</span>
+              <input
+                className="input"
+                value={name}
+                maxLength={MAX_NAME}
+                placeholder="Smug"
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <label className="entry">
+              <span className="label">What a throw costs</span>
+              <input
+                className="input"
+                value={cost}
+                inputMode="numeric"
+                onChange={(event) => setCost(event.target.value)}
+              />
+            </label>
+            <label className="entry">
+              <span className="label">Picture — GIF, PNG, JPEG or WebP, up to 2MB</span>
+              <input
+                className="input"
+                type="file"
+                ref={imageInput}
+                accept={IMAGE_TYPES}
+                onChange={(event) => setImage(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <label className="entry">
+              <span className="label">Sound — optional, MP3, OGG or WAV, up to 1MB</span>
+              <input
+                className="input"
+                type="file"
+                ref={soundInput}
+                accept={SOUND_TYPES}
+                onChange={(event) => setSound(event.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
+          <button type="button" className="slab slab--wide" disabled={busy} onClick={add}>
+            {busy ? "Uploading…" : "Add emote"}
+          </button>
+          <p className="panel__note">
+            Players pay to throw these at each other. The chips are staked on whoever it lands
+            on: if they win the hand they take the lot and it comes back at whoever threw it,
+            and if they lose it is gone. A sound is optional — plenty of them are funnier
+            without one.
           </p>
-        )}
+          {said === null ? null : (
+            <p className="panel__note" role="status">
+              {said}
+            </p>
+          )}
+        </div>
       </section>
 
-      <section className="panel">
-        <p className="panel__label">Emotes</p>
-        {emotes === null || emotes.length === 0 ? (
-          <p className="panel__note">{failed ? "Could not read the emotes." : "None yet."}</p>
-        ) : (
-          <div className="desk__emotes">
-            {emotes.map((emote) => (
-              <EmoteCard key={emote.id} emote={emote} onChanged={load} />
-            ))}
-          </div>
-        )}
-        <p className="panel__note">
-          Retiring one stops it being offered and keeps its picture for any replay still owed.
-          Deleting one removes it for good; a replay still owed shows its name without it.
-        </p>
+      <section className="housing" aria-labelledby="emotes-list">
+        <div className="housing__head">
+          <h2 className="label" id="emotes-list">
+            Emotes
+          </h2>
+        </div>
+        <div className="housing__body">
+          {emotes === null || emotes.length === 0 ? (
+            <p className="panel__note">{failed ? "Could not read the emotes." : "None yet."}</p>
+          ) : (
+            <div className="desk__emotes">
+              {emotes.map((emote) => (
+                <EmoteCard key={emote.id} emote={emote} onChanged={load} />
+              ))}
+            </div>
+          )}
+          <p className="panel__note">
+            Retiring one stops it being offered and keeps its picture for any replay still owed.
+            Deleting one removes it for good; a replay still owed shows its name without it.
+          </p>
+        </div>
       </section>
     </>
   );
@@ -280,7 +292,7 @@ function EmoteCard({ emote, onChanged }: { emote: Emote; onChanged: () => void }
         {emote.retired ? null : (
           <button
             type="button"
-            className="btn btn--ghost btn--small"
+            className="key key--small"
             onClick={() => post(`/api/admin/emotes/${emote.id}/retire`)}
           >
             Retire
@@ -288,7 +300,7 @@ function EmoteCard({ emote, onChanged }: { emote: Emote; onChanged: () => void }
         )}
         <button
           type="button"
-          className={`btn btn--ghost btn--small${arming ? " desk__danger" : ""}`}
+          className={`key key--small${arming ? " key--danger" : ""}`}
           onClick={() => {
             if (arming) {
               post(`/api/admin/emotes/${emote.id}/delete`);

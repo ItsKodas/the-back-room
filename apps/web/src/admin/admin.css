@@ -92,15 +92,8 @@
   align-content: start;
 }
 
-.desk__card .panel__label,
 .desk__card .panel__note {
   margin: 0;
-}
-
-.desk__figure {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-xl);
-  font-variant-numeric: tabular-nums;
 }
 
 .desk__inline {
@@ -108,7 +101,7 @@
   gap: var(--gr-space-2);
 }
 
-.desk__inline .field__input {
+.desk__inline .input {
   flex: 1;
   min-width: 0;
 }
@@ -120,7 +113,7 @@
   gap: var(--gr-space-3);
 }
 
-.desk__row .field {
+.desk__row .entry {
   margin: 0;
 }
 
@@ -146,15 +139,14 @@
   }
 
   /*
-   * `.btn--small` sets `min-height: auto`, so a Retire or Revoke or a
-   * pager button measures under the 44px thumb floor everywhere it is
-   * used across the desk — cards, tables, dialogs, the pager. One rule
-   * here covers all of them without a patch per tab; scoped to `.desk`
-   * so a small button elsewhere in the building is untouched. The dialog
-   * is named on its own because it is portalled to the body, outside `.desk`.
+   * A small key is 38px everywhere; on the desk, used as the only control on
+   * a card or a row, it gets the thumb floor. The dialog is named on its own
+   * because it is portalled to the body, outside `.desk`.
    */
-  .desk .btn--small,
-  .desk__dialog .btn--small {
+  .desk .key--small,
+  .desk .slab--small,
+  .desk__dialog .key--small,
+  .desk__dialog .slab--small {
     min-height: 44px;
   }
 }
@@ -268,10 +260,10 @@
   align-items: center;
   gap: var(--gr-space-2);
   padding: var(--gr-space-3);
-  border: 1px solid color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(8 12 20 / 0.94);
-  box-shadow: var(--gr-lift-low);
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  background: linear-gradient(180deg, var(--gr-color-smoke-lit), var(--gr-color-slate));
+  box-shadow: var(--gr-lip), 0 18px 40px rgb(0 0 0 / 0.42);
   animation: desk-arrive 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
@@ -310,7 +302,6 @@
   width: min(420px, 100%);
   max-height: calc(100dvh - 2 * var(--gr-space-4));
   overflow-y: auto;
-  background: rgb(10 14 22 / 0.98);
   animation: desk-arrive 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
@@ -319,7 +310,7 @@
   gap: var(--gr-space-3);
 }
 
-.desk__form .field,
+.desk__form .entry,
 .desk__form .panel__note {
   margin: 0;
 }
@@ -356,19 +347,14 @@
   color: var(--gr-color-bad);
 }
 
-.btn.desk__danger:not(:disabled) {
-  border-color: color-mix(in srgb, var(--gr-color-bad) 60%, transparent);
-  color: var(--gr-color-bad);
-  background: color-mix(in srgb, var(--gr-color-bad) 10%, transparent);
-}
-
 @media (max-width: 480px) {
   .desk__person {
     grid-template-columns: 44px 32px minmax(0, 1fr);
     grid-template-areas: "pick face name" "pick face chips" "pick face meta";
   }
 
-  .desk__bar .btn {
+  .desk__bar .key,
+  .desk__bar .slab {
     flex: 1 1 calc(50% - var(--gr-space-2));
     min-height: 44px;
   }
@@ -396,7 +382,7 @@
  * this it is the one control in the building that can drag a 375px page
  * wider than the phone showing it.
  */
-.desk__two .field__input[type="file"] {
+.desk__two .input[type="file"] {
   max-width: 100%;
   min-width: 0;
 }
