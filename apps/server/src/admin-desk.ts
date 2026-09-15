@@ -1,7 +1,8 @@
 import type { AdminLogEntry, AdminTarget, Store } from "@backroom/economy";
 import { adminChipsSchema, adminResetSchema } from "@backroom/shared/schemas";
-import type { Express, Request, RequestHandler } from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import express from "express";
+import { bestEffort, handle } from "./handle.js";
 
 /**
  * The admin desk: players, their chips, and the record of what was done.
@@ -22,6 +23,21 @@ export const ADMIN_BULK_PATHS: readonly string[] = ["/api/admin/chips", "/api/ad
 const bulkJson = express.json({ limit: "64kb" });
 
 const PAGE = 50;
+
+/**
+ * The answer to an admin change that was made but could not be written down.
+ *
+ * Not a plain 500. Every change on the desk is already done by the time its
+ * log entry is written, and "it failed" read by an admin is "do it again" — a
+ * second grant of chips nobody won, this time with no record of either. So
+ * the answer says it happened, carries what it did, and says not to repeat it.
+ */
+export const UNRECORDED = "Done, but the admin log did not record it. Do not repeat it.";
+
+export function answerUnrecorded(response: Response, applied: unknown, error: unknown): void {
+  console.error("an admin change was made but not logged", applied, error);
+  response.status(500).json({ error: UNRECORDED, applied });
+}
 
 export interface SeatedTable {
   seats: ReadonlyArray<{ userId: string | null; isBot: boolean }>;
@@ -86,21 +102,43 @@ function logTarget(target: AdminTarget): "all" | string[] {
 export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
   const { store, requireAdmin, whoIs, tellChipsTo, tables, emptyBanks, emoteDeleted } = deps;
 
-  async function log(request: Request, entry: Omit<AdminLogEntry, "id" | "at" | "by" | "byName">) {
-    const who = await whoIs(request);
-    await store.logAdmin({ ...entry, by: who?.id ?? "unknown", byName: who?.name ?? "unknown" });
+  /**
+   * Writes down a change that has already been made, or answers for it.
+   *
+   * False means the response has been sent — see `UNRECORDED` for what it
+   * says and why it is not a plain failure.
+   */
+  async function recorded(
+    request: Request,
+    response: Response,
+    applied: unknown,
+    entry: Omit<AdminLogEntry, "id" | "at" | "by" | "byName">,
+  ): Promise<boolean> {
+    try {
+      const who = await whoIs(request);
+      await store.logAdmin({ ...entry, by: who?.id ?? "unknown", byName: who?.name ?? "unknown" });
+      return true;
+    } catch (error) {
+      answerUnrecorded(response, applied, error);
+      return false;
+    }
   }
 
-  app.get("/api/admin/users", requireAdmin, (request, response) => {
-    void (async () => {
+  app.get(
+    "/api/admin/users",
+    requireAdmin,
+    handle(async (request, response) => {
       const offset = Math.max(0, Math.floor(Number(request.query["offset"] ?? 0)) || 0);
       const query = String(request.query["q"] ?? "").slice(0, 32);
       response.json(await store.listUsers({ query, offset, limit: PAGE }));
-    })();
-  });
+    }),
+  );
 
-  app.post("/api/admin/chips", requireAdmin, bulkJson, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/chips",
+    requireAdmin,
+    bulkJson,
+    handle(async (request, response) => {
       const parsed = adminChipsSchema.safeParse(request.body);
       if (!parsed.success) {
         response.status(400).json({ error: "That is not something the desk can do." });
@@ -108,7 +146,10 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
       }
       const { op, amount, target, note } = parsed.data;
       const result = await store.adjustBalances({ target, op, amount });
-      await log(request, {
+      // Told whether or not the log takes it: the balances have changed
+      // either way, and a screen showing the old one is wrong either way.
+      const told = bestEffort("telling players their chips", tellChipsTo(target));
+      const logged = await recorded(request, response, result, {
         kind: op,
         // What moved, not what was asked: taking 5,000 from somebody holding
         // 1,200 took 1,200, and the record should say so.
@@ -119,13 +160,18 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         subject: null,
         note: (note ?? "").trim(),
       });
-      await tellChipsTo(target);
-      response.json(result);
-    })();
-  });
+      await told;
+      if (logged) {
+        response.json(result);
+      }
+    }),
+  );
 
-  app.post("/api/admin/reset", requireAdmin, bulkJson, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/reset",
+    requireAdmin,
+    bulkJson,
+    handle(async (request, response) => {
       const parsed = adminResetSchema.safeParse(request.body);
       if (!parsed.success) {
         response.status(400).json({ error: "That is not something the desk can do." });
@@ -141,7 +187,7 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         return;
       }
       const result = await store.resetUsers({ target, parts });
-      await log(request, {
+      const logged = await recorded(request, response, result, {
         kind: "reset",
         amount: 0,
         affected: result.affected,
@@ -150,26 +196,42 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         subject: null,
         note: (note ?? "").trim(),
       });
+      /*
+       * An unrecorded reset stops here rather than going on to empty the
+       * banks: a log that could not take one entry is not going to take the
+       * next, and emptying every bank in the building off the record is a
+       * bigger thing to have done silently than the reset it followed.
+       */
       let emptied: number | undefined;
-      if (wantEmptyBanks === true) {
+      if (logged && wantEmptyBanks === true) {
         emptied = await emptyBanks();
-        await log(request, {
-          kind: "empty-banks",
-          amount: emptied,
-          affected: 0,
-          target: "all",
-          parts: null,
-          subject: null,
-          note: (note ?? "").trim(),
-        });
+        const applied = { ...result, emptied };
+        if (
+          !(await recorded(request, response, applied, {
+            kind: "empty-banks",
+            amount: emptied,
+            affected: 0,
+            target: "all",
+            parts: null,
+            subject: null,
+            note: (note ?? "").trim(),
+          }))
+        ) {
+          await bestEffort("telling players their chips", tellChipsTo(target));
+          return;
+        }
       }
-      await tellChipsTo(target);
-      response.json(emptied === undefined ? result : { ...result, emptied });
-    })();
-  });
+      await bestEffort("telling players their chips", tellChipsTo(target));
+      if (logged) {
+        response.json(emptied === undefined ? result : { ...result, emptied });
+      }
+    }),
+  );
 
-  app.get("/api/admin/log", requireAdmin, (request, response) => {
-    void (async () => {
+  app.get(
+    "/api/admin/log",
+    requireAdmin,
+    handle(async (request, response) => {
       // Both halves or neither: a time without the id it pairs with is not a
       // cursor that can page past a shared millisecond, so it reads as the
       // first page rather than as a half-cursor that quietly skips an entry.
@@ -180,8 +242,8 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
           ? { at, id }
           : null;
       response.json({ entries: await store.adminLog({ limit: PAGE, before }) });
-    })();
-  });
+    }),
+  );
 
   /**
    * Deletes an emote for good.
@@ -189,8 +251,10 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
    * A pool still holding it keeps its chips — those live on the taunt, not on
    * the emote — and its replay shows the name with nothing behind it.
    */
-  app.post("/api/admin/emotes/:id/delete", requireAdmin, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/emotes/:id/delete",
+    requireAdmin,
+    handle(async (request, response) => {
       const id = String(request.params["id"] ?? "");
       const emote = (await store.listEmotes(true)).find((one) => one.id === id);
       if (emote === undefined || !(await store.deleteEmote(id))) {
@@ -198,7 +262,7 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         return;
       }
       emoteDeleted(id);
-      await log(request, {
+      const logged = await recorded(request, response, { ok: true }, {
         kind: "delete-emote",
         amount: 0,
         affected: 0,
@@ -207,7 +271,9 @@ export function mountAdminDesk(app: Express, deps: AdminDeskRoutes): void {
         subject: emote.name,
         note: "",
       });
-      response.json({ ok: true });
-    })();
-  });
+      if (logged) {
+        response.json({ ok: true });
+      }
+    }),
+  );
 }

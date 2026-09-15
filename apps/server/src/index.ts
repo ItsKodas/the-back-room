@@ -23,6 +23,21 @@ function firstLine(message: string): string {
   return end === -1 ? message : message.slice(0, end).trimEnd();
 }
 
+/*
+ * The last line of defence, and logged rather than fatal.
+ *
+ * Every route and event already catches its own failures, so reaching here is
+ * a bug — and it is loud so it gets found. But Node's default is to end the
+ * process, and this process is every table in the building: the stakes on
+ * their felts live in memory, and one stray promise is not worth all of them.
+ * A synchronous `uncaughtException` keeps the default, because a throw can
+ * leave state half-changed in a way a rejected promise, finished and alone,
+ * does not.
+ */
+process.on("unhandledRejection", (reason) => {
+  console.error("backroom: unhandled rejection — this is a bug, and the server kept running", reason);
+});
+
 async function main(): Promise<void> {
   let store: Store = new MemoryStore();
   let sessionStore: session.Store | undefined;

@@ -1,6 +1,7 @@
 import type { Store } from "@backroom/economy";
 import { DAILY_SEND_CAP, SEND_REFUSALS, SEND_WINDOW_MS, leftToSend } from "@backroom/economy";
 import type { Express, Request, RequestHandler } from "express";
+import { bestEffort, handle } from "./handle.js";
 
 /**
  * Paying another player.
@@ -62,16 +63,14 @@ export function mountTransfers(
       response: Parameters<RequestHandler>[1],
     ) => Promise<void>,
   ): RequestHandler => {
-    return (request, response) => {
-      void (async () => {
-        const who = await whoIs(request);
-        if (who === null) {
-          response.status(401).json({ error: "Sign in first." });
-          return;
-        }
-        await run(who, request, response);
-      })();
-    };
+    return handle(async (request, response) => {
+      const who = await whoIs(request);
+      if (who === null) {
+        response.status(401).json({ error: "Sign in first." });
+        return;
+      }
+      await run(who, request, response);
+    });
   };
 
   /**
@@ -151,9 +150,11 @@ export function mountTransfers(
        * Both ends told, not just the one that asked. The sender gets their
        * balance in the reply; the recipient is very often looking at the site
        * and should see it arrive rather than find it later.
+       *
+       * But only as well as it can be done. The chips have moved by now, and
+       * a 500 here would read as "not sent" to somebody about to send again.
        */
-      await tellChips(who.id);
-      await tellChips(result.to.id);
+      await bestEffort("telling both ends of a transfer", tellChips(who.id), tellChips(result.to.id));
       response.json({
         ok: true,
         balance: result.balance,
