@@ -54,6 +54,82 @@ describe("the way to the admin desk", () => {
   });
 });
 
+describe("the menu on a phone", () => {
+  beforeEach(() => {
+    vi.mocked(play).mockClear();
+  });
+
+  function bar(props: Partial<Parameters<typeof Navbar>[0]> = {}) {
+    return render(
+      <MemoryRouter>
+        <Navbar account={account(false)} {...props} />
+      </MemoryRouter>,
+    );
+  }
+
+  it("opens from the chips and says so", () => {
+    const { container } = bar();
+    const trigger = screen.getByRole("button", { name: "Menu" });
+    const menu = container.querySelector(".nav__menu");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(menu?.hasAttribute("data-open")).toBe(false);
+
+    fireEvent.click(trigger);
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(menu?.hasAttribute("data-open")).toBe(true);
+    expect(vi.mocked(play).mock.calls).toEqual([["open"]]);
+  });
+
+  it("shuts on Escape, handing focus back, and on a press anywhere else", () => {
+    bar();
+    const trigger = screen.getByRole("button", { name: "Menu" });
+
+    fireEvent.click(trigger);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(trigger);
+
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("stays open for a press inside it", () => {
+    bar();
+    const trigger = screen.getByRole("button", { name: "Menu" });
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(screen.getByRole("group", { name: "Sound" }));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("holds the table's code and way out, the desk and the sound, not the bar", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Navbar account={account(true)} table={{ code: "ABCDE", onLeave: () => {} }} />
+      </MemoryRouter>,
+    );
+    const menu = container.querySelector(".nav__menu");
+    expect(menu?.contains(screen.getByRole("button", { name: "Leave table" }))).toBe(true);
+    expect(menu?.contains(screen.getByRole("link", { name: "Admin desk" }))).toBe(true);
+    expect(menu?.contains(screen.getByRole("group", { name: "Sound" }))).toBe(true);
+    // The light is not in the menu: it is the bar's far corner.
+    expect(menu?.querySelector(".nav__link")).toBeNull();
+  });
+});
+
+describe("the connection light", () => {
+  it("says the table cannot hear you with colour, not a word on the bar", () => {
+    render(
+      <MemoryRouter>
+        <Navbar account={account(false)} connected={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText(/offline/i)).toBeNull();
+    expect(screen.getByRole("img", { name: "Offline" })).toBeTruthy();
+  });
+});
+
 describe("the sign, as the way home", () => {
   beforeEach(() => {
     vi.mocked(play).mockClear();

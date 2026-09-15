@@ -234,68 +234,209 @@
   flex: none;
 }
 
+/* Only a phone has a menu to open; on a desk what is in it sits on the bar. */
+.nav__trigger {
+  display: none;
+}
+
+.nav__menu {
+  display: contents;
+}
+
 /*
- * A phone: the sign and the keys share the top line, who you are takes the
- * whole of the second. Wrapping a flex row put whichever child ran out of
- * width on a line of its own — a lone sound key under the account pill — so
- * the rows are laid out deliberately instead of left to the leftovers.
+ * A phone: one row. The sign on the left, the game in the middle, your chips
+ * with a caret and the connection light on the right. Everything else the bar
+ * operates — the table's code and way out, the desk, install, sound — waits in
+ * a menu under the chips, because a row of keys a phone cannot fit is a row
+ * that wraps wherever it runs out.
  */
 @media (max-width: 640px) {
   .nav {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "brand keys"
-      "who who";
-    row-gap: var(--gr-space-3);
-    column-gap: var(--gr-space-2);
+    position: relative;
+    flex-wrap: nowrap;
+    gap: var(--gr-space-2);
     padding-bottom: var(--gr-space-3);
   }
 
   .nav__brand {
-    grid-area: brand;
+    display: contents;
   }
 
-  .nav__keys {
-    grid-area: keys;
+  /* Two lines before an ellipsis: "Death Roll" stacked still reads as its name. */
+  .nav__game {
+    flex: 1;
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.05;
+    font-size: var(--gr-text-base);
   }
 
-  .nav__who {
-    grid-area: who;
+  .nav__trigger {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    margin-left: auto;
+    padding: 0 8px 0 4px;
+    border: 1px solid rgb(0 0 0 / 0.55);
+    border-radius: var(--gr-radius-pill);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.25)),
+      var(--gr-color-slate);
+    box-shadow:
+      var(--gr-lip),
+      0 2px 0 rgb(0 0 0 / 0.3);
+    color: var(--gr-color-ink);
+    font: inherit;
+    font-size: var(--gr-text-sm);
+    cursor: pointer;
+  }
+
+  .nav__trigger:focus-visible {
+    outline: 2px solid var(--gr-color-neon-hi);
+    outline-offset: 2px;
+  }
+
+  .nav__trigger-guest {
+    padding-left: 8px;
+  }
+
+  .nav__trigger-chips {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--gr-font-data);
+    font-variant-numeric: tabular-nums;
+    color: var(--gr-color-chip);
+  }
+
+  .nav__caret {
+    width: 14px;
+    height: 14px;
+    color: var(--gr-color-ink-dim);
+    transition: transform 220ms cubic-bezier(0.16, 1.06, 0.28, 1);
+  }
+
+  .nav__trigger[aria-expanded="true"] .nav__caret {
+    transform: rotate(180deg);
+  }
+
+  /*
+   * Dropped from the chips' corner. Hidden with visibility as well as faded,
+   * so a shut menu is out of the tab order, and the visibility waits for the
+   * motion to finish rather than snapping it away mid-fade.
+   */
+  .nav__menu {
+    position: absolute;
+    z-index: 70;
+    top: 100%;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gr-space-3);
+    width: min(300px, 100%);
+    padding: var(--gr-space-3);
+    border: 1px solid rgb(0 0 0 / 0.62);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent),
+      var(--gr-color-slate);
+    box-shadow: var(--gr-lift-high);
+    transform-origin: top right;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px) scale(0.97);
+    transition:
+      opacity 140ms ease-out,
+      transform 220ms cubic-bezier(0.16, 1.06, 0.28, 1),
+      visibility 0s linear 220ms;
+  }
+
+  .nav__menu[data-open] {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition:
+      opacity 140ms ease-out,
+      transform 220ms cubic-bezier(0.16, 1.06, 0.28, 1),
+      visibility 0s;
+  }
+
+  .nav__menu .nav__who {
+    flex-direction: column;
+    align-items: stretch;
     margin-left: 0;
-    justify-content: space-between;
   }
 
-  /* Still asking who you are: no empty second row holding a gap open. */
-  .nav__who:empty {
+  .nav__menu .nav__who:empty {
     display: none;
   }
 
-  .nav__game {
+  .nav__menu .nav__who:not(:empty) + .nav__keys {
+    padding-top: var(--gr-space-3);
+    border-top: var(--gr-edge-hair);
+  }
+
+  .nav__menu .nav__keys {
+    flex-wrap: wrap;
+  }
+
+  /* Your profile, as the menu's first row rather than a pill on the bar. */
+  .nav__menu .me {
+    width: 100%;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: var(--gr-text-lg);
+  }
+
+  .nav__menu .me__chips {
+    margin-left: auto;
+  }
+
+  .nav__menu .nav__who > .key {
+    justify-content: center;
+  }
+
+  .nav__menu .nav__table {
+    justify-content: space-between;
+  }
+
+  .nav__menu .nav__guest {
+    padding: 0 var(--gr-space-1);
+  }
+
+  /*
+   * The sound panel and the install steps open against the menu rather than
+   * their own button: anchored to a key halfway along a 300px menu, either
+   * would run off the side of a phone.
+   */
+  .nav__menu .vol,
+  .nav__menu .install {
+    position: static;
+  }
+
+  .nav__menu .vol__pop {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+
+  .nav__menu .install__hint {
+    left: 0;
+    right: 0;
+    width: auto;
   }
 }
 
-/* Two-word names — Death Roll, Liar's Dice — fit beside the sign at a
-   phone's narrowest only a step smaller; the ellipsis is the last resort. */
-@media (max-width: 420px) {
-  .nav__game {
-    font-size: var(--gr-text-base);
-  }
-}
-
-@media (max-width: 640px) {
-
-  /* Your name gives way before the table or the chips do. */
-  .nav__table {
-    flex: none;
-  }
-
-  .me {
-    min-width: 0;
+@media (prefers-reduced-motion: reduce) {
+  .nav__menu,
+  .nav__menu[data-open],
+  .nav__caret {
+    transition: none;
   }
 }
 

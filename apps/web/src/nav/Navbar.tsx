@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChipMark } from "../chips/Chip.js";
 import { Digits } from "../game/Digits.js";
+import { play } from "../game/audio.js";
 import { Avatar } from "../game/Avatar.js";
 import { throughTheDoor } from "../game/doors.js";
 import { compact, exact } from "../game/money.js";
@@ -46,11 +47,51 @@ export interface NavbarProps {
  */
 export function Navbar({ game, table, account, connected }: NavbarProps) {
   const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const bar = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useId();
+
+  // Walking somewhere is the menu having done its job.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const away = (event: Event) => {
+      if (!bar.current?.contains(event.target as Node)) {
+        shut();
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        shut();
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", away);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      window.removeEventListener("keydown", onKey);
+    };
+  });
+
+  function shut() {
+    play("close");
+    setOpen(false);
+  }
+
   return (
-    <header className="nav">
-      {/* Three groups rather than a row of loose children, so a narrow bar can
-          lay them out as two tidy rows instead of wrapping wherever the width
-          happens to run out. */}
+    <header className="nav" ref={bar}>
+      {/* Groups rather than a row of loose children. On a desk the menu is
+          not a box at all and its groups sit on the bar; on a phone the same
+          elements drop down under the chips. One set of controls either way,
+          because Sound owns the music player and a second copy would fight
+          it for the stage. */}
       <div className="nav__brand">
         <h1 className="nav__mark">
           <Link
@@ -69,33 +110,51 @@ export function Navbar({ game, table, account, connected }: NavbarProps) {
         {game !== undefined ? <span className="nav__game">{game}</span> : null}
       </div>
 
-      <div className="nav__who">
-        {/* The table you are at, as one object — the same shape as the account
-            beside it, because both are a thing you are in rather than a control.
-            Leaving lives inside it: the way out belongs to the table, not to
-            the bar, and it says "Leave" rather than only drawing an arrow. */}
-        {table !== undefined ? (
-          <span className="nav__table">
-            <CopyCode code={table.code} />
-            <LeaveButton table={table} />
-          </span>
-        ) : null}
-        <Who account={account} />
-        {/* With who you are rather than with the keys: it is a state, not a
-            control, and worded as "offline" it is too wide to share the top
-            line of a phone with the sign. */}
-        {connected === undefined ? null : <Connection up={connected} />}
+      {/* Only shown on a phone: your chips, and a caret saying there is more. */}
+      <button
+        ref={trigger}
+        type="button"
+        className="nav__trigger"
+        aria-label="Menu"
+        aria-expanded={open}
+        aria-controls={menu}
+        onClick={() => {
+          play(open ? "close" : "open");
+          setOpen(!open);
+        }}
+      >
+        <Badge account={account} />
+        <CaretIcon />
+      </button>
+
+      <div id={menu} className="nav__menu" data-open={open || undefined}>
+        <div className="nav__who">
+          {/* The table you are at, as one object — the same shape as the account
+              beside it, because both are a thing you are in rather than a control.
+              Leaving lives inside it: the way out belongs to the table, not to
+              the bar, and it says "Leave" rather than only drawing an arrow. */}
+          {table !== undefined ? (
+            <span className="nav__table">
+              <CopyCode code={table.code} />
+              <LeaveButton table={table} />
+            </span>
+          ) : null}
+          <Who account={account} />
+        </div>
+
+        <div className="nav__keys">
+          {account.admin ? (
+            <Link to="/admin" className="key key--icon" aria-label="Admin desk" title="Admin desk">
+              <KeyIcon />
+            </Link>
+          ) : null}
+          <Install />
+          <Sound />
+        </div>
       </div>
 
-      <div className="nav__keys">
-        {account.admin ? (
-          <Link to="/admin" className="key key--icon" aria-label="Admin desk" title="Admin desk">
-            <KeyIcon />
-          </Link>
-        ) : null}
-        <Install />
-        <Sound />
-      </div>
+      {/* Last, so it is the far corner of the bar at every width. */}
+      {connected === undefined ? null : <Connection up={connected} />}
     </header>
   );
 }
@@ -205,17 +264,61 @@ function Who({ account }: { account: Account }) {
  * Nothing is said while it is fine. A green light that is always on is the
  * same as no light at all, and it spends attention every second to tell you
  * something you already assumed — so the ordinary state is a quiet dot, and
- * only trouble is lit, moving and worded.
+ * only trouble is lit and moving. Not worded on the bar, where the word cost
+ * a phone the room it needed for the sign; the word is still what a screen
+ * reader hears and what a pointer finds on the title.
  */
 function Connection({ up }: { up: boolean }) {
+  const said = up ? "Connected" : "Offline";
   return (
-    <span
-      className={`nav__link${up ? "" : " nav__link--down"}`}
-      title={up ? "Connected" : "Offline"}
-    >
+    <span className={`nav__link${up ? "" : " nav__link--down"}`} role="img" aria-label={said} title={said}>
       <i className="nav__dot" />
-      {up ? null : <span>offline</span>}
     </span>
+  );
+}
+
+/**
+ * What the phone's menu button wears: your face and chips, the same glance
+ * the pill gives on a desk, or simply "Guest". Nothing while still asking,
+ * rather than a guess at who you are that gets taken back.
+ */
+function Badge({ account }: { account: Account }) {
+  if (account.loading) {
+    return null;
+  }
+  if (account.profile === null) {
+    return <span className="nav__trigger-guest">Guest</span>;
+  }
+  return (
+    <>
+      <Avatar
+        name={account.profile.name}
+        avatar={account.profile.avatar}
+        accentColor={account.profile.accentColor}
+        className="me__face"
+      />
+      <span className="nav__trigger-chips">
+        <ChipMark />
+        <Digits value={compact(account.profile.chips)} />
+      </span>
+    </>
+  );
+}
+
+function CaretIcon() {
+  return (
+    <svg
+      className="nav__caret"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
   );
 }
 
