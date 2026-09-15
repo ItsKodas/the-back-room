@@ -426,6 +426,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * that happens would lose whatever it had not yet handed back.
    */
   const closing = new Map<string, Promise<void>>();
+  /*
+   * Set the moment `close()` begins, and never cleared. Sockets stay open
+   * until the very end of a shutdown, and a table opened or joined in that
+   * time is chips the store closes on; refusing them at the door is what lets
+   * `closeAllTables` finish rather than chase new tables forever.
+   */
+  let shuttingDown = false;
+  const SHUTTING_DOWN = "The server is shutting down.";
   /** A settlement still moving chips, so a close can wait for it to finish. */
   const settling = new Map<string, Promise<void>>();
   /**
@@ -1741,9 +1749,18 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
      * there and then — so the room waiting for it as well would guard nothing.
      */
     await settling.get(code);
-    if (seated.game.isSettled(seated.table) && !settled.has(code)) {
-      settled.add(code);
-      await settleNow(code, seated);
+    /*
+     * Caught here rather than left to reject: both of these are the game's
+     * code running synchronously, and a throw out of this function would skip
+     * the void below — the one step that hands the stakes back.
+     */
+    try {
+      if (seated.game.isSettled(seated.table) && !settled.has(code)) {
+        settled.add(code);
+        await settleNow(code, seated);
+      }
+    } catch (error) {
+      console.error(`closing ${code}: paying the decided hand failed`, error);
     }
     try {
       await seated.game.void(seated.table, deps);
@@ -1771,7 +1788,30 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   }
 
   async function closeAllTables(reason: TableClosedReason): Promise<void> {
-    await Promise.all([...rooms.keys()].map((code) => closeTable(code, reason)));
+    /*
+     * Round again for any table that appeared while the last round's refunds
+     * were travelling: it holds chips too. Each code is asked once, so a table
+     * whose close somehow left it behind is logged rather than looped on.
+     *
+     * Settled rather than all: one table failing must not return before the
+     * others have handed everything back, or the store closes under them.
+     */
+    const asked = new Set<string>();
+    for (;;) {
+      const codes = [...rooms.keys()].filter((code) => !asked.has(code));
+      if (codes.length === 0) {
+        return;
+      }
+      for (const code of codes) {
+        asked.add(code);
+      }
+      const results = await Promise.allSettled(codes.map((code) => closeTable(code, reason)));
+      results.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(`closing ${codes[index]}: the close failed`, result.reason);
+        }
+      });
+    }
   }
 
   /** Runs a seated action, turning a RoomError into a message not a crash. */
@@ -1794,6 +1834,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     }
     if (!withinBudget(budgets, socketId, RATE_EVENTS, RATE_WINDOW_MS)) {
       socket.emit("room:error", "Slow down.");
+      return;
+    }
+    if (shuttingDown) {
+      socket.emit("room:error", SHUTTING_DOWN);
       return;
     }
     const seated = rooms.get(seat.code);
@@ -2066,6 +2110,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     wireTips(socket, { store, tellChips });
 
     socket.on("lobby:create", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = createSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "Pick a name first." });
@@ -2123,6 +2171,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("lobby:join", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = joinSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "That is not a table code." });
@@ -2174,6 +2226,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("lobby:resume", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = resumeSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "That table is gone." });
@@ -2200,6 +2256,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("lobby:watch", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = watchSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "That is not a table code." });
@@ -2404,6 +2464,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           ack({ ok: false, error: "Give them a moment." });
           return;
         }
+        if (shuttingDown) {
+          ack({ ok: false, error: SHUTTING_DOWN });
+          return;
+        }
         const seated = rooms.get(seat.code);
         if (seated === undefined) {
           ack({ ok: false, error: "That table is gone." });
@@ -2458,7 +2522,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          * that moment has already handed back every taunt it could see, and a
          * pool added now would be chips nothing ever returns.
          */
-        if (closing.has(seat.code) || rooms.get(seat.code) !== seated) {
+        if (shuttingDown || closing.has(seat.code) || rooms.get(seat.code) !== seated) {
           await deps.give(from.userId, emote.cost);
           ack({ ok: false, error: "This table is closing." });
           return;
@@ -2795,6 +2859,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   });
 
   async function close(): Promise<void> {
+    shuttingDown = true;
     /*
      * First, before the timers go and before the store closes: handing chips
      * back needs both a table that still exists and a store that still answers.

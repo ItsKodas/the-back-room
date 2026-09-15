@@ -438,4 +438,104 @@ describe("the server stopping", () => {
     await first;
     expect(await chipsOf(ada.id)).toBe(before);
   });
+
+  /*
+   * Sockets stay open until the very end of a shutdown, and a close waits on
+   * every refund, so a slow one leaves plenty of time to open a table and put
+   * chips on it. The store closes right after; whatever that table holds has
+   * to have gone back before it does.
+   */
+  it("leaves nothing on a table opened while it is stopping", async () => {
+    const { store, ada, bo, client, hold, chipsOf, before } = await stakedWheel({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const late = await client();
+    const boBefore = await chipsOf(bo.id);
+    const refund = hold(ada.id, 1);
+
+    const stopping = server;
+    server = null;
+    const closed = stopping?.close();
+    await refund.arrived;
+
+    const created = await new Promise<Ack>((resolve) =>
+      late.emit("lobby:create", { name: "Bo", game: "blackjack", forFun: false }, resolve),
+    );
+    if (created.ok) {
+      await act(late, { type: "bet", amount: 100 });
+      await until(async () => (await chipsOf(bo.id)) === boBefore - 100);
+    } else {
+      expect(created.error).toBe("The server is shutting down.");
+    }
+
+    refund.release();
+    await closed;
+
+    expect(await chipsOf(ada.id)).toBe(before);
+    expect(await chipsOf(bo.id)).toBe(boBefore);
+    expect(await store.bank("blackjack")).toBe(BANK);
+    expect(stopping?.rooms.size).toBe(0);
+  });
+
+  /*
+   * A game that throws while the close asks whether its hand is decided must
+   * not keep its own stakes, nor stop every other table's being handed back.
+   */
+  for (const broken of ["isSettled", "winners"] as const) {
+    it(`still calls every table off when a game's ${broken} throws`, async () => {
+      const { store, ada, bo, client, chipsOf, before, code } = await stakedWheel({
+        reconnectGraceMs: 60_000,
+        emptyRoomTtlMs: 60_000,
+      });
+      const other = await client();
+      const boBefore = await chipsOf(bo.id);
+      const blackjack = await openTable(other, "blackjack");
+      await act(other, { type: "bet", amount: 100 });
+      await until(async () => (await chipsOf(bo.id)) === boBefore - 100);
+
+      const seated = server?.rooms.get(code);
+      if (seated === undefined) {
+        throw new Error("no wheel");
+      }
+      const errors: unknown[][] = [];
+      const logged = console.error;
+      console.error = (...args: unknown[]) => {
+        errors.push(args);
+      };
+      try {
+        seated.game =
+          broken === "isSettled"
+            ? {
+                ...seated.game,
+                isSettled: () => {
+                  throw new Error("isSettled broke");
+                },
+              }
+            : {
+                ...seated.game,
+                isSettled: () => true,
+                winners: () => {
+                  throw new Error("winners broke");
+                },
+              };
+
+        const outcome = await server?.closeAllTables("shutdown").then(
+          () => "resolved",
+          () => "rejected",
+        );
+
+        expect(outcome).toBe("resolved");
+      } finally {
+        console.error = logged;
+      }
+      expect(await chipsOf(ada.id)).toBe(before);
+      expect(await chipsOf(bo.id)).toBe(boBefore);
+      expect(await store.bank("roulette")).toBe(BANK);
+      expect(await store.bank("blackjack")).toBe(BANK);
+      expect(server?.rooms.has(code)).toBe(false);
+      expect(server?.rooms.has(blackjack)).toBe(false);
+      expect(errors.some((args) => String(args[0]).includes(code))).toBe(true);
+    });
+  }
 });
