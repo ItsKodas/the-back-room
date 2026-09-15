@@ -284,15 +284,36 @@ export class Table {
      * is the bank's question, so the seat is noted in `leaving` for the
      * adapter to answer. Chips still down when the window shuts ride, and what
      * the coins decide is paid to their account whether they watch or not.
-     *
-     * A ring's centre and covers always stay: they are contested by the people
-     * still standing there, and a cover pulled out from under a centre halfway
-     * through a run would refund a bet that had already been matched.
      */
     if (this.school === "casino" && this.phase === "betting" && this.staked(seatId) > 0) {
       this.leaving.add(seatId);
     }
     this.previous.delete(seatId);
+    /*
+     * A ring's centre and covers stay while anybody is left: they are contested
+     * by the people still standing there, and a cover pulled out from under a
+     * centre halfway through a run would refund a bet that had already been
+     * matched. But a ring with nobody left in it can never be played, and a
+     * table that closes with a centre on it is a table that kept it — so the
+     * last person out sends everybody's stakes back.
+     *
+     * Through the escrow, and only what it still holds: a round the coins have
+     * already decided has emptied it, so its payout is not refunded as well,
+     * and a void that got here first leaves nothing to queue.
+     */
+    if (this.school === "school" && this.phase !== "settled" && !this.seats.some((seat) => !seat.isBot)) {
+      const stakes = [...(this.centre === null ? [] : [this.centre]), ...this.covers];
+      if (!this.forFun) {
+        for (const userId of new Set(stakes.map((one) => this.accountOf(one.seatId)))) {
+          if (userId !== null) {
+            this.escrow.refund(userId);
+          }
+        }
+      }
+      if (stakes.length > 0) {
+        this.beginRound();
+      }
+    }
     this.roomChanged();
   }
   disconnect(seatId: string): void {

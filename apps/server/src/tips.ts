@@ -15,6 +15,7 @@ import {
 import type { ClientToServer, JarView, ServerToClient, TapResult } from "@backroom/shared";
 import { buySchema, tapSchema } from "@backroom/shared/schemas";
 import type { DefaultEventsMap, Socket } from "socket.io";
+import { SOMETHING_WENT_WRONG, acking } from "./handle.js";
 import type { SocketIdentity } from "./server.js";
 
 /**
@@ -145,8 +146,18 @@ async function ensureToken(
 export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
   const { store, tellChips } = deps;
 
+  /*
+   * A failure answers with an empty jar, the same thing a guest or a refused
+   * payload is shown: nothing to tap until the next open, and no promise the
+   * store did not make.
+   */
+  const failedJar = () => {
+    const now = Date.now();
+    return view(emptyJar(now, ""), now);
+  };
+
   socket.on("tips:open", (_payload, ack) => {
-    void (async () => {
+    acking("tips:open", ack, failedJar, async (ack) => {
       const now = Date.now();
       const userId = socket.data.identity?.userId ?? null;
       const held = userId === null ? null : await store.jar(userId);
@@ -156,11 +167,13 @@ export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
       }
       const current = await ensureToken(store, userId, held, now);
       ack(view(asJar(current.jar), now));
-    })();
+    });
   });
 
+  const failedTap = (): TapResult => ({ ok: false, error: SOMETHING_WENT_WRONG, jar: failedJar() });
+
   socket.on("tips:tap", (payload, ack) => {
-    void (async () => {
+    acking("tips:tap", ack, failedTap, async (ack) => {
       // There is no account to credit otherwise, so this is checked before
       // anything else touches the store.
       const userId = socket.data.identity?.userId ?? null;
@@ -221,11 +234,11 @@ export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
         ? { ok: true, paid: outcome.paid, balance: swapped.chips, jar: view(jar, now) }
         : { ok: false, error: outcome.error, jar: view(jar, now) };
       ack(result);
-    })();
+    });
   });
 
   socket.on("tips:buy", (payload, ack) => {
-    void (async () => {
+    acking("tips:buy", ack, failedTap, async (ack) => {
       const userId = socket.data.identity?.userId ?? null;
       if (userId === null) {
         const now = Date.now();
@@ -264,6 +277,6 @@ export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
         ? { ok: true, paid: outcome.paid, balance: swapped.chips, jar: view(jar, now) }
         : { ok: false, error: outcome.error, jar: view(jar, now) };
       ack(result);
-    })();
+    });
   });
 }

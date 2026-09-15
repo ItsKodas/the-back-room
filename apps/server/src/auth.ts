@@ -1,6 +1,7 @@
 import { Discord, generateCodeVerifier, generateState, OAuth2RequestError } from "arctic";
 import type { Express, RequestHandler, Response as ExpressResponse } from "express";
 import type { Store } from "@backroom/economy";
+import { handle } from "./handle.js";
 
 /**
  * Sign in with Discord.
@@ -126,8 +127,9 @@ export function mountAuth(app: Express, store: Store, config: AuthConfig | null)
     response.redirect(url.toString());
   });
 
-  app.get("/auth/discord/callback", (request, response) => {
-    void (async () => {
+  app.get(
+    "/auth/discord/callback",
+    handle(async (request, response) => {
       const code = typeof request.query["code"] === "string" ? request.query["code"] : null;
       const state = typeof request.query["state"] === "string" ? request.query["state"] : null;
       const expected = request.session.oauthState;
@@ -184,8 +186,8 @@ export function mountAuth(app: Express, store: Store, config: AuthConfig | null)
           { error },
         );
       }
-    })();
-  });
+    }),
+  );
 }
 
 /**

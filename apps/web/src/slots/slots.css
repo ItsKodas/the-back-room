@@ -1544,6 +1544,229 @@
   text-align: center;
 }
 
+/* ------------------------------------------------------------- paytable */
+
+.slots__top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gr-space-2);
+}
+
+/* Thumb-sized, and the same height as the switch it sits beside. */
+.slots__paysbtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.3);
+  color: var(--gr-color-ink-dim);
+  font: inherit;
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.slots__paysbtn:hover,
+.slots__paysbtn:focus-visible {
+  background: rgb(0 0 0 / 0.55);
+  color: var(--gr-color-ink-lit);
+}
+
+.pt {
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(88vh, 900px);
+  padding: 0;
+  border: var(--gr-edge-soft);
+  border-radius: var(--gr-radius-md, 12px);
+  background: var(--gr-color-smoke, #171f2a);
+  color: var(--gr-color-ink);
+  overflow: hidden;
+}
+
+/* The box takes focus on opening; a ring round the whole chart says nothing. */
+.pt:focus,
+.pt:focus-visible {
+  outline: none;
+}
+
+.pt::backdrop {
+  background: rgb(0 0 0 / 0.66);
+}
+
+.pt__inner {
+  max-height: inherit;
+  overflow-y: auto;
+  padding: var(--gr-space-4);
+}
+
+.pt__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gr-space-3);
+  margin-bottom: var(--gr-space-2);
+}
+
+.pt__title {
+  margin: 0;
+  font-size: var(--gr-text-lg);
+}
+
+.pt__shut {
+  min-height: 44px;
+  padding: 0 var(--gr-space-3);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pt__shut:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.pt__rule,
+.pt__note {
+  margin: 0 0 var(--gr-space-3);
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.pt__sub {
+  margin: var(--gr-space-4) 0 var(--gr-space-2);
+  font-size: var(--gr-text-base);
+}
+
+.pt__scroll {
+  overflow-x: auto;
+  margin-bottom: var(--gr-space-2);
+}
+
+.pt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt__table th,
+.pt__table td {
+  padding: var(--gr-space-1) var(--gr-space-2);
+  text-align: center;
+}
+
+.pt__table thead th {
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  color: var(--gr-color-ink-faint);
+}
+
+.pt__table tbody tr:nth-child(odd) {
+  background: rgb(255 255 255 / 0.03);
+}
+
+.pt__table tbody th {
+  width: 48px;
+}
+
+.pt__face {
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+
+.pt__pay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.pt__mult {
+  font-weight: 600;
+}
+
+.pt__chips {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-chip, var(--gr-color-ink-dim));
+}
+
+.pt__pay--jackpot .pt__mult {
+  color: var(--gr-color-neon);
+}
+
+.pt__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.pt__bonus {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-3);
+  margin-bottom: var(--gr-space-2);
+}
+
+.pt__scatters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--gr-text-sm);
+}
+
+.pt__lines {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--gr-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt__line {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-2);
+}
+
+/* Not bought: still shown, because the shape is what buying it would get you. */
+.pt__line[data-bought="false"] {
+  opacity: 0.4;
+}
+
+.pt__shape {
+  width: 60px;
+  height: 36px;
+  flex: none;
+}
+
+.pt__cell {
+  fill: rgb(255 255 255 / 0.08);
+}
+
+.pt__cell--on {
+  fill: color-mix(in srgb, var(--gr-color-neon) 35%, transparent);
+}
+
+.pt__path {
+  fill: none;
+  stroke: var(--gr-color-neon);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pt__line-no {
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------------ off */
 
 @media (prefers-reduced-motion: reduce) {

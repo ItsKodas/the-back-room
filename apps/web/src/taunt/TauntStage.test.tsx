@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { TauntPlay } from "@backroom/shared";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TAUNT_MS, TauntStage } from "./TauntStage.js";
 
@@ -154,5 +154,13 @@ describe("the taunt stage", () => {
     const stage = container.querySelector(".taunt-stage");
     expect(stage?.getAttribute("role")).toBe("status");
     expect(stage?.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("hides the picture of an emote that has since been deleted, and keeps the line", () => {
+    const { container } = render(<TauntStage landed={[taunt({ id: "t1" })]} />);
+    const art = container.querySelector(".taunt-stage__art") as HTMLImageElement;
+    fireEvent.error(art);
+    expect(art.hidden).toBe(true);
+    expect(container.querySelector(".taunt-stage")?.textContent).toContain("Ada");
   });
 });

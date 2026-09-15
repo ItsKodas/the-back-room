@@ -10,10 +10,12 @@ plays.
 
 ### There is no real money here, ever
 
-Players get chips daily and nowhere else, except from redemption codes an
-admin mints. Nothing in this building takes payment, and nothing in it ever
-should. If a change would create a route from money to chips, it is the wrong
-change.
+Players get chips daily and nowhere else, except from an admin: by a
+redemption code they mint, or by a grant written into the admin log. Both
+are the same power — chips nobody won — so both sit behind the same
+allowlist, and neither is ever a thing a player can cause. Nothing in this
+building takes payment, and nothing in it ever should. If a change would
+create a route from money to chips, it is the wrong change.
 
 ### Chips are only won from real people
 
@@ -137,7 +139,10 @@ as often as on a desk, and a felt that only lays out at 1200px is broken.
 ### A table that deals itself
 
 Games run on their own clock. Nobody presses start, a round comes round, and
-players sit down and leave whenever they like. A table closes when the last
+players sit down and leave whenever they like. A table may ask whoever is
+sitting down whether they are in, so long as its own clock deals anyway once
+enough of them are — a ready button that one idle player can hold shut is a
+table that has stopped dealing itself. A table closes when the last
 player leaves it. The host sets the shape of the table when they open it —
 seats, betting window, what it plays for — and those are decisions about
 everybody's evening, so they are the host's rather than anybody's.

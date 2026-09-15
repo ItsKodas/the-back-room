@@ -6,6 +6,7 @@ import type { Socket } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 import { MemoryStore, STARTING_CHIPS } from "@backroom/economy";
 
 type Client = Socket<ServerToClient, ClientToServer> & { latest?: RoomView };
@@ -47,7 +48,7 @@ describe("playing for chips", () => {
         return id;
       },
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     return { store, port: (server.http.address() as AddressInfo).port };
   }
 
@@ -144,7 +145,7 @@ describe("playing for chips", () => {
       roll: () => [1, 1, 1, 1, 1, 1] as Die[],
       identify: () => ada.id,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
 
     const host = await client(port);
@@ -191,7 +192,7 @@ describe("playing for chips", () => {
       serveClient: false,
       identify: () => ada.id,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
 
     const host = await client(port);
@@ -233,7 +234,7 @@ describe("who a seat belongs to", () => {
       serveClient: false,
       identify: () => userId,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     return (server.http.address() as AddressInfo).port;
   }
 
@@ -265,7 +266,7 @@ describe("who a seat belongs to", () => {
       ...(options.roll === undefined ? {} : { roll: options.roll }),
       identify: () => ids[seen++] ?? null,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     return { store, ids, port: (server.http.address() as AddressInfo).port };
   }
 

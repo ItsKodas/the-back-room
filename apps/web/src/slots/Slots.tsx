@@ -25,6 +25,7 @@ import { Digits } from "../game/Digits.js";
 import { Taken } from "../net/Taken.js";
 import { windowId } from "../net/windowId.js";
 import { Fireworks } from "./Fireworks.js";
+import { Paytable } from "./Paytable.js";
 import { RoomFireworks } from "./RoomFireworks.js";
 import { Reel, REEL_STAGGER_MS } from "./Reel.js";
 import { FaceDefs } from "./Symbols.js";
@@ -557,6 +558,8 @@ export default function Slots() {
    * had to work out what a payline was before the lever would move at all.
    */
   const [lineCount, setLineCount] = useState(DEFAULT_LINES);
+  /** Whether the paytable is open over the machine. */
+  const [readingPays, setReadingPays] = useState(false);
   /** Whether the spin on the glass was the jackpot, for what the belly says. */
   const [wasJackpot, setWasJackpot] = useState(false);
   /** Gives up on an answer that never comes, so the machine cannot lock. */
@@ -1178,7 +1181,27 @@ export default function Slots() {
                 sides of the cabinet and burst out in the room either side of
                 it, and only for a win worth turning round for. */}
             <RoomFireworks fire={fired} shells={roomSize} from={cabinet} />
-            <ModeSwitch forFun={forFun} onChange={changeMachine} busy={settling} />
+            <div className="slots__top">
+              <ModeSwitch forFun={forFun} onChange={changeMachine} busy={settling} />
+              {/* Open mid-spin too: reading what a run is worth while the reels
+                  land is exactly when somebody wants to know. */}
+              <button
+                type="button"
+                className="slots__paysbtn"
+                aria-label="Paytable"
+                title="Paytable"
+                onClick={() => setReadingPays(true)}
+              >
+                ?
+              </button>
+            </div>
+            <Paytable
+              open={readingPays}
+              onClose={() => setReadingPays(false)}
+              stake={stake}
+              lineCount={lineCount}
+              jackpot={shown?.jackpot ?? 0}
+            />
 
             {/*
               * The machine itself: a marquee over glass over a belly, with the

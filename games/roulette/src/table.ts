@@ -176,13 +176,15 @@ export class Table {
    * The account behind each seat that has been at this spin, seated or not.
    *
    * A seat that stands up once the ball is in still has chips riding on it,
-   * and what the wheel decides is theirs. Pruned when the cloth is swept, since
-   * the spin that owes somebody is the spin they were in.
+   * and what the wheel decides is theirs. The name is kept with it so the
+   * winners board can still say who won after the seat has gone. Pruned when
+   * the cloth is swept, since the spin that owes somebody is the spin they were in.
    */
-  private readonly accounts = new Map<string, string | null>();
+  private readonly accounts = new Map<string, { userId: string | null; name: string }>();
 
+  /** The account behind a seat, whether or not the seat is still occupied. */
   accountOf(seatId: string): string | null {
-    return this.accounts.get(seatId) ?? null;
+    return this.accounts.get(seatId)?.userId ?? null;
   }
 
   /**
@@ -272,11 +274,20 @@ export class Table {
    */
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
-    this.accounts.set(seat.id, identity?.userId ?? null);
+    this.accounts.set(seat.id, { userId: identity?.userId ?? null, name: seat.name });
     // Back before their chips were handed back, so those chips are theirs to play again.
     this.leaving.delete(seat.id);
     return seat;
   }
+
+  /**
+   * Somebody stands up, and their chips stay behind for the adapter.
+   *
+   * Filtering them off the cloth was the table keeping them. Every chip went
+   * into the bank as it landed, so a seat that left mid-window lost its whole
+   * stake for a spin it never saw, and a refresh that outlasted the grace
+   * period did the same.
+   */
   removeSeat(seatId: string): void {
     this.seating.remove(seatId);
     this.previous.delete(seatId);
@@ -559,7 +570,7 @@ export class Table {
         spin,
         pocket,
         seatId,
-        name: this.seats.find((seat) => seat.id === seatId)?.name ?? "",
+        name: this.accounts.get(seatId)?.name ?? "",
         up,
       });
     }

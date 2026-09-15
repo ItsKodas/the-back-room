@@ -1,0 +1,514 @@
+/* ------------------------------------------------------------ the admin desk */
+
+.desk {
+  display: grid;
+  /*
+   * Without this, the grid's one implicit column is `auto`, which sizes to
+   * the widest thing inside it — the nowrap codes table, once it is wider
+   * than the phone. A column that may shrink below its content lets the
+   * table overflow inside `.scroller` instead of dragging the whole page,
+   * tabs included, out to the table's width.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gr-space-4);
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-block: var(--gr-space-4);
+}
+
+.desk__tabs {
+  display: flex;
+  gap: var(--gr-space-1);
+  overflow-x: auto;
+  border-bottom: var(--gr-edge-hair);
+  /* Below 480px the five tabs share the row instead (see the media query
+     below), so this scrollbar never actually shows; it stays hidden here as
+     a fallback rather than a promise that scrolling is how a tab is found. */
+  scrollbar-width: none;
+}
+
+.desk__tab {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--gr-space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--gr-color-ink-dim);
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.desk__tab:hover {
+  color: var(--gr-color-ink);
+}
+
+.desk__tab[aria-selected="true"] {
+  color: var(--gr-color-neon-hi);
+  border-bottom-color: var(--gr-color-neon);
+}
+
+.desk__tab:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: -2px;
+}
+
+/* One short arrival per tab: the panel is keyed by tab, so this plays once. */
+.desk__panel {
+  display: grid;
+  /* Same reason as `.desk` above — an implicit `auto` column would grow to
+     fit the nowrap codes table rather than let it scroll in its own box. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gr-space-4);
+  animation: desk-arrive 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes desk-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.desk__lede {
+  margin: 0;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+  max-width: 70ch;
+}
+
+.desk__grid {
+  display: grid;
+  gap: var(--gr-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.desk__card {
+  display: grid;
+  gap: var(--gr-space-2);
+  align-content: start;
+}
+
+.desk__card .panel__label,
+.desk__card .panel__note {
+  margin: 0;
+}
+
+.desk__figure {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk__inline {
+  display: flex;
+  gap: var(--gr-space-2);
+}
+
+.desk__inline .field__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.desk__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--gr-space-3);
+}
+
+.desk__row .field {
+  margin: 0;
+}
+
+.desk__grow {
+  flex: 1 1 220px;
+}
+
+@media (max-width: 480px) {
+  .desk__row > * {
+    flex: 1 1 100%;
+  }
+
+  /*
+   * All five tabs have to be reachable without a swipe: `flex: none` above
+   * sizes every tab to its label, and five labels are wider than a phone.
+   * Letting them shrink together, with the padding trimmed too, keeps every
+   * one on screen rather than pushing the last tab off the edge unannounced.
+   */
+  .desk__tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 var(--gr-space-1);
+  }
+
+  /*
+   * `.btn--small` sets `min-height: auto`, so a Retire or Revoke or a
+   * pager button measures under the 44px thumb floor everywhere it is
+   * used across the desk — cards, tables, dialogs, the pager. One rule
+   * here covers all of them without a patch per tab; scoped to `.desk`
+   * so a small button elsewhere in the building is untouched. The dialog
+   * is named on its own because it is portalled to the body, outside `.desk`.
+   */
+  .desk .btn--small,
+  .desk__dialog .btn--small {
+    min-height: 44px;
+  }
+}
+
+/* --------------------------------------------------------- codes and emotes */
+
+/*
+ * Scoped to the desk rather than `.history` itself: elsewhere (a player's own
+ * history, a transfer) the table is the only thing on the page and wrapping
+ * its cells is fine. Here a code, a chip figure and a used-count are each one
+ * fact, and breaking one across lines reads as three — `.scroller` already
+ * scrolls sideways for exactly this, so the fix is to let it.
+ */
+.desk .history td,
+.desk .history th {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk__panel {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------- players */
+
+.desk__players-head {
+  align-items: end;
+}
+
+.desk__people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.desk__person {
+  display: grid;
+  grid-template-columns: 44px 32px minmax(0, 1fr) auto;
+  grid-template-areas: "pick face name chips" "pick face meta chips";
+  align-items: center;
+  column-gap: var(--gr-space-3);
+  padding: var(--gr-space-2) 0;
+  border-bottom: var(--gr-edge-soft);
+}
+
+.desk__person:last-child {
+  border-bottom: none;
+}
+
+.desk__person--on {
+  background: color-mix(in srgb, var(--gr-color-neon) 8%, transparent);
+}
+
+/* A whole 44px column to press, not a 13px box. */
+.desk__pick {
+  grid-area: pick;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.desk__pick input {
+  width: 18px;
+  height: 18px;
+}
+
+.desk__face {
+  grid-area: face;
+  width: 32px;
+  height: 32px;
+}
+
+/*
+ * `minmax(0, 1fr)` on the grid's own `name` column (above) lets this shrink
+ * below its content's width; without both, a long player name would widen
+ * the whole row — and the whole page — rather than being cut off here.
+ */
+.desk__name {
+  grid-area: name;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.desk__meta {
+  grid-area: meta;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+.desk__chips {
+  grid-area: chips;
+  font-family: var(--gr-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pinned to the bottom, where a thumb already is. */
+.desk__bar {
+  position: sticky;
+  bottom: var(--gr-space-3);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-3);
+  border: 1px solid color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+  border-radius: var(--gr-radius-sm);
+  background: rgb(8 12 20 / 0.94);
+  box-shadow: var(--gr-lift-low);
+  animation: desk-arrive 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.desk__count {
+  font-weight: 500;
+}
+
+.desk__spacer {
+  flex: 1;
+}
+
+.desk__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding-inline: var(--gr-space-4);
+}
+
+/* Fills the scrim behind the dialog and carries the dismiss; a button so
+   the keyboard gets it for free instead of a div faking one. */
+.desk__scrim-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: none;
+  padding: 0;
+  background: rgb(0 0 0 / 0.55);
+  cursor: default;
+}
+
+.desk__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 2 * var(--gr-space-4));
+  overflow-y: auto;
+  background: rgb(10 14 22 / 0.98);
+  animation: desk-arrive 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.desk__form {
+  display: grid;
+  gap: var(--gr-space-3);
+}
+
+.desk__form .field,
+.desk__form .panel__note {
+  margin: 0;
+}
+
+.desk__parts {
+  display: grid;
+  gap: var(--gr-space-1);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.desk__check {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-3);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.desk__check small {
+  color: var(--gr-color-ink-dim);
+}
+
+.desk__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--gr-space-2);
+}
+
+.desk__bad {
+  color: var(--gr-color-bad);
+}
+
+.btn.desk__danger:not(:disabled) {
+  border-color: color-mix(in srgb, var(--gr-color-bad) 60%, transparent);
+  color: var(--gr-color-bad);
+  background: color-mix(in srgb, var(--gr-color-bad) 10%, transparent);
+}
+
+@media (max-width: 480px) {
+  .desk__person {
+    grid-template-columns: 44px 32px minmax(0, 1fr);
+    grid-template-areas: "pick face name" "pick face chips" "pick face meta";
+  }
+
+  .desk__bar .btn {
+    flex: 1 1 calc(50% - var(--gr-space-2));
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk__bar,
+  .desk__dialog {
+    animation: none;
+  }
+}
+
+/* ----------------------------------------------------------------- emotes */
+
+.desk__two {
+  display: grid;
+  gap: var(--gr-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/*
+ * A file input's own chrome ("Choose file" plus the filename) is exactly the
+ * kind of unbreakable content the file-wide note above warns about — some
+ * mobile browsers size it to the filename rather than the field. Without
+ * this it is the one control in the building that can drag a 375px page
+ * wider than the phone showing it.
+ */
+.desk__two .field__input[type="file"] {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.desk__emotes {
+  display: grid;
+  gap: var(--gr-space-3);
+  /* 220px fits inside the ~297px a panel has left at 375px after its own
+     padding, so one column is what a phone gets — this is a minimum, not a
+     target. */
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  margin-bottom: var(--gr-space-3);
+}
+
+.desk__emote {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--gr-space-2) var(--gr-space-3);
+  align-items: center;
+  padding: var(--gr-space-3);
+  border: var(--gr-edge-hair);
+  border-radius: var(--gr-radius-sm);
+}
+
+.desk__emote .desk__buttons {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+
+.desk__emote--retired {
+  opacity: 0.6;
+}
+
+.desk__emote-art {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.3);
+}
+
+.desk__emote-text {
+  display: grid;
+  min-width: 0;
+}
+
+/*
+ * `min-width: 0` above lets this shrink below the name's natural width;
+ * without it a 20-character emote name widens the card, the grid track,
+ * and the phone page past 375px rather than being cut off here.
+ */
+.desk__emote-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk__emote-text .panel__note {
+  margin: 0;
+}
+
+/* A refused retire or delete, named rather than swallowed: spans the card
+   the same way the buttons row does, under whichever press it answers. */
+.desk__emote-said {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--gr-text-xs);
+}
+
+/* ------------------------------------------------------------------- log */
+
+.desk__log {
+  list-style: none;
+  margin: 0 0 var(--gr-space-3);
+  padding: 0;
+}
+
+.desk__log-line {
+  display: grid;
+  /*
+   * Without an explicit column this grid's one implicit column sizes to its
+   * widest child — and an admin's typed note can be a single 120-character
+   * unbroken word. `minmax(0, 1fr)` lets the line, not the phone page,
+   * absorb that.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: var(--gr-space-2) 0;
+  border-bottom: var(--gr-edge-soft);
+}
+
+.desk__log-line:last-child {
+  border-bottom: none;
+}
+
+.desk__log-what {
+  font-weight: 500;
+}
+
+/*
+ * An admin name and a typed note are both free text that can arrive as one
+ * unbroken run of characters (a note is up to 120 of them); `overflow-wrap`
+ * here is what wraps that run instead of it widening the row, and the grid
+ * track it sits in, past the phone.
+ */
+.desk__log-who,
+.desk__log-note {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+  overflow-wrap: anywhere;
+}
+
+.desk__log-note {
+  font-style: italic;
+}

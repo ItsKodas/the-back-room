@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import mongoose from "mongoose";
 import { MongoStore } from "./mongo-store.js";
 import { STARTING_CHIPS, emptyJarRecord } from "./store.js";
@@ -362,34 +362,47 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
   });
 
   describe("finding somebody to pay", () => {
+    /*
+     * "zaph" is what every run of this test has ever searched for, against a
+     * database that is never wiped — so a fixed name is a name that, sooner
+     * or later, `findPlayers`' un-sorted limit of 5 stops returning at all,
+     * however true the match still is. The search term itself carries a
+     * unique suffix so this test keeps proving what it means to prove no
+     * matter how many earlier "Zaphod"s are sitting in the collection.
+     */
     it("matches the start of a name, whatever the case", async () => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const person = await store.upsertDiscordUser({
-        discordId: `find-${Date.now()}`,
-        name: "Zaphod",
+        discordId: `find-${unique}`,
+        name: `Zaphod${unique}`,
         avatar: null,
         accentColor: null,
       });
 
-      const found = await store.findPlayers("zaph", 5);
+      const found = await store.findPlayers(`zaphod${unique}`, 5);
 
       expect(found.some((one) => one.id === person.id)).toBe(true);
-      expect(await store.findPlayers("aphod", 5)).toEqual([]);
+      expect(await store.findPlayers(`aphod${unique}`, 5)).toEqual([]);
     });
 
     /*
      * A name is whatever somebody typed into Discord. One full of regex
      * punctuation has to be a name to look for rather than a pattern to run,
-     * which is a promise only the Mongo implementation has to keep.
+     * which is a promise only the Mongo implementation has to keep. The
+     * punctuation sits right after a unique suffix for the same reason the
+     * test above carries one — a match this test can still find in a
+     * collection that only ever grows.
      */
     it("treats punctuation in a search as punctuation", async () => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const odd = await store.upsertDiscordUser({
-        discordId: `odd-${Date.now()}`,
-        name: "C++(.*)",
+        discordId: `odd-${unique}`,
+        name: `C++(${unique}.*)`,
         avatar: null,
         accentColor: null,
       });
 
-      expect((await store.findPlayers("C++(", 5)).some((one) => one.id === odd.id)).toBe(true);
+      expect((await store.findPlayers(`C++(${unique}`, 5)).some((one) => one.id === odd.id)).toBe(true);
       expect((await store.findPlayers(".*", 5)).some((one) => one.id === odd.id)).toBe(false);
     });
 
@@ -521,6 +534,215 @@ describe.skipIf(url === undefined || url.length === 0)("MongoStore against a rea
       expect((await store.emoteAsset(made.id, "image"))?.bytes).toEqual(picture);
       expect((await store.listEmotes(false)).some((one) => one.id === made.id)).toBe(false);
       expect((await store.listEmotes(true)).some((one) => one.id === made.id)).toBe(true);
+    });
+  });
+
+  describe("the admin desk", () => {
+    it("adds, removes to no lower than zero, and sets", async () => {
+      const ada = await newPlayer();
+      const bo = await newPlayer();
+      await store.adjustChips(bo.id, -9000);
+      const took = await store.adjustBalances({ target: { ids: [ada.id, bo.id] }, op: "remove", amount: 5000 });
+      expect(took).toEqual({ affected: 2, moved: -6000 });
+      expect((await store.get(bo.id))?.chips).toBe(0);
+
+      expect(await store.adjustBalances({ target: { ids: [ada.id] }, op: "add", amount: 5 })).toEqual({
+        affected: 1,
+        moved: 5,
+      });
+      await store.adjustBalances({ target: { ids: [ada.id] }, op: "set", amount: 42 });
+      expect((await store.get(ada.id))?.chips).toBe(42);
+    });
+
+    /*
+     * A grant is only legitimate because it is written into the admin log, so
+     * the figure logged has to be what the admin moved. Reading the targeted
+     * balances before and after the update counted any other write landing in
+     * between as the admin's — for `{ all: true }`, every stake and payout in
+     * the building. The concurrent write is placed inside the update call
+     * itself, which is what makes an otherwise timing-dependent race land
+     * between the two reads every time.
+     */
+    it("counts only its own grant as moved, even with play landing mid-update", async () => {
+      const ada = await newPlayer();
+      const bo = await newPlayer();
+      const users = (store as unknown as { users: { updateMany: (...args: unknown[]) => unknown } }).users;
+      const real = users.updateMany.bind(users);
+      const spy = vi.spyOn(users, "updateMany").mockImplementationOnce(async (...args: unknown[]) => {
+        // A hand paying Bo out while the admin's grant is in flight.
+        await store.adjustChips(bo.id, 777);
+        return real(...args);
+      });
+      try {
+        const result = await store.adjustBalances({ target: { ids: [ada.id, bo.id] }, op: "add", amount: 100 });
+        expect(result.affected).toBe(2);
+        expect(result.moved).toBe(100 * result.affected);
+      } finally {
+        spy.mockRestore();
+      }
+      expect((await store.get(bo.id))?.chips).toBe(STARTING_CHIPS + 777 + 100);
+    });
+
+    /*
+     * A name of its own rather than `newPlayer()`'s "Ada", which every other
+     * test in this file also creates — the sort is by chips with the search
+     * unbounded at 100, and a database this long-lived already holds well
+     * over a hundred untouched "Ada"s sitting on the starting stack. A unique
+     * name is what keeps this assertion about the player this test made,
+     * rather than about how many other "Ada"s came before it.
+     */
+    it("lists by name prefix with rounds and a join date", async () => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const ada = await store.upsertDiscordUser({
+        discordId: `listed-${unique}`,
+        name: `Listable${unique}`,
+        avatar: null,
+        accentColor: null,
+      });
+      await store.bumpStats(ada.id, { shared: { rounds: 2 } });
+      const found = await store.listUsers({ query: ada.name, offset: 0, limit: 100 });
+      const row = found.rows.find((one) => one.id === ada.id);
+      expect(row?.rounds).toBe(2);
+      expect(row?.createdAt).toBeGreaterThan(0);
+    });
+
+    it("resets the chosen parts and keeps the player", async () => {
+      const ada = await newPlayer();
+      await store.adjustChips(ada.id, 500);
+      await store.bumpStats(ada.id, { shared: { roundsWon: 1 }, game: "greed", add: { farkles: 1 } });
+      await store.resetUsers({ target: { ids: [ada.id] }, parts: ["stats"] });
+      const after = await store.get(ada.id);
+      expect(after?.chips).toBe(STARTING_CHIPS + 500);
+      expect(after?.stats.roundsWon).toBe(0);
+      expect(after?.byGame).toEqual({});
+      expect(after?.discordId).toBe(ada.discordId);
+    });
+
+    it("forgets a redemption, so the code works for them again", async () => {
+      const ada = await newPlayer();
+      const code = await store.mintCode({
+        chips: 10, maxRedemptions: null, expiresAt: null, note: "", createdBy: "admin",
+      });
+      expect((await store.redeem(code.code, ada.id)).ok).toBe(true);
+      await store.resetUsers({ target: { ids: [ada.id] }, parts: ["history"] });
+      expect((await store.redeem(code.code, ada.id)).ok).toBe(true);
+    });
+
+    it("takes a player out of a shared game and deletes a game nobody is left in", async () => {
+      const ada = await newPlayer();
+      const bo = await newPlayer();
+      await store.recordGame({
+        code: `S${Date.now()}`, rulesetName: "greed", buyIn: 0, pot: 0, winnerIds: [], endedAt: Date.now(),
+        players: [
+          { userId: ada.id, name: "Ada", score: 1, isBot: false },
+          { userId: bo.id, name: "Bo", score: 1, isBot: false },
+        ],
+      });
+      // Ada plus a bot: once the `$pull` takes Ada out, the only player left
+      // has a `null` userId, which is exactly the shape the final cleanup is
+      // supposed to catch — `recentGames` can never show this record was
+      // removed, because the `$pull` alone already hides it from anyone's
+      // history. A unique code is what lets this test go and look at the
+      // record itself, on a database shared with everyone else's fixtures.
+      const soloCode = `O${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await store.recordGame({
+        code: soloCode, rulesetName: "greed", buyIn: 0, pot: 0, winnerIds: [], endedAt: Date.now(),
+        players: [
+          { userId: ada.id, name: "Ada", score: 1, isBot: false },
+          { userId: null, name: "Bot", score: 1, isBot: true },
+        ],
+      });
+
+      await store.resetUsers({ target: { ids: [ada.id] }, parts: ["history"] });
+
+      expect(await store.recentGames(ada.id, 10)).toEqual([]);
+      expect((await store.recentGames(bo.id, 10))[0]?.players).toHaveLength(1);
+
+      const direct = await mongoose.createConnection(url as string).asPromise();
+      const solo = await direct.collection("games").findOne({ code: soloCode });
+      await direct.close();
+      expect(solo).toBeNull();
+    });
+
+    /*
+     * The cleanup after a history reset used to sweep the whole collection
+     * for records with nobody signed in, so a bots-and-guests record that had
+     * nothing to do with the player being reset went too. A unique code is
+     * what lets this look at that one record on a database never wiped.
+     */
+    it("leaves alone a bots-only record the reset never touched", async () => {
+      const ada = await newPlayer();
+      const botsCode = `B${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await store.recordGame({
+        code: botsCode, rulesetName: "greed", buyIn: 0, pot: 0, winnerIds: [], endedAt: Date.now(),
+        players: [
+          { userId: null, name: "Bot", score: 1, isBot: true },
+          { userId: null, name: "Guest", score: 2, isBot: false },
+        ],
+      });
+
+      await store.resetUsers({ target: { ids: [ada.id] }, parts: ["history"] });
+
+      const direct = await mongoose.createConnection(url as string).asPromise();
+      const kept = await direct.collection("games").findOne({ code: botsCode });
+      await direct.close();
+      expect(kept).not.toBeNull();
+    });
+
+    it("empties a bank and deletes an emote", async () => {
+      await store.bankAdd("two-up", 77);
+      expect(await store.bankEmpty("two-up")).toBeGreaterThanOrEqual(77);
+      expect(await store.bank("two-up")).toBe(0);
+
+      const image = new Uint8Array(64);
+      image.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+      const made = await store.addEmote({ name: "Gone", cost: 1, image, sound: null, createdBy: "a" });
+      expect(await store.deleteEmote(made.id)).toBe(true);
+      expect(await store.emoteAsset(made.id, "image")).toBeNull();
+    });
+
+    it("writes the log and reads it back newest first", async () => {
+      const entry = await store.logAdmin({
+        by: "u", byName: "Koda", kind: "float", amount: 1, affected: 0, target: "all",
+        parts: null, subject: "slots", note: "mongo test",
+      });
+      const [latest] = await store.adminLog({ limit: 1, before: null });
+      expect(latest?.id).toBe(entry.id);
+      expect(latest?.subject).toBe("slots");
+    });
+
+    /*
+     * The clock is pinned to the real present, not pushed forward: this
+     * database is never wiped, and the test above reads the newest entry with
+     * a limit of one — an entry dated in the future would sit on top of it on
+     * every run from now on.
+     */
+    it("pages past two entries written in the same millisecond without skipping one", async () => {
+      const base = {
+        by: "u", byName: "Koda", kind: "reset" as const, amount: 0, affected: 0, target: "all" as const,
+        parts: null, subject: null, note: "mongo same-millisecond test",
+      };
+      const now = Date.now();
+      const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+      let written: string[];
+      try {
+        const one = await store.logAdmin(base);
+        const two = await store.logAdmin(base);
+        written = [one.id, two.id];
+      } finally {
+        clock.mockRestore();
+      }
+
+      const [top] = await store.adminLog({ limit: 1, before: null });
+      if (top === undefined) {
+        throw new Error("the first page came back empty");
+      }
+      expect(written).toContain(top.id);
+      // And no stray `__v` riding along on what the desk is handed.
+      expect(Object.keys(top)).not.toContain("__v");
+      const [below] = await store.adminLog({ limit: 1, before: { at: top.at, id: top.id } });
+      expect(below?.at).toBe(now);
+      expect(written.filter((id) => id !== top.id)).toEqual([below?.id]);
     });
   });
 });

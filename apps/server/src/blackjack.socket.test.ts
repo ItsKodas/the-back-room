@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { maxStake as blackjackMaxStake } from "@backroom/game-blackjack";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * Blackjack, driven through the real socket layer.
@@ -128,7 +129,7 @@ async function startRoom(
       return id;
     },
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return { store, port: (server.http.address() as AddressInfo).port, ids };
 }
 

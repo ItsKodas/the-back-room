@@ -66,6 +66,11 @@ export function Navbar({ game, table, account, connected }: NavbarProps) {
       ) : null}
 
       <Who account={account} />
+      {account.admin ? (
+        <Link to="/admin" className="iconbtn" aria-label="Admin desk" title="Admin desk">
+          <KeyIcon />
+        </Link>
+      ) : null}
       <Sound />
       {connected === undefined ? null : <Connection up={connected} />}
     </header>
@@ -188,6 +193,25 @@ function Connection({ up }: { up: boolean }) {
       <i className="nav__dot" />
       {up ? null : <span>offline</span>}
     </span>
+  );
+}
+
+function KeyIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="7.5" cy="15.5" r="4.5" />
+      <path d="M10.7 12.3 21 2" />
+      <path d="m16 7 3 3" />
+      <path d="m19 4 2 2" />
+    </svg>
   );
 }
 

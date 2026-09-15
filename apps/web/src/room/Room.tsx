@@ -71,6 +71,16 @@ export function Room() {
     <main className="room">
       <Navbar account={account} />
 
+      {/* Neither of these is a game you sit down at, so neither is dressed as
+          one: a glance at the board and a jar on the counter, in a strip you
+          pass on the way in rather than sections of their own further down. */}
+      <section className="room__front" aria-label="Who's ahead, and the bar">
+        <Standings />
+        {bar.map((game) => (
+          <BarSign key={game.id} game={game} />
+        ))}
+      </section>
+
       <p className="room__label">At the tables</p>
       <div className="room__tables">
         {tables.map((game) => (
@@ -83,34 +93,6 @@ export function Room() {
           <p className="room__label">Against the wall</p>
           <div className="room__machines">
             {machines.map((game) => (
-              <Cabinet key={game.id} game={game} />
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      {/* After the machines and before the bar: a board of balances is still
-          money, so it sits where the gradient is still about money alone. */}
-      <p className="room__label">Who's ahead</p>
-      <div className="room__few">
-        <Standings />
-      </div>
-
-      {/* Between the machines and the back, because the page reads as a
-          gradient: money and people, then money alone, then nothing at risk,
-          then not about money at all. */}
-      {bar.length > 0 ? (
-        <>
-          <p className="room__label">At the bar</p>
-          {/*
-           * Cabinet, not TableTile: a bar game has no rooms to be busy or
-           * idle in, so TableTile's footer would call busyness() and print
-           * "Nobody playing — start one" forever, an instruction nobody
-           * tapping the jar can act on. Cabinet shows the game's blurb
-           * instead, the same as a machine with nobody at it.
-           */}
-          <div className="room__few">
-            {bar.map((game) => (
               <Cabinet key={game.id} game={game} />
             ))}
           </div>
@@ -229,6 +211,42 @@ function Cabinet({ game }: { game: GameOnOffer }) {
     </Link>
   ) : (
     <div className="cabinet cabinet--shut" data-game={game.id}>
+      {body}
+    </div>
+  );
+}
+
+/**
+ * A game on the counter: a small sign rather than a tile.
+ *
+ * Not TableTile, because a bar game has no rooms to be busy or idle in, and
+ * TableTile's footer would print "Nobody playing — start one" forever, an
+ * instruction nobody tapping the jar can act on. It shows the blurb instead.
+ */
+function BarSign({ game }: { game: GameOnOffer }) {
+  const body = (
+    <>
+      <span className="barsign__art" aria-hidden="true">
+        {game.open ? <TileArt game={game.id} /> : null}
+      </span>
+      <span className="barsign__words">
+        <span className="barsign__name">
+          <Mark game={game} />
+        </span>
+        <span className="barsign__note">
+          {game.tables > 0 ? <i className="tile__live" /> : null}
+          {game.open ? game.blurb : "Not open yet"}
+        </span>
+      </span>
+    </>
+  );
+
+  return game.open ? (
+    <Link className="barsign" data-game={game.id} to={`/${game.id}`}>
+      {body}
+    </Link>
+  ) : (
+    <div className="barsign barsign--shut" data-game={game.id}>
       {body}
     </div>
   );

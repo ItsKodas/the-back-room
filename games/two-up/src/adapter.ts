@@ -616,6 +616,15 @@ export function twoUpAdapter(
      * greys out what the refusal would. Showing only; `place` asks again.
      */
     async payOut(table, deps) {
+      /*
+       * A ring's stakes, queued when its last player left. Taken off the queue
+       * before the first await, so a call on every broadcast pays each once;
+       * a ring banks nothing, so they go straight back. A void that closed the
+       * escrow first took the queue with it, and this finds nothing.
+       */
+      for (const one of table.escrow.takeDue()) {
+        await pay(table, { id: one.userId, userId: one.userId }, one.chips, deps);
+      }
       if (table.leaving.size > 0) {
         await serially(table, async () => {
           /*
