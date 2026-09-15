@@ -86,12 +86,6 @@
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
-.desk__card {
-  display: grid;
-  gap: var(--gr-space-2);
-  align-content: start;
-}
-
 .desk__card .panel__note {
   margin: 0;
 }
