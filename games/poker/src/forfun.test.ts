@@ -77,7 +77,7 @@ describe("where the play money goes", () => {
 
     table.leave("a");
 
-    expect(table.owedOut).toEqual([]);
+    expect(table.escrow.due).toEqual([]);
   });
 
   it("still owes a signed-in player their stack at a table playing for chips", () => {
@@ -91,7 +91,7 @@ describe("where the play money goes", () => {
 
     table.leave("a");
 
-    expect(table.owedOut).toEqual([{ userId: "u1", name: "Ada", chips: 2_000 }]);
+    expect(table.escrow.due).toEqual([{ userId: "u1", chips: 2_000 }]);
   });
 
   it("asks the economy for nothing when somebody sits down for fun", async () => {
@@ -241,7 +241,7 @@ describe("a whole hand against bots", () => {
     }
 
     expect(table.street).toBe("showdown");
-    expect(table.owedOut).toEqual([]);
+    expect(table.escrow.due).toEqual([]);
     // Every play chip still at the table: nothing was minted and nothing lost.
     const total = table.seats.reduce((sum, seat) => sum + seat.stack, 0) + table.pot;
     expect(total).toBe(FUN_STACK * 3);
@@ -435,7 +435,7 @@ describe("cashing out", () => {
     expect(table.canTakeOff("a")).toBe(true);
     expect(table.takeOffTable("a")).toBe(2_000);
 
-    expect(table.owedOut).toEqual([{ userId: "u1", name: "Ada", chips: 2_000 }]);
+    expect(table.escrow.due).toEqual([{ userId: "u1", chips: 2_000 }]);
     expect(table.seats).toHaveLength(2);
     expect(table.seats.find((seat) => seat.id === "a")?.stack).toBe(0);
   });
@@ -454,7 +454,7 @@ describe("cashing out", () => {
 
     expect(table.canTakeOff("a")).toBe(false);
     expect(() => table.takeOffTable("a")).toThrow(/mid-hand/i);
-    expect(table.owedOut).toEqual([]);
+    expect(table.escrow.due).toEqual([]);
   });
 
   it("lets somebody who has folded take what is left", () => {
@@ -478,7 +478,7 @@ describe("cashing out", () => {
     table.buyIn("a", 2_000);
 
     expect(table.takeOffTable("a")).toBe(2_000);
-    expect(table.owedOut).toEqual([]);
+    expect(table.escrow.due).toEqual([]);
   });
 
   it("has nothing to hand back when there is nothing in front of you", () => {
@@ -558,6 +558,6 @@ describe("telling the room who won", () => {
     // Settled here means "a hand finished", not "chips are owed". The pot went
     // from stacks to stacks; nothing left the table.
     const table = played();
-    expect(table.owedOut).toEqual([]);
+    expect(table.escrow.due).toEqual([]);
   });
 });

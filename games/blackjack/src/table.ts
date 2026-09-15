@@ -1,5 +1,5 @@
 import type { BotSkill, Seat as TableSeat, SeatIdentity, TableStatus } from "@backroom/core";
-import { MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
+import { Escrow, MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
 import type { Card } from "./cards.js";
 import { Shoe } from "./cards.js";
 import { isBlackjack, value } from "./hand.js";
@@ -262,6 +262,11 @@ export class Table {
   lastEvent: string | null = null;
   dealer: Card[] = [];
   /**
+   * Every stake on the felt right now, by account: bets, doubles and splits,
+   * until the dealer settles them.
+   */
+  readonly escrow = new Escrow();
+  /**
    * When the current phase runs out, as an absolute time.
    *
    * Absolute rather than a countdown, and stored rather than recomputed: every
@@ -485,26 +490,20 @@ export class Table {
     return this.seating.reconnect(seatId) as Seat;
   }
 
-  /**
-   * Stakes owed back to people who stood up before the deal.
-   *
-   * A stake leaves the account the moment it is placed, and the betting
-   * window is this table's lobby, so leaving — or a refresh that outlasted
-   * the grace period — removed a seat with its bet still on the felt and the
-   * table kept it for a hand that was never dealt. The refund is the
-   * adapter's to make, because it comes out of the bank and this class cannot
-   * await. Drained by `payOut`.
-   */
-  owedOut: Array<{ userId: string; chips: number }> = [];
-
   removeSeat(seatId: string): void {
     if (this.status !== "lobby") {
       return;
     }
-    const seat = this.seating.remove(seatId) as Seat | null;
-    if (seat !== null && !this.forFun && seat.userId !== null && staked(seat) > 0) {
-      this.owedOut.push({ userId: seat.userId, chips: staked(seat) });
+    /*
+     * Bets are still open, so the chips on this seat are still theirs to take
+     * back — they could have pressed zero a moment ago. Queued, because this
+     * cannot await the bank; the adapter pays it on the next broadcast.
+     */
+    const leaving = this.seating.find(seatId);
+    if (leaving?.userId != null && !this.forFun) {
+      this.escrow.refund(leaving.userId);
     }
+    this.seating.remove(seatId);
   }
 
   /**
@@ -978,6 +977,9 @@ export class Table {
       }
     }
 
+    // The dealer has played, so every stake on the felt now belongs to its
+    // result rather than to whichever account it came from.
+    this.escrow.settle();
     this.phase = "settled";
     this.status = "over";
     /*

@@ -18,9 +18,11 @@
  *   who chose to spend it. That is why a bot and a guest can be neither end of
  *   a taunt: a bot is not a real person, and a guest has no account for the
  *   chips to come from or land in.
- * - **A taunt that is never collected is burned.** If the target loses, or
- *   leaves, the pool is dropped and those chips leave circulation for good.
- *   That is the cost being real: you paid to mock somebody and it stayed paid.
+ * - **A taunt whose target loses is burned.** If the target loses, the pool is
+ *   dropped and those chips leave circulation for good. That is the cost being
+ *   real: you paid to mock somebody and it stayed paid. A taunt at a table
+ *   called off before the hand finished goes back to whoever threw it, because
+ *   nobody lost.
  *
  * Nothing here touches the economy or knows what game is being played. It is
  * given taunts and, when a table settles, the seats that won; it answers with
@@ -158,13 +160,14 @@ export class Taunts {
   }
 
   /**
-   * Drops a table's pool without paying any of it.
+   * Takes a table's pool away to be handed back to whoever threw each taunt.
    *
-   * For a table that closes with a hand unfinished. Those chips are burned,
-   * which is the same answer the rules give for a taunt whose target lost —
-   * the game did not reach a result, so nobody won one.
+   * For a table called off before its hand reached a result. Nobody lost, so
+   * nothing is burned: the taunt was staked on an outcome that never came.
    */
-  forget(code: string): void {
+  refund(code: string): Taunt[] {
+    const pool = this.pools.get(code) ?? [];
     this.pools.delete(code);
+    return pool;
   }
 }

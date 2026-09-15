@@ -527,6 +527,24 @@ describe("when the hand settles", () => {
   });
 });
 
+describe("when the table is called off", () => {
+  /*
+   * A pool with no result to resolve against. Nobody won it, so nobody is
+   * paid it — and it is not burned either, because nobody lost it. The chips
+   * go back to whoever threw them.
+   */
+  it("hands a taunt back to whoever threw it", async () => {
+    const { store, code, bo, adaSeat, emoteId, boId } = await table(250);
+    const before = await chipsOf(store, boId);
+    expect((await throwAt(bo, emoteId, adaSeat)).ok).toBe(true);
+    expect(await chipsOf(store, boId)).toBe(before - 250);
+
+    await server?.closeTable(code, "admin");
+
+    expect(await chipsOf(store, boId)).toBe(before);
+  });
+});
+
 /*
  * An admin deleting an emote does not take a pool's chips with it, and the
  * spec promises the replay still happens — the name, with no picture behind

@@ -1,4 +1,4 @@
-import type { BotMove, Clock, GameAdapter } from "@backroom/core";
+import type { BotMove, Clock, GameAdapter, GameDeps } from "@backroom/core";
 import { ledgerOf, seatLimit, TableError } from "@backroom/core";
 import { betFor, decide, thinkingTime, upcardValue } from "./bot.js";
 import { maxStake, maxStakeAgainst, stillOwed } from "./bank.js";
@@ -78,10 +78,53 @@ export function blackjackAdapter(
    */
   const unpaid = new WeakMap<Table, { round: object; back: number }>();
 
+  /**
+   * What a void still has to hand back, between closing the escrow and its
+   * turn actually coming up in `serially`.
+   *
+   * Counted apart from the table for the same reason `unpaid` is: the escrow
+   * closes synchronously, well before the refunds it already counted as owed
+   * have left the bank, and the table itself has nothing left to say so.
+   */
+  const pendingVoid = new WeakMap<Table, number>();
+
+  /**
+   * A leaver's refund taken off the escrow's queue and not yet out of the
+   * bank.
+   *
+   * The same gap `pendingVoid` covers, on the leave path: once `takeDue` has
+   * emptied the queue, nothing on the table or in the escrow says those chips
+   * are still owed, but they sit in the bank until each take has gone through.
+   */
+  const leaveRefunding = new WeakMap<Table, number>();
+
   /** The most this table could still take out of the bank. */
   const owing = (table: Table): number => {
+    // A called-off table owes only what its own void has not yet paid back
+    // out of the bank — not a flat zero, or an act queued behind the void in
+    // `serially` would read those chips as headroom before they have
+    // actually left the bank, and put its own reservation back on the way
+    // out.
+    //
+    // A leaver's refund already under way is counted either side of the
+    // close: a void can close the escrow while that refund is still waiting
+    // on the bank, and the chips are no less in there for it.
+    const leaving = leaveRefunding.get(table) ?? 0;
+    if (table.escrow.closed) {
+      return (pendingVoid.get(table) ?? 0) + leaving;
+    }
     const waiting = unpaid.get(table);
+    /*
+     * And a leaver's bet still queued. Standing up during betting takes the
+     * bet off the felt at once, so the seats below no longer count it, while
+     * the chips stay in the bank until the next broadcast pays them — and
+     * another table's bet in that gap would be capped against them.
+     */
     let total = waiting?.back ?? 0;
+    total += leaving;
+    for (const one of table.escrow.due) {
+      total += one.chips;
+    }
     if (table.dealer !== waiting?.round && !paidOut.has(table.dealer)) {
       for (const seat of table.seats) {
         total += stillOwed(seat.hands);
@@ -105,6 +148,45 @@ export function blackjackAdapter(
         ledger.owes(table, () => owing(table));
       }
     });
+  };
+
+  /**
+   * Chips out of the bank and back to where they came from, in the bank's own
+   * queue. Only ever stakes — everything here went into the bank as it was
+   * placed — so a refusal means something outside the book moved the bank.
+   */
+  const handBack = async (
+    table: Table,
+    owed: readonly { userId: string; chips: number }[],
+    deps: GameDeps,
+    // Run once this work is done, still inside `serially` — so a caller with
+    // its own book-keeping to clear can do it before anything queued behind
+    // this turn gets a chance to read it.
+    after?: () => void,
+  ) =>
+    serially(table, async () => {
+      try {
+        await giveBack(table, owed, deps);
+      } finally {
+        after?.();
+      }
+    });
+
+  /** `handBack`'s work, for a caller already inside `serially`. */
+  const giveBack = async (
+    table: Table,
+    owed: readonly { userId: string; chips: number }[],
+    deps: GameDeps,
+  ) => {
+    for (const one of owed) {
+      if (bank !== null && banked(table) && !(await bank.take(one.chips))) {
+        console.error(
+          `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
+        );
+        continue;
+      }
+      await deps.give(one.userId, one.chips);
+    }
   };
 
   return {
@@ -221,15 +303,48 @@ export function blackjackAdapter(
               table.bet(seatId, already);
               throw new TableError("You cannot cover that bet.");
             }
-            if (owed < 0) {
-              await deps.give(seat.userId, -owed);
+            if (owed > 0 && !table.escrow.hold(seat.userId, owed)) {
+              await deps.give(seat.userId, owed);
+              // Back to what was on the felt before, the same as a refused
+              // take: a hold refused after the chips already moved is still a
+              // bet that never happened.
+              table.bet(seatId, already);
+              throw new TableError("This table is closing.");
             }
-            /*
-             * Into the bank as it leaves the account, and back out of it if the
-             * bet shrinks. The stake is in there before the cards are dealt,
-             * which is what makes the payout arithmetic hold.
-             */
-            await bank?.add(owed);
+            if (owed < 0) {
+              // What escrow actually gives back, never the nominal drop: a
+              // void between this stake going in and the bet shrinking may
+              // already have refunded this account, and handing it back
+              // again would pay it twice.
+              const back = table.escrow.release(seat.userId, -owed);
+              if (back > 0) {
+                await deps.give(seat.userId, back);
+              }
+              /*
+               * Only what actually came back out of the bank. A void already
+               * took the rest of a lowered bet out of the bank when it paid
+               * the refund itself; taking it again here would empty the bank
+               * twice for one stake.
+               */
+              await bank?.add(-back);
+              /*
+               * The felt already shows the lowered amount from the optimistic
+               * update above, but a void that closed the escrow first has
+               * already refunded the whole stake this hand once — there is no
+               * lowered bet left to show, only the one this table already
+               * paid back.
+               */
+              if (back < -owed && table.escrow.closed) {
+                table.bet(seatId, already);
+              }
+            } else if (owed > 0) {
+              /*
+               * Into the bank as it leaves the account. The stake is in there
+               * before the cards are dealt, which is what makes the payout
+               * arithmetic hold.
+               */
+              await bank?.add(owed);
+            }
             /*
              * The last bet can be the thing that finishes the window: somebody
              * who was already ready, then bet, is ready again the moment the
@@ -297,10 +412,27 @@ export function blackjackAdapter(
             if (!(await deps.take(seat.userId, extra))) {
               throw new TableError("You cannot cover a double.");
             }
+            /*
+             * Held before the table plays it, not after: a double can be the
+             * last decision left, and the table settles the round right
+             * inside this call when it is — which hands the round's whole
+             * stake to the result and empties the escrow synchronously. Held
+             * afterwards, this stake would land in an escrow already emptied
+             * by that settlement and never be spoken for by anything again.
+             */
+            if (!table.escrow.hold(seat.userId, extra)) {
+              await deps.give(seat.userId, extra);
+              throw new TableError("This table is closing.");
+            }
             try {
               table.double(seatId);
             } catch (error) {
-              await deps.give(seat.userId, extra);
+              // What escrow actually gives back, not the nominal stake — the
+              // same reason a lowered bet does it this way.
+              const back = table.escrow.release(seat.userId, extra);
+              if (back > 0) {
+                await deps.give(seat.userId, back);
+              }
               throw error;
             }
             // In before the card is turned, like every other stake here.
@@ -325,10 +457,22 @@ export function blackjackAdapter(
             if (!(await deps.take(seat.userId, stake))) {
               throw new TableError("You cannot cover a split.");
             }
+            // Held before the table plays it, for the same reason a double
+            // is: splitting a pair of aces finishes both hands in one move,
+            // and the table settles a round it finished right inside the call.
+            if (!table.escrow.hold(seat.userId, stake)) {
+              await deps.give(seat.userId, stake);
+              throw new TableError("This table is closing.");
+            }
             try {
               table.split(seatId);
             } catch (error) {
-              await deps.give(seat.userId, stake);
+              // What escrow actually gives back, not the nominal stake — the
+              // same reason a lowered bet does it this way.
+              const back = table.escrow.release(seat.userId, stake);
+              if (back > 0) {
+                await deps.give(seat.userId, back);
+              }
               throw error;
             }
             await bank?.add(stake);
@@ -336,35 +480,6 @@ export function blackjackAdapter(
           }
           default:
             throw new TableError("That is not something you can do here.");
-        }
-      });
-    },
-
-    /**
-     * Hands a stake back to somebody who stood up before the deal.
-     *
-     * Out of the bank, since that is where the stake went, and in the bank's
-     * queue so no other table reads it mid-refund. Taking a bet off the felt
-     * only ever lowers what the round could owe, so the bank cannot be short
-     * for it — and is asked anyway, for the reason `settle` asks.
-     *
-     * Drained before the first await: this runs on every broadcast, and that
-     * is what makes it exactly-once per stake.
-     */
-    async payOut(table, deps) {
-      const owed = table.owedOut.splice(0);
-      if (owed.length === 0) {
-        return;
-      }
-      await serially(table, async () => {
-        for (const one of owed) {
-          if (bank !== null && !(await bank.take(one.chips))) {
-            console.error(
-              `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
-            );
-            continue;
-          }
-          await deps.give(one.userId, one.chips);
         }
       });
     },
@@ -393,6 +508,55 @@ export function blackjackAdapter(
           return out > 0 && back > out;
         })
         .map((seat) => seat.id);
+    },
+
+    /** Bets owed back to somebody who stood up while the felt was still open. */
+    async payOut(table, deps) {
+      if (table.escrow.due.length === 0) {
+        return;
+      }
+      await serially(table, async () => {
+        /*
+         * Taken inside the queue rather than before it. Taken outside, the
+         * queue is empty and the refund counted nowhere for as long as the
+         * bank's queue takes to reach it. Still exactly-once: two broadcasts
+         * queue behind each other and the second finds nothing, and a void's
+         * `close()` empties the queue synchronously before it queues at all.
+         */
+        const owed = table.escrow.takeDue();
+        if (owed.length === 0) {
+          return;
+        }
+        // Counted until the chips have actually left the bank, and cleared
+        // before `serially` tells the book what the table owes on the way out.
+        leaveRefunding.set(
+          table,
+          owed.reduce((total, one) => total + one.chips, 0),
+        );
+        try {
+          await giveBack(table, owed, deps);
+        } finally {
+          leaveRefunding.delete(table);
+        }
+      });
+    },
+
+    /**
+     * Calls the table off: every stake still on the felt, back to whoever put
+     * it there, and this table's claim on the bank released.
+     */
+    async void(table, deps) {
+      const owed = table.escrow.close();
+      // Set before this joins `serially`: the escrow is already closed, and
+      // `owing` has to answer with what these refunds still are, not zero,
+      // for as long as they are still sitting in the bank.
+      pendingVoid.set(
+        table,
+        owed.reduce((total, one) => total + one.chips, 0),
+      );
+      await handBack(table, owed, deps, () => pendingVoid.delete(table));
+      ledger?.release(table);
+      return owed;
     },
 
     /**

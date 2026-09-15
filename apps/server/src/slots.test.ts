@@ -8,7 +8,15 @@ import {
   STRIP,
   type Face,
 } from "@backroom/game-slots";
-import type { ClientToServer, ServerToClient, SpinNews, SpinResult } from "@backroom/shared";
+import { BASE, UPGRADES } from "@backroom/game-tips";
+import type {
+  ClientToServer,
+  JarView,
+  ServerToClient,
+  SpinNews,
+  SpinResult,
+  TapResult,
+} from "@backroom/shared";
 import type { Socket } from "socket.io-client";
 import { io as connect } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -32,8 +40,13 @@ type Client = Socket<ServerToClient, ClientToServer>;
 
 let server: BackRoomServer | null = null;
 const open: Client[] = [];
+/** Every held store call, so a failed test cannot leave the server's close waiting on one. */
+const held: Array<() => void> = [];
 
 afterEach(async () => {
+  for (const release of held.splice(0)) {
+    release();
+  }
   for (const socket of open.splice(0)) {
     socket.close();
   }
@@ -69,9 +82,10 @@ async function openMachine(
     signedIn?: boolean;
     discordId?: string;
     spinRandom?: () => number;
+    store?: MemoryStore;
   } = {},
 ): Promise<Machine> {
-  const store = new MemoryStore();
+  const store = options.store ?? new MemoryStore();
   const player = await store.upsertDiscordUser({
     discordId: options.discordId ?? "d1",
     name: "Ada",
@@ -855,7 +869,16 @@ describe("the free spins", () => {
      * spin is not a contest, so it is not a round.
      */
     const stake = 10;
-    const { client, store, userId } = await openMachine({ bank: 5_000_000, chips: 100_000 });
+    /*
+     * Reels that never land a bonus. On the real shuffle a spin now and then
+     * awards free spins, which stake nothing, and five spins came to less
+     * than five stakes: a test that failed only when the reels felt like it.
+     */
+    const { client, store, userId } = await openMachine({
+      bank: 5_000_000,
+      chips: 100_000,
+      spinRandom: losing(),
+    });
     for (let i = 0; i < 5; i += 1) {
       expect((await spin(client, stake)).ok).toBe(true);
     }
@@ -1092,5 +1115,238 @@ describe("two players pulling at once", () => {
       expect(result.ok ? "paid" : result.error).not.toMatch(/short/);
     }
     expect(await store.bank("slots")).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("the server stopping", () => {
+  /*
+   * A store a spin can be caught half way through, that knows it has closed.
+   *
+   * MemoryStore answers inside the same tick and its close releases nothing,
+   * so a spin that outlived the store would look perfectly fine here. A real
+   * store refuses everything once closed; counting the writes that arrive
+   * afterwards is how this stands in for that without throwing inside a
+   * handler nobody is awaiting.
+   */
+  class HeldStore extends MemoryStore {
+    closed = false;
+    lateWrites = 0;
+    private waiting: {
+      match: (amount: number) => boolean;
+      reached: () => void;
+      wait: Promise<void>;
+    } | null = null;
+
+    /** Holds the next chip movement `match` accepts until released. */
+    holdNext(match: (amount: number) => boolean) {
+      let reached = () => {};
+      let release = () => {};
+      const arrived = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      const wait = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      this.waiting = { match, reached, wait };
+      held.push(release);
+      return { arrived, release };
+    }
+
+    override async adjustChips(id: string, delta: number): Promise<boolean> {
+      const one = this.waiting;
+      if (one?.match(delta) === true) {
+        this.waiting = null;
+        one.reached();
+        await one.wait;
+      }
+      this.noteLate();
+      return super.adjustChips(id, delta);
+    }
+
+    override async bankAdd(...args: Parameters<MemoryStore["bankAdd"]>): Promise<void> {
+      this.noteLate();
+      return super.bankAdd(...args);
+    }
+
+    override async bankTake(...args: Parameters<MemoryStore["bankTake"]>): Promise<boolean> {
+      this.noteLate();
+      return super.bankTake(...args);
+    }
+
+    override async close(): Promise<void> {
+      this.closed = true;
+    }
+
+    private noteLate(): void {
+      if (this.closed) {
+        this.lateWrites += 1;
+      }
+    }
+  }
+
+  const DIAMONDS = 25 / 32;
+  const BANK = 500_000;
+  const SHUTTING_DOWN = "The server is shutting down.";
+  const UPGRADE = UPGRADES[0]?.id ?? "";
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  /** Two people at one machine, told apart by the handshake. */
+  async function twoAtTheMachine(store: HeldStore, spinRandom: () => number) {
+    const players: string[] = [];
+    for (const discordId of ["d1", "d2"]) {
+      const player = await store.upsertDiscordUser({
+        discordId,
+        name: discordId,
+        avatar: null,
+        accentColor: null,
+      });
+      players.push(player.id);
+    }
+    await store.bankAdd("slots", BANK);
+    const asking = (request: unknown) =>
+      new URL((request as { url?: string }).url ?? "/", "http://here").searchParams.get("as");
+    server = createBackRoomServer({
+      store,
+      auth: null,
+      serveClient: false,
+      identify: (socket) => asking(socket.request),
+      identifyRequest: () => null,
+      spinRandom,
+    });
+    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    const port = (server.http.address() as AddressInfo).port;
+    const clients = await Promise.all(
+      players.map(async (as) => {
+        const socket: Client = connect(`http://localhost:${port}`, {
+          transports: ["websocket"],
+          forceNew: true,
+          query: { as },
+        });
+        open.push(socket);
+        await new Promise<void>((resolve) => socket.on("connect", () => resolve()));
+        return socket;
+      }),
+    );
+    return { players, clients };
+  }
+
+  /**
+   * An answer, or null if none came in time or the server hung up first.
+   *
+   * Without the refusal a late message is queued behind the held spin and
+   * never answered before the close disconnects everybody, and a test that
+   * simply awaited it would hang rather than fail.
+   */
+  const answered = <T>(client: Client, send: (resolve: (value: T) => void) => void) =>
+    Promise.race([
+      new Promise<T>((resolve) => send(resolve)),
+      new Promise<null>((resolve) => client.on("disconnect", () => resolve(null))),
+      sleep(500).then(() => null),
+    ]);
+
+  /** Ada's spin, caught with her stake on its way out of the account. */
+  async function heldSpin(store: HeldStore, ada: Client) {
+    const take = store.holdNext((amount) => amount < 0);
+    const spun = answered<SpinResult>(ada, (resolve) =>
+      ada.emit("slots:spin", { stake: 100 }, resolve),
+    );
+    await take.arrived;
+    const stopping = server;
+    server = null;
+    let closed = false;
+    const closing = stopping?.close().then(() => {
+      closed = true;
+    });
+    return { take, spun, closing, isClosed: () => closed };
+  }
+
+  /*
+   * A spin whose stake is still on its way out of the account when the server
+   * is told to stop. The store closes straight after, so the close has to wait
+   * for the reels, the payout and the bank to be settled first: a stake taken
+   * from a real store that then closes under the payout is a stake kept.
+   */
+  it("waits for a spin still moving chips before it closes the store", async () => {
+    const store = new HeldStore();
+    const { players, clients } = await twoAtTheMachine(store, () => DIAMONDS);
+    const [adaId] = players as [string];
+    const [ada] = clients as [Client];
+    const before = (await store.get(adaId))?.chips ?? 0;
+
+    const { take, closing, isClosed } = await heldSpin(store, ada);
+    await sleep(100);
+    expect(isClosed()).toBe(false);
+
+    take.release();
+    await closing;
+
+    /*
+     * Read off the store rather than the answer: the answer is sent inside the
+     * spin, but the close disconnects everybody straight afterwards and can
+     * beat it onto the wire. What the player is owed is the balance, not the
+     * message about it.
+     */
+    const after = (await store.get(adaId))?.chips ?? 0;
+    const won = after - (before - 100);
+    expect(store.lateWrites).toBe(0);
+    expect(won).toBeGreaterThan(0);
+    expect(await store.bank("slots")).toBe(BANK + 100 - won);
+  });
+
+  /*
+   * Sockets stay open until the very end of a shutdown, and the close waits
+   * on a spin already running, which is time enough for somebody else to pull
+   * the lever. Theirs has to be refused at the door: queued, it would run
+   * after the close had stopped waiting.
+   */
+  it("refuses a spin sent once it has begun, and takes nothing", async () => {
+    const store = new HeldStore();
+    const { players, clients } = await twoAtTheMachine(store, losing());
+    const [, boId] = players as [string, string];
+    const [ada, bo] = clients as [Client, Client];
+    const boBefore = (await store.get(boId))?.chips ?? 0;
+
+    const { take, closing } = await heldSpin(store, ada);
+    const late = await answered<SpinResult>(bo, (resolve) =>
+      bo.emit("slots:spin", { stake: 100 }, resolve),
+    );
+    take.release();
+    await closing;
+
+    expect(late).toEqual({ ok: false, error: SHUTTING_DOWN });
+    expect((await store.get(boId))?.chips).toBe(boBefore);
+    expect(store.lateWrites).toBe(0);
+  });
+
+  /*
+   * The jar pays chips too, and the same window is open to it: a tap landing
+   * while the close is under way is a payout written to a store on its way out.
+   */
+  it("refuses the tip jar once it has begun", async () => {
+    const store = new HeldStore();
+    const { players, clients } = await twoAtTheMachine(store, losing());
+    const [, boId] = players as [string, string];
+    const [ada, bo] = clients as [Client, Client];
+    const jar = await new Promise<JarView>((resolve) => bo.emit("tips:open", {}, resolve));
+    const filled = await store.jar(boId);
+    if (filled === null) {
+      throw new Error("no such jar");
+    }
+    await store.applyJar(boId, filled.jar.token, { ...filled.jar, level: BASE.brim }, 0);
+    const boBefore = (await store.get(boId))?.chips ?? 0;
+
+    const { take, closing } = await heldSpin(store, ada);
+    const tapped = await answered<TapResult>(bo, (resolve) =>
+      bo.emit("tips:tap", { token: jar.token }, resolve),
+    );
+    const bought = await answered<TapResult>(bo, (resolve) =>
+      bo.emit("tips:buy", { upgrade: UPGRADE, token: jar.token }, resolve),
+    );
+    take.release();
+    await closing;
+
+    expect(tapped?.ok === false ? tapped.error : tapped).toBe(SHUTTING_DOWN);
+    expect(bought?.ok === false ? bought.error : bought).toBe(SHUTTING_DOWN);
+    expect((await store.get(boId))?.chips).toBe(boBefore);
   });
 });

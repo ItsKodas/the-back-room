@@ -45,6 +45,7 @@ import type {
   ServerToClient,
   SpinNews,
   SpinResult,
+  TableClosedReason,
   TableOnOffer,
   TauntPlay,
 } from "@backroom/shared";
@@ -243,6 +244,16 @@ export interface BackRoomServer {
   io: Server<ClientToServer, ServerToClient>;
   /** Tables currently in memory. Exposed for tests and the health check. */
   rooms: Map<string, Seated>;
+  /**
+   * Calls one table off: a decided hand is paid, everything undecided goes
+   * back to the account it came from, and whoever is looking is told.
+   */
+  closeTable: (code: string, reason: TableClosedReason) => Promise<void>;
+  /**
+   * Calls every table off at once. Shutdown runs it, and so will the admin
+   * panel's "close all tables".
+   */
+  closeAllTables: (reason: TableClosedReason) => Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -404,6 +415,29 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   const redeemBudgets = new Map<string, Budget>();
   /** Tables already paid out, so a re-broadcast cannot pay twice. */
   const settled = new Set<string>();
+  /**
+   * Tables being called off right now.
+   *
+   * Closing talks to the economy, so it takes a moment, and for that moment a
+   * table must neither deal nor take a stake: everything on it is being handed
+   * back, and a chip that landed now would be a chip the refund never saw.
+   *
+   * Kept as the close itself rather than a flag, so a second close of the same
+   * table waits for the first. Shutdown closes the store straight after it has
+   * closed every table, and a reap already half way through its refunds when
+   * that happens would lose whatever it had not yet handed back.
+   */
+  const closing = new Map<string, Promise<void>>();
+  /*
+   * Set the moment `close()` begins, and never cleared. Sockets stay open
+   * until the very end of a shutdown, and a table opened or joined in that
+   * time is chips the store closes on; refusing them at the door is what lets
+   * `closeAllTables` finish rather than chase new tables forever.
+   */
+  let shuttingDown = false;
+  const SHUTTING_DOWN = "The server is shutting down.";
+  /** A settlement still moving chips, so a close can wait for it to finish. */
+  const settling = new Map<string, Promise<void>>();
   /**
    * Chips staked on people by whoever paid to mock them.
    *
@@ -1566,9 +1600,47 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     sendState(code, seated);
   }
 
+  /** Pays a finished hand and then its taunts. Called once per finished hand. */
+  function settleNow(code: string, seated: Seated): Promise<void> {
+    /*
+     * Read before settling, never after. `settle` in the games themselves
+     * carries the same warning about the same hazard: the moment it awaits,
+     * the table is free to move on, and a continuous table clears its felt
+     * on a timer. What the hand came to is a fact now, not somewhere to go
+     * looking once the money has finished moving.
+     */
+    const won = seated.game.winners?.(seated.table) ?? null;
+    const run: Promise<void> = seated.game
+      .settle(seated.table, deps)
+      /*
+       * After the game has paid, not alongside it. A taunt pays out of chips
+       * that left an account when it was thrown, so the order is not a money
+       * question — but a player watching their balance should see the hand
+       * settle and then the pool come in, rather than the two arriving
+       * interleaved and neither explaining the other.
+       */
+      .then(() => payTaunts(code, seated, won))
+      .catch((error) => console.error("settling failed", error))
+      .finally(() => {
+        if (settling.get(code) === run) {
+          settling.delete(code);
+        }
+      });
+    settling.set(code, run);
+    return run;
+  }
+
   function broadcast(code: string): void {
     const seated = rooms.get(code);
     if (seated === undefined) {
+      return;
+    }
+    /*
+     * Nothing re-arms a clock, books a bot or starts a settlement on a table
+     * that is being called off: each of those would move chips the close has
+     * already counted.
+     */
+    if (closing.has(code)) {
       return;
     }
     armClock(code, seated);
@@ -1588,25 +1660,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       settled.delete(code);
     } else if (!settled.has(code)) {
       settled.add(code);
-      /*
-       * Read before settling, never after. `settle` in the games themselves
-       * carries the same warning about the same hazard: the moment it awaits,
-       * the table is free to move on, and a continuous table clears its felt
-       * on a timer. What the hand came to is a fact now, not somewhere to go
-       * looking once the money has finished moving.
-       */
-      const won = seated.game.winners?.(seated.table) ?? null;
-      void seated.game
-        .settle(seated.table, deps)
-        /*
-         * After the game has paid, not alongside it. A taunt pays out of chips
-         * that left an account when it was thrown, so the order is not a money
-         * question — but a player watching their balance should see the hand
-         * settle and then the pool come in, rather than the two arriving
-         * interleaved and neither explaining the other.
-         */
-        .then(() => payTaunts(code, seated, won))
-        .catch((error) => console.error("settling failed", error));
+      void settleNow(code, seated);
     }
     /*
      * And separately, anything owed to somebody who has already left.
@@ -1762,20 +1816,138 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       return;
     }
     later(() => {
-      const still = rooms.get(code);
-      if (still?.table.isEmpty === true) {
-        turnClocks.delete(code);
-        pauses.delete(code);
-        botMoves.delete(code);
-        /*
-         * Whatever was staked here is burned. The table never reached a
-         * result, so nobody won one — which is the same answer the rules give
-         * for a taunt whose target simply lost.
-         */
-        taunts.forget(code);
-        rooms.delete(code);
+      /*
+       * Called off, not dropped. Anything still on the table — a stake on the
+       * cloth, a taunt nobody resolved — left somebody's account, and a table
+       * that simply vanished would be the building keeping it.
+       */
+      if (rooms.get(code)?.table.isEmpty === true) {
+        void closeTable(code, "empty");
       }
     }, emptyRoomTtlMs);
+  }
+
+  /**
+   * Calls a table off and gives back everything on it.
+   *
+   * The one way a table stops existing. A hand that has already been decided
+   * is paid exactly as it would have been — closing a table never rewrites a
+   * result — and only then is whatever is still undecided handed back: stakes
+   * to the accounts they came from, taunts to whoever threw them. Everybody
+   * still looking is told, because a felt that simply stopped would read as a
+   * dead connection.
+   *
+   * A step that fails is logged and the close carries on. A half-closed table
+   * is worse than a loud log, and at shutdown there is no second attempt.
+   */
+  function closeTable(code: string, reason: TableClosedReason): Promise<void> {
+    const already = closing.get(code);
+    if (already !== undefined) {
+      return already;
+    }
+    const seated = rooms.get(code);
+    if (seated === undefined) {
+      return Promise.resolve();
+    }
+    const run = callOff(code, seated, reason).finally(() => {
+      closing.delete(code);
+    });
+    closing.set(code, run);
+    return run;
+  }
+
+  /** The close itself. Only ever run by `closeTable`, once per table. */
+  async function callOff(code: string, seated: Seated, reason: TableClosedReason): Promise<void> {
+    /*
+     * The table's own clocks stop before anything is awaited. Each await below
+     * yields, and a ball that landed or a hand that dealt in one of those
+     * yields would be a result arriving for stakes already on their way back.
+     */
+    const clock = turnClocks.get(code);
+    if (clock !== undefined) {
+      clearTimeout(clock);
+    }
+    turnClocks.delete(code);
+    const waiting = pauses.get(code);
+    if (waiting !== undefined) {
+      clearTimeout(waiting.timer);
+    }
+    pauses.delete(code);
+    const bot = botMoves.get(code);
+    if (bot !== undefined) {
+      clearTimeout(bot);
+    }
+    botMoves.delete(code);
+
+    /*
+     * Not waiting on moves already in flight, on purpose. A stake whose debit
+     * lands after the void finds the escrow closed, and the game hands it back
+     * there and then — so the room waiting for it as well would guard nothing.
+     */
+    await settling.get(code);
+    /*
+     * Caught here rather than left to reject: both of these are the game's
+     * code running synchronously, and a throw out of this function would skip
+     * the void below — the one step that hands the stakes back.
+     */
+    try {
+      if (seated.game.isSettled(seated.table) && !settled.has(code)) {
+        settled.add(code);
+        await settleNow(code, seated);
+      }
+    } catch (error) {
+      console.error(`closing ${code}: paying the decided hand failed`, error);
+    }
+    try {
+      await seated.game.void(seated.table, deps);
+    } catch (error) {
+      console.error(`closing ${code}: calling off the table failed`, error);
+    }
+    for (const taunt of taunts.refund(code)) {
+      try {
+        await deps.give(taunt.fromUserId, taunt.chips);
+      } catch (error) {
+        console.error(`closing ${code}: handing back a taunt to ${taunt.fromUserId} failed`, error);
+      }
+    }
+
+    io.to(code).emit("room:closed", { code, reason });
+    for (const [socketId, seat] of [...sockets]) {
+      if (seat.code === code) {
+        sockets.delete(socketId);
+        void io.sockets.sockets.get(socketId)?.leave(code);
+      }
+    }
+    rooms.delete(code);
+    settled.delete(code);
+    settling.delete(code);
+  }
+
+  async function closeAllTables(reason: TableClosedReason): Promise<void> {
+    /*
+     * Round again for any table that appeared while the last round's refunds
+     * were travelling: it holds chips too. Each code is asked once, so a table
+     * whose close somehow left it behind is logged rather than looped on.
+     *
+     * Settled rather than all: one table failing must not return before the
+     * others have handed everything back, or the store closes under them.
+     */
+    const asked = new Set<string>();
+    for (;;) {
+      const codes = [...rooms.keys()].filter((code) => !asked.has(code));
+      if (codes.length === 0) {
+        return;
+      }
+      for (const code of codes) {
+        asked.add(code);
+      }
+      const results = await Promise.allSettled(codes.map((code) => closeTable(code, reason)));
+      results.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(`closing ${codes[index]}: the close failed`, result.reason);
+        }
+      });
+    }
   }
 
   /** Runs a seated action, turning a RoomError into a message not a crash. */
@@ -1800,9 +1972,17 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       socket.emit("room:error", "Slow down.");
       return;
     }
+    if (shuttingDown) {
+      socket.emit("room:error", SHUTTING_DOWN);
+      return;
+    }
     const seated = rooms.get(seat.code);
     if (seated === undefined) {
       socket.emit("room:error", "That table is gone.");
+      return;
+    }
+    if (closing.has(seat.code)) {
+      socket.emit("room:error", "This table is closing.");
       return;
     }
     if (seat.seatId === null) {
@@ -2063,9 +2243,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   }
 
   io.on("connection", (socket) => {
-    wireTips(socket, { store, tellChips });
+    wireTips(socket, { store, tellChips, refusal: () => (shuttingDown ? SHUTTING_DOWN : null) });
 
     socket.on("lobby:create", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = createSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "Pick a name first." });
@@ -2123,6 +2307,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("lobby:join", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = joinSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "That is not a table code." });
@@ -2131,6 +2319,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       const room = rooms.get(parsed.data.code);
       if (room === undefined) {
         ack({ ok: false, error: "No table with that code." });
+        return;
+      }
+      if (closing.has(parsed.data.code)) {
+        ack({ ok: false, error: "This table is closing." });
         return;
       }
       try {
@@ -2170,6 +2362,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("lobby:resume", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = resumeSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "That table is gone." });
@@ -2178,6 +2374,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       const room = rooms.get(parsed.data.code);
       if (room === undefined) {
         ack({ ok: false, error: "That table is gone." });
+        return;
+      }
+      if (closing.has(parsed.data.code)) {
+        ack({ ok: false, error: "This table is closing." });
         return;
       }
       try {
@@ -2192,6 +2392,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("lobby:watch", (payload, ack) => {
+      if (shuttingDown) {
+        ack({ ok: false, error: SHUTTING_DOWN });
+        return;
+      }
       const parsed = watchSchema.safeParse(payload);
       if (!parsed.success) {
         ack({ ok: false, error: "That is not a table code." });
@@ -2200,6 +2404,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       const room = rooms.get(parsed.data.code);
       if (room === undefined) {
         ack({ ok: false, error: "No table with that code." });
+        return;
+      }
+      if (closing.has(parsed.data.code)) {
+        ack({ ok: false, error: "This table is closing." });
         return;
       }
       room.table.watch(socket.id);
@@ -2392,9 +2600,17 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           ack({ ok: false, error: "Give them a moment." });
           return;
         }
+        if (shuttingDown) {
+          ack({ ok: false, error: SHUTTING_DOWN });
+          return;
+        }
         const seated = rooms.get(seat.code);
         if (seated === undefined) {
           ack({ ok: false, error: "That table is gone." });
+          return;
+        }
+        if (closing.has(seat.code)) {
+          ack({ ok: false, error: "This table is closing." });
           return;
         }
         const from = seated.table.seats.find((one) => one.id === seat.seatId);
@@ -2435,6 +2651,16 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         // already gone from the sender's account.
         if (!(await deps.take(from.userId, emote.cost))) {
           ack({ ok: false, error: "Not enough chips." });
+          return;
+        }
+        /*
+         * Asked again, because the take above awaited. A close that began in
+         * that moment has already handed back every taunt it could see, and a
+         * pool added now would be chips nothing ever returns.
+         */
+        if (shuttingDown || closing.has(seat.code) || rooms.get(seat.code) !== seated) {
+          await deps.give(from.userId, emote.cost);
+          ack({ ok: false, error: "This table is closing." });
           return;
         }
 
@@ -2525,6 +2751,16 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         const userId = socket.data.identity?.userId ?? null;
         if (userId === null) {
           ack({ ok: false, error: "Sign in to play for chips." });
+          return;
+        }
+
+        /*
+         * Checked with nothing awaited between here and joining the bank's
+         * queue, so every spin that gets past it is already in line ahead of
+         * the no-op `close()` waits on, and every spin after is refused.
+         */
+        if (shuttingDown) {
+          ack({ ok: false, error: SHUTTING_DOWN });
           return;
         }
 
@@ -2769,6 +3005,20 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   });
 
   async function close(): Promise<void> {
+    shuttingDown = true;
+    /*
+     * First, before the timers go and before the store closes: handing chips
+     * back needs both a table that still exists and a store that still answers.
+     */
+    await closeAllTables("shutdown");
+    /*
+     * The machine is not a table, so nothing above waited for it. A spin runs
+     * whole inside the bank's queue — stake taken, reels, payout — and one
+     * caught half way when the store closes has taken a stake it never pays.
+     * Queuing behind it waits out whatever is in line; the flag stops more
+     * joining, including the rest of a free-spin run.
+     */
+    await slotsBank.serially(async () => {});
     for (const handle of pending) {
       clearTimeout(handle);
     }
@@ -2790,7 +3040,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
   }
 
-  return { http, io, rooms, store, close };
+  return { http, io, rooms, store, closeTable, closeAllTables, close };
 }
 
 /**

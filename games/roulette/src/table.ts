@@ -1,4 +1,11 @@
-import { type Seat, type SeatIdentity, Seating, type TableStatus, TableError } from "@backroom/core";
+import {
+  Escrow,
+  type Seat,
+  type SeatIdentity,
+  Seating,
+  type TableStatus,
+  TableError,
+} from "@backroom/core";
 import { FUN_BANK, FUN_PURSE, MIN_CHIP } from "./bank.js";
 import { type Paid, type Placed, settle } from "./bets.js";
 import { spotAt } from "./spots.js";
@@ -162,6 +169,34 @@ export class Table {
   /** Last spin's chips, by seat, so "same again" is one press. */
   private previous = new Map<string, Placed[]>();
 
+  /** Every chip on the cloth by the account it came from, until the ball decides it. */
+  readonly escrow = new Escrow();
+
+  /**
+   * The account behind each seat that has been at this spin, seated or not.
+   *
+   * A seat that stands up once the ball is in still has chips riding on it,
+   * and what the wheel decides is theirs. The name is kept with it so the
+   * winners board can still say who won after the seat has gone. Pruned when
+   * the cloth is swept, since the spin that owes somebody is the spin they were in.
+   */
+  private readonly accounts = new Map<string, { userId: string | null; name: string }>();
+
+  /** The account behind a seat, whether or not the seat is still occupied. */
+  accountOf(seatId: string): string | null {
+    return this.accounts.get(seatId)?.userId ?? null;
+  }
+
+  /**
+   * Seats that stood up while bets were open, with their chips still down.
+   *
+   * Whether those chips can come back is the bank's question, not this
+   * class's — they may be what covers somebody else's bet — so the adapter
+   * answers it on the next broadcast. Cleared once the window shuts, because
+   * whatever is still on the cloth by then rides.
+   */
+  readonly leaving = new Set<string>();
+
   /**
    * What the store's bank holds, for a table playing for chips.
    *
@@ -223,28 +258,12 @@ export class Table {
   /**
    * Standing up mid-spin is honoured there and then.
    *
-   * The seat goes, and its chips do not go with it. The wheel does not need
-   * the player to finish, but it does owe them: see {@link removeSeat}.
+   * Nothing is kept from a seat that leaves, and the wheel does not need them
+   * to finish: chips down while bets are open come back unless another bet is
+   * leaning on them, and chips that ride are paid to their account whatever
+   * the ball does. Holding the seat would be holding it for nothing.
    */
   readonly leavesMidHand = true;
-
-  /**
-   * Who a seat was, kept after the seat itself has gone.
-   *
-   * A seat that stood up with chips on the cloth is still owed whatever those
-   * chips come to, and once `Seating.remove` has run this is the only record of
-   * whose account that is. Pruned when the next window opens, because the spin
-   * that owes somebody is the spin they were in.
-   */
-  private readonly accounts = new Map<string, { userId: string | null; name: string }>();
-
-  /**
-   * Seats that stood up while the felt was open, with chips still down.
-   *
-   * Their chips are handed back by the adapter, because a refund comes out of
-   * the bank and this class cannot await. Drained by `payOut`.
-   */
-  leaving: string[] = [];
 
   /**
    * A seat at the table.
@@ -255,7 +274,9 @@ export class Table {
    */
   join(id: string, name: string, identity: SeatIdentity | null): Seat {
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun);
-    this.accounts.set(seat.id, { userId: seat.userId, name: seat.name });
+    this.accounts.set(seat.id, { userId: identity?.userId ?? null, name: seat.name });
+    // Back before their chips were handed back, so those chips are theirs to play again.
+    this.leaving.delete(seat.id);
     return seat;
   }
 
@@ -265,28 +286,21 @@ export class Table {
    * Filtering them off the cloth was the table keeping them. Every chip went
    * into the bank as it landed, so a seat that left mid-window lost its whole
    * stake for a spin it never saw, and a refresh that outlasted the grace
-   * period did the same. Now a chip placed in an open window is queued to be
-   * handed back, and a chip already riding a spin rides it and is paid to the
-   * account it came from.
-   *
-   * Play money is the exception, and keeps the old behaviour: the purse it
-   * would be paid into leaves with the seat.
+   * period did the same.
    */
   removeSeat(seatId: string): void {
     this.seating.remove(seatId);
     this.previous.delete(seatId);
-    if (this.forFun) {
-      this.placed = this.placed.filter((one) => one.seatId !== seatId);
-      return;
+    /*
+     * Nothing comes off the cloth here, even while bets are open. Handing the
+     * chips back is the same movement as a take-back and has to pass the same
+     * cover check, which needs the bank, and leaving is synchronous — so the
+     * seat is noted and the adapter settles it on the next broadcast. Once the
+     * window has shut, whatever is still down rides and is paid to the account.
+     */
+    if (this.phase === "betting") {
+      this.leaving.add(seatId);
     }
-    if (this.phase === "betting" && this.staked(seatId) > 0 && !this.leaving.includes(seatId)) {
-      this.leaving.push(seatId);
-    }
-  }
-
-  /** The account behind a seat, whether or not the seat is still occupied. */
-  accountOf(seatId: string): string | null {
-    return this.accounts.get(seatId)?.userId ?? null;
   }
   disconnect(seatId: string): void {
     this.seating.disconnect(seatId);
@@ -432,6 +446,11 @@ export class Table {
   /** A chip down. Refuses exactly what {@link check} refuses. */
   place(seatId: string, spotId: string, chips: number): void {
     this.check(seatId, spotId, chips);
+    // Bots only place at for-fun tables, so they never reach the hold.
+    const userId = this.seats.find((seat) => seat.id === seatId)?.userId ?? null;
+    if (!this.forFun && userId !== null && !this.escrow.hold(userId, chips)) {
+      throw new TableError("This table is closing.");
+    }
     const already = this.placed.find((one) => one.seatId === seatId && one.spotId === spotId);
     if (already === undefined) {
       this.placed.push({ seatId, spotId, chips });
@@ -508,6 +527,8 @@ export class Table {
     if (this.phase !== "betting") {
       return;
     }
+    // Anybody who left and has not been handed their chips yet is too late: they ride.
+    this.leaving.clear();
     if (this.placed.length === 0) {
       this.deadline = Date.now() + this.window;
       return;
@@ -523,6 +544,9 @@ export class Table {
     if (this.phase !== "spinning" || this.pocket === null) {
       return;
     }
+    // The ball has landed, so the cloth now belongs to its result, not to the
+    // accounts that put it there — a void from here on has nothing to hand back.
+    this.escrow.settle();
     this.paid = settle(this.placed, this.pocket);
     this.history = [...this.history, this.pocket].slice(-HISTORY);
 
@@ -571,6 +595,7 @@ export class Table {
   /** The cloth is swept and the next window opens. */
   beginBetting(): void {
     this.placed = [];
+    this.leaving.clear();
     this.paid = null;
     this.pocket = null;
     this.phase = "betting";

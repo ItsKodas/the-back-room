@@ -555,3 +555,153 @@ describe("moves", () => {
     await expect(game.act(table, "ada", { type: "roll" }, deps)).rejects.toThrow(TableError);
   });
 });
+
+/**
+ * Calling a death roll table off.
+ *
+ * Every ante and every pass left an account for a pot nobody has won yet, so a
+ * table closed before the game is decided hands each back to whoever paid it —
+ * and one closed after hands back nothing, because the pot is the winner's.
+ */
+describe("a game called off before anybody won", () => {
+  /** What the spy handed back to each account, and in all. */
+  const backTo = (gave: ReturnType<typeof spy>["gave"], userId: string) =>
+    sum(gave.mock.calls.filter((call) => call[0] === userId));
+
+  it("hands every ante and every pass back", async () => {
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, gave } = spy();
+    await deal(game, table, deps);
+    const roller = table.game?.round.toRoll as string;
+    await game.act(table, roller, { type: "pass" }, deps);
+    const price = table.passPrice;
+
+    const refunded = await game.void(table, deps);
+
+    expect(sum(gave.mock.calls)).toBe(table.ante * 3 + price);
+    expect(backTo(gave, `u-${roller}`)).toBe(table.ante + price);
+    expect(refunded.reduce((total, one) => total + one.chips, 0)).toBe(table.ante * 3 + price);
+  });
+
+  it("refunds nothing once the game has been settled", async () => {
+    const game = deathRollAdapter({ roll: () => 1 });
+    const table = seated(game, "ada", "bob");
+    const { deps, gave } = spy();
+    await deal(game, table, deps);
+    await game.act(table, table.game?.round.toRoll as string, { type: "roll" }, deps);
+    expect(game.isSettled(table)).toBe(true);
+    await game.settle(table, deps);
+    gave.mockClear();
+
+    await game.void(table, deps);
+
+    expect(gave).not.toHaveBeenCalled();
+  });
+
+  it("gives back an ante whose take lands after the table closed, exactly once", async () => {
+    /*
+     * The first take is still in flight when the void runs, so the void holds
+     * nothing for it. What must hold is the room's whole invariant: every chip
+     * taken comes back, none twice, and no game opens at a closed table.
+     */
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob");
+    const { deps, took, gave } = spy();
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = {
+      ...deps,
+      take: async (userId: string, chips: number) => {
+        await gate;
+        return took(userId, chips);
+      },
+    } as GameDeps;
+
+    table.askForGame(Date.now());
+    const dealing = game.payOut?.(table, slow);
+    await game.void(table, deps);
+    release();
+    await dealing;
+
+    expect(sum(took.mock.calls)).toBeGreaterThan(0);
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls));
+    expect(table.game).toBeNull();
+  });
+
+  it("hands back every ante when it is called off halfway through a deal", async () => {
+    // Ada and Bob are in and held; Cat's take is still out when the void runs.
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, took, gave } = spy();
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reached = () => {};
+    const atCat = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const slow = {
+      ...deps,
+      take: async (userId: string, chips: number) => {
+        if (userId === "u-cat") {
+          reached();
+          await gate;
+        }
+        return took(userId, chips);
+      },
+    } as GameDeps;
+
+    table.askForGame(Date.now());
+    const dealing = game.payOut?.(table, slow);
+    await atCat;
+    await game.void(table, deps);
+    release();
+    await dealing;
+
+    expect(table.game).toBeNull();
+    for (const userId of ["u-ada", "u-bob", "u-cat"]) {
+      expect(backTo(gave, userId)).toBe(table.ante);
+    }
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls));
+  });
+
+  it("deals nobody when it is called off while a leaver's ante is going back", async () => {
+    /*
+     * Every ante is in and held; Ada stood up during Cat's take, and the void
+     * lands while hers is being handed back. Bob and Cat are still two, but
+     * their antes have already gone back with the void — a game dealt now
+     * would be a pot with nothing in it.
+     */
+    const game = deathRollAdapter({ roll: () => 500 });
+    const table = seated(game, "ada", "bob", "cat");
+    const { deps, took, gave } = spy(async (userId) => {
+      if (userId === "u-cat") {
+        table.removeSeat("ada");
+      }
+      return true;
+    });
+    let voiding: Promise<unknown> = Promise.resolve();
+    const voidDuringRefund = {
+      ...deps,
+      give: async (userId: string, chips: number) => {
+        await gave(userId, chips);
+        if (userId === "u-ada") {
+          voiding = game.void(table, deps);
+        }
+      },
+    } as GameDeps;
+
+    await deal(game, table, voidDuringRefund);
+    await voiding;
+
+    expect(table.game).toBeNull();
+    for (const userId of ["u-ada", "u-bob", "u-cat"]) {
+      expect(backTo(gave, userId)).toBe(table.ante);
+    }
+    expect(sum(gave.mock.calls)).toBe(sum(took.mock.calls));
+  });
+});

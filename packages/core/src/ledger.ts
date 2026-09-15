@@ -75,6 +75,18 @@ export class BankLedger {
     }
     return total;
   }
+
+  /**
+   * Takes a table out of the book for good.
+   *
+   * For a table that has been called off. Its cloth may still hold chips when
+   * it goes — they have just been handed back, and the objects are not cleared
+   * — and a promise read off that cloth would hold the bank's chips for a table
+   * nobody will ever sit at again.
+   */
+  release(table: object): void {
+    this.promises.delete(table);
+  }
 }
 
 const ledgers = new WeakMap<object, BankLedger>();

@@ -1,5 +1,5 @@
 import type { BotSkill, PlayTable, Seat, SeatIdentity, TableStatus } from "@backroom/core";
-import { Seating, TableError } from "@backroom/core";
+import { Escrow, Seating, TableError } from "@backroom/core";
 import { Game } from "./game.js";
 import { COUNTDOWN_MS, FUN_PURSE, passPrice, RESET_CEILING, TURN_MS } from "./listing.js";
 import { Readiness } from "./ready.js";
@@ -103,6 +103,8 @@ export class Table implements PlayTable {
    * how the table says the work has been handed over but is not finished.
    */
   draining = false;
+  /** The antes and passes of the game on the felt, by account. Play money never comes here. */
+  readonly escrow = new Escrow();
 
   private readonly seating: Seating;
   private readonly turnMs: number;
@@ -430,6 +432,13 @@ export class Table implements PlayTable {
     if (this.game === null) {
       return;
     }
+    /*
+     * A backstop, not the usual route: `settle` drains the escrow the moment a
+     * game is decided. A game cleared without being settled — a winner whose
+     * seat had gone, see `settle`'s guard — has lost its pot, so this hands
+     * back nothing rather than refunding chips a result already decided.
+     */
+    this.escrow.settle();
     this.game = null;
     this.turnEndsAt = null;
     this.lastEvent = null;

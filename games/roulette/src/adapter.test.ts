@@ -445,3 +445,320 @@ describe("a bank more than one table is paid from", () => {
     }
   });
 });
+
+function wallet(start: Record<string, number>) {
+  const held = { ...start };
+  const deps = {
+    take: async (userId: string, amount: number) => {
+      if ((held[userId] ?? 0) < amount) return false;
+      held[userId] = (held[userId] ?? 0) - amount;
+      return true;
+    },
+    give: async (userId: string, amount: number) => {
+      held[userId] = (held[userId] ?? 0) + amount;
+    },
+    record: async () => {},
+    finished: async () => {},
+  } as GameDeps;
+  return { held, deps };
+}
+
+describe("a roulette table called off", () => {
+  it("hands every chip on the cloth back out of the bank", async () => {
+    const { bank, held: inBank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    expect(table.escrow.total).toBe(200);
+
+    await game.void?.(table, deps);
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_000);
+  });
+
+  it("keeps the escrow and the cloth in step as chips go on and come off", async () => {
+    const { bank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { deps } = wallet({ u1: 5_000 });
+    const onCloth = () => table.placed.reduce((total, one) => total + one.chips, 0);
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 100 }, deps);
+    expect(table.escrow.total).toBe(onCloth());
+    await game.act(table, "s1", { type: "undo" }, deps);
+    expect(table.escrow.total).toBe(onCloth());
+    await game.act(table, "s1", { type: "clear" }, deps);
+    expect(table.escrow.total).toBe(0);
+  });
+
+  it("returns chips to somebody who leaves while bets are open", async () => {
+    const { bank, held: inBank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+
+    table.removeSeat("s1");
+    await game.payOut?.(table, deps);
+
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_000);
+  });
+
+  it("still pays somebody who left after the ball was in", async () => {
+    const { bank } = purse(1_000_000);
+    // Position 1 on the wheel is 32, which is red.
+    const game = rouletteAdapter({ bank, pick: () => 1 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    table.closeBetting();
+    table.removeSeat("s1");
+    table.land();
+
+    await game.settle(table, deps);
+
+    expect(held["u1"]).toBe(1_200);
+  });
+
+  it("gives back a chip the table refused after it was paid for", async () => {
+    const { bank, held: inBank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    // The window shuts while the account is being charged.
+    const shutting = {
+      ...deps,
+      take: async (userId: string, amount: number) => {
+        const ok = await deps.take(userId, amount);
+        table.closeBetting();
+        return ok;
+      },
+    } as GameDeps;
+    table.join("s2", "Bo", who("u2"));
+    // Somebody else's chip, so the cloth is not empty and the window really shuts.
+    await game.act(table, "s2", { type: "place", spotId: RED, chips: 25 }, wallet({ u2: 100 }).deps);
+
+    await expect(
+      game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, shutting),
+    ).rejects.toThrow();
+
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_025);
+  });
+
+  it("stops holding the bank's chips for a table that has been called off", async () => {
+    const { bank } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const closed = game.create("ABCDE") as Table;
+    closed.join("s1", "Ada", who("u1"));
+    const other = game.create("FGHIJ") as Table;
+    const { deps } = wallet({ u1: 1_000 });
+    await game.act(closed, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+
+    await game.void?.(closed, deps);
+
+    const { ledgerOf } = await import("@backroom/core");
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+  });
+});
+
+/**
+ * A bank that stops on its next read or payout until a test lets it go.
+ *
+ * What a store on the other side of a network does anyway: the table carries
+ * on with its own clock while the answer is on its way, and these tests are
+ * about what it gets up to in the meantime.
+ */
+const gated = (start: number) => {
+  const inner = purse(start);
+  let stall: { on: "holds" | "take"; hit: () => void; open: Promise<void> } | null = null;
+  const pause = async (on: "holds" | "take") => {
+    if (stall?.on !== on) {
+      return;
+    }
+    const stopped = stall;
+    stall = null;
+    stopped.hit();
+    await stopped.open;
+  };
+  return {
+    bank: {
+      holds: async () => {
+        await pause("holds");
+        return inner.bank.holds();
+      },
+      add: inner.bank.add,
+      take: async (amount: number) => {
+        await pause("take");
+        return inner.bank.take(amount);
+      },
+    },
+    held: inner.held,
+    stallNext(on: "holds" | "take") {
+      let hit = () => {};
+      let open = () => {};
+      const reached = new Promise<void>((resolve) => {
+        hit = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      stall = { on, hit, open: gate };
+      return { reached, open };
+    },
+  };
+};
+
+describe("a roulette table's money while the store takes its time", () => {
+  const BLACK = "even:2-4-6-8-10-11-13-15-17-20-22-24-26-28-29-31-33-35";
+
+  it("leaves a leaver's chips riding when they are covering somebody else's bet", async () => {
+    /*
+     * Red went down against a bank of 1,000 and black was allowed to lean on
+     * it. Handing red back because its owner stood up would leave black owed
+     * 4,000 by a bank holding 2,000 — the same movement a take-back is refused.
+     */
+    const { bank, held: inBank } = purse(1_000);
+    const game = rouletteAdapter({ bank, pick: () => 2 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    table.join("s2", "Bram", who("u2"));
+    const { held, deps } = wallet({ u1: 1_000, u2: 2_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 1_000 }, deps);
+    await game.act(table, "s2", { type: "place", spotId: BLACK, chips: 2_000 }, deps);
+
+    table.removeSeat("s1");
+    await game.payOut?.(table, deps);
+
+    expect(table.onSpot("s1", RED)).toBe(1_000);
+    expect(held["u1"]).toBe(0);
+    expect(inBank()).toBe(4_000);
+
+    // It rides, and black is paid in full.
+    table.closeBetting();
+    table.land();
+    await game.settle(table, deps);
+    expect(held["u2"]).toBe(4_000);
+  });
+
+  it.each([
+    { first: "s1", second: "s2", between: true, order: "the covering seat first" },
+    { first: "s2", second: "s1", between: true, order: "the covered seat first" },
+    // One drain meets red, refused, before black: it has to go round again.
+    { first: "s1", second: "s2", between: false, order: "both before one broadcast" },
+  ])("hands both leavers their chips back when the whole cloth goes ($order)", async ({
+    first,
+    second,
+    between,
+  }) => {
+    /*
+     * Red is refused while black leans on it. Once black has gone too, nothing
+     * leans on red — and with nobody left at the table there is no spin coming
+     * to settle it, so a refusal that was never asked again would strand it.
+     */
+    const { bank, held: inBank } = purse(1_000);
+    const game = rouletteAdapter({ bank, pick: () => 2 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    table.join("s2", "Bram", who("u2"));
+    const { held, deps } = wallet({ u1: 1_000, u2: 2_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 1_000 }, deps);
+    await game.act(table, "s2", { type: "place", spotId: BLACK, chips: 2_000 }, deps);
+
+    table.removeSeat(first);
+    if (between) {
+      await game.payOut?.(table, deps);
+    }
+    table.removeSeat(second);
+    await game.payOut?.(table, deps);
+
+    expect(held["u1"]).toBe(1_000);
+    expect(held["u2"]).toBe(2_000);
+    expect(inBank()).toBe(1_000);
+    expect(table.placed).toEqual([]);
+  });
+
+  it("keeps a called-off table's refunds in the book until they have left the bank", async () => {
+    /*
+     * The void closes the escrow at once, but the chips only leave the bank on
+     * its turn in the queue. Reading the table as owing nothing in between
+     * would let another table promise chips that are about to be paid out.
+     */
+    const { bank, stallNext } = gated(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const closing = game.create("ABCDE") as Table;
+    const other = game.create("FGHIJ") as Table;
+    closing.join("s1", "Ada", who("u1"));
+    const { deps } = wallet({ u1: 1_000 });
+    await game.act(closing, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    const { reached, open } = stallNext("take");
+    const voiding = game.void?.(closing, deps);
+    await reached;
+    expect(ledgerOf(bank).owedElsewhere(other)).toBeGreaterThanOrEqual(200);
+
+    open();
+    await voiding;
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+  });
+
+  it.each([
+    { type: "take", spotId: RED, chips: 200 },
+    { type: "clear" },
+  ])("pays a take-back ($type) only what a void has not already handed back", async (move) => {
+    const { bank, held: inBank, stallNext } = gated(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000 });
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+
+    // The take-back is waiting on the bank when the table is called off.
+    const { reached, open } = stallNext("holds");
+    const taking = game.act(table, "s1", move, deps);
+    await reached;
+    const voiding = game.void?.(table, deps);
+    open();
+    await taking.catch(() => {});
+    await voiding;
+
+    expect(held["u1"]).toBe(1_000);
+    expect(inBank()).toBe(1_000_000);
+  });
+
+  it("pays somebody who left even when the cloth is swept while settling waits on the bank", async () => {
+    const { bank, stallNext } = gated(1_000_000);
+    // Position 1 on the wheel is 32, which is red.
+    const game = rouletteAdapter({ bank, pick: () => 1 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s2", "Bram", who("u2"));
+    table.join("s1", "Ada", who("u1"));
+    const { held, deps } = wallet({ u1: 1_000, u2: 1_000 });
+    // Bram's first, so his payout is the one the store is slow on.
+    await game.act(table, "s2", { type: "place", spotId: RED, chips: 100 }, deps);
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    table.closeBetting();
+    table.removeSeat("s1");
+    table.land();
+
+    const { reached, open } = stallNext("take");
+    const settling = game.settle(table, deps);
+    await reached;
+    table.beginBetting();
+    open();
+    await settling;
+
+    expect(held["u1"]).toBe(1_200);
+    expect(held["u2"]).toBe(1_100);
+  });
+});

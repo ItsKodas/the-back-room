@@ -115,4 +115,50 @@ describe("leaving a ring", () => {
     expect(table.centre).toBeNull();
     expect(table.covers).toEqual([]);
   });
+
+  /*
+   * The ring's hand-back and a void are two routes to the same chips, so each
+   * has to find what the other already paid. Both go through the escrow for
+   * exactly that reason: a refund counted from the felt would pay twice.
+   */
+  it("leaves a later void nothing to hand back", async () => {
+    const { held, deps } = accounts({ u0: 5_000, u1: 5_000 });
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("RING", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    const spinner = table.spinnerId ?? "s0";
+    const other = spinner === "s0" ? "s1" : "s0";
+    await adapter.act(table, spinner, { type: "centre", chips: 1_000 }, deps);
+    await adapter.act(table, other, { type: "cover", chips: 600 }, deps);
+
+    table.removeSeat(other);
+    table.removeSeat(spinner);
+    await adapter.payOut?.(table, deps);
+    const refunded = await adapter.void(table, deps);
+
+    expect(refunded).toEqual([]);
+    expect(held["u0"]).toBe(5_000);
+    expect(held["u1"]).toBe(5_000);
+  });
+
+  it("hands back nothing more once a void has already paid the stakes", async () => {
+    const { held, deps } = accounts({ u0: 5_000, u1: 5_000 });
+    const adapter = twoUpAdapter({});
+    const table = adapter.create("RING", { ruleset: "school" });
+    sit(table, "s0", "u0");
+    sit(table, "s1", "u1");
+    const spinner = table.spinnerId ?? "s0";
+    const other = spinner === "s0" ? "s1" : "s0";
+    await adapter.act(table, spinner, { type: "centre", chips: 1_000 }, deps);
+    await adapter.act(table, other, { type: "cover", chips: 600 }, deps);
+
+    await adapter.void(table, deps);
+    table.removeSeat(other);
+    table.removeSeat(spinner);
+    await adapter.payOut?.(table, deps);
+
+    expect(held["u0"]).toBe(5_000);
+    expect(held["u1"]).toBe(5_000);
+  });
 });

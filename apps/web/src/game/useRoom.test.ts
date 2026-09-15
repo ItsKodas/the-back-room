@@ -76,4 +76,24 @@ describe("what a Greed window tells the server about itself", () => {
     );
     expect(result.current.taken).toBeNull();
   });
+
+  it("leaves a table that has been closed, and says why", async () => {
+    const { result } = renderHook(() => useRoom(), { wrapper });
+    handlers.get("room:state")?.({ game: "greed", code: "ABCDE", listed: true, taunts: [], seats: [] });
+    await waitFor(() => expect(result.current.room).not.toBeNull());
+
+    handlers.get("room:closed")?.({ code: "ABCDE", reason: "empty" });
+
+    await waitFor(() => expect(result.current.room).toBeNull());
+    expect(result.current.error).toMatch(/closed/i);
+    expect(fake.emit).not.toHaveBeenCalledWith("lobby:leave");
+  });
+
+  it("ignores the close of a table it is not at", async () => {
+    const { result } = renderHook(() => useRoom(), { wrapper });
+    handlers.get("room:state")?.({ game: "greed", code: "ABCDE", listed: true, taunts: [], seats: [] });
+    handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.current.room).not.toBeNull();
+  });
 });

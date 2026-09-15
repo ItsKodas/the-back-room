@@ -79,6 +79,41 @@ export function deathRollAdapter(
   };
 
   /**
+   * Records chips just taken for the game on the felt.
+   *
+   * False only when the table has been called off while the take was in
+   * flight: the void has already handed back everything it held, and this
+   * arrived too late to be in it, so the caller gives it back in full. Play
+   * money and guests are never held.
+   */
+  const hold = (table: Table, seat: Pick<Seat, "id" | "userId">, chips: number): boolean => {
+    if (table.forFun || seat.userId === null) {
+      return true;
+    }
+    return table.escrow.hold(seat.userId, chips);
+  };
+
+  /**
+   * Chips going back before the game is decided: off the escrow, then to them.
+   *
+   * What `release` actually removed, never the nominal amount — a void may
+   * already have refunded this account, and handing it back again would be
+   * paying it twice.
+   */
+  const giveBack = async (
+    table: Table,
+    seat: Pick<Seat, "id" | "userId">,
+    chips: number,
+    deps: GameDeps,
+  ): Promise<void> => {
+    if (table.forFun || seat.userId === null) {
+      await give(table, seat, chips, deps);
+      return;
+    }
+    await give(table, seat, table.escrow.release(seat.userId, chips), deps);
+  };
+
+  /**
    * Every ante back, trying them all even if one fails.
    *
    * One refund failing is no reason to keep the rest of these people's stakes,
@@ -89,7 +124,7 @@ export function deathRollAdapter(
     let failure: unknown = null;
     for (const seat of seats) {
       try {
-        await give(table, seat, table.ante, deps);
+        await giveBack(table, seat, table.ante, deps);
       } catch (error) {
         failure ??= error;
       }
@@ -140,6 +175,16 @@ export function deathRollAdapter(
         await refundAll(table, funded, deps);
         throw error;
       }
+      if (paid && !hold(table, seat, table.ante)) {
+        /*
+         * Taken after the table was called off. The void has already handed
+         * back every ante it held and this one was not among them, so it goes
+         * back in full — and nobody is dealt at a table that has closed.
+         */
+        await give(table, seat, table.ante, deps);
+        await refundAll(table, funded, deps);
+        return true;
+      }
       if (paid) {
         funded.push(seat);
       } else {
@@ -181,6 +226,13 @@ export function deathRollAdapter(
       here = stillHere;
     }
 
+    /*
+     * A void while a refund above was in flight has already handed back every
+     * ante held for this deal. Dealing now would open a game whose pot is gone.
+     */
+    if (table.escrow.closed) {
+      return true;
+    }
     table.noteShorts(short);
     if (here.length < 2) {
       table.failDeal(
@@ -246,10 +298,15 @@ export function deathRollAdapter(
               table.forFun ? "That is more than your purse." : "You cannot cover a pass.",
             );
           }
+          if (!hold(table, seat, price)) {
+            // Called off while the chips were in flight, so never held: all of it goes back.
+            await give(table, seat, price, deps);
+            throw new TableError("This table is closing.");
+          }
           try {
             game.pass(seatId);
           } catch (error) {
-            await give(table, seat, price, deps);
+            await giveBack(table, seat, price, deps);
             throw error;
           }
           table.touchClock();
@@ -305,6 +362,12 @@ export function deathRollAdapter(
       if (game === null || !game.over) {
         return;
       }
+      /*
+       * Before the first await: the pot now belongs to the winner, not to the
+       * accounts it came off, so a void racing this settlement finds nothing
+       * left to give back twice.
+       */
+      table.escrow.settle();
       const winnerId = game.winnerId as string;
       const winner = table.seats.find((one) => one.id === winnerId);
       if (winner === undefined) {
@@ -355,6 +418,15 @@ export function deathRollAdapter(
         winnerIds: [winnerId],
         endedAt: Date.now(),
       });
+    },
+
+    /** Calls the table off: every ante and pass still on the felt, back to whoever paid it. */
+    async void(table, deps) {
+      const owed = table.escrow.close();
+      for (const one of owed) {
+        await deps.give(one.userId, one.chips);
+      }
+      return owed;
     },
 
     winners(table) {

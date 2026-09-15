@@ -78,4 +78,27 @@ describe("what a table window tells the server about itself", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(result.current.taken).toBeNull();
   });
+
+  it("leaves a table that has been closed, and says why", async () => {
+    const onLeave = vi.fn();
+    const { result } = renderHook(() => useTableSocket("blackjack", onLeave));
+    handlers.get("room:state")?.({ game: "blackjack", code: "ABCDE", listed: true, taunts: [], seats: [] });
+    await waitFor(() => expect(result.current.state).not.toBeNull());
+
+    handlers.get("room:closed")?.({ code: "ABCDE", reason: "empty" });
+
+    await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+    expect(result.current.state).toBeNull();
+    expect(result.current.error).toMatch(/closed/i);
+    expect(fake.emit).not.toHaveBeenCalledWith("lobby:leave");
+  });
+
+  it("ignores the close of a table it is not at", async () => {
+    const onLeave = vi.fn();
+    renderHook(() => useTableSocket("blackjack", onLeave));
+    handlers.get("room:state")?.({ game: "blackjack", code: "ABCDE", listed: true, taunts: [], seats: [] });
+    handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onLeave).not.toHaveBeenCalled();
+  });
 });

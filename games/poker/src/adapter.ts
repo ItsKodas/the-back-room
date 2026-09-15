@@ -105,17 +105,27 @@ export function pokerAdapter(
           if (!(await deps.take(seat.userId, table.entry))) {
             throw new TableError("Not enough chips to sit down.");
           }
-          table.buyIn(seatId, table.entry);
+          /*
+           * And given straight back if the seat is gone or the table closed
+           * while the chips were being taken: the stack never landed, so
+           * nobody else can be holding them.
+           */
+          try {
+            table.buyIn(seatId, table.entry);
+          } catch (error) {
+            await deps.give(seat.userId, table.entry);
+            throw error;
+          }
           return;
         }
         case "show":
           table.show(seatId);
           return;
         /*
-         * Taking chips back off the table. The table queues what it owes and
-         * `payOut` hands it over on the next broadcast — the same path a seat
-         * standing up uses, so there is one way chips leave a poker table and
-         * not two.
+         * Taking chips back off the table. The table queues what it owes on
+         * the escrow's queue and `payOut` hands it over on the next
+         * broadcast — the same path a seat standing up uses, so there is one
+         * way chips leave a poker table and not two.
          */
         case "cashOut":
           table.takeOffTable(seatId);
@@ -145,9 +155,10 @@ export function pokerAdapter(
      *
      * What poker owes an *account* is a different question with a different
      * answer, and it is not this one. That is what somebody took with them
-     * when they stood up: a queue rather than a state, paid through `payOut`,
-     * which is deliberately outside the latch. A queue behind a latch pays
-     * whoever was first and swallows everybody behind them.
+     * when they stood up: the escrow's queue rather than a state, paid
+     * through `payOut`, which is deliberately outside the latch. A queue
+     * behind a latch pays whoever was first and swallows everybody behind
+     * them.
      */
     isSettled(table) {
       return table.street === "showdown";
@@ -180,10 +191,19 @@ export function pokerAdapter(
        * table carries on dealing while this yields, and somebody else standing
        * up mid-payment would otherwise be paid twice or not at all.
        */
-      const owed = table.owedOut.splice(0);
+      const owed = table.escrow.takeDue();
       for (const one of owed) {
         await deps.give(one.userId, one.chips);
       }
+    },
+
+    /** Calls the table off: every stack and every bet, back to whoever brought it. */
+    async void(table, deps) {
+      const owed = table.escrow.close();
+      for (const one of owed) {
+        await deps.give(one.userId, one.chips);
+      }
+      return owed;
     },
 
     /*

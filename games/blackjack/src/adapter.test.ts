@@ -41,6 +41,17 @@ function seatCompany(table: { join: (id: string, name: string, who: unknown) => 
   table.join("z", "Bo", identity("u-company"));
 }
 
+/** A shoe dealing a known sequence, so a hand can be asserted about. */
+function stack(table: object, ranks: Rank[]): void {
+  const cards: Card[] = ranks.map((rank) => ({ rank, suit: "spades" })).reverse();
+  Object.defineProperty(table, "shoe", {
+    value: {
+      refresh() {},
+      draw: () => cards.pop() ?? ({ rank: "2", suit: "hearts" } as Card),
+    },
+  });
+}
+
 describe("who may change the window", () => {
   it("lets the host, because it is everybody's time", async () => {
     const game = blackjackAdapter();
@@ -421,17 +432,6 @@ describe("what the bank can cover across a whole table", () => {
     };
   }
 
-  /** A shoe dealing a known sequence, so a hand can be asserted about. */
-  function stack(table: object, ranks: Rank[]): void {
-    const cards: Card[] = ranks.map((rank) => ({ rank, suit: "spades" })).reverse();
-    Object.defineProperty(table, "shoe", {
-      value: {
-        refresh() {},
-        draw: () => cards.pop() ?? ({ rank: "2", suit: "hearts" } as Card),
-      },
-    });
-  }
-
   it("pays every winner in full when the whole felt bets what it is offered", async () => {
     const start = 4_000;
     const cap = maxStake(start);
@@ -582,5 +582,258 @@ describe("what the bank can cover across a whole table", () => {
 
     expect(balances["u1"]).toBe(10_000 - 4_000 + 8_000);
     expect(holds()).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("a blackjack table called off", () => {
+  function vaultOf(start: number) {
+    let held = start;
+    return {
+      read: () => held,
+      bank: {
+        async holds() {
+          return held;
+        },
+        async add(amount: number) {
+          held += amount;
+        },
+        async take(amount: number) {
+          if (amount > held) return false;
+          held -= amount;
+          return true;
+        },
+      },
+    };
+  }
+
+  it("hands a bet on the felt back out of the bank", async () => {
+    const { bank, read } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const { deps, balances } = ledger({ u1: 10_000 });
+
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    expect(balances["u1"]).toBe(9_500);
+    expect(read()).toBe(100_500);
+
+    await game.void?.(table, deps);
+    expect(balances["u1"]).toBe(10_000);
+    expect(read()).toBe(100_000);
+  });
+
+  it("hands back a doubled hand that was dealt but never finished", async () => {
+    /*
+     * A second real bettor, not company: a lone hand's double is always its
+     * last decision, and the table settles the round right inside that call —
+     * which is a finished hand, not the one this test is about. A second hand
+     * still waiting on a decision is what keeps the round genuinely
+     * unfinished while the table is called off.
+     */
+    const { bank, read } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    table.join("b", "Bo", identity("u2"));
+    const { deps, balances } = ledger({ u1: 10_000, u2: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    await game.act(table, "b", { type: "bet", amount: 500 }, deps);
+
+    // A hits a hard eleven that can double, B is dealt a hand it has not
+    // acted on yet, and the dealer has no blackjack: player, player, dealer,
+    // player, player, dealer, the way the table deals two seats.
+    stack(table, ["5", "3", "9", "6", "4", "7"]);
+    await game.act(table, "a", { type: "deal" }, deps);
+    expect(table.phase).toBe("playing");
+
+    await game.act(table, "a", { type: "double" }, deps);
+    expect(balances["u1"]).toBe(9_000);
+    expect(read()).toBe(101_500);
+    // B's hand is still waiting on a decision, so the round is genuinely
+    // unfinished — the case this test is actually about.
+    expect(table.phase).toBe("playing");
+
+    await game.void?.(table, deps);
+    expect(balances["u1"]).toBe(10_000);
+    expect(balances["u2"]).toBe(10_000);
+    expect(read()).toBe(100_000);
+  });
+
+  it("returns a bet to somebody who leaves while bets are still open", async () => {
+    const { bank, read } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    table.join("b", "Bo", identity("u2"));
+    const { deps, balances } = ledger({ u1: 10_000, u2: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+
+    table.removeSeat("a");
+    await game.payOut?.(table, deps);
+
+    expect(balances["u1"]).toBe(10_000);
+    expect(read()).toBe(100_000);
+  });
+
+  it("keeps a leaver's bet in the book from the moment they stand up", async () => {
+    /*
+     * Standing up takes the bet off the felt at once, but the chips stay in
+     * the bank until the next broadcast pays them. Another table reading them
+     * as headroom in between would promise chips already owed to somebody.
+     */
+    const { bank } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    const { deps } = ledger({ u1: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    table.removeSeat("a");
+
+    expect(ledgerOf(bank).owedElsewhere(other)).toBeGreaterThanOrEqual(500);
+  });
+
+  it("keeps a leaver's bet in the book until it has left the bank", async () => {
+    const { bank, read } = vaultOf(100_000);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let gating = false;
+    const gated = {
+      ...bank,
+      take: async (amount: number) => {
+        if (gating) await gate;
+        return bank.take(amount);
+      },
+    };
+    const game = blackjackAdapter({ bank: gated });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    const { deps, balances } = ledger({ u1: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    table.removeSeat("a");
+    gating = true;
+    const paying = game.payOut?.(table, deps);
+    // Not awaited: the refund's take is stuck on the gate by the time this settles.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBeGreaterThanOrEqual(500);
+
+    release();
+    await paying;
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBe(0);
+    expect(balances["u1"]).toBe(10_000);
+    expect(read()).toBe(100_000);
+  });
+
+  it("stops holding the bank's chips for a table that has been called off", async () => {
+    const { bank } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const closed = game.create("TEST1");
+    closed.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    other.join("b", "Bo", identity("u2"));
+    const { deps } = ledger({ u1: 10_000, u2: 10_000 });
+    await game.act(closed, "a", { type: "bet", amount: 500 }, deps);
+
+    await game.void?.(closed, deps);
+    const { ledgerOf } = await import("@backroom/core");
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+  });
+
+  it("gives a bet straight back if the table closed while it was being taken", async () => {
+    const { bank } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const { deps, balances } = ledger({ u1: 10_000 });
+
+    await game.act(table, "a", { type: "bet", amount: 300 }, deps);
+    expect(balances["u1"]).toBe(9_700);
+
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow: GameDeps = {
+      ...deps,
+      take: async (userId, amount) => {
+        const ok = await deps.take(userId, amount);
+        if (amount === 500) await gate;
+        return ok;
+      },
+    };
+
+    const raising = game.act(table, "a", { type: "bet", amount: 800 }, slow).catch((error) => error);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    /*
+     * Not awaited: `void`'s escrow close is the one synchronous step ahead of
+     * its own first await, so it has already happened by the time this call
+     * returns. Awaiting it here, before releasing the gate, would deadlock —
+     * its payout has to queue behind the bet still occupying the bank's
+     * queue, which cannot free up until the gate below lets it finish.
+     */
+    const voiding = game.void?.(table, deps);
+    release();
+    const [outcome] = await Promise.all([raising, voiding]);
+
+    expect(outcome).toBeInstanceOf(Error);
+    // The raise was never really placed — the escrow closed under it before
+    // the take that would have covered it ever resolved — so the felt goes
+    // back to the bet that was actually on it.
+    expect(table.seats[0]?.hands[0]?.bet).toBe(300);
+    // The original 300 came back when the table was called off, and the 500
+    // taken for the refused raise came straight back too: nothing here is
+    // this seat's any more than it started.
+    expect(balances["u1"]).toBe(10_000);
+  });
+
+  it("keeps a called-off table's refunds in the book until they have left the bank", async () => {
+    /*
+     * The void closes the escrow at once, but the chips only leave the bank on
+     * its turn in the queue. Reading the table as owing nothing in between
+     * would let another table promise chips that are about to be paid out.
+     */
+    const { bank, read } = vaultOf(100_000);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gated = {
+      ...bank,
+      take: async (amount: number) => {
+        await gate;
+        return bank.take(amount);
+      },
+    };
+    const game = blackjackAdapter({ bank: gated });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    const { deps, balances } = ledger({ u1: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    const voiding = game.void?.(table, deps);
+    // Not awaited: the take a void's payout makes is stuck on the gate above
+    // by the time this settles, the same reasoning the test just above this
+    // one spells out.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBeGreaterThanOrEqual(500);
+
+    release();
+    await voiding;
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBe(0);
+    expect(balances["u1"]).toBe(10_000);
+    expect(read()).toBe(100_000);
   });
 });
