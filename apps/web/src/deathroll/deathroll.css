@@ -438,7 +438,7 @@
 .dr__controls {
   grid-area: controls;
   position: sticky;
-  bottom: 0;
+  bottom: calc(0px + env(safe-area-inset-bottom, 0px));
   z-index: 1;
   display: flex;
   gap: var(--gr-space-3);

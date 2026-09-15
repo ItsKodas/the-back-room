@@ -74,3 +74,16 @@ body {
   position: relative;
   z-index: 1;
 }
+
+/*
+ * Clear of the notch and the home bar.
+ *
+ * The page draws under both once it is installed (viewport-fit=cover, and a
+ * translucent status bar), which is what lets the room's colour reach the
+ * edges. The insets are zero in an ordinary browser tab, so this changes
+ * nothing there.
+ */
+#root {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+}

@@ -10,6 +10,11 @@
   "theme_color": "#0d1015",
   "lang": "en",
   "categories": ["games", "entertainment"],
+  "shortcuts": [
+    { "name": "Blackjack", "url": "/blackjack", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Slots", "url": "/slots", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Greed", "url": "/greed", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
