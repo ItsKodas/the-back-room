@@ -88,6 +88,16 @@ export function blackjackAdapter(
    */
   const pendingVoid = new WeakMap<Table, number>();
 
+  /**
+   * A leaver's refund taken off the escrow's queue and not yet out of the
+   * bank.
+   *
+   * The same gap `pendingVoid` covers, on the leave path: once `takeDue` has
+   * emptied the queue, nothing on the table or in the escrow says those chips
+   * are still owed, but they sit in the bank until each take has gone through.
+   */
+  const leaveRefunding = new WeakMap<Table, number>();
+
   /** The most this table could still take out of the bank. */
   const owing = (table: Table): number => {
     // A called-off table owes only what its own void has not yet paid back
@@ -95,11 +105,26 @@ export function blackjackAdapter(
     // `serially` would read those chips as headroom before they have
     // actually left the bank, and put its own reservation back on the way
     // out.
+    //
+    // A leaver's refund already under way is counted either side of the
+    // close: a void can close the escrow while that refund is still waiting
+    // on the bank, and the chips are no less in there for it.
+    const leaving = leaveRefunding.get(table) ?? 0;
     if (table.escrow.closed) {
-      return pendingVoid.get(table) ?? 0;
+      return (pendingVoid.get(table) ?? 0) + leaving;
     }
     const waiting = unpaid.get(table);
+    /*
+     * And a leaver's bet still queued. Standing up during betting takes the
+     * bet off the felt at once, so the seats below no longer count it, while
+     * the chips stay in the bank until the next broadcast pays them — and
+     * another table's bet in that gap would be capped against them.
+     */
     let total = waiting?.back ?? 0;
+    total += leaving;
+    for (const one of table.escrow.due) {
+      total += one.chips;
+    }
     if (table.dealer !== waiting?.round && !paidOut.has(table.dealer)) {
       for (const seat of table.seats) {
         total += stillOwed(seat.hands);
@@ -141,19 +166,28 @@ export function blackjackAdapter(
   ) =>
     serially(table, async () => {
       try {
-        for (const one of owed) {
-          if (bank !== null && banked(table) && !(await bank.take(one.chips))) {
-            console.error(
-              `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
-            );
-            continue;
-          }
-          await deps.give(one.userId, one.chips);
-        }
+        await giveBack(table, owed, deps);
       } finally {
         after?.();
       }
     });
+
+  /** `handBack`'s work, for a caller already inside `serially`. */
+  const giveBack = async (
+    table: Table,
+    owed: readonly { userId: string; chips: number }[],
+    deps: GameDeps,
+  ) => {
+    for (const one of owed) {
+      if (bank !== null && banked(table) && !(await bank.take(one.chips))) {
+        console.error(
+          `blackjack ${table.code}: the bank refused ${one.chips} owed back to ${one.userId}`,
+        );
+        continue;
+      }
+      await deps.give(one.userId, one.chips);
+    }
+  };
 
   return {
     listing: BLACKJACK,
@@ -478,10 +512,33 @@ export function blackjackAdapter(
 
     /** Bets owed back to somebody who stood up while the felt was still open. */
     async payOut(table, deps) {
-      const owed = table.escrow.takeDue();
-      if (owed.length > 0) {
-        await handBack(table, owed, deps);
+      if (table.escrow.due.length === 0) {
+        return;
       }
+      await serially(table, async () => {
+        /*
+         * Taken inside the queue rather than before it. Taken outside, the
+         * queue is empty and the refund counted nowhere for as long as the
+         * bank's queue takes to reach it. Still exactly-once: two broadcasts
+         * queue behind each other and the second finds nothing, and a void's
+         * `close()` empties the queue synchronously before it queues at all.
+         */
+        const owed = table.escrow.takeDue();
+        if (owed.length === 0) {
+          return;
+        }
+        // Counted until the chips have actually left the bank, and cleared
+        // before `serially` tells the book what the table owes on the way out.
+        leaveRefunding.set(
+          table,
+          owed.reduce((total, one) => total + one.chips, 0),
+        );
+        try {
+          await giveBack(table, owed, deps);
+        } finally {
+          leaveRefunding.delete(table);
+        }
+      });
     },
 
     /**

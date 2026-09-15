@@ -675,6 +675,64 @@ describe("a blackjack table called off", () => {
     expect(read()).toBe(100_000);
   });
 
+  it("keeps a leaver's bet in the book from the moment they stand up", async () => {
+    /*
+     * Standing up takes the bet off the felt at once, but the chips stay in
+     * the bank until the next broadcast pays them. Another table reading them
+     * as headroom in between would promise chips already owed to somebody.
+     */
+    const { bank } = vaultOf(100_000);
+    const game = blackjackAdapter({ bank });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    const { deps } = ledger({ u1: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    table.removeSeat("a");
+
+    expect(ledgerOf(bank).owedElsewhere(other)).toBeGreaterThanOrEqual(500);
+  });
+
+  it("keeps a leaver's bet in the book until it has left the bank", async () => {
+    const { bank, read } = vaultOf(100_000);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let gating = false;
+    const gated = {
+      ...bank,
+      take: async (amount: number) => {
+        if (gating) await gate;
+        return bank.take(amount);
+      },
+    };
+    const game = blackjackAdapter({ bank: gated });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const other = game.create("TEST2");
+    const { deps, balances } = ledger({ u1: 10_000 });
+    await game.act(table, "a", { type: "bet", amount: 500 }, deps);
+    const { ledgerOf } = await import("@backroom/core");
+
+    table.removeSeat("a");
+    gating = true;
+    const paying = game.payOut?.(table, deps);
+    // Not awaited: the refund's take is stuck on the gate by the time this settles.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBeGreaterThanOrEqual(500);
+
+    release();
+    await paying;
+
+    expect(ledgerOf(gated).owedElsewhere(other)).toBe(0);
+    expect(balances["u1"]).toBe(10_000);
+    expect(read()).toBe(100_000);
+  });
+
   it("stops holding the bank's chips for a table that has been called off", async () => {
     const { bank } = vaultOf(100_000);
     const game = blackjackAdapter({ bank });
