@@ -98,10 +98,16 @@ export function Haze() {
      * the building, where the sign is the only light there is, and different
      * in a card room lit low over a green floor — which was being shown
      * through blue air until this stopped asking the tube.
+     *
+     * Read when the room changes rather than on every frame. Asking the
+     * cascade makes the browser settle every style on the page first, and
+     * the only thing that re-lights the air is a page setting data-game on
+     * the document — which is what the observer below is watching for.
      */
-    const accent = () => {
-      const styles = getComputedStyle(document.documentElement);
-      return {
+    let colour = { core: "#7ba9ff", deep: "#2e7bff" };
+    const readColour = () => {
+      const styles = window.getComputedStyle(document.documentElement);
+      colour = {
         core: styles.getPropertyValue("--gr-color-air-hi").trim() || "#7ba9ff",
         deep: styles.getPropertyValue("--gr-color-air").trim() || "#2e7bff",
       };
@@ -123,7 +129,6 @@ export function Haze() {
       const step = Math.min((now - last) / 1000, 0.05);
       last = now;
 
-      const colour = accent();
       const base = Math.hypot(width, height) * 0.26 * HAZE.size;
       context.clearRect(0, 0, width, height);
       context.globalCompositeOperation = "lighter";
@@ -200,14 +205,19 @@ export function Haze() {
       moving = !lessMotion.matches;
     };
 
+    const room = new MutationObserver(readColour);
+
+    readColour();
     size();
     start();
     window.addEventListener("resize", size);
     document.addEventListener("visibilitychange", visibility);
     lessMotion.addEventListener("change", preference);
+    room.observe(document.documentElement, { attributes: true, attributeFilter: ["data-game"] });
 
     return () => {
       stop();
+      room.disconnect();
       window.removeEventListener("resize", size);
       document.removeEventListener("visibilitychange", visibility);
       lessMotion.removeEventListener("change", preference);
