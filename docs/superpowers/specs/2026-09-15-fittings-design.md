@@ -67,7 +67,13 @@ felts still use them.
 
 - `apps/web/src/fittings/fittings.css` — every rule below, imported in
   `main.tsx` straight after `game/game.css` so a page's own sheet can still
-  place a fitting without fighting it on weight.
+  place a fitting without fighting it on weight. The route stylesheets
+  (`admin.css`, `leaderboard.css`, `net.css`) load after it, so a page rule
+  there beats a fitting on an equal-weight tie for free. `game.css` is the one
+  exception, since it loads *before* fittings.css: a page rule in it on an
+  element that also wears a fitting class has to be compounded with the
+  fitting's own class (`.row.open-table`, not `.open-table`) to win that tie,
+  or fittings.css quietly wins it instead.
 - `apps/web/src/fittings/` — the few React components that exist because the
   part has behaviour, not because it has markup (see below).
 - `apps/web/src/style/Fittings.tsx` — a section in the `/style` gallery showing
@@ -88,8 +94,8 @@ is what decides where it goes.
 
 - **`.slab`** — the lit button. A dark well, a screen of the room's neon moving
   slowly behind glass, and a solid `--gr-color-neon-deep` slab underneath.
-  Down in 55ms, back up on `--gr-spring`. **One per screen**: the thing the
-  page is for. Modifiers `--wide`, `--small`.
+  Down in 55ms, back up on `--gr-spring`. **One per housing**: the thing that
+  housing is for. Modifiers `--wide`, `--small`.
   - `:disabled` is *unable*: the screen goes out and the slab is already down.
   - `.is-busy` is *waiting on the server*: held down, still lit, the light
     moving faster. It is set on the press, not on the acknowledgement, and
@@ -121,14 +127,17 @@ with `aria-checked` inside a `radiogroup`, as in the mockup.
 
 ### Typing
 
-- **`.field` / `.label` / `.input` / `.hint`**, with `.field--bad` for a refused
-  value. `.field` is already a class in `game.css`; the new sheet, loaded after
-  it, overrides it on a page. `.field__label` and `.field__input` stay,
-  because the chat box on the felts wears them.
+- **`.entry` / `.label` / `.input` / `.hint`**, with `.entry--bad` for a
+  refused value. The wrapper is `.entry`, not `.field`: `.field` is already a
+  class in `game.css`, and stayed the felts' and the chat box's own until it
+  was deleted from every page that had shared it with this sheet.
+  `.field__input` alone survives, because the in-game chat still wears it.
 - **`.lcd`** — the table code on a scanlined screen, one cell per character,
   the example code showing faint until typed over. A real `<input>` sits over
-  the cells so paste, autofill and screen readers behave as they do today.
-  Component: `CodeScreen.tsx`, used by `TableSetup.tsx` and `Play.tsx`'s join.
+  the cells so paste, autofill and screen readers behave as they do today —
+  `.lcd__input` is set to 16px so a focused field this transparent still
+  stops iOS Safari zooming the page in. Component: `CodeScreen.tsx`, used by
+  `TableSetup.tsx` and `Play.tsx`'s join.
 
 ### Containers
 
