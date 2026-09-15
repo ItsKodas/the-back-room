@@ -343,7 +343,7 @@ export function Table({
             </p>
           ) : null}
 
-          {talkKey !== undefined ? <div className="gt__talk">{talkKey}</div> : null}
+          {talkKey !== undefined ? <div className="table-talk-corner">{talkKey}</div> : null}
           <button
             type="button"
             className="key key--icon gt__help"

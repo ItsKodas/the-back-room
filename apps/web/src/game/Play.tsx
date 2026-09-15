@@ -95,7 +95,7 @@ export function Play() {
   }
 
   return (
-    <main className={`play${atTable ? " play--greed" : ""}`}>
+    <main className={`play${atTable ? " play--fit" : ""}`}>
       {/* At the table a refusal takes the middle of the board; on a page it stays a strip. */}
       {atTable ? (
         <Refusal message={error} id={errorKey} />

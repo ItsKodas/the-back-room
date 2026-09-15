@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { play } from "../game/audio.js";
+import "./table.css";
 
 /**
  * The table saying no, in the middle of the board.

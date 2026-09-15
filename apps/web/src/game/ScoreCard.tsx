@@ -168,7 +168,7 @@ export function ScoreCard({ rules, lit = [] }: { rules: Ruleset; lit?: readonly 
 
   return (
     <>
-      <dl className="card" aria-label="What everything scores">
+      <dl className="card table-scroll" aria-label="What everything scores">
         {rows.map((row) => (
           <div className={`card__row${lighting.has(row.key) ? " card__row--lit" : ""}`} key={row.key}>
             <dt>

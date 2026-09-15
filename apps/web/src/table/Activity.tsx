@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./table.css";
 
 /** One thing the table said happened. */
 export interface ActivityEntry {
