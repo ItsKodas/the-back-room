@@ -854,7 +854,16 @@ describe("the free spins", () => {
      * spin is not a contest, so it is not a round.
      */
     const stake = 10;
-    const { client, store, userId } = await openMachine({ bank: 5_000_000, chips: 100_000 });
+    /*
+     * Reels that never land a bonus. On the real shuffle a spin now and then
+     * awards free spins, which stake nothing, and five spins came to less
+     * than five stakes: a test that failed only when the reels felt like it.
+     */
+    const { client, store, userId } = await openMachine({
+      bank: 5_000_000,
+      chips: 100_000,
+      spinRandom: losing(),
+    });
     for (let i = 0; i < 5; i += 1) {
       expect((await spin(client, stake)).ok).toBe(true);
     }
