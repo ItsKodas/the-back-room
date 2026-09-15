@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { play } from "./audio.js";
+import { play } from "../game/audio.js";
 import { Refusal } from "./Refusal.js";
 
-vi.mock("./audio.js", () => ({ play: vi.fn() }));
+vi.mock("../game/audio.js", () => ({ play: vi.fn() }));
 
 const NO = "You need 500 in one turn to get on the board.";
 
