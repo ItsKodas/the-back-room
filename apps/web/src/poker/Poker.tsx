@@ -11,7 +11,7 @@ import { compact } from "../game/money.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { TurnRing } from "../game/TurnRing.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
@@ -148,12 +148,25 @@ export function Poker() {
   const { state, seatId } = table;
   useTableSound(state, seatId);
 
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "poker";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  useNav({
+    room: "poker",
+    game: "Poker",
+    ...(state !== null
+      ? {
+          table: {
+            code: state.code,
+            onLeave: table.leave,
+            /*
+             * Asked twice mid-hand, because leaving one is folding: the
+             * chips already in the pot stay there, and the press that
+             * gives them up should not be one you can make by accident.
+             */
+            confirm: state.street !== "waiting",
+          },
+        }
+      : {}),
+    connected: table.connected,
+  });
 
   useEffect(() => {
     if (state !== null && state.code !== urlCode) {
@@ -168,26 +181,6 @@ export function Poker() {
   return (
     // Wider only at the felt: the screen before it is the building's width.
     <main className={state === null ? "play" : "play play--poker"}>
-      <Navbar
-        game="Poker"
-        {...(state !== null
-          ? {
-              table: {
-                code: state.code,
-                onLeave: table.leave,
-                /*
-                 * Asked twice mid-hand, because leaving one is folding: the
-                 * chips already in the pot stay there, and the press that
-                 * gives them up should not be one you can make by accident.
-                 */
-                confirm: state.street !== "waiting",
-              },
-            }
-          : {})}
-        account={account}
-        connected={table.connected}
-      />
-
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
       {state?.lastEvent != null ? <p className="play__event">{state.lastEvent}</p> : null}
 

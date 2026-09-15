@@ -9,7 +9,7 @@ import { Chat } from "../game/Chat.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
@@ -47,12 +47,23 @@ export function DeathRoll() {
   const table = useTableSocket<TableView>("death-roll", back, account.setChips);
   const { state, seatId } = table;
 
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "death-roll";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  useNav({
+    room: "death-roll",
+    game: "Death Roll",
+    ...(state !== null
+      ? {
+          table: {
+            code: state.code,
+            onLeave: table.leave,
+            // Asked while a game is running, because the ante is already
+            // in the pot and standing up gives it up. Not asked once it
+            // has ended: nothing more is owed to a seat that leaves then.
+            confirm: state.phase === "playing",
+          },
+        }
+      : {}),
+    connected: table.connected,
+  });
 
   useEffect(() => {
     if (state !== null && state.code !== urlCode) {
@@ -66,24 +77,6 @@ export function DeathRoll() {
 
   return (
     <main className="play play--duel">
-      <Navbar
-        game="Death Roll"
-        {...(state !== null
-          ? {
-              table: {
-                code: state.code,
-                onLeave: table.leave,
-                // Asked while a game is running, because the ante is already
-                // in the pot and standing up gives it up. Not asked once it
-                // has ended: nothing more is owed to a seat that leaves then.
-                confirm: state.phase === "playing",
-              },
-            }
-          : {})}
-        account={account}
-        connected={table.connected}
-      />
-
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
 
       {table.taken !== null ? (

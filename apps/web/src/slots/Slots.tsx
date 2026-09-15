@@ -20,7 +20,7 @@ import { Chip } from "../chips/Chip.js";
 import { ChipStack } from "../chips/ChipStack.js";
 import { useAccount } from "../game/useAccount.js";
 import { exact } from "../game/money.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Digits } from "../game/Digits.js";
 import { Taken } from "../net/Taken.js";
 import { windowId } from "../net/windowId.js";
@@ -406,17 +406,6 @@ const FUN_SIGN: MachineSign = {
 
 export default function Slots() {
   const account = useAccount();
-  /*
-   * Which room you are standing in, on the document rather than this element:
-   * the page's background and its haze live on body, so a game repainting only
-   * its own subtree sits in the building's blue with a violet rectangle in it.
-   */
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "slots";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
 
   const [sign, setSign] = useState<MachineSign | null>(null);
   const [grid, setGrid] = useState<Face[][] | undefined>(undefined);
@@ -1162,18 +1151,18 @@ export default function Slots() {
   // Signed in, or playing for nothing — either way there is a machine to play.
   const canPlay = forFun || account.profile !== null;
 
+  useNav({
+    room: "slots",
+    game: (
+      <>
+        SL<em>O</em>TS
+      </>
+    ),
+    connected,
+  });
+
   return (
     <main className="slots" data-game="slots">
-      <Navbar
-        game={
-          <>
-            SL<em>O</em>TS
-          </>
-        }
-        account={account}
-        connected={connected}
-      />
-
       {taken !== null ? (
         <Taken
           message={taken}

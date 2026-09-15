@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { throughTheDoor } from "../game/doors.js";
-import { useAccount } from "../game/useAccount.js";
-import { Navbar } from "../nav/Navbar.js";
 import { Activity } from "./Activity.js";
 import { SideRail } from "./SideRail.js";
 import { Standings } from "./Standings.js";
@@ -38,7 +36,6 @@ interface GameOnOffer {
  * differ underneath — a machine has no seats, no turns and no opponents.
  */
 export function Room() {
-  const account = useAccount();
   const [games, setGames] = useState<GameOnOffer[]>([]);
 
   useEffect(() => {
@@ -77,7 +74,6 @@ export function Room() {
       </SideRail>
 
       <main className="room">
-        <Navbar account={account} />
 
         {/* The two things you walk up to on your own, side by side and first:
             a machine and a jar take a press, not a table's worth of people. */}

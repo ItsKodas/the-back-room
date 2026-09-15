@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useAccount } from "../game/useAccount.js";
-import { Navbar } from "../nav/Navbar.js";
 import { Banks } from "./Banks.js";
 import { Codes } from "./Codes.js";
 import { Emotes } from "./Emotes.js";
@@ -40,7 +38,6 @@ const PANELS: Record<TabId, () => JSX.Element> = {
  * send another straight to the players.
  */
 export function Admin() {
-  const account = useAccount();
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [params, setParams] = useSearchParams();
   const asked = params.get("tab");
@@ -56,7 +53,6 @@ export function Admin() {
 
   return (
     <main className="room">
-      <Navbar account={account} />
       {allowed === null ? null : allowed ? (
         <div className="desk">
           <div className="desk__tabs" role="tablist" aria-label="Admin desk">
