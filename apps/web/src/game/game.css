@@ -926,7 +926,7 @@
  * cannot be trusted with that, because a row spanning the full width keeps a
  * track from collapsing and quietly makes one row wider than the next.
  */
-.table-lobby {
+.lobby {
   padding-top: var(--gr-space-6);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1404,7 +1404,7 @@
 .lobby__wide {
   grid-column: 1 / -1;
   display: grid;
-  /* The same two tracks as .table-lobby, so the tiles sit under the blocks above. */
+  /* The same two tracks as .lobby, so the tiles sit under the blocks above. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gr-space-4);
   align-items: start;
@@ -1426,7 +1426,7 @@
 @media (max-width: 720px) {
   /* One column all the way down. Two of these tracks would be too narrow to
      read a seat name in, let alone a rules row. */
-  .table-lobby,
+  .lobby,
   .lobby__wide {
     grid-template-columns: 1fr;
   }
