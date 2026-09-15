@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 
-/** What this browser can do about putting the room on a home screen. */
-export type InstallOffer = { kind: "prompt"; install: () => void } | { kind: "ios" } | { kind: "none" };
+/**
+ * What this page can do about putting the room on a home screen.
+ *
+ * `installed` is the one state with nothing to offer: the page is already the
+ * app. Every browser tab gets an offer of some kind, because a button that only
+ * appears on the browsers that fire an install event is missing on most of
+ * them.
+ */
+export type InstallOffer =
+  | { kind: "installed" }
+  | { kind: "prompt"; install: () => void }
+  | { kind: "ios" }
+  | { kind: "manual" };
 
 /** Chrome's install event. Not in the DOM typings because it is not a standard. */
 interface InstallPromptEvent extends Event {
@@ -33,30 +44,26 @@ export function isIos(userAgent: string, maxTouchPoints: number): boolean {
  * Chrome's event is caught and held rather than left to show its own bar, so
  * the offer lives on our button — somewhere a player will find it again — and
  * not in a banner that shows once and is dismissed on the way to a table.
+ *
+ * Installing from this tab does not make this tab the app, so `appinstalled`
+ * changes nothing here: the tab stays a browser tab and keeps its button. Only
+ * a page that opened as the app hides it.
  */
 export function useInstall(): InstallOffer {
   const [held, setHeld] = useState<InstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(() => isStandalone());
+  const [standalone] = useState(() => isStandalone());
 
   useEffect(() => {
     const offered = (event: Event) => {
       event.preventDefault();
       setHeld(event as InstallPromptEvent);
     };
-    const done = () => {
-      setInstalled(true);
-      setHeld(null);
-    };
     window.addEventListener("beforeinstallprompt", offered);
-    window.addEventListener("appinstalled", done);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", offered);
-      window.removeEventListener("appinstalled", done);
-    };
+    return () => window.removeEventListener("beforeinstallprompt", offered);
   }, []);
 
-  if (installed) {
-    return { kind: "none" };
+  if (standalone) {
+    return { kind: "installed" };
   }
   if (held !== null) {
     return {
@@ -71,5 +78,5 @@ export function useInstall(): InstallOffer {
   if (isIos(window.navigator.userAgent, window.navigator.maxTouchPoints)) {
     return { kind: "ios" };
   }
-  return { kind: "none" };
+  return { kind: "manual" };
 }

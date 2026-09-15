@@ -9,6 +9,9 @@ const IPHONE =
 const IPAD_AS_MAC =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
 
+const button = () => screen.queryByRole("button", { name: "Install The Back Room" });
+const hint = () => screen.queryByRole("dialog", { name: "How to install The Back Room" });
+
 function offerFromBrowser() {
   const prompt = vi.fn(async () => {});
   const event = Object.assign(new Event("beforeinstallprompt", { cancelable: true }), {
@@ -21,53 +24,72 @@ function offerFromBrowser() {
   return { event, prompt };
 }
 
-beforeEach(() => {
-  window.localStorage.clear();
-});
-
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   Reflect.deleteProperty(window, "matchMedia");
 });
 
-describe("on a browser that can install", () => {
-  it("offers nothing until the browser says it can", () => {
+describe("the install button", () => {
+  it("is an icon, named for a screen reader rather than spelled out on the bar", () => {
     render(<Install />);
-    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+    const found = button();
+
+    expect(found).not.toBeNull();
+    expect(found?.querySelector("svg")).not.toBeNull();
+    expect(found?.textContent).toBe("");
   });
 
-  it("offers Install once it can, and hands the press to the browser's own prompt", async () => {
+  it("is on the bar in an ordinary browser tab, before the browser has offered anything", () => {
+    // Waiting for the browser's own event hid it on every browser that never
+    // sends one, which is most of them — the button has to be findable anyway.
     render(<Install />);
-    const { event, prompt } = offerFromBrowser();
-
-    // Held back, so the browser's mini-infobar does not appear on its own.
-    expect(event.defaultPrevented).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Install" }));
-    expect(prompt).toHaveBeenCalledTimes(1);
-
-    // A prompt can be used once; after the choice the button has nothing to do.
-    await act(async () => {});
-    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+    expect(button()).not.toBeNull();
   });
 
-  it("goes away once the app is installed", () => {
+  it("explains the browser's own route when there is no prompt to hand over", () => {
     render(<Install />);
-    offerFromBrowser();
-    act(() => {
-      window.dispatchEvent(new Event("appinstalled"));
-    });
-    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+    fireEvent.click(button() as HTMLElement);
+
+    expect(hint()?.textContent).toContain("Install app");
   });
 
-  it("offers nothing inside the installed app itself", () => {
+  it("hides only inside the installed app itself", () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: () => ({ matches: true }),
     });
     render(<Install />);
     offerFromBrowser();
-    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+
+    expect(button()).toBeNull();
+  });
+});
+
+describe("on a browser that can install", () => {
+  it("hands the press to the browser's own prompt, and opens no hint", async () => {
+    render(<Install />);
+    const { event, prompt } = offerFromBrowser();
+
+    // Held back, so the browser's mini-infobar does not appear on its own.
+    expect(event.defaultPrevented).toBe(true);
+    fireEvent.click(button() as HTMLElement);
+    expect(prompt).toHaveBeenCalledTimes(1);
+    expect(hint()).toBeNull();
+
+    // The prompt is spent, but this is still a browser tab, so the button stays.
+    await act(async () => {});
+    expect(button()).not.toBeNull();
+  });
+
+  it("stays after installing, because this tab is still not the app", () => {
+    render(<Install />);
+    offerFromBrowser();
+    act(() => {
+      window.dispatchEvent(new Event("appinstalled"));
+    });
+
+    expect(button()).not.toBeNull();
   });
 });
 
@@ -78,22 +100,23 @@ describe("on an iPhone", () => {
 
   it("explains how on a press, because iOS has no prompt to give", () => {
     render(<Install />);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(hint()).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Install" }));
-    const hint = screen.getByRole("dialog", { name: "Install The Back Room" });
-    expect(hint.textContent).toContain("Add to Home Screen");
+    fireEvent.click(button() as HTMLElement);
+    expect(hint()?.textContent).toContain("Add to Home Screen");
   });
 
-  it("stays dismissed once somebody has said they have got it", () => {
+  it("closes the hint on Got it and keeps the button, now and next visit", () => {
     const { unmount } = render(<Install />);
-    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    fireEvent.click(button() as HTMLElement);
     fireEvent.click(screen.getByRole("button", { name: "Got it" }));
-    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+
+    expect(hint()).toBeNull();
+    expect(button()).not.toBeNull();
 
     unmount();
     render(<Install />);
-    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+    expect(button()).not.toBeNull();
   });
 });
 
