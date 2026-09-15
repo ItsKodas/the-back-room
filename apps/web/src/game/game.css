@@ -129,14 +129,14 @@
 }
 
 .shell__bar + .room,
-.shell__bar + .lobby > .room {
+.shell__bar + .floor > .room {
   padding-top: var(--gr-space-2);
 }
 
 /* The rails start level with the room under the bar, not a page's padding
    below it. Only while they are columns: a drawer runs from the window's top. */
 @media (min-width: 1280px) {
-  .shell__bar + .lobby > .rail {
+  .shell__bar + .floor > .rail {
     margin-top: var(--gr-space-2);
   }
 }
@@ -1758,8 +1758,11 @@
  * ahead on the right. The side tracks share whatever the room leaves, and
  * each rail keeps to the window's edge, so the room stays the centre of the
  * page and the rails read as furniture around it rather than part of it.
+ *
+ * Not .lobby: that is a game's own lobby grid, earlier in this file, and a
+ * later rule of the same name silently replaced its two columns with these.
  */
-.lobby {
+.floor {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(0, var(--page-width)) minmax(220px, 1fr);
   column-gap: var(--gr-space-4);
@@ -1767,7 +1770,7 @@
   align-items: start;
 }
 
-.lobby > .room {
+.floor > .room {
   grid-column: 2;
   grid-row: 1;
   width: 100%;
@@ -1817,7 +1820,7 @@
  * the slide to finish so it is not snapped out of sight mid-motion.
  */
 @media (max-width: 1279px) {
-  .lobby {
+  .floor {
     display: block;
     padding-inline: 0;
   }

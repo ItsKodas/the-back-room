@@ -68,7 +68,7 @@ export function Room() {
   const party = games.filter((game) => game.shape === "party");
 
   return (
-    <div className="lobby">
+    <div className="floor">
       <SideRail side="left" label="On the floor" icon={<FloorIcon />}>
         <Activity />
       </SideRail>
