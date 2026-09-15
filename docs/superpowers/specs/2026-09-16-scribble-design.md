@@ -474,6 +474,49 @@ Every rule above that can be broken gets a test that fails without it.
 - By hand, recorded in the commit: every screen at 375 px and desktop, on a
   throttled connection, drawing with a partner on a second device.
 
+## Amendments from planning
+
+Found while writing the implementation plan against the code. Where these and
+the sections above disagree, these win.
+
+1. **Everyone for themselves needs 3, not 2.** `packages/core/src/coming.ts`
+   already listed Scribble with `minSeats: 3` and the reason: two is one person
+   drawing for an audience of one, with no race between guessers. Teams still
+   need `2 × teams`.
+2. **The listing moves out of `COMING`** into `games/scribble/src/listing.ts`,
+   repainted in the approved room: wall `#131218`, felt (the napkin) `#f2efe9`,
+   accent `#e2409c`, accent-hi `#ff9ad3`. The old terracotta is dropped.
+3. **Actions are narrowed by hand, not by zod.** zod lives only in
+   `packages/shared`; every game narrows its own actions, and Scribble follows.
+4. **The table is given `now: () => number`** as well as its random source, so
+   tests drive a clock rather than fake timers.
+5. **A guess that contains the word without being it** ("the lighthouse") goes
+   to its author only, as `close`. Sent to the room it would tell everybody.
+6. **Drawers' chat goes to the drawers during Pick as well as Draw,** and is
+   refused if it contains any of the three choices — the choices are as secret
+   as the word.
+7. **The napkin is rasterised by the game's own code, not the canvas's.** A
+   browser antialiases a line differently from another browser, so a flood fill
+   bounded by canvas-drawn lines floods different pixels on different devices.
+   Strokes are stamped as discs onto a 1000 × 750 pixel buffer by
+   `apps/web/src/scribble/raster.ts` and put onto a canvas of exactly that size,
+   scaled by CSS. The "backing canvas sized for pixel density" line above is
+   replaced by this.
+8. **The eraser is an ink** — `paper`, the napkin's own colour — so erasing is a
+   stroke like any other and undoes like one.
+9. **Sound is synthesised throughout for now.** There are no marker or paper
+   recordings in `assets/audio/raw`, and `pickNamed` silently plays any file in
+   a group when none matches. Recording them is a follow-up.
+10. **Each pack ships with 40 words,** enforced by a test. Growing them towards
+    150–300 is content work after the build.
+11. **Seats use the building's own `SeatCount`** inside `TableSetup` (up to
+    10, starting at 8), not a Scribble-only 4 / 6 / 8 / 10 row. A table too
+    small for its mode is refused by the adapter, and the setup note says so
+    before the host presses.
+12. **No separate pen dot leads a stroke in.** The napkin already shows your
+    line under your finger and a partner's line as each batch lands, which is
+    the arrival; a dot on top would be a second motion on the same thing.
+
 ## Out of scope
 
 - Bots, chips, and any history record.
