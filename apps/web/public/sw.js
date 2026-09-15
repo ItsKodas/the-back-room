@@ -10,6 +10,9 @@
  * all.
  */
 
+// offline.html is only re-fetched into the cache when a new worker installs,
+// which only happens when sw.js itself changes — so any edit to offline.html
+// must bump this name too, or an installed app keeps serving the old page.
 const SHELL = "backroom-shell-v1";
 const ASSETS = "backroom-assets";
 const OFFLINE = "/offline.html";
