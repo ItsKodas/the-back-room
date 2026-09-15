@@ -3232,3 +3232,30 @@ a.btn {
     animation: none;
   }
 }
+
+/*
+ * At a table the bar grows a code, a Leave, an account pill, and sometimes an
+ * admin key before Install ever appears, so on a narrow phone the button can
+ * land anywhere along a wrapped row — including close enough to the left edge
+ * that a 260px hint anchored to its right edge runs off the screen. Below
+ * 480px the hint gives up tracking the button and anchors to `.nav` instead:
+ * `.install` drops its own containing block, so `.install__hint`'s `right: 0`
+ * finds `.nav`'s edges rather than the button's, and `left`/`right` here pin
+ * it to the bar's own width, which is already inset from the viewport by the
+ * page's own padding. Wherever Install sits, the hint cannot reach past it.
+ */
+@media (max-width: 480px) {
+  .nav {
+    position: relative;
+  }
+
+  .install {
+    position: static;
+  }
+
+  .install__hint {
+    left: var(--gr-space-4);
+    right: var(--gr-space-4);
+    width: auto;
+  }
+}
