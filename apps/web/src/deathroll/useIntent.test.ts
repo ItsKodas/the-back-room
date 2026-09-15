@@ -167,6 +167,20 @@ describe("pressing roll", () => {
 
     expect(result.current.rolling).toBe(false);
   });
+
+  it("gives up on a roll refused in the same words as the last refusal", () => {
+    const act_ = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ key }: { key: number }) => useIntent(playing(), "ada", act_, "Not your roll.", key),
+      { initialProps: { key: 1 } },
+    );
+
+    act(() => result.current.roll());
+    expect(result.current.rolling).toBe(true);
+
+    rerender({ key: 2 });
+    expect(result.current.rolling).toBe(false);
+  });
 });
 
 describe("pressing pass", () => {

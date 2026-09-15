@@ -178,13 +178,14 @@ export function Felt({
    * the one place every optimistic figure on this felt gives up at once,
    * whichever of them the table was actually refusing.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (table.error !== null) {
       setPending({});
       setPendingCentre(0);
       setPendingCover(0);
     }
-  }, [table.error]);
+  }, [table.error, table.errorKey]);
 
   /* -------------------------------------------------------------- the kip */
 
@@ -195,11 +196,12 @@ export function Felt({
   useEffect(() => {
     setSwung(false);
   }, [state.phase]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (table.error !== null) {
       setSwung(false);
     }
-  }, [table.error]);
+  }, [table.error, table.errorKey]);
 
   const canThrow = state.phase === "kip" && seatId !== null && seatId === state.spinnerId;
   const onThrow = () => {

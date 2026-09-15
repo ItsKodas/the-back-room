@@ -106,7 +106,7 @@ export function Felt({
 }) {
   const mine = state.you;
   const myTurn = state.phase === "playing" && seatId !== null && state.toRoll === seatId;
-  const intent = useIntent(state, seatId, table.act, table.error);
+  const intent = useIntent(state, seatId, table.act, table.error, table.errorKey);
   useTableSound(state, seatId);
   // A pass's chips only ever need to land once, right as they are pressed —
   // not for as long as the ask stays outstanding, which is what watching

@@ -43,6 +43,8 @@ export function useIntent(
   view: TableView | null,
   seatId: string | null,
   error: string | null,
+  /** Moves on for every refusal, including one in the same words as the last. */
+  errorKey = 0,
 ): Intent {
   const me = view?.seats.find((seat) => seat.id === seatId) ?? null;
   const cards = me?.hands.reduce((total, hand) => total + hand.cards.length, 0) ?? 0;
@@ -98,12 +100,15 @@ export function useIntent(
     }
   }, [bet, me]);
 
+  // Keyed on the count as well as the words: a second refusal in the same
+  // words is still a refusal, and would otherwise leave the move hanging.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error !== null) {
       setBet(null);
       setSent(null);
     }
-  }, [error]);
+  }, [error, errorKey]);
 
   // A hand that has been dealt is no longer one anybody is betting on.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fires on the phase changing, which is the point

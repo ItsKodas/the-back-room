@@ -178,4 +178,21 @@ describe("a move, before the table has answered", () => {
 
     expect(result.current.move).toBeNull();
   });
+
+  it("gives up on a move refused in the same words as the last refusal", () => {
+    /*
+     * The table said no, then this player tried again and it said no in the
+     * same words. The words did not change, so only the count can say so.
+     */
+    const no = "You cannot cover that bet.";
+    const { result, rerender } = renderHook(
+      ({ key }: { key: number }) => useIntent(table(), "a", no, key),
+      { initialProps: { key: 1 } },
+    );
+    act(() => result.current.send("double"));
+
+    rerender({ key: 2 });
+
+    expect(result.current.move).toBeNull();
+  });
 });

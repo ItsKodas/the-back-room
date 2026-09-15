@@ -160,7 +160,7 @@ function Felt({
    * feel broken. So a press changes the felt at once and the table's answer
    * replaces it — never inventing anything, only showing what was asked for.
    */
-  const intent = useIntent(state, seatId, table.error);
+  const intent = useIntent(state, seatId, table.error, table.errorKey);
   // The hand you are actually being asked about, which after a split is one of
   // two — every control below acts on this one and not on the seat.
   const myHand = me?.hands[me.active];
