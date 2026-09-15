@@ -12,6 +12,11 @@ import "./global.css";
  */
 import "./game/game.css";
 /*
+ * The fittings every page is built from. After game.css, so a fitting wins
+ * any tie its class name happens to share with a page's own sheet.
+ */
+import "./fittings/fittings.css";
+/*
  * Here for the same reason: taunts are the building's furniture rather than
  * any one game's, and every table can carry them.
  */

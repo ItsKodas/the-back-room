@@ -27,32 +27,38 @@ export function Codes() {
   return (
     <>
       <Mint onMinted={load} />
-      <section className="panel">
-        <p className="panel__label">Codes</p>
-        {codes === null ? (
-          <p className="panel__note">Could not read it.</p>
-        ) : codes.length === 0 ? (
-          <p className="panel__note">None minted yet.</p>
-        ) : (
-          <div className="scroller">
-            <table className="history">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>For</th>
-                  <th className="history__num">Chips</th>
-                  <th className="history__num">Used</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {codes.map((entry) => (
-                  <Row key={entry.code} entry={entry} onRevoked={load} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <section className="housing" aria-labelledby="codes-list">
+        <div className="housing__head">
+          <h2 className="label" id="codes-list">
+            Codes
+          </h2>
+        </div>
+        <div className="housing__body">
+          {codes === null ? (
+            <p className="panel__note">Could not read it.</p>
+          ) : codes.length === 0 ? (
+            <p className="panel__note">None minted yet.</p>
+          ) : (
+            <div className="scroller">
+              <table className="history">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>For</th>
+                    <th className="history__num">Chips</th>
+                    <th className="history__num">Used</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {codes.map((entry) => (
+                    <Row key={entry.code} entry={entry} onRevoked={load} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
     </>
   );
@@ -74,7 +80,7 @@ function Row({ entry, onRevoked }: { entry: Code; onRevoked: () => void }) {
         {entry.revoked ? null : (
           <button
             type="button"
-            className="btn btn--ghost btn--small"
+            className="key key--small"
             onClick={() => {
               void adminPost(`/api/admin/codes/${entry.code}/revoke`, {}).then(onRevoked);
             }}
@@ -124,30 +130,36 @@ function Mint({ onMinted }: { onMinted: () => void }) {
   };
 
   return (
-    <section className="panel">
-      <p className="panel__label">New code</p>
-      <form
-        className="desk__row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          mint();
-        }}
-      >
-        <label className="field">
-          <span className="field__label">Chips</span>
-          <input className="field__input" value={chips} inputMode="numeric" onChange={(event) => setChips(event.target.value)} />
-        </label>
-        <label className="field">
-          <span className="field__label">People (blank: anyone, once each)</span>
-          <input className="field__input" value={uses} inputMode="numeric" placeholder="anyone" onChange={(event) => setUses(event.target.value)} />
-        </label>
-        <label className="field desk__grow">
-          <span className="field__label">What it is for</span>
-          <input className="field__input" value={note} maxLength={120} placeholder="Launch weekend" onChange={(event) => setNote(event.target.value)} />
-        </label>
-        <button type="submit" className="btn">Mint</button>
-      </form>
-      {said === null ? null : <p className="panel__note" role="status">{said}</p>}
+    <section className="housing" aria-labelledby="codes-new">
+      <div className="housing__head">
+        <h2 className="label" id="codes-new">
+          New code
+        </h2>
+      </div>
+      <div className="housing__body">
+        <form
+          className="desk__row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            mint();
+          }}
+        >
+          <label className="entry">
+            <span className="label">Chips</span>
+            <input className="input" value={chips} inputMode="numeric" onChange={(event) => setChips(event.target.value)} />
+          </label>
+          <label className="entry">
+            <span className="label">People (blank: anyone, once each)</span>
+            <input className="input" value={uses} inputMode="numeric" placeholder="anyone" onChange={(event) => setUses(event.target.value)} />
+          </label>
+          <label className="entry desk__grow">
+            <span className="label">What it is for</span>
+            <input className="input" value={note} maxLength={120} placeholder="Launch weekend" onChange={(event) => setNote(event.target.value)} />
+          </label>
+          <button type="submit" className="slab">Mint</button>
+        </form>
+        {said === null ? null : <p className="panel__note" role="status">{said}</p>}
+      </div>
     </section>
   );
 }

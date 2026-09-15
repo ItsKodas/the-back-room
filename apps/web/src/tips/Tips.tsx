@@ -425,20 +425,24 @@ export default function Tips() {
  */
 function SignInToTap({ available }: { available: boolean }) {
   return (
-    <div className="panel gate tips__gate">
-      <h2 className="gate__title">The jar keeps a tab</h2>
-      <p className="gate__note">
-        What you tap goes to an account, so there is one step before you can. Sign in and you
-        will land back here.
-      </p>
-      {available ? (
-        <a className="btn btn--wide btn--icon gate__in" href="/auth/discord?to=%2Ftips">
-          <DiscordIcon />
-          <span>Sign in with Discord</span>
-        </a>
-      ) : (
-        <p className="panel__note">Signing in is not set up on this server.</p>
-      )}
-    </div>
+    <section className="housing gate tips__gate" aria-labelledby="tips-gate-title">
+      <div className="housing__body">
+        <h2 className="gate__title" id="tips-gate-title">
+          The jar keeps a tab
+        </h2>
+        <p className="gate__note">
+          What you tap goes to an account, so there is one step before you can. Sign in and you
+          will land back here.
+        </p>
+        {available ? (
+          <a className="slab slab--wide slab--discord" href="/auth/discord?to=%2Ftips">
+            <DiscordIcon />
+            <span>Sign in with Discord</span>
+          </a>
+        ) : (
+          <p className="panel__note">Signing in is not set up on this server.</p>
+        )}
+      </div>
+    </section>
   );
 }

@@ -152,9 +152,10 @@
   align-items: center;
   gap: var(--gr-space-2);
   padding: 0 3px 0 var(--gr-space-4);
-  border: var(--gr-edge-soft);
+  border: 1px solid rgb(0 0 0 / 0.55);
   border-radius: 999px;
-  background: rgb(0 0 0 / 0.26);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.25)), var(--gr-color-slate);
+  box-shadow: var(--gr-lip), 0 2px 0 rgb(0 0 0 / 0.3);
   white-space: nowrap;
 }
 
@@ -165,11 +166,11 @@
  * control — so they should read as a pair. Left to their contents they will
  * not: one is sized by an avatar and the other by a button, and they landed
  * two pixels apart, which is close enough to look like a mistake and not
- * close enough to look like anything else.
+ * close enough to look like anything else. Now at 40px to match the key height.
  */
 .me,
 .nav__table {
-  height: 34px;
+  height: 40px;
 }
 
 /* Pressable, because a code is only any use once it is somewhere else. */
@@ -254,17 +255,23 @@
   display: inline-flex;
   align-items: center;
   gap: var(--gr-space-2);
-  padding: 3px var(--gr-space-3) 3px 3px;
-  border: var(--gr-edge-soft);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.26);
+  padding: 4px var(--gr-space-3) 4px 4px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--gr-radius-pill);
+  /* Raised like a key, because it is one: it takes you to your own page. */
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.25)),
+    var(--gr-color-slate);
+  box-shadow:
+    var(--gr-lip),
+    0 2px 0 rgb(0 0 0 / 0.3);
   white-space: nowrap;
   text-decoration: none;
   color: inherit;
 }
 
 .me:hover {
-  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+  border-color: color-mix(in srgb, var(--gr-color-neon) 50%, black);
 }
 
 .me:focus-visible {
@@ -273,8 +280,8 @@
 }
 
 .me__face {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   overflow: hidden;
   display: grid;
@@ -309,38 +316,6 @@
 .chip-mark {
   display: block;
   flex: none;
-}
-
-/* ------------------------------------------------------------- icon buttons */
-
-.iconbtn {
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: var(--gr-radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--gr-color-ink-dim);
-  cursor: pointer;
-  flex: none;
-}
-
-.iconbtn:hover {
-  color: var(--gr-color-neon-hi);
-  border-color: color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
-}
-
-.iconbtn:focus-visible {
-  outline: 2px solid var(--gr-color-neon-hi);
-  outline-offset: 1px;
-}
-
-.iconbtn svg {
-  width: 16px;
-  height: 16px;
-  display: block;
 }
 
 /* ----------------------------------------------------------------- volume */
@@ -499,7 +474,7 @@
   height: 100%;
 }
 
-.vol--muted .iconbtn {
+.vol--muted .key--icon {
   color: var(--gr-color-bad);
 }
 
@@ -562,72 +537,31 @@
  */
 
 .open-tables {
+  display: grid;
+  gap: var(--gr-space-2);
   padding-top: var(--gr-space-2);
 }
 
 .open-tables__count {
   margin-left: var(--gr-space-2);
   font-family: var(--gr-font-data);
-  color: var(--gr-color-ink-faint);
-}
-
-.open-tables__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--gr-space-2);
-}
-
-.open-table {
-  display: grid;
-  grid-template-columns: minmax(0, 7em) minmax(0, 1fr) minmax(0, auto) minmax(0, 5.5em) auto auto;
-  align-items: center;
-  gap: var(--gr-space-3);
-  padding: var(--gr-space-2) var(--gr-space-3);
-  border: var(--gr-edge-soft);
-  border-left: 3px solid var(--gr-color-neon-dim);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(0 0 0 / 0.24);
-}
-
-.open-table__code {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-base);
-  letter-spacing: 0.16em;
-  color: var(--gr-color-ink-lit);
-}
-
-.open-table__host,
-.open-table__seats {
-  font-size: var(--gr-text-sm);
+  letter-spacing: 0;
   color: var(--gr-color-ink-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.open-table__state {
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-faint);
-  white-space: nowrap;
-}
-
-/* Lit means it is happening now, the same promise as everywhere else. */
-.open-table__state--live {
-  color: var(--gr-color-neon-hi);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--gr-color-neon) 55%, transparent);
-}
-
+/*
+ * On a phone the code takes the whole top line and the host and state go
+ * under it, rather than four columns squeezing one name to an ellipsis.
+ */
 @media (max-width: 640px) {
-  .open-table {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+  /* Compounded with .row: same weight as fittings.css's own .row rule, which
+     loads after this file and would otherwise always win the tie. */
+  .row.open-table {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
-  /* The host and the state go, not the seats: whether there is room is the
-     one thing worth keeping when there is no width for all of it. */
-  .open-table__host,
-  .open-table__state {
-    display: none;
+
+  .open-table .row__code {
+    grid-column: 1 / -1;
   }
 }
 
@@ -648,8 +582,8 @@
 
 .join__split {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--gr-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--gr-space-5);
 }
 
 .join__warn {
@@ -658,16 +592,8 @@
   margin: 0;
 }
 
-.field {
-  display: block;
+.join__name {
   max-width: 340px;
-}
-
-.field__label {
-  display: block;
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-dim);
-  margin-bottom: var(--gr-space-1);
 }
 
 .field__input {
@@ -684,15 +610,6 @@
 .field__input:focus-visible {
   outline: 2px solid var(--gr-color-neon);
   outline-offset: 1px;
-}
-
-.field__input--code {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-xl);
-  letter-spacing: 0.3em;
-  text-align: center;
-  color: var(--gr-color-ink-lit);
-  margin-bottom: var(--gr-space-3);
 }
 
 /* ---------------------------------------------------------------- lobby */
@@ -713,61 +630,14 @@
   align-items: stretch;
 }
 
-/*
- * Label at the top, button at the bottom, code taking whatever is left. That
- * is what makes the tile fill its height instead of leaving a gap under it.
- */
-.lobby__share {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-}
-
-.lobby__share-body {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: var(--gr-space-3);
-  padding: var(--gr-space-3) 0;
-}
-
-.lobby__link {
-  width: 100%;
-  max-width: 22rem;
+/* Compounded with .input: same weight as fittings.css's own .input rule,
+   which loads after this file and would otherwise always win the tie. */
+.input.lobby__link {
+  min-height: 40px;
   font-family: var(--gr-font-data);
   font-size: var(--gr-text-xs);
   text-align: center;
   color: var(--gr-color-ink-dim);
-  background: rgb(0 0 0 / 0.3);
-  border: var(--gr-edge-hair);
-  border-radius: var(--gr-radius-sm);
-  padding: var(--gr-space-2);
-}
-
-.lobby__link:focus-visible {
-  outline: 2px solid var(--gr-color-neon);
-  outline-offset: 2px;
-}
-
-/* Wider than a ghost button and quieter than the deal button: this is the
-   thing you reach for in a lobby, but it is not what starts the game. */
-.btn.lobby__copy {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--gr-color-neon) 30%, transparent),
-    color-mix(in srgb, var(--gr-color-neon-dim) 24%, transparent)
-  );
-  border: 1px solid var(--gr-color-neon-dim);
-  color: var(--gr-color-ink-lit);
-}
-
-.btn.lobby__copy:hover {
-  border-color: var(--gr-color-neon);
-  color: var(--gr-color-ink-lit);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--gr-color-neon) 44%, transparent),
-    color-mix(in srgb, var(--gr-color-neon-dim) 34%, transparent)
-  );
 }
 
 .lobby__code {
@@ -776,16 +646,15 @@
   /* Trailing space, so the tracking does not leave the last letter short. */
   letter-spacing: 0.3em;
   text-indent: 0.3em;
-  color: var(--gr-color-neon-hi);
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi), 0 0 24px var(--gr-color-neon);
   line-height: 1;
-  padding: var(--gr-space-2) 0 var(--gr-space-3);
   text-align: center;
 }
 
 .lobby__seats {
   display: grid;
   gap: var(--gr-space-2);
-  margin-bottom: var(--gr-space-4);
 }
 
 /* The seat rows already carry their own edges, so they set their own width
@@ -1111,25 +980,6 @@
   background: color-mix(in srgb, var(--gr-color-neon) 8%, transparent);
 }
 
-/*
- * A link wearing a button.
- *
- * .btn was written when every one of them was a <button>, which centres its
- * own label and never underlines it. An <a> does neither, so the first link
- * to borrow the class came out underlined and ragged-left with the fill
- * sitting behind it. Written against `a.btn` rather than folded into `.btn`
- * itself: every other .btn in the building is a real button already laying
- * itself out correctly, and changing their display to suit two links is a
- * wider blast radius than this is worth.
- */
-a.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  text-decoration: none;
-}
-
 .btn--wide {
   width: 100%;
 }
@@ -1175,53 +1025,6 @@ a.btn {
 /* R, following the printed dice. */
 .die__letter--red {
   color: var(--gr-color-bad);
-}
-
-/* ---------------------------------------------------- variant picker */
-
-.variants {
-  display: grid;
-  gap: var(--gr-space-2);
-  margin-bottom: var(--gr-space-3);
-}
-
-.variant {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: var(--gr-space-2) var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(0 0 0 / 0.28);
-  border: var(--gr-edge-soft);
-  color: var(--gr-color-ink);
-  font-family: var(--gr-font-ui);
-  cursor: pointer;
-}
-
-.variant:hover {
-  border-color: var(--gr-color-neon-dim);
-}
-
-.variant--on {
-  border-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 13%, transparent);
-}
-
-.variant:focus-visible {
-  outline: 2px solid var(--gr-color-neon-hi);
-  outline-offset: 2px;
-}
-
-.variant__name {
-  display: block;
-  font-size: var(--gr-text-sm);
-  font-weight: 500;
-}
-
-.variant__note {
-  display: block;
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-dim);
 }
 
 /* ------------------------------------------------------------- bots */
@@ -1555,81 +1358,29 @@ a.btn {
 
 /* ------------------------------------------------------ house rules */
 
-.rules {
-  padding: var(--gr-space-4);
-  background: rgb(0 0 0 / 0.24);
-  border: var(--gr-edge-hair);
-  border-radius: var(--gr-radius-sm);
-}
-
 .rules__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gr-space-3);
-  margin-bottom: var(--gr-space-2);
   flex-wrap: wrap;
 }
 
-.rules__label {
-  font-size: var(--gr-text-sm);
-  color: var(--gr-color-ink-dim);
-}
-
-.rules__choices {
-  display: flex;
-  gap: 4px;
-}
-
-.rules__choice,
-.rules__toggle {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-xs);
-  padding: 4px var(--gr-space-2);
-  border-radius: var(--gr-radius-sm);
-  background: rgb(0 0 0 / 0.3);
-  border: var(--gr-edge-soft);
-  color: var(--gr-color-ink-dim);
-  cursor: pointer;
-}
-
-.rules__choice--on,
-.rules__toggle--on {
-  border-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 16%, transparent);
-  color: var(--gr-color-ink);
-}
-
-.rules__choice:disabled,
-.rules__toggle:disabled {
-  cursor: default;
-  opacity: 0.75;
-}
-
-.rules__choice:focus-visible,
-.rules__toggle:focus-visible {
-  outline: 2px solid var(--gr-color-neon-hi);
-  outline-offset: 2px;
+.rules__row .lamps {
+  flex: 1 1 14rem;
+  justify-content: flex-end;
 }
 
 .rules__toggles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 4px;
-  margin-top: var(--gr-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 6px;
 }
 
 .rules__toggle {
   display: flex;
   justify-content: space-between;
   gap: var(--gr-space-2);
-  text-align: left;
-}
-
-.rules__note {
-  margin: var(--gr-space-3) 0 0;
-  font-size: var(--gr-text-xs);
-  color: var(--gr-color-ink-dim);
 }
 
 .lobby__wide {
@@ -1669,13 +1420,12 @@ a.btn {
  * Everything that is chips, wearing the one warm colour in the building. The
  * rule only works because it is kept: a gold figure is always money.
  */
-.rules__choice--on,
-.chips {
+/* .rules__chips compounded with .hint: same weight as fittings.css's own
+   .hint rule, which loads after this file and would otherwise always win
+   the tie. */
+.chips,
+.hint.rules__chips {
   color: var(--gr-color-chip-hi);
-}
-
-.rules__note {
-  color: var(--gr-color-chip);
 }
 
 /* ------------------------------------------------------------------- room */
@@ -1720,10 +1470,13 @@ a.btn {
   min-height: 44px;
   padding: var(--gr-space-2) var(--gr-space-3);
   border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-sm);
+  border-radius: var(--gr-radius-cab);
   background:
     radial-gradient(80% 60% at 20% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
     linear-gradient(180deg, var(--gr-color-smoke), var(--gr-color-shadow));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
   text-decoration: none;
   color: inherit;
 }
@@ -1868,12 +1621,15 @@ a.btn {
   padding: var(--gr-space-4);
   min-height: 168px;
   overflow: hidden;
-  border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-sm);
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  /* The game's felt glowing up from the bottom, under a housing lit from above. */
   background:
     radial-gradient(88% 120% at 50% 128%, var(--gr-color-felt) 0%, transparent 72%),
-    radial-gradient(70% 90% at 8% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
-    var(--gr-color-night);
+    linear-gradient(180deg, var(--gr-color-smoke-lit) 0%, var(--gr-color-smoke) 12%, var(--gr-color-night) 60%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
   text-decoration: none;
   color: inherit;
 }
@@ -1890,7 +1646,7 @@ a.btn {
 }
 
 .tile:hover {
-  border-color: color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
+  border-color: color-mix(in srgb, var(--gr-color-neon) 50%, black);
 }
 
 .tile:focus-visible {
@@ -2499,10 +2255,13 @@ a.btn {
   gap: var(--gr-space-2);
   padding: var(--gr-space-3) var(--gr-space-3) var(--gr-space-3);
   border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-md) var(--gr-radius-md) var(--gr-radius-sm) var(--gr-radius-sm);
+  border-radius: var(--gr-radius-cab);
   background:
     radial-gradient(80% 60% at 50% -10%, var(--gr-color-smoke-lit) 0%, transparent 70%),
     linear-gradient(180deg, var(--gr-color-smoke), var(--gr-color-shadow));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 18px 40px rgb(0 0 0 / 0.42);
   text-align: center;
   text-decoration: none;
   color: inherit;
@@ -2630,9 +2389,10 @@ a.btn {
   color: var(--gr-color-ink-dim);
 }
 
-.profile__out:hover {
+/* Compounded with .quiet: .quiet:hover:not(:disabled) in fittings.css is
+   (0,3,0), loads after this file, and would otherwise always win the tie. */
+.quiet.profile__out:hover:not(:disabled) {
   color: var(--gr-color-bad);
-  border-color: var(--gr-color-bad);
 }
 
 .profile {
@@ -2833,7 +2593,9 @@ a.btn {
   gap: var(--gr-space-2);
 }
 
-.redeem__input {
+/* Compounded with .input: same weight as fittings.css's own .input rule,
+   which loads after this file and would otherwise always win the tie. */
+.input.redeem__input {
   min-width: 0;
   font-family: var(--gr-font-data);
   letter-spacing: 0.08em;
@@ -2927,8 +2689,6 @@ a.btn {
 }
 
 .gate {
-  display: grid;
-  gap: var(--gr-space-3);
   text-align: center;
 }
 
@@ -2943,20 +2703,6 @@ a.btn {
   margin: 0;
   color: var(--gr-color-ink-dim);
   line-height: 1.55;
-}
-
-/* Discord's own blurple, because it names Discord. The one place in the
-   building a colour is somebody else's rather than the room's. */
-.gate__in {
-  background: #5865f2;
-  border-color: #5865f2;
-  color: #fff;
-  text-decoration: none;
-}
-
-.gate__in:hover {
-  background: #4752c4;
-  border-color: #4752c4;
 }
 
 /*

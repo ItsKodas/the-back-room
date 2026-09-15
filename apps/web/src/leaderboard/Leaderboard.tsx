@@ -80,12 +80,12 @@ function BoardTable({
 
   return (
     <div className="board" ref={slide}>
-      <div className="board__head">
+      <div className="board__head sorts">
         {COLUMNS.map((column) => (
           <button
             key={column.sort}
             type="button"
-            className={`board__sort${sort === column.sort ? " board__sort--on" : ""}`}
+            className="sort"
             aria-pressed={sort === column.sort}
             onClick={() => onSort(column.sort)}
           >

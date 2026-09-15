@@ -1,6 +1,7 @@
 import { CODE_LENGTH } from "@backroom/shared";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { CodeScreen } from "../fittings/CodeScreen.js";
 import type { Account } from "../game/useAccount.js";
 import { PublicTables } from "./PublicTables.js";
 import { SeatCount } from "./SeatCount.js";
@@ -80,6 +81,17 @@ export function TableSetup({
   const [typed, setTyped] = useState("");
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [maxSeats, setMaxSeats] = useState(seats?.initial ?? 6);
+  // Which press the server is busy with, so only that button is held down.
+  const [pressed, setPressed] = useState<"join" | "create" | null>(null);
+  // A press is only "held" between its own busy and the busy going false
+  // again. Cleared on that true-to-false edge, not merely whenever busy is
+  // false, so a render where busy just hasn't caught up to a fresh press yet
+  // does not wipe it out from under itself.
+  const wasBusy = useRef(busy);
+  if (wasBusy.current && !busy) {
+    setPressed(null);
+  }
+  wasBusy.current = busy;
   const guest = account.profile === null;
   // A game with no choice of stakes treats everyone the same, so nobody is
   // defaulted into play money by it.
@@ -97,15 +109,17 @@ export function TableSetup({
   const live = connected && !busy;
   const ready = code.length === CODE_LENGTH && live;
 
+  const held = (which: "join" | "create") => (busy && pressed === which ? " is-busy" : "");
+
   return (
     <div className="join">
       <p className="join__pitch">{pitch}</p>
 
       {askName ? (
-        <label className="field">
-          <span className="field__label">Your name</span>
+        <label className="entry join__name">
+          <span className="label">Your name</span>
           <input
-            className="field__input"
+            className="input"
             value={typed}
             maxLength={20}
             placeholder="Ada"
@@ -122,91 +136,102 @@ export function TableSetup({
       ) : null}
 
       <div className="join__split">
-        <div className="panel">
-          <p className="panel__label">Join a table</p>
-          <input
-            className="field__input field__input--code"
-            value={code}
-            maxLength={CODE_LENGTH}
-            placeholder="XKQ37"
-            aria-label="Table code"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && ready && named) {
+        <section className="housing" aria-labelledby="join-title">
+          <div className="housing__head">
+            <h2 className="label" id="join-title">
+              Join a table
+            </h2>
+          </div>
+          <div className="housing__body">
+            <CodeScreen
+              value={code}
+              onChange={setCode}
+              onEnter={() => {
+                if (ready && named) {
+                  setPressed("join");
+                  onJoin(name, code);
+                }
+              }}
+            />
+            {/* Not gated on signing in: whether a guest may sit depends on what
+                the table plays for, which only the server knows. It refuses in
+                words. */}
+            <button
+              type="button"
+              className={`slab slab--wide${held("join")}`}
+              disabled={!ready || !named}
+              onClick={() => {
+                setPressed("join");
                 onJoin(name, code);
-              }
-            }}
-          />
-          {/* Not gated on signing in: whether a guest may sit depends on what
-              the table plays for, which only the server knows. It refuses in
-              words. */}
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!ready || !named}
-            onClick={() => onJoin(name, code)}
-          >
-            Take a seat
-          </button>
-          {/* Needs no name: a watcher is nobody at the table. */}
-          <button
-            type="button"
-            className="btn btn--ghost btn--wide"
-            disabled={!ready}
-            onClick={() => onWatch(code)}
-          >
-            Just watch
-          </button>
-        </div>
+              }}
+            >
+              Take a seat
+            </button>
+            {/* Needs no name: a watcher is nobody at the table. */}
+            <button type="button" className="key key--wide" disabled={!ready} onClick={() => onWatch(code)}>
+              Just watch
+            </button>
+          </div>
+        </section>
 
-        <div className="panel">
-          <p className="panel__label">Open your own</p>
+        <section className="housing" aria-labelledby="open-title">
+          <div className="housing__head">
+            <h2 className="label" id="open-title">
+              Open your own
+            </h2>
+          </div>
+          <div className="housing__body">
+            {playsFor !== undefined ? (
+              <div className="plates" role="radiogroup" aria-label="What the table plays for">
+                {[false, true].map((option) => (
+                  <button
+                    key={String(option)}
+                    type="button"
+                    role="radio"
+                    aria-checked={forFun === option}
+                    // A guest has nothing real to stake, so the choice is not
+                    // offered rather than offered and refused.
+                    disabled={!option && guest}
+                    className="plate"
+                    onClick={() => setChosen(option)}
+                  >
+                    <span className="plate__name">{option ? "For fun" : "For chips"}</span>
+                    <span className="plate__note">
+                      {option
+                        ? playsFor.fun
+                        : guest
+                          ? "Sign in to play for real chips."
+                          : "Real chips, from your balance."}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
-          {playsFor !== undefined ? (
-            <div className="variants" role="radiogroup" aria-label="What the table plays for">
-              {[false, true].map((option) => (
-                <button
-                  key={String(option)}
-                  type="button"
-                  role="radio"
-                  aria-checked={forFun === option}
-                  // A guest has nothing real to stake, so the choice is not
-                  // offered rather than offered and refused.
-                  disabled={!option && guest}
-                  className={`variant${forFun === option ? " variant--on" : ""}`}
-                  onClick={() => setChosen(option)}
-                >
-                  <span className="variant__name">{option ? "For fun" : "For chips"}</span>
-                  <span className="variant__note">
-                    {option
-                      ? playsFor.fun
-                      : guest
-                        ? "Sign in to play for real chips."
-                        : "Real chips, from your balance."}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
+            {options}
 
-          {options}
+            <SeatCount
+              value={maxSeats}
+              onChange={setMaxSeats}
+              {...(seats?.ceiling !== undefined ? { ceiling: seats.ceiling } : {})}
+            />
 
-          <SeatCount
-            value={maxSeats}
-            onChange={setMaxSeats}
-            {...(seats?.ceiling !== undefined ? { ceiling: seats.ceiling } : {})}
-          />
-
-          <p className="panel__note">{note(choice)}</p>
-          <button
-            type="button"
-            className="btn btn--wide"
-            disabled={!live || !named}
-            onClick={() => onCreate(name, choice)}
-          >
-            Open a table
-          </button>
-        </div>
+            <p className="panel__note">{note(choice)}</p>
+          </div>
+          <div className="housing__foot">
+            <button
+              type="button"
+              className={`slab slab--wide${held("create")}`}
+              disabled={!live || !named}
+              onClick={() => {
+                setPressed("create");
+                onCreate(name, choice);
+              }}
+            >
+              Open a table
+            </button>
+          </div>
+        </section>
       </div>
 
       <PublicTables

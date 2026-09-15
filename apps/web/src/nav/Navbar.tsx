@@ -68,7 +68,7 @@ export function Navbar({ game, table, account, connected }: NavbarProps) {
 
       <Who account={account} />
       {account.admin ? (
-        <Link to="/admin" className="iconbtn" aria-label="Admin desk" title="Admin desk">
+        <Link to="/admin" className="key key--icon" aria-label="Admin desk" title="Admin desk">
           <KeyIcon />
         </Link>
       ) : null}
@@ -133,7 +133,7 @@ function Who({ account }: { account: Account }) {
   }
   if (account.profile === null) {
     return account.available ? (
-      <a className="btn btn--ghost btn--small" href="/auth/discord">
+      <a className="key key--small" href="/auth/discord">
         Sign in
       </a>
     ) : (
@@ -170,7 +170,7 @@ function Who({ account }: { account: Account }) {
         </span>
       </Link>
       {low ? (
-        <Link className="btn btn--ghost btn--small" to="/tips">
+        <Link className="key key--small" to="/tips">
           Tip jar
         </Link>
       ) : null}

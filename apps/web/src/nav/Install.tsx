@@ -26,7 +26,7 @@ export function Install() {
     <span className="install">
       <button
         type="button"
-        className="iconbtn"
+        className="key key--icon"
         aria-label="Install The Back Room"
         title="Install The Back Room"
         aria-expanded={explains ? open : undefined}
@@ -52,7 +52,7 @@ export function Install() {
               Open your browser's menu and choose <b>Install app</b> or <b>Add to Home Screen</b>.
             </span>
           )}
-          <button type="button" className="btn btn--ghost btn--small" onClick={() => setOpen(false)}>
+          <button type="button" className="quiet" onClick={() => setOpen(false)}>
             Got it
           </button>
         </span>

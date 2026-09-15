@@ -75,9 +75,11 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
           takes the dismiss with a press or a keyboard activation for free,
           and never has to guess a click on the dialog wasn't meant for it. */}
       <button type="button" className="desk__scrim-backdrop" aria-label="Close" onClick={onClose} />
-      <div ref={box} className="panel desk__dialog" role="dialog" aria-modal="true" aria-label={title}>
-        <p className="panel__label">{title}</p>
-        {children}
+      <div ref={box} className="housing desk__dialog" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="housing__head">
+          <p className="label">{title}</p>
+        </div>
+        <div className="housing__body">{children}</div>
       </div>
     </div>,
     document.body,
@@ -135,13 +137,13 @@ export function ChipsDialog({
           }
         }}
       >
-        <label className="field">
-          <span className="field__label">Chips</span>
-          <input className="field__input" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} />
+        <label className="entry">
+          <span className="label">Chips</span>
+          <input className="input" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} />
         </label>
-        <label className="field">
-          <span className="field__label">Note</span>
-          <input className="field__input" maxLength={120} value={note} placeholder="Why" onChange={(event) => setNote(event.target.value)} />
+        <label className="entry">
+          <span className="label">Note</span>
+          <input className="input" maxLength={120} value={note} placeholder="Why" onChange={(event) => setNote(event.target.value)} />
         </label>
         <p className="panel__note">{valid ? chipsSentence(op, chips, count) : "A whole number, up to 10,000,000."}</p>
         {said === null ? null : (
@@ -150,10 +152,10 @@ export function ChipsDialog({
           </p>
         )}
         <div className="desk__buttons">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
+          <button type="button" className="quiet" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn" disabled={!valid || busy}>
+          <button type="submit" className={`slab${busy ? " is-busy" : ""}`} disabled={!valid || busy}>
             {VERB[op]}
           </button>
         </div>
@@ -226,7 +228,7 @@ export function ResetDialog({
         }}
       >
         <fieldset className="desk__parts">
-          <legend className="field__label">What to wipe</legend>
+          <legend className="label">What to wipe</legend>
           {PARTS.map((part) => (
             <label key={part.id} className="desk__check">
               <input type="checkbox" checked={parts.has(part.id)} onChange={() => flip(part.id)} />
@@ -247,15 +249,15 @@ export function ResetDialog({
               />
               <span>Also empty the banks</span>
             </label>
-            <label className="field">
-              <span className="field__label">Type RESET to confirm</span>
-              <input className="field__input" value={typed} autoComplete="off" onChange={(event) => setTyped(event.target.value)} />
+            <label className="entry">
+              <span className="label">Type RESET to confirm</span>
+              <input className="input" value={typed} autoComplete="off" onChange={(event) => setTyped(event.target.value)} />
             </label>
           </>
         ) : null}
-        <label className="field">
-          <span className="field__label">Note</span>
-          <input className="field__input" maxLength={120} value={note} placeholder="Why" onChange={(event) => setNote(event.target.value)} />
+        <label className="entry">
+          <span className="label">Note</span>
+          <input className="input" maxLength={120} value={note} placeholder="Why" onChange={(event) => setNote(event.target.value)} />
         </label>
         <p className="panel__note">Players stay signed in. Nobody seated at a table can be reset until they leave it.</p>
         {said === null ? null : (
@@ -264,10 +266,10 @@ export function ResetDialog({
           </p>
         )}
         <div className="desk__buttons">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
+          <button type="button" className="quiet" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn desk__danger" disabled={!ready}>
+          <button type="submit" className="key key--danger" disabled={!ready}>
             Reset
           </button>
         </div>

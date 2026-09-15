@@ -487,3 +487,16 @@
     animation: none;
   }
 }
+
+/* The fittings board: as many housings across as fit, one on a phone. */
+.fittings {
+  display: grid;
+  gap: var(--gr-space-4);
+}
+
+.fittings__grid {
+  display: grid;
+  gap: var(--gr-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  align-items: start;
+}

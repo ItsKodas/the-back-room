@@ -36,6 +36,14 @@ const GAME_NAMES: Record<string, string> = {
   tips: "The Tip Jar",
 };
 
+/** A game's key, turned into something safe to put in an id. */
+const gameHousingId = (game: string) =>
+  `profile-game-${game
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")}`;
+
 export function Profile() {
   const account = useAccount();
   const [history, setHistory] = useState<PlayedGame[]>([]);
@@ -99,30 +107,32 @@ function Signed({
   return (
     <div className="profile">
       <div className="profile__who">
-        <div className="panel">
-          <div className="who">
-            <Avatar
-              name={profile.name}
-              avatar={profile.avatar}
-              accentColor={profile.accentColor}
-              className="who__face"
-            />
-            <span className="who__name">{profile.name}</span>
+        <div className="housing">
+          <div className="housing__body">
+            <div className="who">
+              <Avatar
+                name={profile.name}
+                avatar={profile.avatar}
+                accentColor={profile.accentColor}
+                className="who__face"
+              />
+              <span className="who__name">{profile.name}</span>
+            </div>
+            <div className="purse">
+              <b className="purse__count">{fmt(profile.chips)}</b>
+              <small>chips</small>
+              {/* Racked the way a dealer racks a balance: a short column per
+                  denomination, so a large number spreads sideways rather than
+                  growing into a tower. The figure above is the exact answer;
+                  this is the one you can see the size of. */}
+              <ChipColumns amount={profile.chips} unit={30} />
+            </div>
+            {/* The daily top-up used to live here; the jar on the bar replaced
+                it, so this is a way there rather than a claim of its own. */}
+            <Link className="key key--wide" to="/tips">
+              Short of chips? There is a jar on the bar.
+            </Link>
           </div>
-          <div className="purse">
-            <b className="purse__count">{fmt(profile.chips)}</b>
-            <small>chips</small>
-            {/* Racked the way a dealer racks a balance: a short column per
-                denomination, so a large number spreads sideways rather than
-                growing into a tower. The figure above is the exact answer;
-                this is the one you can see the size of. */}
-            <ChipColumns amount={profile.chips} unit={30} />
-          </div>
-          {/* The daily top-up used to live here; the jar on the bar replaced
-              it, so this is a way there rather than a claim of its own. */}
-          <Link className="btn btn--wide" to="/tips">
-            Short of chips? There is a jar on the bar.
-          </Link>
         </div>
         <Redeem onRedeemed={() => window.location.reload()} />
         {/* Beside redeeming rather than out on the felt: this is a thing you do
@@ -131,7 +141,7 @@ function Signed({
         {/* The way out, kept with everything else about being you rather than
             sitting in the bar beside the volume. Signing out is rare, and it
             is not a thing to have within a slip of the mouse while playing. */}
-        <button type="button" className="btn btn--ghost btn--wide profile__out" onClick={onSignOut}>
+        <button type="button" className="quiet quiet--wide profile__out" onClick={onSignOut}>
           Sign out
         </button>
       </div>
@@ -145,66 +155,81 @@ function Signed({
           <Figure value={`${rate}%`} label="win rate" />
         </div>
 
-        {Object.entries(profile.byGame).map(([game, figures]) => (
-          <section className="panel" key={game}>
-            <p className="panel__label">{GAME_NAMES[game] ?? game}</p>
-            <div className="figures">
-              {Object.entries(figures).map(([key, value]) => (
-                <Figure
-                  key={key}
-                  value={fmt(value)}
-                  label={FIGURE_NAMES[game]?.[key] ?? key}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
-
-        <section className="panel">
-          <p className="panel__label">Recent games</p>
-          {history.length === 0 ? (
-            <p className="panel__note">Nothing finished yet.</p>
-          ) : (
-            <div className="scroller">
-              <table className="history">
-                <thead>
-                  <tr>
-                    <th>Table</th>
-                    <th>Game</th>
-                    <th>Players</th>
-                    <th className="history__num">Chips</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bundle(history, profile.id).map((session) => (
-                    <tr key={`${session.code}-${session.endedAt}`}>
-                      <td className="history__code">{session.code}</td>
-                      <td>
-                        {session.rulesetName}
-                        {/* Only when there was more than one. A "×1" on every
-                            other line would be noise standing in for a fact. */}
-                        {session.rounds > 1 ? (
-                          <span className="history__rounds">×{session.rounds}</span>
-                        ) : null}
-                      </td>
-                      <td>{session.players}</td>
-                      <td
-                        className={`history__num ${session.net > 0 ? "up" : session.net < 0 ? "down" : ""}`}
-                        title={
-                          session.estimated
-                            ? "Worked out from the pot: this was played before chips were recorded per player."
-                            : undefined
-                        }
-                      >
-                        {signed(session.net)}
-                        {session.estimated ? <span className="history__guess">?</span> : null}
-                      </td>
-                    </tr>
+        {Object.entries(profile.byGame).map(([game, figures]) => {
+          const id = gameHousingId(game);
+          return (
+            <section className="housing" aria-labelledby={id} key={game}>
+              <div className="housing__head">
+                <h2 className="label" id={id}>
+                  {GAME_NAMES[game] ?? game}
+                </h2>
+              </div>
+              <div className="housing__body">
+                <div className="figures">
+                  {Object.entries(figures).map(([key, value]) => (
+                    <Figure
+                      key={key}
+                      value={fmt(value)}
+                      label={FIGURE_NAMES[game]?.[key] ?? key}
+                    />
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                </div>
+              </div>
+            </section>
+          );
+        })}
+
+        <section className="housing" aria-labelledby="profile-history">
+          <div className="housing__head">
+            <h2 className="label" id="profile-history">
+              Recent games
+            </h2>
+          </div>
+          <div className="housing__body">
+            {history.length === 0 ? (
+              <p className="panel__note">Nothing finished yet.</p>
+            ) : (
+              <div className="scroller">
+                <table className="history">
+                  <thead>
+                    <tr>
+                      <th>Table</th>
+                      <th>Game</th>
+                      <th>Players</th>
+                      <th className="history__num">Chips</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bundle(history, profile.id).map((session) => (
+                      <tr key={`${session.code}-${session.endedAt}`}>
+                        <td className="history__code">{session.code}</td>
+                        <td>
+                          {session.rulesetName}
+                          {/* Only when there was more than one. A "×1" on every
+                              other line would be noise standing in for a fact. */}
+                          {session.rounds > 1 ? (
+                            <span className="history__rounds">×{session.rounds}</span>
+                          ) : null}
+                        </td>
+                        <td>{session.players}</td>
+                        <td
+                          className={`history__num ${session.net > 0 ? "up" : session.net < 0 ? "down" : ""}`}
+                          title={
+                            session.estimated
+                              ? "Worked out from the pot: this was played before chips were recorded per player."
+                              : undefined
+                          }
+                        >
+                          {signed(session.net)}
+                          {session.estimated ? <span className="history__guess">?</span> : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </div>
@@ -262,31 +287,42 @@ function Redeem({ onRedeemed }: { onRedeemed: () => void }) {
   };
 
   return (
-    <section className="panel">
-      <p className="panel__label">Redeem a code</p>
-      <div className="redeem">
-        <input
-          className="field__input redeem__input"
-          value={typed}
-          maxLength={20}
-          placeholder="XXXX-XXXX-XX"
-          aria-label="Redemption code"
-          onChange={(event) => setTyped(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              send();
-            }
-          }}
-        />
-        <button type="button" className="btn" disabled={busy} onClick={send}>
-          Redeem
-        </button>
+    <section className="housing" aria-labelledby="profile-redeem">
+      <div className="housing__head">
+        <h2 className="label" id="profile-redeem">
+          Redeem a code
+        </h2>
       </div>
-      {said === null ? (
-        <p className="panel__note">Codes come from the Discord. Each works once per player.</p>
-      ) : (
-        <p className="panel__note">{said}</p>
-      )}
+      <div className="housing__body">
+        <div className="redeem">
+          <input
+            className="input redeem__input"
+            value={typed}
+            maxLength={20}
+            placeholder="XXXX-XXXX-XX"
+            aria-label="Redemption code"
+            onChange={(event) => setTyped(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                send();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className={`slab${busy ? " is-busy" : ""}`}
+            disabled={busy}
+            onClick={send}
+          >
+            Redeem
+          </button>
+        </div>
+        {said === null ? (
+          <p className="panel__note">Codes come from the Discord. Each works once per player.</p>
+        ) : (
+          <p className="panel__note">{said}</p>
+        )}
+      </div>
     </section>
   );
 }

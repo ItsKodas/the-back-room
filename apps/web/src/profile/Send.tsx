@@ -150,126 +150,136 @@ export function Send({
 
   return (
     <>
-      <section className="panel">
-        <p className="panel__label">Send chips</p>
-
-        {picked === null ? (
-          <>
-            <label className="field">
-              <span className="field__label">Who to pay</span>
-              <input
-                className="field__input"
-                value={query}
-                placeholder="Their name"
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
-            {query.trim().length >= MIN_SEARCH && found.length === 0 ? (
-              <p className="panel__note">Nobody by that name.</p>
-            ) : null}
-            <ul className="send__found">
-              {found.map((person) => (
-                <li key={person.id}>
-                  <button
-                    type="button"
-                    className="send__person"
-                    onClick={() => {
-                      setPicked(person);
-                      setSaid(null);
-                    }}
-                  >
-                    <Avatar
-                      name={person.name}
-                      avatar={person.avatar}
-                      accentColor={person.accentColor}
-                      className="send__face"
-                    />
-                    <span>{person.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="panel__note">
-              Names are not unique here, so check the face before you send anything. Chips do
-              not come back.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="send__picked">
-              <Avatar
-                name={picked.name}
-                avatar={picked.avatar}
-                accentColor={picked.accentColor}
-                className="send__face"
-              />
-              <span className="send__name">{picked.name}</span>
+      <section className="housing" aria-labelledby="send-title">
+        <div className="housing__head">
+          <h2 className="label" id="send-title">
+            Send chips
+          </h2>
+        </div>
+        <div className="housing__body">
+          {picked === null ? (
+            <>
+              <label className="entry">
+                <span className="label">Who to pay</span>
+                <input
+                  className="input"
+                  value={query}
+                  placeholder="Their name"
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              {query.trim().length >= MIN_SEARCH && found.length === 0 ? (
+                <p className="panel__note">Nobody by that name.</p>
+              ) : null}
+              <ul className="send__found">
+                {found.map((person) => (
+                  <li key={person.id}>
+                    <button
+                      type="button"
+                      className="send__person"
+                      onClick={() => {
+                        setPicked(person);
+                        setSaid(null);
+                      }}
+                    >
+                      <Avatar
+                        name={person.name}
+                        avatar={person.avatar}
+                        accentColor={person.accentColor}
+                        className="send__face"
+                      />
+                      <span>{person.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="panel__note">
+                Names are not unique here, so check the face before you send anything. Chips do
+                not come back.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="send__picked">
+                <Avatar
+                  name={picked.name}
+                  avatar={picked.avatar}
+                  accentColor={picked.accentColor}
+                  className="send__face"
+                />
+                <span className="send__name">{picked.name}</span>
+                <button type="button" className="quiet" onClick={() => setPicked(null)}>
+                  Change
+                </button>
+              </div>
+              <label className="entry">
+                <span className="label">How many chips</span>
+                <input
+                  className="input"
+                  value={amount}
+                  inputMode="numeric"
+                  placeholder="500"
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </label>
               <button
                 type="button"
-                className="btn btn--ghost btn--small"
-                onClick={() => setPicked(null)}
+                className={`slab slab--wide${busy ? " is-busy" : ""}`}
+                disabled={busy}
+                onClick={send}
               >
-                Change
+                {busy ? "Sending…" : `Send to ${picked.name}`}
               </button>
-            </div>
-            <label className="field">
-              <span className="field__label">How many chips</span>
-              <input
-                className="field__input"
-                value={amount}
-                inputMode="numeric"
-                placeholder="500"
-                onChange={(event) => setAmount(event.target.value)}
-              />
-            </label>
-            <button type="button" className="btn btn--wide" disabled={busy} onClick={send}>
-              {busy ? "Sending…" : `Send to ${picked.name}`}
-            </button>
-          </>
-        )}
+            </>
+          )}
 
-        {leftToday === null ? null : (
-          <p className="panel__note">
-            {leftToday > 0
-              ? `${fmt(leftToday)} left to send today.`
-              : "You have sent all you can today."}
-          </p>
-        )}
-        {said === null ? null : <p className="panel__note">{said}</p>}
+          {leftToday === null ? null : (
+            <p className="panel__note">
+              {leftToday > 0
+                ? `${fmt(leftToday)} left to send today.`
+                : "You have sent all you can today."}
+            </p>
+          )}
+          {said === null ? null : <p className="panel__note">{said}</p>}
+        </div>
       </section>
 
-      <section className="panel">
-        <p className="panel__label">Chips sent and received</p>
-        {ledger.length === 0 ? (
-          <p className="panel__note">Nothing yet.</p>
-        ) : (
-          <div className="scroller">
-            <table className="history">
-              <thead>
-                <tr>
-                  <th>Who</th>
-                  <th className="history__num">Chips</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledger.map((row) => {
-                  const mine = row.fromId === meId;
-                  return (
-                    <tr key={row.id}>
-                      <td>{mine ? `To ${row.toName}` : `From ${row.fromName}`}</td>
-                      <td
-                        className={`history__num ${mine ? "down" : "up"}`}
-                      >
-                        {mine ? "−" : "+"}
-                        {fmt(row.amount)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <section className="housing" aria-labelledby="send-history">
+        <div className="housing__head">
+          <h2 className="label" id="send-history">
+            Chips sent and received
+          </h2>
+        </div>
+        <div className="housing__body">
+          {ledger.length === 0 ? (
+            <p className="panel__note">Nothing yet.</p>
+          ) : (
+            <div className="scroller">
+              <table className="history">
+                <thead>
+                  <tr>
+                    <th>Who</th>
+                    <th className="history__num">Chips</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledger.map((row) => {
+                    const mine = row.fromId === meId;
+                    return (
+                      <tr key={row.id}>
+                        <td>{mine ? `To ${row.toName}` : `From ${row.fromName}`}</td>
+                        <td className={`history__num ${mine ? "down" : "up"}`}>
+                          {mine ? "−" : "+"}
+                          {fmt(row.amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
     </>
   );

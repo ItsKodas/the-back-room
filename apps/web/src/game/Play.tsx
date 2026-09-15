@@ -2,11 +2,12 @@ import { RULESETS } from "@backroom/rules";
 import { Navbar } from "../nav/Navbar.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
+import { Seg } from "../fittings/Seg.js";
 import { SeatAvatar } from "./Avatar.js";
 import "@backroom/game-greed/theme.css";
 import type { ChatMessage, RoomView } from "@backroom/shared";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Chat } from "./Chat.js";
 import { HouseRulesEditor } from "./HouseRulesEditor.js";
@@ -192,41 +193,48 @@ function BuyIn({
   const blocked = bots || guests || !signedIn;
 
   return (
-    <section className="rules" aria-label="Stake">
-      <p className="panel__label">Stake</p>
-      {blocked ? (
-        <p className="rules__note">
-          {bots
-            ? "Bots play for free. Remove them to play for chips."
-            : "Everyone has to be signed in to play for chips."}
-        </p>
-      ) : (
-        <div className="rules__choices">
-          {[0, 100, 500, 1000].map((amount) => (
-            <button
-              key={amount}
-              type="button"
-              role="radio"
-              aria-checked={room.buyIn === amount}
-              disabled={!editable || amount > chips}
-              className={`rules__choice${room.buyIn === amount ? " rules__choice--on" : ""}`}
-              onClick={() => onSet(amount)}
-            >
-              {amount === 0 ? "for fun" : amount.toLocaleString("en-US")}
-            </button>
-          ))}
-        </div>
-      )}
-      {room.buyIn > 0 ? (
-        <p className="rules__note">
-          Pot of {room.pot.toLocaleString("en-US")} — winner takes it.
-        </p>
-      ) : null}
+    <section className="housing" aria-labelledby="stake-title">
+      <div className="housing__head">
+        <h2 className="label" id="stake-title">
+          Stake
+        </h2>
+      </div>
+      <div className="housing__body">
+        {blocked ? (
+          <p className="hint rules__chips">
+            {bots
+              ? "Bots play for free. Remove them to play for chips."
+              : "Everyone has to be signed in to play for chips."}
+          </p>
+        ) : (
+          <div className="lamps">
+            {[0, 100, 500, 1000].map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                role="radio"
+                aria-checked={room.buyIn === amount}
+                disabled={!editable || amount > chips}
+                // Gold means chips, and 0 is for fun — no chips are at stake.
+                className={`lamp${amount > 0 ? " lamp--chips" : ""}`}
+                onClick={() => onSet(amount)}
+              >
+                {amount === 0 ? "for fun" : amount.toLocaleString("en-US")}
+              </button>
+            ))}
+          </div>
+        )}
+        {room.buyIn > 0 ? (
+          <p className="hint rules__chips">
+            Pot of {room.pot.toLocaleString("en-US")} — winner takes it.
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }
 
-function Join({
+export function Join({
   actions,
   busy,
   connected,
@@ -242,6 +250,18 @@ function Join({
 }) {
   const [typed, setTyped] = useState("");
   const [ruleset, setRuleset] = useState(RULESETS[0]?.name ?? "Farkle");
+  // `busy` here is the whole room's, not this button's own — every other
+  // press on the page sets it too. Held only between this press and the
+  // busy it caused going false again, on that true-to-false edge rather than
+  // whenever busy merely happens to be false, so a render where busy hasn't
+  // caught up to a fresh press yet does not wipe it out from under itself.
+  // Same pattern as TableSetup's own join/create press.
+  const [pressed, setPressed] = useState(false);
+  const wasBusy = useRef(busy);
+  if (wasBusy.current && !busy) {
+    setPressed(false);
+  }
+  wasBusy.current = busy;
 
   // Someone signed in already has a name, and the server will seat them under
   // it whatever this sends — so asking for one would be a question with no
@@ -260,10 +280,10 @@ function Join({
           {askName ? "Put in a name and sit down." : "Take a seat."}
         </p>
         {askName ? (
-          <label className="field">
-            <span className="field__label">Your name</span>
+          <label className="entry">
+            <span className="label">Your name</span>
             <input
-              className="field__input"
+              className="input"
               value={typed}
               maxLength={20}
               placeholder="Ada"
@@ -281,9 +301,12 @@ function Join({
         <div className="join__invited">
           <button
             type="button"
-            className="btn"
+            className={`slab${busy && pressed ? " is-busy" : ""}`}
             disabled={!ready}
-            onClick={() => actions.join(name, invited)}
+            onClick={() => {
+              setPressed(true);
+              actions.join(name, invited);
+            }}
           >
             Take a seat
           </button>
@@ -304,18 +327,18 @@ function Join({
       onJoin={actions.join}
       onWatch={actions.watch}
       options={
-        <div className="variants" role="radiogroup" aria-label="Which dice">
+        <div className="plates" role="radiogroup" aria-label="Which dice">
           {RULESETS.map((option) => (
             <button
               key={option.name}
               type="button"
               role="radio"
               aria-checked={option.name === ruleset}
-              className={`variant${option.name === ruleset ? " variant--on" : ""}`}
+              className="plate"
               onClick={() => setRuleset(option.name)}
             >
-              <span className="variant__name">{option.name}</span>
-              <span className="variant__note">
+              <span className="plate__name">{option.name}</span>
+              <span className="plate__note">
                 {option.skin === "letters"
                   ? "$ G R E E D faces. First to 5,000."
                   : "Ordinary pips. First to 10,000."}
@@ -362,16 +385,24 @@ function ShareCode({ code }: { code: string }) {
   };
 
   return (
-    <div className="panel lobby__share">
-      <p className="panel__label">Share this code</p>
-      <div className="lobby__share-body">
-        <div className="lobby__code">{code}</div>
-        <input className="lobby__link" value={link} readOnly aria-label="Link to this table" />
+    <section className="housing lobby__share" aria-labelledby="share-title">
+      <div className="housing__head">
+        <h2 className="label" id="share-title">
+          Share this code
+        </h2>
       </div>
-      <button type="button" className="btn btn--wide lobby__copy" onClick={copy}>
-        {said ?? "Copy link"}
-      </button>
-    </div>
+      <div className="housing__body">
+        <div className="readout">
+          <span className="lobby__code">{code}</span>
+        </div>
+        <input className="input lobby__link" value={link} readOnly aria-label="Link to this table" />
+      </div>
+      <div className="housing__foot">
+        <button type="button" className="key key--wide" onClick={copy}>
+          {said ?? "Copy link"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -411,28 +442,27 @@ function Listing({
   onSet: (listed: boolean) => void;
 }) {
   return (
-    <section className="rules" aria-label="Who can find this table">
-      <p className="panel__label">Who can find it</p>
-      <div className="rules__choices" role="radiogroup" aria-label="Who can find this table">
-        {[true, false].map((option) => (
-          <button
-            key={String(option)}
-            type="button"
-            role="radio"
-            aria-checked={listed === option}
-            disabled={!editable}
-            className={`rules__choice${listed === option ? " rules__choice--on" : ""}`}
-            onClick={() => onSet(option)}
-          >
-            {option ? "Public" : "Private"}
-          </button>
-        ))}
+    <section className="housing" aria-labelledby="listing-title">
+      <div className="housing__head">
+        <h2 className="label" id="listing-title">
+          Who can find it
+        </h2>
       </div>
-      <p className="rules__note">
-        {listed
-          ? "Anyone can see this table and sit down."
-          : "Only people you send the code to."}
-      </p>
+      <div className="housing__body">
+        <Seg
+          label="Who can find this table"
+          options={[
+            { value: true, text: "Public" },
+            { value: false, text: "Private" },
+          ]}
+          value={listed}
+          onChange={onSet}
+          disabled={!editable}
+        />
+        <p className="hint">
+          {listed ? "Anyone can see this table and sit down." : "Only people you send the code to."}
+        </p>
+      </div>
     </section>
   );
 }
@@ -459,69 +489,78 @@ function Lobby({
     <div className="lobby">
       <ShareCode code={room.code} />
 
-      <div className="panel lobby__seating">
-        <p className="panel__label">
-          Seated · {room.seats.length} of 8
-          {room.watching > 0 ? ` · ${room.watching} watching` : ""}
-        </p>
-        <div className="lobby__seats">
-          {room.seats.map((seat) => (
-            <div className="seat" key={seat.id}>
-              <SeatAvatar seat={seat} />
-              <div className="seat__who">
-                <div className="seat__name">
-                  {seat.name}
-                  {seat.id === seatId ? " (you)" : ""}
-                </div>
-                <div className="seat__state">
-                  {seat.waiting
-                    ? "In the next game"
-                    : seat.isBot
-                      ? "Bot"
-                      : seat.isHost
-                        ? "Host"
-                        : "Ready"}
-                </div>
-              </div>
-              {you?.isHost === true && seat.id !== seatId ? (
-                <button
-                  type="button"
-                  className="seat__drop"
-                  aria-label={`Remove ${seat.name}`}
-                  onClick={() => actions.removeSeat(seat.id)}
-                >
-                  ×
-                </button>
-              ) : null}
-            </div>
-          ))}
+      <section className="housing lobby__seating" aria-labelledby="seating-title">
+        <div className="housing__head">
+          <h2 className="label" id="seating-title">
+            Seated · {room.seats.length} of 8
+            {room.watching > 0 ? ` · ${room.watching} watching` : ""}
+          </h2>
         </div>
-
-        {you?.isHost === true ? (
-          <>
-            <div className="bots">
-              <span className="bots__label">Add an opponent</span>
-              <div className="bots__row">
-                {(["easy", "normal", "hard"] as const).map((skill) => (
+        <div className="housing__body">
+          <div className="lobby__seats">
+            {room.seats.map((seat) => (
+              <div className="seat" key={seat.id}>
+                <SeatAvatar seat={seat} />
+                <div className="seat__who">
+                  <div className="seat__name">
+                    {seat.name}
+                    {seat.id === seatId ? " (you)" : ""}
+                  </div>
+                  <div className="seat__state">
+                    {seat.waiting
+                      ? "In the next game"
+                      : seat.isBot
+                        ? "Bot"
+                        : seat.isHost
+                          ? "Host"
+                          : "Ready"}
+                  </div>
+                </div>
+                {you?.isHost === true && seat.id !== seatId ? (
                   <button
-                    key={skill}
                     type="button"
-                    className="btn btn--ghost btn--small"
-                    onClick={() => actions.addBot(skill)}
+                    className="seat__drop"
+                    aria-label={`Remove ${seat.name}`}
+                    onClick={() => actions.removeSeat(seat.id)}
                   >
-                    {skill}
+                    ×
                   </button>
-                ))}
+                ) : null}
               </div>
-            </div>
-            <button type="button" className="btn btn--wide" onClick={actions.start}>
-              {solo ? "Practise on your own" : "Deal the first turn"}
-            </button>
-          </>
-        ) : (
-          <p className="panel__note">Waiting for the host to start.</p>
-        )}
-      </div>
+            ))}
+          </div>
+
+          {you?.isHost === true ? (
+            <>
+              <div className="entry">
+                <span className="label" id="add-bot-label">
+                  Add an opponent
+                </span>
+                {/* Actions, not a choice among them — adding a bot does not
+                    replace the last one, so these are keys, not lamps. */}
+                <div className="lamps" role="group" aria-labelledby="add-bot-label">
+                  {(["easy", "normal", "hard"] as const).map((skill) => (
+                    <button
+                      key={skill}
+                      type="button"
+                      className="key key--small"
+                      onClick={() => actions.addBot(skill)}
+                    >
+                      {skill[0]?.toUpperCase()}
+                      {skill.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button type="button" className="slab slab--wide" onClick={actions.start}>
+                {solo ? "Practise on your own" : "Deal the first turn"}
+              </button>
+            </>
+          ) : (
+            <p className="panel__note">Waiting for the host to start.</p>
+          )}
+        </div>
+      </section>
 
       <div className="lobby__wide">
         <div className="lobby__stack">
