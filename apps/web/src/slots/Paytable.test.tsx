@@ -2,8 +2,11 @@
 import { fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BONUS_AWARDS, JACKPOT_SHARE, LINE_COUNT, PAYS } from "@backroom/game-slots";
+import { play } from "../game/audio.js";
 import { exact } from "../game/money.js";
 import { Paytable } from "./Paytable.js";
+
+vi.mock("../game/audio.js", () => ({ play: vi.fn() }));
 
 /*
  * jsdom has the element but not the modal half of it, so opening is stood in
@@ -115,5 +118,30 @@ describe("the paytable", () => {
     const { container } = render(<Paytable {...base} onClose={onClose} />);
     fireEvent.keyDown(container.querySelector("dialog") as HTMLDialogElement, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("the paytable's sound", () => {
+  beforeEach(() => {
+    vi.mocked(play).mockClear();
+  });
+
+  it("sounds once opening and once shutting, whichever way it was shut", () => {
+    const { rerender } = render(<Paytable {...base} open={false} />);
+    expect(play).not.toHaveBeenCalled();
+
+    rerender(<Paytable {...base} open />);
+    expect(vi.mocked(play).mock.calls).toEqual([["open"]]);
+
+    // Escape, the backdrop and the button all end as the parent setting open
+    // to false, so this one path is every one of them.
+    rerender(<Paytable {...base} open={false} />);
+    expect(vi.mocked(play).mock.calls).toEqual([["open"], ["close"]]);
+  });
+
+  it("keeps its own buttons from also clicking", () => {
+    // A tap under the close sound is not two sounds, it is one muddied one.
+    const { container } = render(<Paytable {...base} />);
+    expect(container.querySelector(".pt__shut")?.closest("[data-quiet]")).not.toBeNull();
   });
 });

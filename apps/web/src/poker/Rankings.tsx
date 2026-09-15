@@ -1,6 +1,7 @@
 import type { Card as CardData } from "@backroom/game-blackjack";
 import { useEffect, useRef } from "react";
 import { Card } from "../blackjack/Cards.js";
+import { play } from "../game/audio.js";
 
 /**
  * What beats what, as the chart on the wall beside a table.
@@ -91,10 +92,14 @@ export function Rankings({ open, onClose }: { open: boolean; onClose: () => void
     if (dialog === null) {
       return;
     }
+    // Sounded here rather than on the buttons: every way in and out ends as
+    // this effect, so there is one place for it and no way to miss one.
     if (open && !dialog.open) {
       dialog.showModal();
+      play("open");
     } else if (!open && dialog.open) {
       dialog.close();
+      play("close");
     }
   }, [open]);
 
@@ -131,7 +136,7 @@ export function Rankings({ open, onClose }: { open: boolean; onClose: () => void
       <div className="pk__help-inner">
         <div className="pk__help-head">
           <h2 className="pk__help-title">What beats what</h2>
-          <button type="button" className="pk__help-shut" onClick={onClose}>
+          <button type="button" className="pk__help-shut" data-quiet onClick={onClose}>
             Close
           </button>
         </div>

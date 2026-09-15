@@ -40,10 +40,19 @@ Search: `coin drop wood`, `coin spin table`, `penny drop`, `coin chink`
 
 Search: `poker chip single`, `poker chips stack`, `chips slide felt`
 
-### `ui/` — optional, I'm synthesizing these
-Only drop things here if you find something you specifically like better than
-a synthesized click. Wooden taps, leather creaks and paper rustles are the
-kinds of thing worth grabbing.
+### `ui/`
+Looked up by exact file name, so a rename here silently changes which sound
+plays — `audio.test.ts` checks each name still matches:
+
+- `soft_click` — every button press
+- `pop` / `hard_click` — a die picked up / put down in Greed
+- `notification` — your turn
+- `happy_notify` — hot dice
+- `error` — farkle
+- `warn` — roulette's no more bets
+- `ui_open` / `ui_close` — a dialog opening / shutting
+
+Leading silence is skipped at playback, so it does not need trimming by hand.
 
 ### `stingers/` — short, 1-2s, not cartoonish
 - your-turn bell (brass hand bell, small ding)
