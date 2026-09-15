@@ -1,6 +1,7 @@
 import type { Mark, StrokeMark } from "@backroom/game-scribble";
+import { SIZES } from "@backroom/game-scribble";
 import { describe, expect, it } from "vitest";
-import { INK_RGB, Raster } from "./raster.js";
+import { INK_RGB, Raster, segmentSteps } from "./raster.js";
 
 const at = (raster: Raster, x: number, y: number) => {
   const index = (y * raster.width + x) * 4;
@@ -37,6 +38,15 @@ const firstDifference = (a: Uint8ClampedArray, b: Uint8ClampedArray): number => 
   }
   return -1;
 };
+
+describe("segmentSteps", () => {
+  it("counts steps from an exact segment length, not an engine's hypot approximation", () => {
+    // Math.hypot(35, 120) is 125.00000000000001 on V8 (ECMA-262 leaves it
+    // implementation-approximated), one step short of 125 exact and enough to
+    // stamp a different disc on another engine. sqrt(35² + 120²) is exact.
+    expect(segmentSteps(0, 0, 35, 120, 2)).toBe(125);
+  });
+});
 
 describe("the napkin's rasteriser", () => {
   it("starts as paper", () => {
@@ -98,10 +108,73 @@ describe("the napkin's rasteriser", () => {
     expect(firstDifference(stepped.pixels, fresh.pixels)).toBe(-1);
   });
 
+  it("redraws from paper when an earlier stroke grows behind a later one, rather than painting over it", () => {
+    // A grows past where B already lies; a fresh raster given the grown marks
+    // draws A whole before B, so B wins the crossing. Growing A in place and
+    // only appending its new segment paints that segment last instead,
+    // handing the crossing to A — two drawers would see different pictures.
+    const a = (pts: number[]) => line("a", pts, "red");
+    const b = line("b", [150, 50, 150, 150], "blue");
+
+    const stepped = new Raster();
+    stepped.update([a([50, 100, 90, 100]), b]);
+    stepped.update([a([50, 100, 90, 100, 200, 100]), b]);
+
+    const fresh = new Raster();
+    fresh.update([a([50, 100, 90, 100, 200, 100]), b]);
+
+    expect(firstDifference(stepped.pixels, fresh.pixels)).toBe(-1);
+  });
+
   it("starts again from paper when a mark is undone", () => {
     const raster = new Raster();
     raster.update([line("k1", [100, 100, 200, 100])]);
     raster.update([]);
     expect(at(raster, 150, 100)).toEqual(rgb("paper"));
+  });
+
+  it("stamps every size's disc exactly as the naive per-cell rule would, inside the grid and clipped at its edge", () => {
+    // Guards the row-span optimisation: whatever shortcut `stamp` takes for
+    // speed, the set of pixels it paints has to be the one `dx*dx + dy*dy <=
+    // radius*radius`, tested cell by cell, would paint — mid-grid, where
+    // nothing clips, and at the far corner, where the disc runs off the edge.
+    for (let sizeIndex = 0; sizeIndex < SIZES.length; sizeIndex += 1) {
+      const radius = (SIZES[sizeIndex] as number) / 2;
+      const reach = Math.ceil(radius);
+      const limit = radius * radius;
+      for (const [cx, cy] of [
+        [500, 400],
+        [0, 0],
+        [999, 749],
+      ] as const) {
+        const raster = new Raster();
+        raster.update([line(`s${sizeIndex}-${cx}-${cy}`, [cx, cy], "black", sizeIndex)]);
+        for (let dy = -reach; dy <= reach; dy += 1) {
+          const y = cy + dy;
+          if (y < 0 || y >= raster.height) {
+            continue;
+          }
+          for (let dx = -reach; dx <= reach; dx += 1) {
+            const x = cx + dx;
+            if (x < 0 || x >= raster.width) {
+              continue;
+            }
+            const expected = dx * dx + dy * dy <= limit ? rgb("black") : rgb("paper");
+            expect(at(raster, x, y)).toEqual(expected);
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps track of a stroke with no points yet, rather than leaving a hole", () => {
+    // A stroke can exist with an empty `pts` array before its first point
+    // lands. Skipping the record along with the (correctly) skipped draw
+    // leaves `this.drawn` sparse at that index, and the next update's id
+    // check reads off the hole.
+    const raster = new Raster();
+    const marks = [line("empty", []), line("k1", [100, 100, 200, 100])];
+    raster.update(marks);
+    expect(raster.update(marks)).toBe(false);
   });
 });

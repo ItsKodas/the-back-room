@@ -4,6 +4,36 @@ import { GRID_HEIGHT, GRID_WIDTH, SIZES } from "@backroom/game-scribble";
 /* The same napkin as --sc-napkin, as numbers a pixel buffer can hold. */
 const PAPER = [242, 239, 233] as const;
 
+/*
+ * The four paper bytes as one 32-bit word, in whatever byte order this
+ * platform's `Uint32Array` actually uses — built from the bytes themselves
+ * rather than shifted by hand, so a wipe is correct on a big-endian host too.
+ */
+const PAPER_WORD = new Uint32Array(new Uint8ClampedArray([PAPER[0], PAPER[1], PAPER[2], 255]).buffer)[0] as number;
+
+/*
+ * A disc's row half-widths, keyed by radius: for each `dy` from `-reach` to
+ * `reach`, the largest `dx` with `dx² + dy² <= radius²` — the same boundary
+ * `stamp` used to test cell by cell, computed once per radius (there are
+ * only three, from `SIZES`) rather than for every centre a stroke passes.
+ */
+const DISC_SPANS = new Map<number, readonly number[]>();
+
+function discSpan(radius: number): readonly number[] {
+  let span = DISC_SPANS.get(radius);
+  if (span === undefined) {
+    const reach = Math.ceil(radius);
+    const limit = radius * radius;
+    const half: number[] = [];
+    for (let dy = -reach; dy <= reach; dy += 1) {
+      half.push(Math.floor(Math.sqrt(Math.max(0, limit - dy * dy))));
+    }
+    span = half;
+    DISC_SPANS.set(radius, span);
+  }
+  return span;
+}
+
 export const INK_RGB: Record<Ink, readonly [number, number, number]> = {
   black: [31, 28, 34],
   red: [217, 65, 59],
@@ -26,6 +56,19 @@ interface Drawn {
 
 const lengthOf = (mark: Mark) => (mark.kind === "stroke" ? mark.pts.length : 1);
 
+/*
+ * `Math.hypot` is only implementation-approximated by ECMA-262: V8 returns
+ * 125.00000000000001 for (35, 120), one `Math.ceil` short of 125 exact on
+ * another engine, which stamps a differently-sized run of discs — the same
+ * failure Amendment 7 exists to rule out, just moved from canvas AA into an
+ * intrinsic. `Math.sqrt` of a sum of integer squares has no such freedom.
+ */
+export function segmentSteps(x0: number, y0: number, x1: number, y1: number, radius: number): number {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  return Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / Math.max(1, radius / 2)));
+}
+
 /**
  * The picture as pixels, drawn by arithmetic every device does identically.
  *
@@ -39,6 +82,8 @@ export class Raster {
   readonly width = GRID_WIDTH;
   readonly height = GRID_HEIGHT;
   readonly pixels = new Uint8ClampedArray(GRID_WIDTH * GRID_HEIGHT * 4);
+  /** The same bytes as `pixels`, four at a time, so a wipe is one word-fill rather than 750,000 byte-writes. */
+  private readonly words = new Uint32Array(this.pixels.buffer);
   private drawn: Drawn[] = [];
 
   constructor() {
@@ -55,6 +100,10 @@ export class Raster {
     marks.forEach((mark, index) => {
       const from = this.drawn[index]?.length ?? 0;
       const length = lengthOf(mark);
+      // Recorded even when there is nothing new to draw (an empty stroke
+      // included), so a later mark's index is never a hole `onlyGrows` reads
+      // `.id` off of.
+      this.drawn[index] = { id: mark.id, kind: mark.kind, length };
       if (from === length) {
         return;
       }
@@ -63,7 +112,6 @@ export class Raster {
       } else {
         this.flood(mark.x, mark.y, INK_RGB[mark.ink]);
       }
-      this.drawn[index] = { id: mark.id, kind: mark.kind, length };
       changed = true;
     });
     return changed;
@@ -71,27 +119,25 @@ export class Raster {
 
   /*
    * Whether `marks` is what is already drawn plus more on the end: the same
-   * marks in the same order, none shorter, and none that sits behind a fill
-   * grown — new ink on a line under a fill has to be drawn under the fill,
-   * which only a redraw from paper does.
+   * marks in the same order, and only the last already-drawn one may have
+   * grown. Ink already drawn *under* it is settled — a mark earlier in the
+   * stack growing has to be redrawn under everything after it, which only a
+   * wipe and a redraw from paper does; painting just its new stretch would
+   * paint it on top of whatever was drawn after it instead.
    */
   private onlyGrows(marks: readonly Mark[]): boolean {
     if (marks.length < this.drawn.length) {
       return false;
     }
-    let lastFill = -1;
+    const lastDrawn = this.drawn.length - 1;
     for (let index = 0; index < this.drawn.length; index += 1) {
       const drawn = this.drawn[index] as Drawn;
       const mark = marks[index] as Mark;
-      if (mark.id !== drawn.id || mark.kind !== drawn.kind || lengthOf(mark) < drawn.length) {
+      const length = lengthOf(mark);
+      if (mark.id !== drawn.id || mark.kind !== drawn.kind) {
         return false;
       }
-      if (mark.kind === "fill") {
-        lastFill = index;
-      }
-    }
-    for (let index = 0; index < lastFill; index += 1) {
-      if (lengthOf(marks[index] as Mark) !== (this.drawn[index] as Drawn).length) {
+      if (index === lastDrawn ? length < drawn.length : length !== drawn.length) {
         return false;
       }
     }
@@ -99,12 +145,7 @@ export class Raster {
   }
 
   private wipe(): void {
-    for (let index = 0; index < this.pixels.length; index += 4) {
-      this.pixels[index] = PAPER[0];
-      this.pixels[index + 1] = PAPER[1];
-      this.pixels[index + 2] = PAPER[2];
-      this.pixels[index + 3] = 255;
-    }
+    this.words.fill(PAPER_WORD);
   }
 
   private strokeFrom(mark: StrokeMark, from: number): void {
@@ -120,7 +161,7 @@ export class Raster {
   }
 
   private segment(x0: number, y0: number, x1: number, y1: number, radius: number, colour: readonly number[]): void {
-    const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / Math.max(1, radius / 2)));
+    const steps = segmentSteps(x0, y0, x1, y1, radius);
     for (let step = 1; step <= steps; step += 1) {
       this.stamp(
         Math.round(x0 + ((x1 - x0) * step) / steps),
@@ -132,19 +173,19 @@ export class Raster {
   }
 
   private stamp(cx: number, cy: number, radius: number, colour: readonly number[]): void {
+    const span = discSpan(radius);
     const reach = Math.ceil(radius);
-    const limit = radius * radius;
-    for (let dy = -reach; dy <= reach; dy += 1) {
-      const y = cy + dy;
+    for (let i = 0; i < span.length; i += 1) {
+      const y = cy + (i - reach);
       if (y < 0 || y >= this.height) {
         continue;
       }
-      for (let dx = -reach; dx <= reach; dx += 1) {
-        const x = cx + dx;
-        if (x < 0 || x >= this.width || dx * dx + dy * dy > limit) {
-          continue;
-        }
-        this.paint((y * this.width + x) * 4, colour);
+      const half = span[i] as number;
+      const left = Math.max(0, cx - half);
+      const right = Math.min(this.width - 1, cx + half);
+      const rowStart = y * this.width;
+      for (let x = left; x <= right; x += 1) {
+        this.paint((rowStart + x) * 4, colour);
       }
     }
   }
