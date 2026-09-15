@@ -92,8 +92,13 @@ describe("motion at a table", () => {
       .map((selector) => selector.trim())
       .filter((selector) => selector.length > 0 && !selector.startsWith("@") && !/^(from|to|\d+%)$/.test(selector));
     expect(animated.length).toBeGreaterThan(0);
+    // Exact selectors turned off, not a substring match .talk would let .talk__scrim satisfy alone.
+    const offSwitches = [...reduced.matchAll(/([^{}]+)\{/g)]
+      .flatMap((match) => (match[1] ?? "").split(","))
+      .map((selector) => selector.trim())
+      .filter((selector) => selector.length > 0);
     for (const selector of animated) {
-      expect(reduced, `${selector} has no off switch`).toContain(selector);
+      expect(offSwitches, `${selector} has no off switch`).toContain(selector);
     }
   });
 });

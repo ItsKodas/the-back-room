@@ -220,7 +220,11 @@
   }
 }
 
-/* The talk key, pinned to a play area's top-left corner. On the table rather than the bar: a phone's bar is already as full as a phone is wide, and a corner costs the table no row. */
+/*
+ * The talk key, pinned to a play area's top-left corner. On the table rather
+ * than the bar: a phone's bar is already as full as a phone is wide, and a
+ * corner costs the table no row.
+ */
 .table-talk-corner {
   position: absolute;
   top: 6px;
@@ -261,6 +265,12 @@
   line-height: 1;
 }
 
+/* ---------------------------------------------------------- the activity */
+
+/*
+ * What the table said happened, kept. The log lives in the talk sheet on a
+ * phone and a panel of its own at a desk, placed by each table.
+ */
 .activity {
   flex: 1;
   min-height: 0;
@@ -327,10 +337,11 @@
 /* ------------------------------------------------------------ scrolling */
 
 /*
- * Every box at the table that scrolls — the activity log, the card, talk —
- * wears the room's own bar: thin, dark, and rounded, a groove in the panel
- * with a thumb that only brightens under the pointer. The browser's grey bar
- * with its arrows was the one part of the table still drawn by the system.
+ * Every box at the table that scrolls — the activity log, talk, and whatever
+ * a game marks .table-scroll (a score card, for one) — wears the room's own
+ * bar: thin, dark, and rounded, a groove in the panel with a thumb that only
+ * brightens under the pointer. The browser's grey bar with its arrows was the
+ * one part of the table still drawn by the system.
  */
 /*
  * The standard properties only where the drawn bar below is not understood.
