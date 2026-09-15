@@ -23,3 +23,6 @@ export {
 } from "./options.js";
 export type { Turn } from "./rotation.js";
 export { mayJoin, smallestTeam, soloTurn, teamTurn } from "./rotation.js";
+export type { Hint } from "./hints.js";
+export { hintMs, hintsDue, mask, planHints } from "./hints.js";
+export { drawerPoints, guesserPoints } from "./scoring.js";
