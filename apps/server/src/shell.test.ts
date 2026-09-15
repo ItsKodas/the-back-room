@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { META_CLOSE, META_OPEN } from "./meta.js";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * The head an unfurler actually gets, over HTTP.
@@ -47,10 +47,7 @@ beforeEach(async () => {
     botDelayMs: 5,
     emptyRoomTtlMs: 200,
   });
-  await new Promise<void>((resolve) => {
-    server.http.listen(0, resolve);
-  });
-  port = (server.http.address() as AddressInfo).port;
+  port = await listenForFetch(server.http);
 });
 
 afterEach(async () => {

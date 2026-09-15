@@ -8,6 +8,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * Two-up, tested where the felt is actually told what the bank holds.
@@ -155,7 +156,7 @@ async function openTable(
     identify,
     identifyRequest: () => player.id,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   const port = (server.http.address() as AddressInfo).port;
 
   const host = await client(port);
@@ -248,7 +249,7 @@ describe("what an admin can see of the bank behind the coins", () => {
       identify: () => null,
       identifyRequest: () => admin.id,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
 
     const response = await fetch(`http://localhost:${port}/api/admin/bank?game=two-up`);

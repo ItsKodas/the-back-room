@@ -7,6 +7,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * A whole game, over three sockets, with the balances checked at both ends.
@@ -83,7 +84,7 @@ async function startRoom(
       return id;
     },
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return { store, port: (server.http.address() as AddressInfo).port, ids };
 }
 

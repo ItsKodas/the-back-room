@@ -7,6 +7,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * Poker, driven through the real socket layer.
@@ -96,7 +97,7 @@ async function startRoom(
       return id;
     },
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return { store, port: (server.http.address() as AddressInfo).port, ids };
 }
 
@@ -249,7 +250,7 @@ describe("sitting down and standing up", () => {
       serveClient: false,
       identify: () => null,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
 
     const guest = await client(port);

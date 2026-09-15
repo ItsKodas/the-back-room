@@ -6,6 +6,7 @@ import type { Socket } from "socket.io-client";
 import { afterEach, expect, describe, it } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * Coming back to a table you are already sitting at.
@@ -68,7 +69,7 @@ async function start(order: Array<string | null>): Promise<number> {
       return id;
     },
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return (server.http.address() as AddressInfo).port;
 }
 

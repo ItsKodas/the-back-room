@@ -7,6 +7,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * Taunts, driven through the real socket layer.
@@ -86,7 +87,7 @@ async function start(
     // puts them on the admin allowlist gets anything out of it.
     identifyRequest: () => ids[0] ?? null,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   return { store, port: (server.http.address() as AddressInfo).port, ids };
 }
 
@@ -650,7 +651,7 @@ describe("a pool at a table that deals itself", () => {
         return id;
       },
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
 
     const ada = await client(port);

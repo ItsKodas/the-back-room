@@ -14,6 +14,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * The machine, tested where the money actually moves.
@@ -94,7 +95,7 @@ async function openMachine(
     identifyRequest: () => as,
     ...(options.spinRandom === undefined ? {} : { spinRandom: options.spinRandom }),
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+  await listenForFetch(server.http);
   const port = (server.http.address() as AddressInfo).port;
 
   const client: Client = connect(`http://localhost:${port}`, {
@@ -1069,7 +1070,7 @@ describe("two players pulling at once", () => {
       identifyRequest: () => null,
       spinRandom: () => DIAMONDS,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
+    await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
     const clients = await Promise.all(
       players.map(async (as) => {
