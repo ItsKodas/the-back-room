@@ -1,5 +1,5 @@
 .gallery {
-  max-width: 1100px;
+  max-width: var(--page-width);
   margin: 0 auto;
   padding: var(--gr-space-8) var(--gr-space-5);
 }

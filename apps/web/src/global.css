@@ -23,6 +23,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * How wide a page runs. One figure for the whole building, so walking from the
+ * front room to a game's tables does not move the navbar under your thumb. A
+ * room that needs more — a felt with ten people round it, a roulette cloth —
+ * widens itself only once you are at it.
+ */
+:root {
+  --page-width: 1000px;
+}
+
 .not-found {
   padding: var(--gr-space-6);
 }

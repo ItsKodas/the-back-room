@@ -5,7 +5,7 @@
  */
 
 .play {
-  max-width: 1000px;
+  max-width: var(--page-width);
   margin: 0 auto;
   padding: var(--gr-space-6) var(--gr-space-5) var(--gr-space-8);
 }
@@ -1681,7 +1681,7 @@ a.btn {
 /* ------------------------------------------------------------------- room */
 
 .room {
-  max-width: 940px;
+  max-width: var(--page-width);
   margin: 0 auto;
   padding: var(--gr-space-6) var(--gr-space-5) var(--gr-space-8);
   display: flex;
@@ -1824,7 +1824,14 @@ a.btn {
  */
 .room__tables {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  /*
+   * Two across at most. Each track is at least half the row, so a wide page
+   * cannot fit a third; below twice the 230px floor it drops to one.
+   */
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(230px, calc((100% - var(--gr-space-3)) / 2)), 1fr)
+  );
   gap: var(--gr-space-3);
 }
 
@@ -1838,7 +1845,11 @@ a.btn {
  */
 .room__few {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  /* The same two-across cap as .room__tables, so a lone tile is one of two. */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(230px, calc((100% - var(--gr-space-3)) / 2)), 1fr)
+  );
   gap: var(--gr-space-3);
 }
 
@@ -1924,7 +1935,11 @@ a.btn {
   right: -6%;
   bottom: -14%;
   width: 52%;
-  max-width: 240px;
+  /*
+   * Capped below what half a two-across tile would give it: scaled all the
+   * way with the tile, the furniture crowds the name.
+   */
+  max-width: 190px;
   pointer-events: none;
   z-index: 0;
 }

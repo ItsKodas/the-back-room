@@ -9,7 +9,7 @@
 
 .tips {
   min-height: 100dvh;
-  max-width: 560px;
+  max-width: var(--page-width);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -17,6 +17,16 @@
   /* Inset on both sides, like every other page — not decoration, see
      slots.css's note on why a page cannot run flush to the edge. */
   padding: var(--gr-space-4) var(--gr-space-5) var(--gr-space-6);
+}
+
+/*
+ * The page is the building's width, so the navbar sits where it does in every
+ * other room; the jar and what follows it keep their one narrow column.
+ */
+.tips > * + * {
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
 }
 
 .tips__loading {
