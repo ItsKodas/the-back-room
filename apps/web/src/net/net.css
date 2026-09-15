@@ -1,8 +1,9 @@
 /*
  * The turned-away panel. Sized for a thumb and legible at 375px, because a
  * player told to go and close a tab is often the one holding the phone.
- * A message block, painted the same way as .play__error/.play__event
- * (game.css) rather than left to the browser's own chrome.
+ * Painted the way a housing is: this stands where the table or the lobby
+ * would otherwise be — a state the page is in, not a passing error line —
+ * so it wears the same cabinet surface as the things it replaces.
  */
 .taken {
   display: flex;
