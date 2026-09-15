@@ -98,4 +98,42 @@
   --gr-lift-low: 0 2px 6px rgb(0 0 0 / 0.5);
   --gr-lift-high: 0 24px 60px -18px rgb(0 0 0 / 0.85);
   --gr-well: inset 0 3px 18px rgb(0 0 0 / 0.7);
+
+  /*
+   * The fittings: what the pages are built from, taken from the slot machine
+   * and the leaderboard. The 2px and 4px radii above stay for the felts, which
+   * are still drawn in them; a thing you press on a page is rounder than that,
+   * and the flatness of those corners was most of why the pages read as
+   * outlines rather than objects.
+   */
+  --gr-radius-key: 12px;
+  --gr-radius-cab: 18px;
+  --gr-radius-pill: 999px;
+
+  /* How far a lit button travels. The slab under it is exactly this tall. */
+  --gr-press: 6px;
+  /* A release overshoots; a press just stops. The spin button's own curve. */
+  --gr-spring: cubic-bezier(0.16, 2.2, 0.4, 1);
+  /* Something sliding into place: one small overshoot, never a bounce. */
+  --gr-settle: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Light round the rim of a piece of glass. */
+  --gr-bezel: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+  /* The top edge of a raised thing, catching the light from above. */
+  --gr-lip: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  /* A recess. What makes a choice read as set into the panel. */
+  --gr-sink: inset 0 2px 6px rgb(0 0 0 / 0.55);
+  /*
+   * The highlight over a lit screen: hard across the top third and nothing at
+   * the bottom, which is what makes it read as a curved cover and not a
+   * gradient.
+   */
+  --gr-glass: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.42) 0%,
+    rgb(255 255 255 / 0.13) 34%,
+    rgb(255 255 255 / 0.02) 48%,
+    transparent 60%
+  );
+  --gr-scan: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.028) 0 1px, transparent 1px 3px);
 }

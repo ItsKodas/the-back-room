@@ -188,6 +188,17 @@ describe("tokens.css", () => {
         "--gr-lift-low",
         "--gr-lift-high",
         "--gr-well",
+        "--gr-radius-key",
+        "--gr-radius-cab",
+        "--gr-radius-pill",
+        "--gr-press",
+        "--gr-spring",
+        "--gr-settle",
+        "--gr-bezel",
+        "--gr-lip",
+        "--gr-sink",
+        "--gr-glass",
+        "--gr-scan",
       ].sort(),
     );
   });
