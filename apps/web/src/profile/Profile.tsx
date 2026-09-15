@@ -4,7 +4,6 @@ import { Avatar } from "../game/Avatar.js";
 import { useAccount } from "../game/useAccount.js";
 import { Send } from "./Send.js";
 import { ChipColumns } from "../chips/ChipColumns.js";
-import { Navbar } from "../nav/Navbar.js";
 import { bundle, signed } from "./history.js";
 import type { PlayedGame } from "./history.js";
 
@@ -71,8 +70,6 @@ export function Profile() {
 
   return (
     <main className="room">
-      <Navbar account={account} />
-
       {account.loading ? null : account.profile === null ? (
         <p className="panel__note">
           Sign in to keep a balance, a history, and figures worth arguing about.

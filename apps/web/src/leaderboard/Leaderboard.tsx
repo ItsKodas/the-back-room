@@ -3,7 +3,6 @@ import { Avatar } from "../game/Avatar.js";
 import { Digits } from "../game/Digits.js";
 import { compact, exact } from "../game/money.js";
 import { useAccount } from "../game/useAccount.js";
-import { Navbar } from "../nav/Navbar.js";
 import { COLUMNS, pinned, ranked, winRate } from "./board.js";
 import type { Board, BoardRow, BoardSort } from "./board.js";
 import { useSlide } from "./useSlide.js";
@@ -51,7 +50,6 @@ export function Leaderboard() {
 
   return (
     <main className="room">
-      <Navbar account={account} />
       <p className="room__label">Who's ahead</p>
       {shut ? (
         <p className="panel__note">Sign in to see who's ahead.</p>
