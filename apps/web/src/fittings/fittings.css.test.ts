@@ -30,7 +30,7 @@ function moving(): string[] {
       continue;
     }
     const body = rule.slice(at);
-    if (/(^|[\s;{])(animation|transition)\s*:(?!\s*none)/.test(body)) {
+    if (/(^|[\s;{])(animation|transition)(-[a-z]+)?\s*:(?!\s*none)/.test(body)) {
       const selector = rule
         .slice(0, at)
         .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -81,5 +81,11 @@ describe("the fittings' stylesheet", () => {
       expect(body).toMatch(/text-decoration:\s*none/);
       expect(body).toMatch(/display:\s*inline-flex/);
     }
+  });
+
+  it("never declares .field, which a run of existing page forms already own", () => {
+    // Loading after game.css means a bare .field here would win the tie and
+    // silently strip every page's own cap and margins on its wrapper.
+    expect(css).not.toMatch(/(^|[},\s])\.field(?![\w-])[^{]*\{/m);
   });
 });

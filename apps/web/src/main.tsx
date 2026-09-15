@@ -12,8 +12,8 @@ import "./global.css";
  */
 import "./game/game.css";
 /*
- * The fittings every page is built from. After game.css, because .field is
- * declared in both and a page's version has to win.
+ * The fittings every page is built from. After game.css, so a fitting wins
+ * any tie its class name happens to share with a page's own sheet.
  */
 import "./fittings/fittings.css";
 /*

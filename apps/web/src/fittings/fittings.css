@@ -641,14 +641,14 @@
 /* ================================================================ typing */
 
 /*
- * .field already exists in game.css for the felts' chat box; this sheet loads
- * after it, so these win on a page and the old sizing is undone here.
+ * Its own name rather than a restyle of the wrapper class the felts' chat
+ * box and a run of existing page forms already wear, each with its own cap
+ * and its own margins — this sheet loading after theirs would have quietly
+ * stripped every one of them.
  */
-.field {
+.entry {
   display: grid;
   gap: 6px;
-  max-width: none;
-  margin: 0;
 }
 
 .label {
@@ -690,7 +690,7 @@
     0 0 0 3px color-mix(in srgb, var(--gr-color-neon) 28%, transparent);
 }
 
-.field--bad .input {
+.entry--bad .input {
   border-color: var(--gr-color-bad);
 }
 
@@ -700,7 +700,7 @@
   color: var(--gr-color-ink-faint);
 }
 
-.field--bad .hint {
+.entry--bad .hint {
   color: var(--gr-color-bad);
 }
 
