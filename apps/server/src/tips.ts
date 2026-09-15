@@ -39,6 +39,13 @@ export interface TipsDeps {
    * that round trip is not free to repeat on every accepted tap.
    */
   tellChips: (userId: string, knownChips?: number) => Promise<void>;
+  /**
+   * Why the jar is shut to everybody right now, or null if it is not.
+   *
+   * A tap writes a payout; one landing while the server stops is a payout
+   * written to a store on its way out.
+   */
+  refusal: () => string | null;
 }
 
 /**
@@ -143,7 +150,7 @@ async function ensureToken(
 }
 
 export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
-  const { store, tellChips } = deps;
+  const { store, tellChips, refusal } = deps;
 
   socket.on("tips:open", (_payload, ack) => {
     void (async () => {
@@ -173,6 +180,12 @@ export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
       if (!parsed.success) {
         const now = Date.now();
         ack({ ok: false, error: "That is not a tap.", jar: view(emptyJar(now, ""), now) });
+        return;
+      }
+      const shut = refusal();
+      if (shut !== null) {
+        const now = Date.now();
+        ack({ ok: false, error: shut, jar: view(emptyJar(now, ""), now) });
         return;
       }
       const held = await store.jar(userId);
@@ -236,6 +249,12 @@ export function wireTips(socket: TipsSocket, deps: TipsDeps): void {
       if (!parsed.success) {
         const now = Date.now();
         ack({ ok: false, error: "That is not a buy.", jar: view(emptyJar(now, ""), now) });
+        return;
+      }
+      const shut = refusal();
+      if (shut !== null) {
+        const now = Date.now();
+        ack({ ok: false, error: shut, jar: view(emptyJar(now, ""), now) });
         return;
       }
       const held = await store.jar(userId);

@@ -2107,7 +2107,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   }
 
   io.on("connection", (socket) => {
-    wireTips(socket, { store, tellChips });
+    wireTips(socket, { store, tellChips, refusal: () => (shuttingDown ? SHUTTING_DOWN : null) });
 
     socket.on("lobby:create", (payload, ack) => {
       if (shuttingDown) {
@@ -2618,6 +2618,16 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           return;
         }
 
+        /*
+         * Checked with nothing awaited between here and joining the bank's
+         * queue, so every spin that gets past it is already in line ahead of
+         * the no-op `close()` waits on, and every spin after is refused.
+         */
+        if (shuttingDown) {
+          ack({ ok: false, error: SHUTTING_DOWN });
+          return;
+        }
+
         if (spinning.has(userId)) {
           ack({ ok: false, error: "One spin at a time." });
           return;
@@ -2865,6 +2875,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
      * back needs both a table that still exists and a store that still answers.
      */
     await closeAllTables("shutdown");
+    /*
+     * The machine is not a table, so nothing above waited for it. A spin runs
+     * whole inside the bank's queue — stake taken, reels, payout — and one
+     * caught half way when the store closes has taken a stake it never pays.
+     * Queuing behind it waits out whatever is in line; the flag stops more
+     * joining, including the rest of a free-spin run.
+     */
+    await slotsBank.serially(async () => {});
     for (const handle of pending) {
       clearTimeout(handle);
     }
