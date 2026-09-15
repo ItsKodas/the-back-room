@@ -1,4 +1,3 @@
-import type { AddressInfo } from "node:net";
 import { MemoryStore } from "@backroom/economy";
 import type { Ack, ClientToServer, ServerToClient, TableClosed } from "@backroom/shared";
 import type { Socket } from "socket.io-client";
@@ -6,6 +5,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BackRoomServer } from "./server.js";
 import { createBackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * A table going away with chips on it, driven through the real socket layer.
@@ -36,6 +36,7 @@ afterEach(async () => {
     await server.close();
     server = null;
   }
+  delete process.env["ADMIN_DISCORD_IDS"];
 });
 
 /**
@@ -115,6 +116,8 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
 
   const ids = [ada.id, bo.id];
   let seen = 0;
+  // Ada, so the admin desk will answer her; read when the server starts.
+  process.env["ADMIN_DISCORD_IDS"] = "d1";
   server = createBackRoomServer({
     store: proxy,
     auth: null,
@@ -128,8 +131,8 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
     identifyRequest: () => ada.id,
     ...timings,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
-  const port = (server.http.address() as AddressInfo).port;
+  // A port fetch will talk to, because the admin desk is reached over HTTP.
+  const port = await listenForFetch(server.http);
 
   const client = async (): Promise<Client> => {
     const socket = connect(`http://localhost:${port}`, {
@@ -142,7 +145,7 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
   };
   // Read through the real store, so a held call never holds up an assertion.
   const chipsOf = async (id: string) => (await store.get(id))?.chips ?? -1;
-  return { store, ada, bo, client, hold, chipsOf };
+  return { store, ada, bo, client, hold, chipsOf, port };
 }
 
 const until = async (check: () => Promise<boolean> | boolean, ms = 3_000) => {
@@ -198,6 +201,45 @@ describe("a table nobody is sitting at any more", () => {
     expect(await chipsOf(ada.id)).toBe(before);
     expect(await store.bank("roulette")).toBe(BANK);
     expect(server?.rooms.has(code)).toBe(false);
+  });
+
+  /*
+   * The reset only refuses while somebody is seated, and a wheel whose last
+   * seat has gone keeps its cloth until the reaper calls it off. Those chips
+   * are in the bank, and emptying the whole bank took them with it: the void
+   * that followed was refused by the bank, logged, and never paid.
+   */
+  it("keeps its chips payable when an admin empties the banks before it is cleared away", async () => {
+    const { store, ada, chipsOf, before, player, code, port } = await stakedWheel({
+      reconnectGraceMs: 100,
+      emptyRoomTtlMs: 60_000,
+    });
+    /*
+     * The window shut by hand rather than waited out: it is thirty seconds,
+     * and only once it has shut does a leaver's stake ride rather than go
+     * home on the next broadcast. The ball is then in the air for eight and
+     * a half, far longer than the rest of this takes.
+     */
+    const table = server?.rooms.get(code)?.table as unknown as { closeBetting(): void; phase: string };
+    table.closeBetting();
+    expect(table.phase).toBe("spinning");
+    player.close();
+    // The seat gone, not just disconnected: the reset refuses a seated player.
+    await until(() => server?.rooms.get(code)?.table.seats.length === 0);
+
+    const reset = await fetch(`http://localhost:${port}/api/admin/reset`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target: { all: true }, parts: ["stats"], emptyBanks: true }),
+    });
+    expect(reset.status).toBe(200);
+    // Everything but red's worst case, which the wheel could still owe her.
+    expect(await store.bank("roulette")).toBe(400);
+
+    await server?.closeTable(code, "admin");
+
+    expect(await chipsOf(ada.id)).toBe(before);
+    expect(await store.bank("roulette")).toBe(200);
   });
 });
 

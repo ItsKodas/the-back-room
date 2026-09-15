@@ -47,8 +47,11 @@ export interface SeatedTable {
  * How many live tables have somebody a reset would touch sitting at them.
  *
  * Seated rather than connected: a player who dropped mid-hand still has
- * chips on that felt, and nothing can give those back yet. Until tables can
- * be voided, a reset that would land under a live hand is refused.
+ * chips on that felt. A reset landing under a live hand would be undone by
+ * it — a refund or a payout arriving on the balance just set — and calling
+ * those tables off is a bigger thing than the admin asked for, so the reset
+ * is refused instead. A table with nobody seated can still hold stakes;
+ * those are the bank's to keep payable, which `emptyBanks` does.
  */
 export function tablesHolding(tables: Iterable<SeatedTable>, target: AdminTarget): number {
   const wanted = "all" in target ? null : new Set(target.ids);
@@ -73,7 +76,7 @@ export interface AdminDeskRoutes {
   /** The live tables, read at the moment a reset is asked for. */
   tables: () => Iterable<SeatedTable>;
   /**
-   * Empties every game's bank and returns the total.
+   * Empties every game's bank of what no table owes, and returns the total.
    *
    * Kept out of this module rather than done here with `store.bankEmpty` in
    * a loop: each bank has its own serialization guard against a stake or a

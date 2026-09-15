@@ -12,3 +12,18 @@ describe("a table that has closed", () => {
     expect(ledger.owedElsewhere(live)).toBe(0);
   });
 });
+
+describe("everything a bank has promised", () => {
+  it("counts every table, and drops the ones that owe nothing", () => {
+    const ledger = new BankLedger();
+    let settled = 300;
+    ledger.owes({}, () => 500);
+    ledger.owes({}, () => settled);
+    expect(ledger.owedTotal()).toBe(800);
+    settled = 0;
+    expect(ledger.owedTotal()).toBe(500);
+    settled = 300;
+    // Dropped on the way past, like `owedElsewhere`: the table puts itself back.
+    expect(ledger.owedTotal()).toBe(500);
+  });
+});

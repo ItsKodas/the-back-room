@@ -1031,18 +1031,44 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * already runs wholly inside its own `slotsBank.serially`, so queuing the
    * empty there is sufficient on its own; there is no separate window for a
    * reset to land in that serialization does not already cover.
+   *
+   * The tables' banks are emptied down to what their tables still owe rather
+   * than to zero. Every stake is in the bank from the moment it lands, and a
+   * wheel whose last seat has gone keeps its cloth until the reaper calls it
+   * off — so zero would take chips somebody is owed, and the refund or payout
+   * that followed would be refused by the bank and never paid. Leaving them
+   * rather than refusing the empty, because the empty runs after the reset it
+   * belongs to has already been made and logged, and because on a busy
+   * evening some cloth always has a chip on it: a refusal would be a button
+   * that never works. What stays behind leaves the bank as its tables settle.
    */
   async function emptyOneBank(which: BankName): Promise<number> {
     switch (which) {
       case "slots":
         return slotsBank.serially(() => store.bankEmpty("slots"));
       case "blackjack":
-        return ledgerOf(blackjackBank).serially(() => store.bankEmpty("blackjack"));
+        return emptyAllButOwed(blackjackBank, "blackjack");
       case "roulette":
-        return ledgerOf(rouletteBank).serially(() => store.bankEmpty("roulette"));
+        return emptyAllButOwed(rouletteBank, "roulette");
       case "two-up":
-        return ledgerOf(twoUpBank).serially(() => store.bankEmpty("two-up"));
+        return emptyAllButOwed(twoUpBank, "two-up");
     }
+  }
+
+  async function emptyAllButOwed(bank: object, which: BankName): Promise<number> {
+    const ledger = ledgerOf(bank);
+    return ledger.serially(async () => {
+      const spare = (await store.bank(which)) - ledger.owedTotal();
+      if (spare <= 0) {
+        return 0;
+      }
+      // Cannot refuse inside the queue unless something outside the book moved the bank.
+      if (!(await store.bankTake(which, spare))) {
+        console.error(`emptying the ${which} bank: it refused ${spare}`);
+        return 0;
+      }
+      return spare;
+    });
   }
 
   async function emptyBanks(): Promise<number> {

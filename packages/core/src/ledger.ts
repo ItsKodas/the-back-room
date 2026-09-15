@@ -61,9 +61,24 @@ export class BankLedger {
    * table puts it back.
    */
   owedElsewhere(table: object): number {
+    return this.owedBy(table);
+  }
+
+  /**
+   * The most every table on this bank could still be asked to pay.
+   *
+   * For taking chips out of the bank from outside any table — an admin's
+   * empty — which has to leave behind what every cloth is owed, a cloth
+   * nobody is sitting at included.
+   */
+  owedTotal(): number {
+    return this.owedBy(null);
+  }
+
+  private owedBy(skip: object | null): number {
     let total = 0;
     for (const [other, owed] of this.promises) {
-      if (other === table) {
+      if (other === skip) {
         continue;
       }
       const now = owed();
