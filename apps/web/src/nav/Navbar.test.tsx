@@ -130,6 +130,29 @@ describe("the connection light", () => {
   });
 });
 
+describe("signing in, for a guest", () => {
+  function guest(available: boolean) {
+    render(
+      <MemoryRouter>
+        <Navbar account={{ ...account(false), profile: null, available }} />
+      </MemoryRouter>,
+    );
+  }
+
+  it("is a key that leads to Discord", () => {
+    guest(true);
+    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/auth/discord");
+  });
+
+  it("is still a key where the server cannot sign anybody in, only one that is down", () => {
+    guest(false);
+    const key = screen.getByRole("button", { name: "Sign in" });
+    expect(key).toHaveProperty("disabled", true);
+    expect(key.getAttribute("title")).toBe("Sign-in is not set up on this server");
+    expect(screen.queryByText(/playing as a guest/i)).toBeNull();
+  });
+});
+
 describe("the sign, as the way home", () => {
   beforeEach(() => {
     vi.mocked(play).mockClear();

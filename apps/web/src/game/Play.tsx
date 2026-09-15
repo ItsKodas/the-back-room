@@ -9,9 +9,12 @@ import type { ChatMessage, RoomView } from "@backroom/shared";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Chat } from "./Chat.js";
 import { HouseRulesEditor } from "./HouseRulesEditor.js";
+import { Stake } from "./Stake.js";
 import { Table } from "./Table.js";
+import { TalkKey, TalkPanel, TalkSheet, useTalk } from "./TalkSheet.js";
+import { ActivityLog, useActivity } from "./Activity.js";
+import { Refusal } from "./Refusal.js";
 import type { Account } from "./useAccount.js";
 import { useAccount } from "./useAccount.js";
 import { TauntPicker } from "../taunt/TauntPicker.js";
@@ -40,6 +43,7 @@ export function Play() {
     chat,
     seatId,
     error,
+    errorKey,
     connected,
     taken,
     retry,
@@ -49,6 +53,11 @@ export function Play() {
     actions,
   } = useRoom(account.setChips);
   useSound(room, seatId);
+  const talk = useTalk(chat, seatId);
+  // Kept from the first line the table says, so nothing is lost while talk is shut.
+  const activity = useActivity(room);
+  // The felt, as against the door, the join and the lobby, which are pages.
+  const atTable = taken === null && room !== null && room.status !== "lobby";
 
   useNav({
     room: "greed",
@@ -83,10 +92,12 @@ export function Play() {
   }
 
   return (
-    <main className="play">
-      {error !== null ? <p className="play__error">{error}</p> : null}
-      {room?.lastEvent != null && room.status !== "lobby" ? (
-        <p className="play__event">{room.lastEvent}</p>
+    <main className={`play${atTable ? " play--greed" : ""}`}>
+      {/* At the table a refusal takes the middle of the board; on a page it stays a strip. */}
+      {atTable ? (
+        <Refusal message={error} id={errorKey} />
+      ) : error !== null ? (
+        <p className="play__error">{error}</p>
       ) : null}
 
       {taken !== null ? (
@@ -116,105 +127,53 @@ export function Play() {
             actions={actions}
             heldLocally={heldLocally}
             pendingRoll={pendingRoll}
-          />
-          <div className="play__talk">
-            <Chat log={chat} seatId={seatId} onSay={actions.say} />
-            <TauntPicker
-              seats={room.seats}
-              seatId={seatId}
-              chips={account.profile?.chips ?? null}
-              stakes={stakes}
-              onThrow={(emote, at) => {
-                /*
-                 * The cost comes off the corner on the press rather than when
-                 * the server answers. It is the player's own number — they
-                 * chose the emote and it has a price — so showing it at once
-                 * invents nothing, and the ack corrects it either way.
-                 */
-                if (account.profile !== null) {
-                  account.setChips(account.profile.chips - emote.cost);
-                }
-                actions.taunt(emote.id, at, (result) => {
-                  if (result.ok) {
-                    account.setChips(result.chips);
-                  } else {
-                    // Refused, so give the optimistic decrement back.
-                    account.refresh();
+            taunt={
+              <TauntPicker
+                seats={room.seats}
+                seatId={seatId}
+                chips={account.profile?.chips ?? null}
+                stakes={stakes}
+                openClassName="key"
+                onThrow={(emote, at) => {
+                  /*
+                   * The cost comes off the corner on the press rather than when
+                   * the server answers. It is the player's own number — they
+                   * chose the emote and it has a price — so showing it at once
+                   * invents nothing, and the ack corrects it either way.
+                   */
+                  if (account.profile !== null) {
+                    account.setChips(account.profile.chips - emote.cost);
                   }
-                });
-              }}
-            />
-          </div>
+                  actions.taunt(emote.id, at, (result) => {
+                    if (result.ok) {
+                      account.setChips(result.chips);
+                    } else {
+                      // Refused, so give the optimistic decrement back.
+                      account.refresh();
+                    }
+                  });
+                }}
+              />
+            }
+            talk={
+              <TalkSheet
+                open={talk.open}
+                onClose={talk.close}
+                log={chat}
+                seatId={seatId}
+                onSay={actions.say}
+                activity={<ActivityLog entries={activity} />}
+              />
+            }
+            activity={<ActivityLog entries={activity} />}
+            talkKey={<TalkKey open={talk.open} unread={talk.unread} onToggle={talk.toggle} />}
+          />
           {/* Over the felt rather than inside it: a taunt belongs to the table,
               not to the dice. */}
           <TauntStage landed={landed} />
         </>
       )}
     </main>
-  );
-}
-
-/**
- * The stake. Only offered when everyone at the table is signed in and there
- * are no bots — a bot has no balance to lose and no account to pay, so letting
- * one into a pot would mint or destroy chips.
- */
-function BuyIn({
-  room,
-  editable,
-  signedIn,
-  chips,
-  onSet,
-}: {
-  room: RoomView;
-  editable: boolean;
-  signedIn: boolean;
-  chips: number;
-  onSet: (amount: number) => void;
-}) {
-  const bots = room.seats.some((seat) => seat.isBot);
-  const guests = room.seats.some((seat) => !seat.signedIn);
-  const blocked = bots || guests || !signedIn;
-
-  return (
-    <section className="housing" aria-labelledby="stake-title">
-      <div className="housing__head">
-        <h2 className="label" id="stake-title">
-          Stake
-        </h2>
-      </div>
-      <div className="housing__body">
-        {blocked ? (
-          <p className="hint rules__chips">
-            {bots
-              ? "Bots play for free. Remove them to play for chips."
-              : "Everyone has to be signed in to play for chips."}
-          </p>
-        ) : (
-          <div className="lamps">
-            {[0, 100, 500, 1000].map((amount) => (
-              <button
-                key={amount}
-                type="button"
-                role="radio"
-                aria-checked={room.buyIn === amount}
-                disabled={!editable || amount > chips}
-                // Gold means chips, and 0 is for fun — no chips are at stake.
-                className={`lamp${amount > 0 ? " lamp--chips" : ""}`}
-                onClick={() => onSet(amount)}
-              >
-                {amount === 0 ? "for fun" : amount.toLocaleString("en-US")}
-              </button>
-            ))}
-          </div>
-        )}
-        {room.buyIn > 0 ? (
-          <p className="hint rules__chips">
-            Pot of {room.pot.toLocaleString("en-US")} — winner takes it.
-          </p>
-        ) : null}
-      </div>
-    </section>
   );
 }
 
@@ -470,7 +429,7 @@ function Lobby({
   const solo = room.seats.length === 1;
 
   return (
-    <div className="lobby">
+    <div className="table-lobby">
       <ShareCode code={room.code} />
 
       <section className="housing lobby__seating" aria-labelledby="seating-title">
@@ -553,7 +512,7 @@ function Lobby({
             editable={you?.isHost === true}
             onChange={actions.setRules}
           />
-          <BuyIn
+          <Stake
             room={room}
             editable={you?.isHost === true}
             signedIn={account.profile !== null}
@@ -566,7 +525,7 @@ function Lobby({
             onSet={actions.setListed}
           />
         </div>
-        <Chat log={chat} seatId={seatId} onSay={actions.say} />
+        <TalkPanel log={chat} seatId={seatId} onSay={actions.say} />
       </div>
     </div>
   );

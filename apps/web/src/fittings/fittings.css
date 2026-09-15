@@ -74,6 +74,9 @@
   position: absolute;
   inset: 0;
   z-index: -2;
+  /* Its own corners as well as the slab's clip: overflow alone leaks a pixel
+     of lit screen at each curve on a button that moves. */
+  border-radius: inherit;
   background:
     radial-gradient(70% 130% at 28% 118%, color-mix(in srgb, var(--gr-color-neon) 85%, #fff) 0%, transparent 60%),
     radial-gradient(60% 120% at 80% -18%, color-mix(in srgb, var(--gr-color-neon-hi) 50%, transparent) 0%, transparent 62%),

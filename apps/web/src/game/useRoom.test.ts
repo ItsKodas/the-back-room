@@ -92,6 +92,33 @@ describe("what a Greed window tells the server about itself", () => {
     expect(fake.emit).not.toHaveBeenCalledWith("lobby:leave");
   });
 
+  it("counts the same refusal twice as two, so it can be shown again", () => {
+    /*
+     * The server turning the same press down twice sends the same words twice,
+     * and React does not re-render for a string it already holds — so without a
+     * count the second no was silent, and the table looked like it had stopped
+     * listening.
+     */
+    const { result } = renderHook(() => useRoom(), { wrapper });
+    act(() => {
+      handlers.get("room:error")?.("You need 500 in one turn to get on the board.");
+    });
+    const first = result.current.errorKey;
+    act(() => {
+      handlers.get("room:error")?.("You need 500 in one turn to get on the board.");
+    });
+    expect(result.current.error).toBe("You need 500 in one turn to get on the board.");
+    expect(result.current.errorKey).toBe(first + 1);
+  });
+
+  it("does not count a dropped connection as a refusal", () => {
+    const { result } = renderHook(() => useRoom(), { wrapper });
+    act(() => {
+      handlers.get("connect_error")?.(new Error("xhr poll error"));
+    });
+    expect(result.current.errorKey).toBe(0);
+  });
+
   it("ignores the close of a table it is not at", () => {
     /*
      * Each event goes through act so its render has happened before anything

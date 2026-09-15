@@ -40,7 +40,7 @@ const PIPS: Record<DieFace, ReadonlyArray<readonly [number, number]>> = {
  * point of them, and the colour is what tells them apart. `$GREED` needs one of
  * each, so the two must never be drawn the same.
  */
-const LETTERS: Record<DieFace, string> = {
+export const LETTERS: Record<DieFace, string> = {
   1: "$",
   2: "G",
   3: "R",
@@ -50,13 +50,18 @@ const LETTERS: Record<DieFace, string> = {
 };
 
 /**
- * Ink colour per face. The green E is the only one that carries a rule — a
- * straight needs one E of each colour — but the printed dice colour the other
- * letters too, so the rest follow the card.
+ * The gem each face is named for on the printed table, which is also the
+ * colour its letter is printed in. The two Es are the ones that carry a rule —
+ * a straight needs one of each — but every face wears its own, so a roll can be
+ * read by colour before it is read by letter.
  */
-const LETTER_TONE: Partial<Record<DieFace, string>> = {
-  3: "red", // R
-  5: "green", // the green E
+export const GEM: Record<DieFace, string> = {
+  1: "silver",
+  2: "gold",
+  3: "ruby",
+  4: "ebony",
+  5: "emerald",
+  6: "diamond",
 };
 
 /** Spoken form, so the die still reads correctly to a screen reader. */
@@ -129,13 +134,7 @@ export function Die({
       }
     >
       {letters ? (
-        <span
-          className={`die__letter${
-            LETTER_TONE[face] !== undefined ? ` die__letter--${LETTER_TONE[face] ?? ""}` : ""
-          }`}
-        >
-          {LETTERS[face]}
-        </span>
+        <span className={`die__letter die__letter--${GEM[face]}`}>{LETTERS[face]}</span>
       ) : (
         PIPS[face].map(([row, column]) => (
           <span

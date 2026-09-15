@@ -1,20 +1,42 @@
+import type { Combo } from "@backroom/rules";
 import { bustProbability, scoreSelection } from "@backroom/rules";
 import type { RoomView } from "@backroom/shared";
-import { useEffect, useState } from "react";
-import { SeatAvatar } from "./Avatar.js";
+import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { play } from "./audio.js";
-import { Die } from "./Die.js";
+import { Die, LETTERS } from "./Die.js";
+import { Lanes } from "./Lanes.js";
 import { ScoreCard } from "./ScoreCard.js";
 import { useCountdown } from "./useCountdown.js";
 import type { PendingRoll } from "./useRollAnimation.js";
 import { ROLL_SETTLE_MS, useRollAnimation } from "./useRollAnimation.js";
 import type { RoomActions } from "./useRoom.js";
 import { isScoringStraight } from "./useSound.js";
+import "./greed.css";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
+/** A turn clock, the way a table reads one out. */
+const clockText = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
 function greedLine(skin: string): string {
   return skin === "letters" ? "$GREED — one of every face." : "A straight — one of every face.";
+}
+
+/** One scoring combination, named the way its tag on the felt names it. */
+function comboName(combo: Combo, letters: boolean): string {
+  switch (combo.kind) {
+    case "straight":
+      return letters ? "$GREED" : "Straight";
+    case "three-pairs":
+      return "Three pairs";
+    case "two-triplets":
+      return "Two triplets";
+    case "four-plus-pair":
+      return "Four and a pair";
+    default:
+      return `${combo.size}×${combo.face === null ? "" : letters ? LETTERS[combo.face] : combo.face}`;
+  }
 }
 
 interface TableProps {
@@ -25,6 +47,14 @@ interface TableProps {
   heldLocally: boolean[] | null;
   /** A throw asked for whose dice have not come back yet. */
   pendingRoll: PendingRoll | null;
+  /** The taunt key, offered while somebody else has the dice. */
+  taunt?: ReactNode;
+  /** Table talk's sheet, laid over the table when it is open. */
+  talk?: ReactNode;
+  /** What the table has said happened, shown under the card at a desk. */
+  activity?: ReactNode;
+  /** The key that opens talk, pinned to the felt's corner opposite the score card's. */
+  talkKey?: ReactNode;
 }
 
 export function Table({
@@ -33,12 +63,17 @@ export function Table({
   actions,
   heldLocally,
   pendingRoll,
+  taunt,
+  talk,
+  activity,
+  talkKey,
 }: TableProps) {
   const turn = room.turn;
   const over = room.status === "over";
   const yours = turn !== null && turn.seatId === seatId && !over;
-  const watching = room.watching;
   const active = room.seats.find((seat) => seat.id === turn?.seatId);
+  const letters = room.ruleset.skin === "letters";
+  const [cardOpen, setCardOpen] = useState(false);
 
   /*
    * Which dice are picked up, and what that is worth.
@@ -51,14 +86,19 @@ export function Table({
    */
   const held = heldLocally ?? turn?.held ?? [];
   const ahead = heldLocally !== null && turn !== null;
-  const localScore = ahead
-    ? scoreSelection(
-        turn.dice.filter((_, index) => held[index] === true),
-        room.ruleset,
-      )
-    : null;
+  const picked = turn === null ? [] : turn.dice.filter((_, index) => held[index] === true);
+  const localScore = ahead ? scoreSelection(picked, room.ruleset) : null;
   const selection = localScore?.points ?? turn?.selection ?? 0;
   const selectionValid = localScore?.valid ?? turn?.selectionValid ?? false;
+  /*
+   * What the pick is made of. The server sends the points and not the
+   * combinations, so this is worked out here even when its figure is the one
+   * shown — by the same function, from the same rules, so the tags and the lit
+   * card cannot disagree with the number beside them.
+   */
+  const breakdown: readonly Combo[] = selectionValid
+    ? (localScore ?? scoreSelection(picked, room.ruleset)).breakdown
+    : [];
   const keptCount = held.filter(Boolean).length;
   const nextRollCount = ahead
     ? // Clearing the table earns all six back; that is the hot-dice rule and it
@@ -84,6 +124,108 @@ export function Table({
   // animations is what made the dice stutter and change count mid-air.
   const { rolling, faces } = useRollAnimation(turn?.dice ?? [], turn?.rollSeq ?? 0, pendingRoll);
   const shown = rolling ? faces : (turn?.dice ?? []);
+  const busted = !rolling && turn?.phase === "farkled";
+  // Held down from the press until the dice land, so a slow reply reads as the
+  // table working rather than as a button that did nothing.
+  const busy = rolling || pendingRoll !== null;
+
+  const canRoll = !busy && (canRollFresh || canAct);
+  const rollNow = () => {
+    play("shake");
+    actions.roll(nextRollCount);
+  };
+
+  /*
+   * Space rolls and Ctrl banks, whenever Roll or Bank itself could be pressed.
+   * Read through refs so the listeners are bound once rather than on every pick.
+   *
+   * Left alone: a key pressed in a field, anything inside a sheet, and a
+   * focused key that is not a die — Bank or the taunt answer to their own keys.
+   * A die somebody clicked is the exception on purpose: pick a die, press
+   * space, is the whole rhythm of a turn, and toggling that die back is never
+   * what was meant. A die reached by keyboard keeps its own space, since
+   * pressing it is how a keyboard picks dice at all.
+   *
+   * Ctrl banks on its own release, not its press: it is also half of every
+   * shortcut in the browser, and Ctrl+C mid-turn must copy rather than bank.
+   * Anything else pressed or clicked while it is held calls the bank off.
+   */
+  const keyRoll = useRef<(() => void) | null>(null);
+  keyRoll.current = canRoll ? rollNow : null;
+  const keyBank = useRef<(() => void) | null>(null);
+  keyBank.current = canAct && !busy ? actions.bank : null;
+  useEffect(() => {
+    let ctrlAlone = false;
+    const leftAlone = (target: EventTarget | null) =>
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable], [role='dialog'], a, button:not(.die)") !== null;
+    /*
+     * The die a pointer last went down on. Remembered here rather than asked of
+     * the browser: Chrome reports a clicked button as :focus-visible the moment
+     * any key goes down on it, which is exactly when this needs to know. Focus
+     * arriving anywhere else, a Tab included, forgets it.
+     */
+    let clicked: Element | null = null;
+
+    const onDown = (event: KeyboardEvent) => {
+      if (event.key === "Control") {
+        if (!event.repeat) {
+          ctrlAlone = !event.altKey && !event.metaKey && !event.shiftKey;
+        }
+        return;
+      }
+      ctrlAlone = false;
+      if (event.key !== " " || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+      const target = event.target;
+      if (leftAlone(target) || (target instanceof Element && target.matches(".die") && target !== clicked)) {
+        return;
+      }
+      const roll = keyRoll.current;
+      if (roll === null) {
+        return;
+      }
+      // Not the page scrolling, and not the focused die toggling on key-up.
+      event.preventDefault();
+      roll();
+    };
+    const onUp = (event: KeyboardEvent) => {
+      if (event.key !== "Control") {
+        return;
+      }
+      const alone = ctrlAlone;
+      ctrlAlone = false;
+      if (alone && !leftAlone(event.target)) {
+        keyBank.current?.();
+      }
+    };
+    const callOff = () => {
+      ctrlAlone = false;
+    };
+    const onPointer = (event: PointerEvent) => {
+      callOff();
+      clicked = event.target instanceof Element ? event.target.closest(".die") : null;
+    };
+    const onFocus = (event: FocusEvent) => {
+      if (event.target !== clicked) {
+        clicked = null;
+      }
+    };
+
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("focusin", onFocus);
+    window.addEventListener("blur", callOff);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("focusin", onFocus);
+      window.removeEventListener("blur", callOff);
+    };
+  }, []);
 
   // The rarest thing in the game — 720 of the 46,656 six-dice rolls — so it
   // gets a moment of its own once the dice have settled.
@@ -106,202 +248,253 @@ export function Table({
     };
   }, [seq, greeded]);
 
-  return (
-    <div className="table">
-      <div className="table__rail">
-        {watching > 0 ? (
-          <span className="rail__watching">
-            {watching === 1 ? "1 watching" : `${watching} watching`}
-          </span>
-        ) : null}
-        {room.seats.map((seat) => {
-          const isTurn = seat.id === turn?.seatId && !over;
-          const won = over && room.winnerIds.includes(seat.id);
-          return (
-            <div
-              key={seat.id}
-              className={`seat${isTurn ? " seat--active" : ""}${won ? " seat--won" : ""}${seat.waiting ? " seat--waiting" : ""}`}
-            >
-              <SeatAvatar seat={seat} />
-              <div className="seat__who">
-                <div className="seat__name">
-                  {seat.name}
-                  {seat.id === seatId ? " (you)" : ""}
-                </div>
-                <div className="seat__state">
-                  {/* Said plainly, because otherwise a seat that never gets a
-                      turn looks like the game has forgotten about them. */}
-                  {seat.waiting
-                    ? "In the next game"
-                    : won
-                      ? "Winner"
-                      : isTurn
-                        ? "Rolling"
-                        : !seat.connected
-                          ? "Gone"
-                          : seat.onBoard
-                            ? "On the board"
-                            : "Not on yet"}
-                </div>
-              </div>
-              <div className="seat__score">{seat.waiting ? "—" : fmt(seat.score)}</div>
-            </div>
-          );
-        })}
-      </div>
+  /*
+   * Where banking now would put the player rolling, for their lane. Only once
+   * a bank would count: an invalid pick banks nothing, and a first bank under
+   * the entry threshold does not get anybody on the board.
+   */
+  const projected =
+    active !== undefined &&
+    !over &&
+    turn?.phase === "selecting" &&
+    selectionValid &&
+    (active.onBoard || total >= room.ruleset.entryThreshold)
+      ? active.score + total
+      : null;
 
-      <div className="table__main">
-        <div className={`tray${celebrating ? " tray--greed" : ""}`}>
-          <div className="tray__stage">
-          {!rolling && (turn === null || turn.dice.length === 0) ? (
-            <p className="tray__empty">
-              {over ? "Game over." : yours ? "Your turn — roll to begin." : `Waiting on ${active?.name ?? "the next player"}.`}
+  const limit = room.ruleset.turnTimerSeconds;
+  const clock = left !== null && limit !== null && limit > 0 ? Math.min(100, (left / limit) * 100) : null;
+  const low = left !== null && left <= 15;
+  const winners = room.seats
+    .filter((seat) => room.winnerIds.includes(seat.id))
+    .map((seat) => seat.name)
+    .join(" and ");
+
+  const say = rolling
+    ? "Rolling…"
+    : celebrating
+      ? greedLine(room.ruleset.skin)
+      : busted
+        ? "Farkle — nothing scores. The turn is lost."
+        : over
+          ? "Game over."
+          : yours && turn?.phase === "selecting"
+            ? selectionValid
+              ? `Worth ${fmt(selection)}. Roll ${nextRollCount} more, or bank ${fmt(total)}.`
+              : held.some(Boolean)
+                ? "One of those dice scores nothing."
+                : "Tap the dice you want to keep."
+            : yours
+              ? "Your turn — roll to begin."
+              : active !== undefined
+                ? turn?.phase === "selecting"
+                  ? `${active.name} is picking dice.`
+                  : `Waiting on ${active.name}.`
+                : "";
+
+  return (
+    <section className="gt" aria-label="The table">
+      <div className="gt__in">
+        <Lanes room={room} seatId={seatId} projected={projected} />
+
+        <div
+          className={`gt__felt${celebrating ? " gt__felt--greed" : ""}${busted ? " gt__felt--bust" : ""}`}
+        >
+          <div className="gt__cloth">
+            {shown.length > 0 ? (
+              <div className={`gt__dice${rolling ? " gt__dice--rolling" : ""}`}>
+                {/*
+                  * What is on the table: the dice in the air while they are in
+                  * the air, and the dice that landed once they have. The first
+                  * throw of a turn has no dice to show yet, so following the
+                  * turn here would leave the felt empty for the whole throw.
+                  */}
+                {shown.map((face, index) => (
+                  <Die
+                    // A die is its slot. Position is its whole identity — it is what the
+                    // server toggles, and dice never reorder except on a fresh roll, where
+                    // being treated as the same slots is exactly what the animation needs.
+                    // noArrayIndexKey is switched off for this file in biome.json.
+                    key={`slot-${index}`}
+                    face={face}
+                    skin={room.ruleset.skin}
+                    held={!rolling && held[index] === true}
+                    dead={!rolling && turn?.dead[index] === true}
+                    rolling={rolling}
+                    index={index}
+                    celebrating={celebrating}
+                    interactive={!rolling && yours && turn.phase === "selecting"}
+                    onClick={() => {
+                      // Sounded here rather than off the state that comes back,
+                      // so a die answers the finger that moved it. useSound
+                      // leaves our own seat's picks alone for this reason.
+                      play(held[index] === true ? "drop" : "pick");
+                      actions.toggle(index);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
+            <p className="gt__say" aria-live="polite">
+              {say}
             </p>
-          ) : (
-            <div className={`tray__dice${rolling ? " tray__dice--rolling" : ""}`}>
-              {/*
-                * What is on the table: the dice in the air while they are in
-                * the air, and the dice that landed once they have. The first
-                * throw of a turn has no dice to show yet, so following the
-                * turn here would leave the tray empty for the whole throw.
-                */}
-              {shown.map((face, index) => (
-                <Die
-                  // A die is its slot. Position is its whole identity — it is what the
-                  // server toggles, and dice never reorder except on a fresh roll, where
-                  // being treated as the same slots is exactly what the animation needs.
-                  // noArrayIndexKey is switched off for this file in biome.json.
-                  key={`slot-${index}`}
-                  face={face}
-                  skin={room.ruleset.skin}
-                  held={!rolling && held[index] === true}
-                  dead={!rolling && turn?.dead[index] === true}
-                  rolling={rolling}
-                  index={index}
-                  celebrating={celebrating}
-                  interactive={!rolling && yours && turn.phase === "selecting"}
-                  onClick={() => {
-                    // Sounded here rather than off the state that comes back,
-                    // so a die answers the finger that moved it. useSound
-                    // leaves our own seat's picks alone for this reason.
-                    play(held[index] === true ? "drop" : "pick");
-                    actions.toggle(index);
-                  }}
-                />
+            <div className="gt__combo">
+              {breakdown.map((combo, at) => (
+                <span className="tag" key={`${combo.kind}-${combo.face}-${combo.size}-${at}`}>
+                  {comboName(combo, letters)} {fmt(combo.points)}
+                </span>
               ))}
             </div>
+          </div>
+
+          {celebrating ? (
+            <p className="gt__banner" aria-hidden="true">
+              {letters ? "$GREED" : "Straight"}
+            </p>
+          ) : null}
+          {busted ? (
+            <p className="gt__stamp" aria-hidden="true">
+              Farkle
+            </p>
+          ) : null}
+
+          {talkKey !== undefined ? <div className="gt__talk">{talkKey}</div> : null}
+          <button
+            type="button"
+            className="key key--icon gt__help"
+            aria-label="What scores"
+            aria-expanded={cardOpen}
+            onClick={() => setCardOpen((was) => !was)}
+          >
+            ?
+          </button>
+          {cardOpen ? (
+            <div className="gt__sheet" role="dialog" aria-label="What scores">
+              <div className="gt__sheet-head">
+                <h2 className="gt__sheet-title">What scores</h2>
+                <button
+                  type="button"
+                  className="key key--icon"
+                  aria-label="Close what scores"
+                  onClick={() => setCardOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <ScoreCard rules={room.ruleset} lit={breakdown} />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="gt__read readout">
+          {clock !== null ? (
+            <span
+              className={`gt__clock${low ? " gt__clock--low" : ""}`}
+              style={{ "--t": `${clock}%` } as CSSProperties}
+            />
+          ) : null}
+          <div className="gt__big">
+            <span className="gt__label">
+              {over ? "Game over" : yours || active === undefined ? "If you bank" : `${active.name} would bank`}
+            </span>
+            {over ? (
+              <span className="gt__winner">{winners.length > 0 ? `${winners} won` : "Nobody won"}</span>
+            ) : busted ? (
+              <span className="gt__figure gt__figure--bust">
+                0{total > 0 ? <s>{fmt(total)}</s> : null}
+              </span>
+            ) : (
+              <span className={`gt__figure${total > 0 ? " gt__figure--good" : ""}`}>{fmt(total)}</span>
+            )}
+          </div>
+          <dl className="gt__stats">
+            <div>
+              <dt>Set aside</dt>
+              <dd>{fmt(turn?.kept ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>Selected</dt>
+              <dd>{fmt(selection)}</dd>
+            </div>
+            {left !== null ? (
+              <div>
+                <dt>{yours ? "You have" : "They have"}</dt>
+                <dd className={low ? "gt__low" : undefined}>{clockText(left)}</dd>
+              </div>
+            ) : (
+              <div>
+                <dt>Target</dt>
+                <dd>{fmt(room.ruleset.targetScore)}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        <aside className="gt__card" aria-label="What scores">
+          <h2 className="gt__sheet-title">What scores</h2>
+          <ScoreCard rules={room.ruleset} lit={breakdown} />
+        </aside>
+
+        {activity !== undefined ? (
+          <aside className="gt__activity" aria-label="Activity">
+            <h2 className="gt__sheet-title">Activity</h2>
+            {activity}
+          </aside>
+        ) : null}
+
+        <div className={`gt__controls${yours || over ? "" : " gt__controls--wait"}`}>
+          {seatId === "" ? (
+            // No seat, so no controls — offering buttons that cannot do anything
+            // is worse than saying plainly what you are.
+            <p className="gt__watching">
+              You are watching this table. Leave and take a seat to play the next game.
+            </p>
+          ) : over ? (
+            <>
+              <button type="button" className="key" onClick={actions.leave}>
+                Leave the table
+              </button>
+              <button type="button" className="slab" onClick={actions.playAgain}>
+                Play again
+              </button>
+            </>
+          ) : yours ? (
+            <>
+              <button
+                type="button"
+                className="key"
+                disabled={!canAct}
+                aria-keyshortcuts="Control"
+                onClick={actions.bank}
+              >
+                <small>Bank</small>
+                <b>{fmt(total)}</b>
+              </button>
+              <button
+                type="button"
+                className={`slab${busy ? " is-busy" : ""}`}
+                disabled={!canRoll}
+                aria-keyshortcuts="Space"
+                onClick={rollNow}
+              >
+                {/* The count worked out here, not the one last heard from the
+                    server — otherwise the button offers six and throws five. */}
+                {canRollFresh ? "Roll 6" : `Roll ${nextRollCount}`}
+                <small>{Math.round(bustChance * 100)}% bust</small>
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="slab" disabled>
+                {active !== undefined ? `${active.name}'s turn` : "Waiting"}
+                {left !== null ? <small>{clockText(left)}</small> : null}
+              </button>
+              {taunt}
+            </>
           )}
-          </div>
-          <p className="tray__note">
-            {rolling
-              ? "Rolling…"
-              : celebrating
-                ? greedLine(room.ruleset.skin)
-                : turn?.phase === "farkled"
-              ? "Farkle — nothing scores. The turn is lost."
-              : yours && turn?.phase === "selecting"
-                ? selectionValid
-                  ? `Worth ${fmt(selection)}. Roll ${nextRollCount} more, or bank ${fmt(total)}.`
-                  : held.some(Boolean)
-                    ? "That set has a die that scores nothing."
-                    : "Click the dice you want to keep."
-                : ""}
-          </p>
-          <ScoreCard rules={room.ruleset} />
         </div>
       </div>
-
-      <div className="table__side">
-        <div className="panel">
-          <p className="panel__label">This turn</p>
-          <div className="stat">
-            <span>Set aside</span>
-            <b>{fmt(turn?.kept ?? 0)}</b>
-          </div>
-          <div className="stat">
-            <span>Selected</span>
-            <b>{fmt(selection)}</b>
-          </div>
-          <div className="stat">
-            <span>If you bank</span>
-            <b className="stat--good">{fmt(total)}</b>
-          </div>
-          <div className="stat">
-            <span>Bust chance</span>
-            <b className="stat--bad">{(bustChance * 100).toFixed(1)}%</b>
-          </div>
-          {left !== null ? (
-            <div className="stat">
-              <span>{yours ? "You have" : "They have"}</span>
-              <b className={left <= 15 ? "stat--bad" : undefined}>{left}s</b>
-            </div>
-          ) : null}
-        </div>
-
-        {seatId === "" ? (
-          // No seat, so no controls — offering buttons that cannot do anything
-          // is worse than saying plainly what you are.
-          <p className="panel__note">
-            You are watching this table. Leave and take a seat to play the next game.
-          </p>
-        ) : over ? (
-          <>
-            {/*
-              * "Back to the lobby" used to sit here and call leave, which took
-              * you out of the table altogether — the label promised the table's
-              * own lobby and delivered the front door. Both things exist now,
-              * and each says what it does.
-              */}
-            <button type="button" className="btn btn--wide" onClick={actions.playAgain}>
-              Play again
-            </button>
-            <button type="button" className="btn btn--ghost btn--wide" onClick={actions.leave}>
-              Leave the table
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="btn btn--wide"
-              disabled={!(canRollFresh || canAct)}
-              onClick={() => {
-                play("shake");
-                actions.roll(nextRollCount);
-              }}
-            >
-              {/* The count worked out here, not the one last heard from the
-                  server — otherwise the button offers six and throws five. */}
-              {canRollFresh ? "Roll 6" : `Roll ${nextRollCount}`}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost btn--wide"
-              disabled={!canAct}
-              onClick={actions.bank}
-            >
-              Bank {fmt(total)}
-            </button>
-          </>
-        )}
-
-        <div className="panel panel--tight">
-          <div className="stat">
-            <span>Target</span>
-            <b>{fmt(room.ruleset.targetScore)}</b>
-          </div>
-          <div className="stat">
-            <span>Rules</span>
-            <b>{room.ruleset.name}</b>
-          </div>
-          {room.buyIn > 0 ? (
-            <div className="stat">
-              <span>Pot</span>
-              <b className="stat--good">{fmt(room.pot)}</b>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
+      {talk}
+    </section>
   );
 }
