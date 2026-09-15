@@ -1,5 +1,5 @@
 import { RULESETS } from "@backroom/rules";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { Seg } from "../fittings/Seg.js";
@@ -50,21 +50,25 @@ export function Play() {
   } = useRoom(account.setChips);
   useSound(room, seatId);
 
-  /*
-   * Which room you are standing in, on the document rather than on this
-   * element — the page's own background lives on body, so a game that only
-   * repainted its own subtree would sit in the building's colours with a
-   * warm rectangle in the middle of it.
-   *
-   * Cleared on the way out, so the room picker and the profile are the
-   * building's again.
-   */
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "greed";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  useNav({
+    room: "greed",
+    /* GRE-E-D, with the second E lit — the mark the game opened with. */
+    game: (
+      <>
+        GRE<em>E</em>D
+      </>
+    ),
+    ...(room !== null
+      ? {
+          table: {
+            code: room.code,
+            onLeave: actions.leave,
+            confirm: room.status === "playing",
+          },
+        }
+      : {}),
+    connected,
+  });
 
   // The address bar follows the table, so a link can be shared and a refresh
   // lands back in the right place.
@@ -80,26 +84,6 @@ export function Play() {
 
   return (
     <main className="play">
-      <Navbar
-        /* GRE-E-D, with the second E lit — the mark the game opened with. */
-        game={
-          <>
-            GRE<em>E</em>D
-          </>
-        }
-        {...(room !== null
-          ? {
-              table: {
-                code: room.code,
-                onLeave: actions.leave,
-                confirm: room.status === "playing",
-              },
-            }
-          : {})}
-        account={account}
-        connected={connected}
-      />
-
       {error !== null ? <p className="play__error">{error}</p> : null}
       {room?.lastEvent != null && room.status !== "lobby" ? (
         <p className="play__event">{room.lastEvent}</p>

@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAccount } from "../game/useAccount.js";
-import { Navbar } from "../nav/Navbar.js";
 import { Standings } from "./Standings.js";
 import { TileArt } from "./TileArt.js";
 // Every room's colours, because the tiles below are dressed in them.
@@ -35,7 +33,6 @@ interface GameOnOffer {
  * differ underneath — a machine has no seats, no turns and no opponents.
  */
 export function Room() {
-  const account = useAccount();
   const [games, setGames] = useState<GameOnOffer[]>([]);
 
   useEffect(() => {
@@ -69,8 +66,6 @@ export function Room() {
 
   return (
     <main className="room">
-      <Navbar account={account} />
-
       {/* Neither of these is a game you sit down at, so neither is dressed as
           one: a glance at the board and a jar on the counter, in a strip you
           pass on the way in rather than sections of their own further down. */}

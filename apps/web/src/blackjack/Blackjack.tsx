@@ -14,7 +14,7 @@ import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { TurnRing } from "../game/TurnRing.js";
 import { useCountdown } from "../game/useCountdown.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TauntPicker } from "../taunt/TauntPicker.js";
@@ -69,17 +69,20 @@ export function Blackjack() {
   const { state, seatId } = table;
   useCardSound(state, seatId);
 
-  /*
-   * Which room you are standing in, on the document rather than this element:
-   * the page's background lives on body, so a game repainting only its own
-   * subtree would sit in the building's colours with a green rectangle in it.
-   */
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "blackjack";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  useNav({
+    room: "blackjack",
+    game: "Blackjack",
+    ...(state !== null
+      ? {
+          table: {
+            code: state.code,
+            onLeave: table.leave,
+            confirm: state.phase === "playing",
+          },
+        }
+      : {}),
+    connected: table.connected,
+  });
 
   // The address bar follows the table, so the link can be shared and a refresh
   // lands back at the same one.
@@ -95,21 +98,6 @@ export function Blackjack() {
 
   return (
     <main className="play">
-      <Navbar
-        game="Blackjack"
-        {...(state !== null
-          ? {
-              table: {
-                code: state.code,
-                onLeave: table.leave,
-                confirm: state.phase === "playing",
-              },
-            }
-          : {})}
-        account={account}
-        connected={table.connected}
-      />
-
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
       {state?.lastEvent != null ? <p className="play__event">{state.lastEvent}</p> : null}
 

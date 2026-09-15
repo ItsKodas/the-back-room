@@ -93,6 +93,69 @@
   border-bottom: var(--gr-edge-hair);
 }
 
+/*
+ * The building around a page: the bar, then the page, in one column that
+ * fills the window. The page takes whatever height is left, which is what the
+ * machine and the jar asked of 100dvh back when the bar was inside them.
+ */
+.shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+}
+
+/* A grid item with auto margins shrinks to its content; a page must not. */
+.shell > * {
+  width: 100%;
+}
+
+/*
+ * The bar sits where it did inside a page — the same width, the same inset —
+ * so lifting it out of the pages moved nothing on screen. Not positioned, so
+ * its popovers keep sharing one stacking order with the page under them.
+ */
+.shell__bar {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: var(--gr-space-6) var(--gr-space-5) 0;
+}
+
+/*
+ * Each page brought its own top padding and its own gap below the bar. The
+ * bar now owns the padding above it, and the page keeps only the gap.
+ */
+.shell__bar + .play {
+  padding-top: 0;
+}
+
+.shell__bar + .room {
+  padding-top: var(--gr-space-2);
+}
+
+.shell__bar:has(+ .tips),
+.shell__bar:has(+ .slots) {
+  padding-top: var(--gr-space-4);
+}
+
+.shell__bar + .tips,
+.shell__bar + .slots {
+  padding-top: var(--gr-space-4);
+  min-height: 0;
+}
+
+/*
+ * A felt that widens once you are sitting at it takes the bar with it, so
+ * the way out stays over the table's own edge. The widths are the tables'
+ * own, from poker.css and roulette.css.
+ */
+.shell__bar:has(+ .play--poker) {
+  max-width: 1600px;
+}
+
+.shell__bar:has(+ .play--wheel) {
+  max-width: min(1560px, 96vw);
+}
+
 .nav__mark {
   margin: 0;
   display: flex;
