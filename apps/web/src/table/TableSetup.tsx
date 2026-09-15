@@ -1,6 +1,6 @@
 import { CODE_LENGTH } from "@backroom/shared";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CodeScreen } from "../fittings/CodeScreen.js";
 import type { Account } from "../game/useAccount.js";
 import { PublicTables } from "./PublicTables.js";
@@ -83,6 +83,15 @@ export function TableSetup({
   const [maxSeats, setMaxSeats] = useState(seats?.initial ?? 6);
   // Which press the server is busy with, so only that button is held down.
   const [pressed, setPressed] = useState<"join" | "create" | null>(null);
+  // A press is only "held" between its own busy and the busy going false
+  // again. Cleared on that true-to-false edge, not merely whenever busy is
+  // false, so a render where busy just hasn't caught up to a fresh press yet
+  // does not wipe it out from under itself.
+  const wasBusy = useRef(busy);
+  if (wasBusy.current && !busy) {
+    setPressed(null);
+  }
+  wasBusy.current = busy;
   const guest = account.profile === null;
   // A game with no choice of stakes treats everyone the same, so nobody is
   // defaulted into play money by it.

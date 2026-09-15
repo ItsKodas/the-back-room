@@ -90,4 +90,26 @@ describe("TableSetup", () => {
     expect(screen.getByRole("button", { name: "Open a table" }).className).toContain("is-busy");
     expect(screen.getByRole("button", { name: "Take a seat" }).className).not.toContain("is-busy");
   });
+
+  it("stops lighting a press once it has been answered, even if something else makes the table busy again", () => {
+    const onCreate = vi.fn();
+    const props = {
+      game: "blackjack",
+      pitch: "",
+      invited: "",
+      account: signedIn,
+      onJoin: vi.fn(),
+      onWatch: vi.fn(),
+      onCreate,
+      note: () => "",
+    } as const;
+    const { rerender } = render(<TableSetup {...props} busy={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open a table" }));
+    rerender(<TableSetup {...props} busy={true} />);
+    rerender(<TableSetup {...props} busy={false} />);
+    // A later press — watching, say — makes the table busy again, but it is
+    // not the create button that was pressed this time.
+    rerender(<TableSetup {...props} busy={true} />);
+    expect(screen.getByRole("button", { name: "Open a table" }).className).not.toContain("is-busy");
+  });
 });
