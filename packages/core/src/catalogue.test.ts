@@ -64,5 +64,18 @@ describe("the shapes a game can be", () => {
       expect(drawn.has(game.shape)).toBe(true);
     }
   });
+
+  it("wants a crowd for every party game, not a duel", () => {
+    /*
+     * A standing rule for whatever `COMING` holds, not a fact about any one
+     * entry: a party game is the race between the guessers, and a race needs
+     * more than one racer. Vacuously true while `COMING` has none — the rule
+     * still binds the next one added.
+     */
+    const party = COMING.filter((game) => game.shape === "party");
+    for (const game of party) {
+      expect(game.minSeats).toBeGreaterThanOrEqual(3);
+    }
+  });
 });
 
