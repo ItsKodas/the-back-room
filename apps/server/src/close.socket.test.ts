@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { MemoryStore } from "@backroom/economy";
-import type { ClientToServer, ServerToClient, TableClosed } from "@backroom/shared";
+import type { Ack, ClientToServer, ServerToClient, TableClosed } from "@backroom/shared";
 import type { Socket } from "socket.io-client";
 import { io as connect } from "socket.io-client";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,8 +22,13 @@ const BANK = 100_000;
 
 let server: BackRoomServer | null = null;
 const open: Client[] = [];
+/** Every held store call, so a failed test cannot leave the server's close waiting on one. */
+const held: Array<() => void> = [];
 
 afterEach(async () => {
+  for (const release of held.splice(0)) {
+    release();
+  }
   for (const socket of open.splice(0)) {
     socket.close();
   }
@@ -32,6 +37,63 @@ afterEach(async () => {
     server = null;
   }
 });
+
+/**
+ * A store whose chip movements can be held open one at a time.
+ *
+ * MemoryStore answers inside the same tick, so every window in which a close
+ * and a stake overlap is closed before anything can land in it. A real store
+ * across a network holds that window open for as long as the round trip, and
+ * this is how a test gets to stand in it.
+ */
+function gated(store: MemoryStore) {
+  const waiting: Array<{
+    match: (userId: string, amount: number) => boolean;
+    reached: () => void;
+    wait: Promise<void>;
+  }> = [];
+  const proxy = new Proxy(store, {
+    get(target, key: string | symbol) {
+      const value = Reflect.get(target, key) as unknown;
+      if (typeof value !== "function") {
+        return value;
+      }
+      const call = value.bind(target) as (...args: unknown[]) => unknown;
+      if (key !== "adjustChips") {
+        return call;
+      }
+      return async (userId: string, amount: number) => {
+        const index = waiting.findIndex((one) => one.match(userId, amount));
+        if (index >= 0) {
+          const [one] = waiting.splice(index, 1);
+          one?.reached();
+          await one?.wait;
+        }
+        return call(userId, amount);
+      };
+    },
+  }) as MemoryStore;
+
+  /** Holds the next take (-1) or give (+1) on this account until released. */
+  const hold = (userId: string, direction: 1 | -1) => {
+    let reached = () => {};
+    let release = () => {};
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    waiting.push({
+      match: (who, amount) => who === userId && Math.sign(amount) === direction,
+      reached,
+      wait,
+    });
+    held.push(release);
+    return { arrived, release };
+  };
+  return { proxy, hold };
+}
 
 async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number }) {
   const store = new MemoryStore();
@@ -49,11 +111,12 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
   });
   await store.bankAdd("roulette", BANK);
   await store.bankAdd("blackjack", BANK);
+  const { proxy, hold } = gated(store);
 
   const ids = [ada.id, bo.id];
   let seen = 0;
   server = createBackRoomServer({
-    store,
+    store: proxy,
     auth: null,
     serveClient: false,
     // Connection order, as the other socket tests do it: Ada first, then Bo.
@@ -77,7 +140,9 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
     await new Promise<void>((resolve) => socket.on("connect", () => resolve()));
     return socket;
   };
-  return { store, ada, bo, client };
+  // Read through the real store, so a held call never holds up an assertion.
+  const chipsOf = async (id: string) => (await store.get(id))?.chips ?? -1;
+  return { store, ada, bo, client, hold, chipsOf };
 }
 
 const until = async (check: () => Promise<boolean> | boolean, ms = 3_000) => {
@@ -90,6 +155,8 @@ const until = async (check: () => Promise<boolean> | boolean, ms = 3_000) => {
   }
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const openTable = (socket: Client, game: string) =>
   new Promise<string>((resolve) =>
     socket.emit("lobby:create", { name: "Ada", game, forFun: false }, (ack) =>
@@ -100,76 +167,275 @@ const openTable = (socket: Client, game: string) =>
 const act = (socket: Client, action: Record<string, unknown>) =>
   new Promise<void>((resolve) => socket.emit("game:action", action, () => resolve()));
 
+const watch = (socket: Client, code: string) =>
+  new Promise<void>((resolve) => socket.emit("lobby:watch", { code }, () => resolve()));
+
+/** A roulette table with Ada's 200 on red, taken and on the cloth. */
+async function stakedWheel(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number }) {
+  const started = await start(timings);
+  const before = await started.chipsOf(started.ada.id);
+  const player = await started.client();
+  const code = await openTable(player, "roulette");
+  await act(player, { type: "place", spotId: RED, chips: 200 });
+  await until(async () => (await started.chipsOf(started.ada.id)) === before - 200);
+  return { ...started, before, player, code };
+}
+
 describe("a table nobody is sitting at any more", () => {
   it("gives the chips on its cloth back before it is cleared away, and says so", async () => {
-    const { store, ada, client } = await start({ reconnectGraceMs: 60_000, emptyRoomTtlMs: 150 });
-    const before = (await store.get(ada.id))?.chips ?? 0;
-    const player = await client();
-    const code = await openTable(player, "roulette");
-    await act(player, { type: "place", spotId: RED, chips: 200 });
-    await until(async () => (await store.get(ada.id))?.chips === before - 200);
+    const { store, ada, client, chipsOf, before, player, code } = await stakedWheel({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 150,
+    });
 
     const watcher = await client();
-    await new Promise<void>((resolve) => watcher.emit("lobby:watch", { code }, () => resolve()));
+    await watch(watcher, code);
     const closed = new Promise<TableClosed>((resolve) => watcher.on("room:closed", resolve));
 
     player.close();
 
     expect(await closed).toEqual({ code, reason: "empty" });
-    expect((await store.get(ada.id))?.chips).toBe(before);
+    expect(await chipsOf(ada.id)).toBe(before);
     expect(await store.bank("roulette")).toBe(BANK);
     expect(server?.rooms.has(code)).toBe(false);
   });
+});
 
-  it("sends nothing further into a table once it is gone", async () => {
-    const { client } = await start({ reconnectGraceMs: 60_000, emptyRoomTtlMs: 100 });
+describe("a table while it is being called off", () => {
+  /*
+   * Closing takes as long as its refunds do. For that whole time the table
+   * must look finished to anybody still at it: a move refused, and no state
+   * sent that could show chips the close has already counted.
+   */
+  it("refuses a move and sends nobody a state", async () => {
+    const { ada, client, hold, player, code } = await stakedWheel({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const watcher = await client();
+    await watch(watcher, code);
+    const other = await client();
+    const seesBoth = new Promise<void>((resolve) =>
+      watcher.on("room:state", (state) => {
+        if ((state as { watching?: number }).watching === 2) {
+          resolve();
+        }
+      }),
+    );
+    await watch(other, code);
+    /*
+     * Everything sent before the close began has to have arrived before this
+     * starts counting: a state already on the wire is not the table speaking
+     * after it closed, and counting it would make this fail for a reason that
+     * has nothing to do with the close.
+     */
+    await seesBoth;
+    await sleep(150);
+    const refund = hold(ada.id, 1);
+
+    const closing = server?.closeTable(code, "admin");
+    await refund.arrived;
+
+    let states = 0;
+    watcher.on("room:state", () => {
+      states += 1;
+    });
+    const refused = new Promise<string>((resolve) => player.on("room:error", resolve));
+    // Not a stake, so nothing in any game refuses it: only the room can.
+    player.emit("lobby:setListed", { listed: false });
+    // A watcher going is a broadcast that no handler guards.
+    other.close();
+
+    expect(await refused).toBe("This table is closing.");
+    await sleep(200);
+    expect(states).toBe(0);
+
+    refund.release();
+    await closing;
+  });
+
+  /*
+   * A throw whose debit is still on its way when the table closes. The close
+   * has already handed back every taunt it could see, so this one has to be
+   * handed back by the throw itself.
+   */
+  it("hands back a taunt whose chips were still being taken", async () => {
+    const { store, bo, client, hold, chipsOf } = await start({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const gif = new Uint8Array(64);
+    gif.set([..."GIF89a"].map((letter) => letter.charCodeAt(0)));
+    const emote = await store.addEmote({
+      name: "Smug",
+      cost: 250,
+      image: gif,
+      sound: null,
+      createdBy: "admin",
+    });
+    const ada = await client();
+    const created = await new Promise<Ack>((resolve) =>
+      ada.emit("lobby:create", { name: "Ada" }, resolve),
+    );
+    const code = created.ok ? created.code : "";
+    const adaSeat = created.ok ? created.seatId : "";
+    const boSocket = await client();
+    await new Promise<Ack>((resolve) =>
+      boSocket.emit("lobby:join", { name: "Bo", code }, resolve),
+    );
+    const before = await chipsOf(bo.id);
+    const take = hold(bo.id, -1);
+
+    const sent = new Promise<{ ok: boolean }>((resolve) =>
+      boSocket.emit("taunt:send", { emoteId: emote.id, seatId: adaSeat }, resolve),
+    );
+    await take.arrived;
+    await server?.closeTable(code, "admin");
+    take.release();
+
+    expect((await sent).ok).toBe(false);
+    expect(await chipsOf(bo.id)).toBe(before);
+  });
+
+  /*
+   * A stake whose debit is still on its way when the close begins. Whichever
+   * of them finishes first, the chips have to end up back in the account.
+   *
+   * The room does not wait for the move, and this passes without it doing so:
+   * the debit lands on an escrow the void has already closed, which refuses to
+   * hold it, and the game gives the chips straight back. Kept because that is
+   * the whole of what protects a stake caught this way, end to end.
+   */
+  it("hands back a stake that was still being taken", async () => {
+    const { store, ada, client, hold, chipsOf } = await start({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const before = await chipsOf(ada.id);
     const player = await client();
     const code = await openTable(player, "roulette");
-    const watcher = await client();
-    await new Promise<void>((resolve) => watcher.emit("lobby:watch", { code }, () => resolve()));
-    const closed = new Promise<void>((resolve) => watcher.on("room:closed", () => resolve()));
-    player.close();
-    await closed;
+    const take = hold(ada.id, -1);
 
-    let after = 0;
-    watcher.on("room:state", () => {
-      after += 1;
+    await act(player, { type: "place", spotId: RED, chips: 200 });
+    await take.arrived;
+    const closing = server?.closeTable(code, "admin");
+    await sleep(50);
+    take.release();
+    await closing;
+
+    await until(async () => (await chipsOf(ada.id)) === before);
+    await until(async () => (await store.bank("roulette")) === BANK);
+  });
+
+  /*
+   * A seat whose grace runs out, or who presses Leave, while the close is
+   * still handing chips back. Either one takes the seat away mid-close.
+   *
+   * The room lets both happen, and these pass anyway: taking a seat away only
+   * queues its chips in the escrow or marks it as leaving, and the void takes
+   * everything the escrow holds or has queued. Kept so that stays true.
+   */
+  it("still hands everything back when a dropped seat's grace runs out mid-close", async () => {
+    const { store, ada, hold, chipsOf, before, player, code } = await stakedWheel({
+      reconnectGraceMs: 100,
+      emptyRoomTtlMs: 60_000,
     });
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(after).toBe(0);
+    player.close();
+    await until(() => server?.rooms.get(code)?.table.isEmpty === true);
+    const refund = hold(ada.id, 1);
+
+    const closing = server?.closeTable(code, "admin");
+    await refund.arrived;
+    await sleep(300);
+    refund.release();
+    await closing;
+
+    await until(async () => (await chipsOf(ada.id)) === before);
+    await until(async () => (await store.bank("roulette")) === BANK);
+  });
+
+  it("still hands everything back when a seat leaves mid-close", async () => {
+    const { store, ada, hold, chipsOf, before, player, code } = await stakedWheel({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const refund = hold(ada.id, 1);
+
+    const closing = server?.closeTable(code, "admin");
+    await refund.arrived;
+    player.emit("lobby:leave");
+    await sleep(200);
+    refund.release();
+    await closing;
+
+    await until(async () => (await chipsOf(ada.id)) === before);
+    await until(async () => (await store.bank("roulette")) === BANK);
   });
 });
 
 describe("the server stopping", () => {
   it("hands back a blackjack bet still on the felt", async () => {
-    const { store, ada, client } = await start({ reconnectGraceMs: 60_000, emptyRoomTtlMs: 60_000 });
-    const before = (await store.get(ada.id))?.chips ?? 0;
+    const { store, ada, client, chipsOf } = await start({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const before = await chipsOf(ada.id);
     const player = await client();
     await openTable(player, "blackjack");
     await act(player, { type: "bet", amount: 100 });
-    await until(async () => (await store.get(ada.id))?.chips === before - 100);
+    await until(async () => (await chipsOf(ada.id)) === before - 100);
     const closed = new Promise<TableClosed>((resolve) => player.on("room:closed", resolve));
 
     await server?.closeAllTables("shutdown");
 
     expect((await closed).reason).toBe("shutdown");
-    expect((await store.get(ada.id))?.chips).toBe(before);
+    expect(await chipsOf(ada.id)).toBe(before);
     expect(await store.bank("blackjack")).toBe(BANK);
   });
 
   it("calls every table off as part of closing", async () => {
-    const { store, ada, client } = await start({ reconnectGraceMs: 60_000, emptyRoomTtlMs: 60_000 });
-    const before = (await store.get(ada.id))?.chips ?? 0;
+    const { ada, client, chipsOf } = await start({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const before = await chipsOf(ada.id);
     const player = await client();
     await openTable(player, "blackjack");
     await act(player, { type: "bet", amount: 100 });
-    await until(async () => (await store.get(ada.id))?.chips === before - 100);
+    await until(async () => (await chipsOf(ada.id)) === before - 100);
 
     const stopping = server;
     server = null;
     await stopping?.close();
 
     // MemoryStore's close releases nothing, so it can still be read afterwards.
-    expect((await store.get(ada.id))?.chips).toBe(before);
+    expect(await chipsOf(ada.id)).toBe(before);
+  });
+
+  /*
+   * A reap already under way when the server is told to stop. Stopping must
+   * wait for it: the store closes straight afterwards, and a refund still
+   * travelling to a real one when it does is a refund that never lands.
+   */
+  it("waits for a close already under way before it finishes", async () => {
+    const { ada, hold, chipsOf, before, code } = await stakedWheel({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const refund = hold(ada.id, 1);
+
+    const first = server?.closeTable(code, "empty");
+    await refund.arrived;
+    let done = false;
+    const all = server?.closeAllTables("shutdown").then(() => {
+      done = true;
+    });
+    await sleep(100);
+    expect(done).toBe(false);
+
+    refund.release();
+    await all;
+    await first;
+    expect(await chipsOf(ada.id)).toBe(before);
   });
 });
