@@ -15,7 +15,7 @@ import { play, unlock } from "./audio.js";
  */
 
 /** What counts as a press: real buttons, radio-styled buttons, and link-buttons. */
-const PRESSABLE = 'button, [role="radio"], a.btn';
+const PRESSABLE = 'button, [role="radio"], a.slab, a.key, a.quiet';
 
 export function useButtonSound(): void {
   useEffect(() => {
