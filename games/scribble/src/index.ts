@@ -4,3 +4,4 @@
  */
 
 export { SCRIBBLE } from "./listing.js";
+export { containsWord, editDistance, isClose, isCorrect, normalise } from "./guess.js";
