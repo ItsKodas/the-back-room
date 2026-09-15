@@ -429,7 +429,7 @@ function Lobby({
   const solo = room.seats.length === 1;
 
   return (
-    <div className="table-lobby">
+    <div className="lobby">
       <ShareCode code={room.code} />
 
       <section className="housing lobby__seating" aria-labelledby="seating-title">
