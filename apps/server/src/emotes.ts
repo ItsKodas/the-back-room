@@ -3,6 +3,7 @@ import { MAX_IMAGE_BYTES, MAX_SOUND_BYTES, REFUSALS, judgeEmote } from "@backroo
 import type { EmoteView } from "@backroom/shared";
 import express from "express";
 import type { Express, RequestHandler } from "express";
+import { handle } from "./handle.js";
 
 /**
  * The emote desk, and the two routes that serve what it keeps.
@@ -118,12 +119,13 @@ export function mountEmotes(
    * Open to anybody, including a guest who cannot throw one: the picker is
    * shown before it is used, and a list of what things cost is not a secret.
    */
-  app.get("/api/emotes", (_request, response) => {
-    void (async () => {
+  app.get(
+    "/api/emotes",
+    handle(async (_request, response) => {
       const emotes = await store.listEmotes(false);
       response.json({ emotes: emotes.map(toEmoteView) });
-    })();
-  });
+    }),
+  );
 
   /**
    * One emote's picture, or its sound.
@@ -142,33 +144,33 @@ export function mountEmotes(
    * bytes behind one can never change, only stop being offered.
    */
   const asset = (which: "image" | "sound"): express.RequestHandler => {
-    return (request, response) => {
-      void (async () => {
-        const id = request.params["id"] ?? "";
-        const file = await store.emoteAsset(id, which);
-        if (file === null) {
-          response.status(404).json({ error: "No such emote." });
-          return;
-        }
-        response.setHeader("Content-Type", file.mime);
-        response.setHeader("X-Content-Type-Options", "nosniff");
-        response.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
-        response.setHeader("Content-Disposition", "inline");
-        response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        response.end(Buffer.from(file.bytes));
-      })();
-    };
+    return handle(async (request, response) => {
+      const id = request.params["id"] ?? "";
+      const file = await store.emoteAsset(id, which);
+      if (file === null) {
+        response.status(404).json({ error: "No such emote." });
+        return;
+      }
+      response.setHeader("Content-Type", file.mime);
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+      response.setHeader("Content-Disposition", "inline");
+      response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      response.end(Buffer.from(file.bytes));
+    });
   };
 
   app.get("/api/emotes/:id/image", asset("image"));
   app.get("/api/emotes/:id/sound", asset("sound"));
 
   /** Everything, retired ones included, for the person deciding what to withdraw. */
-  app.get("/api/admin/emotes", requireAdmin, (_request, response) => {
-    void (async () => {
+  app.get(
+    "/api/admin/emotes",
+    requireAdmin,
+    handle(async (_request, response) => {
       response.json({ emotes: await store.listEmotes(true) });
-    })();
-  });
+    }),
+  );
 
   /**
    * A new emote.
@@ -176,8 +178,11 @@ export function mountEmotes(
    * Note the body parser mounted on this one route: the building's limit is
    * eight kilobytes and a picture is not, so this route carries its own.
    */
-  app.post(EMOTE_UPLOAD_PATH, requireAdmin, emoteUploadJson, (request, response) => {
-    void (async () => {
+  app.post(
+    EMOTE_UPLOAD_PATH,
+    requireAdmin,
+    emoteUploadJson,
+    handle(async (request, response) => {
       const body = (request.body ?? {}) as Record<string, unknown>;
       const image = decode(body["image"], MAX_IMAGE_BYTES);
       if (image === null) {
@@ -218,18 +223,20 @@ export function mountEmotes(
 
       const record = await store.addEmote(upload);
       response.status(201).json({ emote: record });
-    })();
-  });
+    }),
+  );
 
   /** Withdraws one, without deleting what it was. */
-  app.post("/api/admin/emotes/:id/retire", requireAdmin, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/emotes/:id/retire",
+    requireAdmin,
+    handle(async (request, response) => {
       const retired = await store.retireEmote(request.params["id"] ?? "");
       if (!retired) {
         response.status(404).json({ error: "No such emote." });
         return;
       }
       response.json({ ok: true });
-    })();
-  });
+    }),
+  );
 }

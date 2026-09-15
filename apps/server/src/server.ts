@@ -73,11 +73,12 @@ import session from "express-session";
 import type { DefaultEventsMap } from "socket.io";
 import { Server } from "socket.io";
 import { readAdmins } from "./admin.js";
-import { ADMIN_BULK_PATHS, mountAdminDesk } from "./admin-desk.js";
+import { ADMIN_BULK_PATHS, answerUnrecorded, mountAdminDesk } from "./admin-desk.js";
 import type { AuthConfig } from "./auth.js";
 import { mountAuth, readAuthConfig } from "./auth.js";
 import { friendlyRedirect } from "./domains.js";
 import { EMOTE_UPLOAD_PATH, emoteUrls, mountEmotes } from "./emotes.js";
+import { SOMETHING_WENT_WRONG, acking, handle } from "./handle.js";
 import { mountLeaderboard } from "./leaderboard.js";
 import { mountTransfers } from "./transfers.js";
 import { wireTips } from "./tips.js";
@@ -508,8 +509,9 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     response.json({ ok: true, rooms: rooms.size, store: store.kind, signin: auth !== null });
   });
 
-  app.get("/api/me", (request, response) => {
-    void (async () => {
+  app.get(
+    "/api/me",
+    handle(async (request, response) => {
       const id = userIdOfRequest(request);
       const profile = id === undefined ? null : await store.get(id);
       // Only so the bar can offer a way to the desk. It opens nothing: every
@@ -520,8 +522,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           ? { signedIn: false, signinAvailable: auth !== null, admin }
           : { signedIn: true, signinAvailable: auth !== null, admin, profile },
       );
-    })();
-  });
+    }),
+  );
 
   app.post("/auth/logout", (request, response) => {
     request.session.destroy(() => response.json({ ok: true }));
@@ -702,20 +704,26 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   }
 
   /** The card for one table, by its code. */
-  app.get("/og/table/:code", (request, response) => {
-    const code = String(request.params["code"] ?? "")
-      .replace(/\.png$/i, "")
-      .toUpperCase();
-    // A table that has closed still gets a picture, because the link to it is
-    // already out there — just the room's own rather than a table's.
-    void sendCard(response, tableCard(code) ?? SITE_CARD);
-  });
+  app.get(
+    "/og/table/:code",
+    handle(async (request, response) => {
+      const code = String(request.params["code"] ?? "")
+        .replace(/\.png$/i, "")
+        .toUpperCase();
+      // A table that has closed still gets a picture, because the link to it is
+      // already out there — just the room's own rather than a table's.
+      await sendCard(response, tableCard(code) ?? SITE_CARD);
+    }),
+  );
 
   /** The card for a game, or for the room. */
-  app.get("/og/:name", (request, response) => {
-    const name = String(request.params["name"] ?? "").replace(/\.png$/i, "");
-    void sendCard(response, gameCard(name) ?? SITE_CARD);
-  });
+  app.get(
+    "/og/:name",
+    handle(async (request, response) => {
+      const name = String(request.params["name"] ?? "").replace(/\.png$/i, "");
+      await sendCard(response, gameCard(name) ?? SITE_CARD);
+    }),
+  );
 
   app.get("/robots.txt", (request, response) => {
     response.type("text/plain").send(
@@ -1053,8 +1061,9 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * is rate limited by account rather than by socket: a socket is free to make
    * more of, and an account is not.
    */
-  app.post("/api/redeem", (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/redeem",
+    handle(async (request, response) => {
       const profile = await whoIs(request);
       if (profile === null) {
         response.status(401).json({ ok: false, reason: "sign-in" });
@@ -1070,22 +1079,20 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return;
       }
       response.json(await store.redeem(typed, profile.id));
-    })();
-  });
+    }),
+  );
 
   /** Everything below this needs to be on the list. */
-  const requireAdmin: express.RequestHandler = (request, response, next) => {
-    void (async () => {
-      const profile = await whoIs(request);
-      if (profile === null || !admins.has(profile.discordId)) {
-        // Deliberately the same answer either way: whether a page exists is
-        // not something an unauthorised visitor needs to learn.
-        response.status(404).json({ error: "Not found." });
-        return;
-      }
-      next();
-    })();
-  };
+  const requireAdmin: express.RequestHandler = handle(async (request, response, next) => {
+    const profile = await whoIs(request);
+    if (profile === null || !admins.has(profile.discordId)) {
+      // Deliberately the same answer either way: whether a page exists is
+      // not something an unauthorised visitor needs to learn.
+      response.status(404).json({ error: "Not found." });
+      return;
+    }
+    next();
+  });
 
   mountEmotes(app, { store, requireAdmin, userIdOf: userIdOfRequest });
   mountTransfers(app, {
@@ -1128,14 +1135,18 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     },
   });
 
-  app.get("/api/admin/codes", requireAdmin, (_request, response) => {
-    void (async () => {
+  app.get(
+    "/api/admin/codes",
+    requireAdmin,
+    handle(async (_request, response) => {
       response.json({ codes: await store.listCodes(50) });
-    })();
-  });
+    }),
+  );
 
-  app.post("/api/admin/codes", requireAdmin, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/codes",
+    requireAdmin,
+    handle(async (request, response) => {
       const parsed = mintCodeSchema.safeParse(request.body);
       if (!parsed.success) {
         response.status(400).json({ error: "That is not a code worth minting." });
@@ -1150,15 +1161,17 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         createdBy: profile?.id ?? "unknown",
       });
       response.json({ code });
-    })();
-  });
+    }),
+  );
 
-  app.post("/api/admin/codes/:code/revoke", requireAdmin, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/codes/:code/revoke",
+    requireAdmin,
+    handle(async (request, response) => {
       const done = await store.revokeCode(String(request.params["code"] ?? ""));
       response.status(done ? 200 : 404).json({ revoked: done });
-    })();
-  });
+    }),
+  );
 
   /**
    * What the machine is worth playing for.
@@ -1167,12 +1180,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * a sign nobody can read until they have signed in advertises nothing. It
    * carries no one's balance and says nothing about who is playing.
    */
-  app.get("/api/slots", (_request, response) => {
-    void (async () => {
+  app.get(
+    "/api/slots",
+    handle(async (_request, response) => {
       const bank = await store.bank("slots");
       response.json({ bank, maxStake: maxStake(bank), jackpot: jackpotPay(bank) });
-    })();
-  });
+    }),
+  );
 
   /**
    * Which bank a request means, or nothing if it named one that does not exist.
@@ -1225,8 +1239,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * offers a stake of zero — somebody has to strike the match — and because a
    * named human doing it is auditable in a way a mechanism is not.
    */
-  app.get("/api/admin/bank", requireAdmin, (request, response) => {
-    void (async () => {
+  app.get(
+    "/api/admin/bank",
+    requireAdmin,
+    handle(async (request, response) => {
       const which = bankNamed((request.query as { game?: unknown })?.game);
       if (which === null) {
         response.status(400).json({ error: "No such bank." });
@@ -1234,11 +1250,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       }
       const bank = await store.bank(which);
       response.json({ bank, maxStake: capOf(which, bank) });
-    })();
-  });
+    }),
+  );
 
-  app.post("/api/admin/bank", requireAdmin, (request, response) => {
-    void (async () => {
+  app.post(
+    "/api/admin/bank",
+    requireAdmin,
+    handle(async (request, response) => {
       const body = request.body as { amount?: unknown; game?: unknown };
       const which = bankNamed(body?.game);
       if (which === null) {
@@ -1251,22 +1269,36 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return;
       }
       await store.bankAdd(which, amount);
-      const profile = await whoIs(request);
-      await store.logAdmin({
-        by: profile?.id ?? "unknown",
-        byName: profile?.name ?? "unknown",
-        kind: "float",
-        amount,
-        affected: 0,
-        target: "all",
-        parts: null,
-        subject: which,
-        note: "",
-      });
-      const bank = await store.bank(which);
+      /*
+       * The float is in from here on, so nothing below may fail as though it
+       * were not — a plain 500 is how a second float of chips nobody won gets
+       * added. The bank is read before the log is written, so a failure at
+       * either step is truthfully a float the log has not recorded.
+       */
+      let bank: number | null = null;
+      try {
+        bank = await store.bank(which);
+        const profile = await whoIs(request);
+        await store.logAdmin({
+          by: profile?.id ?? "unknown",
+          byName: profile?.name ?? "unknown",
+          kind: "float",
+          amount,
+          affected: 0,
+          target: "all",
+          parts: null,
+          subject: which,
+          note: "",
+        });
+      } catch (error) {
+        const applied =
+          bank === null ? { game: which, added: amount } : { bank, maxStake: capOf(which, bank) };
+        answerUnrecorded(response, applied, error);
+        return;
+      }
       response.json({ bank, maxStake: capOf(which, bank) });
-    })();
-  });
+    }),
+  );
 
   /**
    * What the blackjack tables can cover, for anybody at all.
@@ -1282,15 +1314,17 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * number on a sign cannot know who has sat down since it was read, and the
    * table refusing the message is the rule whatever the sign said.
    */
-  app.get("/api/blackjack", (_request, response) => {
-    void (async () => {
+  app.get(
+    "/api/blackjack",
+    handle(async (_request, response) => {
       const bank = await store.bank("blackjack");
       response.json({ bank, maxStake: blackjackMaxStake(bank) });
-    })();
-  });
+    }),
+  );
 
-  app.get("/api/games", (request, response) => {
-    void (async () => {
+  app.get(
+    "/api/games",
+    handle(async (request, response) => {
       const id = userIdOfRequest(request);
       if (id === undefined) {
         response.status(401).json({ error: "Sign in first." });
@@ -1299,8 +1333,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       // Deliberately more than the page shows. Hands at one table collapse into
       // a single line, so twenty records can be two lines of history.
       response.json({ games: await store.recentGames(id, 80) });
-    })();
-  });
+    }),
+  );
 
   if (serveClient) {
     /*
@@ -2343,7 +2377,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
      * price a client sends is a price the client chose.
      */
     socket.on("taunt:send", (payload, ack) => {
-      void (async () => {
+      acking("taunt:send", ack, () => ({ ok: false as const, error: SOMETHING_WENT_WRONG }), async (ack) => {
         const parsed = tauntSchema.safeParse(payload);
         if (!parsed.success) {
           ack({ ok: false, error: "That is not a taunt." });
@@ -2440,7 +2474,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
 
         const after = await store.get(from.userId);
         ack({ ok: true, chips: after?.chips ?? 0 });
-      })();
+      });
     });
 
     /**
@@ -2469,7 +2503,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     });
 
     socket.on("slots:spin", (payload, ack) => {
-      void (async () => {
+      acking("slots:spin", ack, () => ({ ok: false as const, error: SOMETHING_WENT_WRONG }), async (ack) => {
         const parsed = spinSchema.safeParse(payload);
         if (!parsed.success) {
           ack({ ok: false, error: "That is not a stake." });
@@ -2646,7 +2680,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           // machine for the life of the process.
           spinning.delete(userId);
         }
-      })();
+      });
     });
 
     socket.on("disconnect", () => {

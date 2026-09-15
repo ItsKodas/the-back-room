@@ -1,6 +1,7 @@
 import { LEADER_SORTS } from "@backroom/economy";
 import type { LeaderSort, Store } from "@backroom/economy";
 import type { Express, Request } from "express";
+import { handle } from "./handle.js";
 
 /**
  * Who is ahead.
@@ -53,8 +54,9 @@ export function mountLeaderboard(
   app: Express,
   { store, whoIs, withinBudget }: LeaderboardRoutes,
 ): void {
-  app.get("/api/leaderboard", (request, response) => {
-    void (async () => {
+  app.get(
+    "/api/leaderboard",
+    handle(async (request, response) => {
       const who = await whoIs(request);
       if (who === null) {
         response.status(401).json({ error: "Sign in first." });
@@ -67,6 +69,6 @@ export function mountLeaderboard(
       const sort = readSort(request.query["sort"]);
       const board = await store.leaderboard({ sort, limit: BOARD_LIMIT, you: who.id });
       response.json({ sort, ...board });
-    })();
-  });
+    }),
+  );
 }
