@@ -26,3 +26,5 @@ export { mayJoin, smallestTeam, soloTurn, teamTurn } from "./rotation.js";
 export type { Hint } from "./hints.js";
 export { hintMs, hintsDue, mask, planHints } from "./hints.js";
 export { drawerPoints, guesserPoints } from "./scoring.js";
+export type { FillMark, FillRequest, Ink, InkRelay, Mark, StrokeBatch, StrokeMark } from "./ink.js";
+export { GRID_HEIGHT, GRID_WIDTH, INKS, InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill, SIZES } from "./ink.js";
