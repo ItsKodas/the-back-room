@@ -24,6 +24,11 @@ export function Seg<T extends string | boolean>({
 }) {
   const group = useRef<HTMLDivElement | null>(null);
   const thumb = useRef<HTMLSpanElement | null>(null);
+  // The thumb's CSS transition is for sliding between two answers already on
+  // screen. Applied to the very first placement too, there is nothing to
+  // slide from, so it visibly grows out of the corner on every mount instead
+  // of simply being where it is.
+  const firstPlacement = useRef(true);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refs are stable; we need value to trigger repositioning
   useLayoutEffect(() => {
@@ -32,8 +37,20 @@ export function Seg<T extends string | boolean>({
       if (on === null || on === undefined || thumb.current === null) {
         return;
       }
-      thumb.current.style.width = `${on.offsetWidth}px`;
-      thumb.current.style.transform = `translateX(${on.offsetLeft}px)`;
+      const el = thumb.current;
+      if (firstPlacement.current) {
+        el.style.transition = "none";
+      }
+      el.style.width = `${on.offsetWidth}px`;
+      el.style.transform = `translateX(${on.offsetLeft}px)`;
+      if (firstPlacement.current) {
+        // Force layout so the width/transform above land before the
+        // transition comes back, or the browser folds them into whatever
+        // change prompted the next placement and slides in anyway.
+        void el.offsetWidth;
+        el.style.transition = "";
+        firstPlacement.current = false;
+      }
     };
     place();
     // A font arriving late or a phone turning sideways moves every answer.
