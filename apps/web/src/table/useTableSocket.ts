@@ -5,6 +5,7 @@ import type {
   ClientToServer,
   ServerToClient,
   TableClosed,
+  TableRelay,
   TableState,
   TauntAck,
   TauntPlay,
@@ -102,6 +103,12 @@ export interface TableSocketHook<TView> {
   /** Sends a move. What is in it is between the caller and the game. */
   act: (action: Record<string, unknown>, done?: () => void) => void;
   /**
+   * Listens for relays — what a game sends between states, like a line being
+   * drawn. A subscription rather than state, because they arrive far too often
+   * to re-render the table for each one. Returns the way to stop listening.
+   */
+  onRelay: (listener: (relay: TableRelay) => void) => () => void;
+  /**
    * Taunts thrown at this table, oldest first, for whatever is animating them.
    *
    * A log rather than "the current one": two can land in the same second and
@@ -157,6 +164,7 @@ export function useTableSocket<TView>(
   const [listed, setListedHere] = useState(true);
   const [landed, setLanded] = useState<TauntPlay[]>([]);
   const [stakes, setStakes] = useState<TauntStake[]>([]);
+  const relayListeners = useRef(new Set<(relay: TableRelay) => void>());
 
   useEffect(() => {
     // No transports named on purpose: naming one makes it the only one tried,
@@ -233,6 +241,11 @@ export function useTableSocket<TView>(
     socket.on("chat:message", (message: ChatMessage) =>
       setChat((log) => [...log, message].slice(-60)),
     );
+    socket.on("room:relay", (relay: TableRelay) => {
+      for (const listener of relayListeners.current) {
+        listener(relay);
+      }
+    });
     // Capped for the same reason, and shorter: nothing needs to look further
     // back than the handful still on screen.
     socket.on("taunt:play", (one: TauntPlay) =>
@@ -321,6 +334,13 @@ export function useTableSocket<TView>(
     socketRef.current?.emit("game:action", action as { type: string }, done);
   }, []);
 
+  const onRelay = useCallback((listener: (relay: TableRelay) => void) => {
+    relayListeners.current.add(listener);
+    return () => {
+      relayListeners.current.delete(listener);
+    };
+  }, []);
+
   const retry = useCallback(() => {
     setTaken(null);
     socketRef.current?.connect();
@@ -380,6 +400,7 @@ export function useTableSocket<TView>(
     watch,
     leave,
     act,
+    onRelay,
     say,
   };
 }

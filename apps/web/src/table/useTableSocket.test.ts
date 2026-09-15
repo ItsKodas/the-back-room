@@ -105,3 +105,35 @@ describe("what a table window tells the server about itself", () => {
     expect(onLeave).not.toHaveBeenCalled();
   });
 });
+
+describe("relays", () => {
+  beforeEach(() => {
+    handlers.clear();
+    made.mockClear();
+    window.sessionStorage.clear();
+    fake.active = true;
+  });
+
+  it("hands each one to whoever is listening, without re-rendering the table for it", () => {
+    /*
+     * A partner's line arrives twenty times a second. Through React state that
+     * is twenty renders of the whole felt a second on somebody's phone.
+     */
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useTableSocket("scribble", () => {});
+    });
+    const heard: unknown[] = [];
+    const stop = result.current.onRelay((relay) => heard.push(relay));
+    const before = renders;
+
+    handlers.get("room:relay")?.({ seatId: "s1", payload: { kind: "clear" } });
+    expect(heard).toEqual([{ seatId: "s1", payload: { kind: "clear" } }]);
+    expect(renders).toBe(before);
+
+    stop();
+    handlers.get("room:relay")?.({ seatId: "s1", payload: { kind: "clear" } });
+    expect(heard).toHaveLength(1);
+  });
+});
