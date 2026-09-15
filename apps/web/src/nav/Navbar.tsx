@@ -53,6 +53,7 @@ export function Navbar({ game, table, account, connected }: NavbarProps) {
   const menu = useId();
 
   // Walking somewhere is the menu having done its job.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger, not a value read — arriving somewhere new is what shuts the menu, and without it in the list this would run once and never again
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
