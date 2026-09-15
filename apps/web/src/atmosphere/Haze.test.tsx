@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Haze } from "./Haze.js";
+import { BACKING_SCALE, Haze } from "./Haze.js";
 
 /**
  * The haze, run on a clock this file turns by hand.
@@ -105,5 +105,55 @@ describe("the colour of the air", () => {
     runFrames(5);
 
     expect(colourReads(reads)).toBe(2);
+  });
+});
+
+describe("the work each frame does", () => {
+  it("fills a canvas a fraction the size of the window, whatever the screen's density", () => {
+    /*
+     * Every shape on it is a gradient a hundred pixels and more across, which
+     * a browser scales up without a visible seam. At a phone's density the old
+     * backing store was nine times the pixels for the same picture.
+     */
+    const { container } = render(<Haze />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+
+    expect(canvas.width).toBe(Math.round(400 * BACKING_SCALE));
+    expect(canvas.height).toBe(Math.round(800 * BACKING_SCALE));
+  });
+
+  it("keeps its clouds where they were when a phone's address bar changes the height", () => {
+    // That resize fires on every scroll that shows or hides the bar, and
+    // re-seeding on it threw every cloud somewhere new mid-scroll.
+    render(<Haze />);
+    runFrames(1);
+    const before = arcs.slice(0, 6);
+
+    arcs = [];
+    set("innerHeight", 740);
+    window.dispatchEvent(new Event("resize"));
+    runFrames(1);
+    const after = arcs.slice(0, 6);
+
+    expect(after).toHaveLength(6);
+    after.forEach((cloud, index) => {
+      expect(Math.abs(cloud.x - (before[index]?.x ?? Number.NaN))).toBeLessThan(5);
+      expect(Math.abs(cloud.y - (before[index]?.y ?? Number.NaN))).toBeLessThan(5);
+    });
+  });
+
+  it("draws once and stops when motion is turned off, and redraws only when something changes", () => {
+    reduced = true;
+    render(<Haze />);
+    runFrames(1);
+
+    expect(arcs).toHaveLength(6);
+    expect(frames).toHaveLength(0);
+
+    window.dispatchEvent(new Event("resize"));
+    expect(frames).toHaveLength(1);
+    runFrames(1);
+    expect(arcs).toHaveLength(12);
+    expect(frames).toHaveLength(0);
   });
 });

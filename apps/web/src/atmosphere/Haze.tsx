@@ -27,6 +27,17 @@ const HAZE = {
   brightness: 0.12,
 };
 
+/**
+ * Canvas pixels per CSS pixel.
+ *
+ * Below one on purpose. Everything on this canvas is a radial gradient over a
+ * hundred-odd CSS pixels, and a browser scaling that up is indistinguishable
+ * from drawing it full size — while filling it at a phone's own density was
+ * nine times the pixels, every frame, on every page. If the haze ever gains
+ * anything with an edge, this is the number that has to come back up.
+ */
+export const BACKING_SCALE = 0.5;
+
 interface Cloud {
   x: number;
   y: number;
@@ -76,19 +87,21 @@ export function Haze() {
     };
 
     const size = () => {
-      /*
-       * Capped below the real device ratio. This canvas covers the whole
-       * window, and there is nothing on it but soft gradients — detail a
-       * retina buffer would render at four times the fill cost and no
-       * visible gain, because the thing being drawn is a blur.
-       */
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas.width = Math.max(1, Math.round(width * ratio));
-      canvas.height = Math.max(1, Math.round(height * ratio));
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      seed();
+      canvas.width = Math.max(1, Math.round(width * BACKING_SCALE));
+      canvas.height = Math.max(1, Math.round(height * BACKING_SCALE));
+      // Setting a canvas's size resets its transform, so this comes after.
+      context.setTransform(BACKING_SCALE, 0, 0, BACKING_SCALE, 0, 0);
+      /*
+       * Seeded once. A phone resizes the window every time its address bar
+       * slides in or out, and re-seeding on that threw every cloud somewhere
+       * new in the middle of a scroll. A cloud left outside a smaller window
+       * simply wraps back in, the way one drifting off the edge always has.
+       */
+      if (clouds.length === 0) {
+        seed();
+      }
     };
 
     /**
@@ -171,7 +184,8 @@ export function Haze() {
       }
 
       context.globalCompositeOperation = "source-over";
-      frame = window.requestAnimationFrame(draw);
+      // Air that is not moving is one picture, not sixty a second of the same one.
+      frame = moving ? window.requestAnimationFrame(draw) : 0;
     };
 
     const start = () => {
@@ -203,14 +217,24 @@ export function Haze() {
 
     const preference = () => {
       moving = !lessMotion.matches;
+      start();
     };
 
-    const room = new MutationObserver(readColour);
+    /** Anything that changes the picture asks for one more frame of it. */
+    const resized = () => {
+      size();
+      start();
+    };
+
+    const room = new MutationObserver(() => {
+      readColour();
+      start();
+    });
 
     readColour();
     size();
     start();
-    window.addEventListener("resize", size);
+    window.addEventListener("resize", resized);
     document.addEventListener("visibilitychange", visibility);
     lessMotion.addEventListener("change", preference);
     room.observe(document.documentElement, { attributes: true, attributeFilter: ["data-game"] });
@@ -218,7 +242,7 @@ export function Haze() {
     return () => {
       stop();
       room.disconnect();
-      window.removeEventListener("resize", size);
+      window.removeEventListener("resize", resized);
       document.removeEventListener("visibilitychange", visibility);
       lessMotion.removeEventListener("change", preference);
     };
