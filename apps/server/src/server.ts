@@ -4,7 +4,7 @@ import type { Server as HttpServer } from "node:http";
 import { createServer as createHttpServer } from "node:http";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
+import type { ChatRoute, GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
 import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core";
 import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
@@ -21,6 +21,8 @@ import {
   rouletteAdapter,
   STAKE_DIVISOR as ROULETTE_DIVISOR,
 } from "@backroom/game-roulette";
+import type { ScribbleAdapterOptions } from "@backroom/game-scribble";
+import { SCRIBBLE, scribbleAdapter } from "@backroom/game-scribble";
 import {
   countScatters,
   drawGrid,
@@ -109,7 +111,8 @@ const CATALOGUE = COMING.reduce(
     .add(TIPS)
     .add(ROULETTE)
     .add(DEATH_ROLL)
-    .add(TWO_UP),
+    .add(TWO_UP)
+    .add(SCRIBBLE),
 );
 
 
@@ -146,6 +149,8 @@ export interface BackRoomServerOptions {
    * would be flaky by design rather than by accident.
    */
   deathRollRoll?: (ceiling: number) => number;
+  /** Scribble's clock and word source, for tests that cannot wait fifteen seconds a phase. */
+  scribble?: ScribbleAdapterOptions;
   /** How long the busting dice stay on screen before play moves on. */
   farklePauseMs?: number;
   /**
@@ -304,6 +309,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     roll = defaultRoll,
     spinRandom = secureRandom,
     deathRollRoll,
+    scribble,
     farklePauseMs = 2200,
     bettingMs,
     settleMs,
@@ -1012,6 +1018,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         bank: twoUpBank,
       }) as GameAdapter<PlayTable>,
     ],
+    [SCRIBBLE.id, scribbleAdapter(scribble) as unknown as GameAdapter<PlayTable>],
   ]);
 
   /**
@@ -2000,8 +2007,11 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * trusted with the same rules as the others.
    */
   function guard(
+    // `unknown` rather than spelling out the union: biome's noConfusingVoidType
+    // rejects `void` beside another type, and every other caller here returns
+    // nothing at all — the narrowing below is what tells the two apart.
     socketId: string,
-    run: (seated: Seated, seatId: string) => void | Promise<void>,
+    run: (seated: Seated, seatId: string) => unknown,
   ): void {
     const seat = sockets.get(socketId);
     const socket = io.sockets.sockets.get(socketId);
@@ -2031,7 +2041,20 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     }
     void (async () => {
       try {
-        await run(seated, seat.seatId as string);
+        const result = await run(seated, seat.seatId as string);
+        // `"relay" in result` rather than a cast: `run`'s return is `unknown`
+        // (see above), so this is the only thing that tells an `ActResult`
+        // apart from the `void` every other action here returns.
+        if (typeof result === "object" && result !== null && "relay" in result) {
+          /*
+           * A smaller answer than a broadcast, for an action that changed only
+           * what everybody else can be told directly. The sender already has it.
+           */
+          if (result.relay !== null) {
+            socket.to(seat.code).emit("room:relay", { seatId: seat.seatId as string, payload: result.relay });
+          }
+          return;
+        }
         broadcast(seat.code);
       } catch (error) {
         /*
@@ -2311,6 +2334,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           buyIn: parsed.data.buyIn,
           window: parsed.data.window,
           ceiling: parsed.data.ceiling,
+          scribble: parsed.data.scribble,
         });
         rooms.set(code, { game, table, listed: parsed.data.listed ?? true });
         table.join(socket.id, seatNameFor(socket, parsed.data.name), socket.data.identity);
@@ -2577,9 +2601,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         ack?.();
         return;
       }
-      guard(socket.id, async (seated, seatId) => {
-        await seated.game.act(seated.table, seatId, parsed.data, deps);
-      });
+      guard(socket.id, (seated, seatId) => seated.game.act(seated.table, seatId, parsed.data, deps));
       // Always acknowledged, refused or not: a client counting these needs to
       // know when its own optimistic picture can be dropped.
       ack?.();
@@ -2603,13 +2625,53 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       if (seated === undefined || who === undefined) {
         return;
       }
-      // Plain text only, and never rendered as markup on the other side.
-      io.to(seat.code).emit("chat:message", {
+      if (seated.game.chat === undefined) {
+        // Plain text only, and never rendered as markup on the other side.
+        io.to(seat.code).emit("chat:message", { seatId: who.id, name: who.name, text: parsed.data.text, at: Date.now() });
+        return;
+      }
+      let route: ChatRoute | null;
+      try {
+        // Called on the adapter, not detached from it, so a game written as a class keeps its `this`.
+        route = seated.game.chat(seated.table, who.id, parsed.data.text);
+      } catch (error) {
+        if (error instanceof RoomError) {
+          socket.emit("room:error", error.message);
+          return;
+        }
+        console.error("unexpected error routing chat", error);
+        socket.emit("room:error", "Something went wrong.");
+        return;
+      }
+      if (route === null) {
+        return;
+      }
+      const message = {
         seatId: who.id,
         name: who.name,
-        text: parsed.data.text,
+        text: route.text,
         at: Date.now(),
-      });
+        ...(route.kind === undefined ? {} : { kind: route.kind }),
+      };
+      if (route.to === "room") {
+        io.to(seat.code).emit("chat:message", message);
+      } else {
+        /*
+         * Only to the seats the game named. Walked socket by socket rather than
+         * by seat id, because a player who reconnected sits in their old seat on
+         * a new socket.
+         */
+        const allowed = new Set(route.to);
+        for (const socketId of io.sockets.adapter.rooms.get(seat.code) ?? []) {
+          const seatId = sockets.get(socketId)?.seatId;
+          if (seatId !== null && seatId !== undefined && allowed.has(seatId)) {
+            io.to(socketId).emit("chat:message", message);
+          }
+        }
+      }
+      if (route.changed) {
+        broadcast(seat.code);
+      }
     });
 
     /**

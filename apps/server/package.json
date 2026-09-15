@@ -13,6 +13,7 @@
     "@backroom/economy": "*",
     "@backroom/game-greed": "*",
     "@backroom/game-poker": "*",
+    "@backroom/game-scribble": "*",
     "@backroom/rules": "*",
     "@backroom/shared": "*",
     "@resvg/resvg-js": "^2.6.2",
