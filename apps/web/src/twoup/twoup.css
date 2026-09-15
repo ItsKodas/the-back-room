@@ -601,7 +601,7 @@
  */
 .tu__rail {
   position: sticky;
-  bottom: 0;
+  bottom: calc(0px + env(safe-area-inset-bottom, 0px));
   z-index: 1;
   display: grid;
   gap: var(--gr-space-3);

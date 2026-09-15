@@ -24,8 +24,11 @@ const manifest = JSON.parse(read("../public/site.webmanifest")) as {
   icons: { src: string; purpose: string }[];
   start_url: string;
   theme_color: string;
+  shortcuts?: { name: string; url: string }[];
 };
 const script = read("../../../scripts/make-icons.mjs");
+const app = read("./App.tsx");
+const globalCss = read("./global.css");
 
 describe("what the head hands to a phone", () => {
   it("links the manifest and the icon iOS insists on having its own way", () => {
@@ -95,5 +98,37 @@ describe("what the head does to the first paint", () => {
   it("warms the connection before it asks for anything", () => {
     expect(html).toContain('<link rel="preconnect" href="https://fonts.googleapis.com" />');
     expect(html).toContain('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />');
+  });
+});
+
+describe("what the installed app looks like", () => {
+  it("draws edge to edge, so the room's colour runs under the notch", () => {
+    expect(html).toMatch(/<meta name="viewport" content="[^"]*viewport-fit=cover[^"]*"/);
+  });
+
+  it("opens without the browser around it, on iOS as well", () => {
+    // iOS reads neither the manifest's display nor Android's tag.
+    expect(html).toContain('<meta name="mobile-web-app-capable" content="yes" />');
+    expect(html).toContain('<meta name="apple-mobile-web-app-capable" content="yes" />');
+    expect(html).toContain('<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />');
+  });
+
+  it("keeps the page clear of the notch and the home bar it now runs under", () => {
+    // Drawing edge to edge without this puts the navbar behind the status bar.
+    for (const side of ["top", "right", "bottom", "left"]) {
+      expect(globalCss).toContain(`env(safe-area-inset-${side}`);
+    }
+  });
+
+  it("offers shortcuts only to pages that exist", () => {
+    /*
+     * A long-press on the icon opens these straight away, and nothing checks
+     * them: a renamed route leaves a shortcut to "No such page."
+     */
+    const shortcuts = manifest.shortcuts ?? [];
+    expect(shortcuts.length).toBeGreaterThan(0);
+    for (const shortcut of shortcuts) {
+      expect(app, shortcut.url).toContain(`<Route path="${shortcut.url}"`);
+    }
   });
 });

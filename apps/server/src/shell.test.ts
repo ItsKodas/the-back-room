@@ -148,3 +148,25 @@ describe("the page a link unfurls into", () => {
     expect(await answer.text()).toContain("<svg");
   });
 });
+
+describe("the service worker", () => {
+  it("is never served from a cache, so a deploy reaches phones that installed the app", async () => {
+    /*
+     * A browser checks for a new worker by fetching this file — and the HTTP
+     * cache, or anything in front of the server, can answer that check with
+     * the old copy. A fix then sits unseen on every installed phone.
+     */
+    writeFileSync(join(dist, "sw.js"), "// worker", "utf8");
+    const answer = await fetch(`http://127.0.0.1:${port}/sw.js`);
+
+    expect(answer.status).toBe(200);
+    expect(answer.headers.get("cache-control")).toBe("no-cache");
+  });
+
+  it("leaves every other file's caching as it was", async () => {
+    writeFileSync(join(dist, "favicon.svg"), "<svg/>", "utf8");
+    const answer = await fetch(`http://127.0.0.1:${port}/favicon.svg`);
+
+    expect(answer.headers.get("cache-control")).not.toBe("no-cache");
+  });
+});

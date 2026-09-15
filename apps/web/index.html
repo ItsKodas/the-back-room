@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--
       The same chip at every size something will ask for it in, pressed from
@@ -12,6 +12,13 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="apple-mobile-web-app-title" content="Back Room" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!--
+      Translucent so the room's own dark shows through the status bar rather
+      than a white strip; global.css pads the page clear of it.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <!--
       Everything between the markers is rewritten per address by the server,
       which is the only thing that knows whose table /6PMKG is. What is written

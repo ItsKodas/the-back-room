@@ -13,6 +13,9 @@ const fake = {
   // Mirrors socket.io's own flag: false once a middleware refusal has given
   // up on reconnecting, true while a transport failure is still being retried.
   active: true,
+  // rejoinOnReturn listens here for the server's pings; nothing in these
+  // tests ever fires one, so a no-op pair is all it needs.
+  io: { on: vi.fn(), off: vi.fn() },
 };
 const made = vi.fn(() => fake);
 

@@ -168,6 +168,21 @@ export function setVolume(next: number): void {
 }
 
 /**
+ * Picks the sound back up after the page has been away.
+ *
+ * iOS suspends the context whenever an installed app is put away — switching
+ * apps, locking the phone — and never resumes it on its own, while the
+ * listeners that call `unlock` are `once` and already spent. Any later touch
+ * is a gesture the browser will accept, so it is the one to use.
+ */
+function resumeIfStopped(): void {
+  if (context !== null && context.state !== "running") {
+    // A closed context cannot come back; that is silence, not an error.
+    context.resume().catch(() => {});
+  }
+}
+
+/**
  * Browsers refuse to start audio until the user has interacted with the page,
  * so this is called from the first click rather than on load.
  */
@@ -181,6 +196,7 @@ export function unlock(): void {
     master = context.createGain();
     master.gain.value = muted ? 0 : volume;
     master.connect(context.destination);
+    window.addEventListener("pointerdown", resumeIfStopped, { passive: true });
     // Anything already downloaded can become playable right now; anything not
     // yet asked for gets asked for here.
     void preload().then(decodeWaiting);
