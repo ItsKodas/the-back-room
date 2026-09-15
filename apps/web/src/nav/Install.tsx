@@ -1,71 +1,74 @@
 import { useState } from "react";
 import { useInstall } from "./useInstall.js";
 
-const DISMISSED = "backroom:install-hint-dismissed";
-
-function wasDismissed(): boolean {
-  try {
-    return window.localStorage.getItem(DISMISSED) === "true";
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Putting the room on a home screen.
  *
- * Absent unless there is actually something to do: no browser support, or
- * already installed, is nothing on the bar rather than a control that fails.
- * iOS has no prompt to hand over, so there the press opens the two steps
- * instead — on a press, because a phone has no hover to reveal it with.
+ * On the bar in every browser tab and gone only inside the installed app,
+ * so it is always somewhere to find again. An icon rather than a word, like
+ * the rest of what the bar operates.
+ *
+ * Where the browser has a prompt to hand over, the press is that prompt.
+ * Everywhere else it opens the steps: iOS has no prompt at all, and plenty of
+ * browsers only offer installing from their own menu. On a press, because a
+ * phone has no hover to reveal anything with.
  */
 export function Install() {
   const offer = useInstall();
   const [open, setOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(wasDismissed);
 
-  if (offer.kind === "prompt") {
-    return (
-      <button type="button" className="btn btn--ghost btn--small" onClick={offer.install}>
-        Install
-      </button>
-    );
-  }
-  if (offer.kind === "none" || dismissed) {
+  if (offer.kind === "installed") {
     return null;
   }
+  const explains = offer.kind !== "prompt";
+
   return (
     <span className="install">
       <button
         type="button"
-        className="btn btn--ghost btn--small"
-        aria-expanded={open}
-        onClick={() => setOpen((was) => !was)}
+        className="iconbtn"
+        aria-label="Install The Back Room"
+        title="Install The Back Room"
+        aria-expanded={explains ? open : undefined}
+        onClick={explains ? () => setOpen((was) => !was) : offer.install}
       >
-        Install
+        <DownloadIcon />
       </button>
-      {open ? (
-        <span className="install__hint" role="dialog" aria-label="Install The Back Room">
-          <span>
-            Tap <ShareIcon /> <b>Share</b>, then <b>Add to Home Screen</b>.
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost btn--small"
-            onClick={() => {
-              try {
-                window.localStorage.setItem(DISMISSED, "true");
-              } catch {
-                // Private mode: it goes for this visit, which is still an answer.
-              }
-              setDismissed(true);
-            }}
-          >
+      {explains && open ? (
+        <span className="install__hint" role="dialog" aria-label="How to install The Back Room">
+          {offer.kind === "ios" ? (
+            <span>
+              Tap <ShareIcon /> <b>Share</b>, then <b>Add to Home Screen</b>.
+            </span>
+          ) : (
+            <span>
+              Open your browser's menu and choose <b>Install app</b> or <b>Add to Home Screen</b>.
+            </span>
+          )}
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => setOpen(false)}>
             Got it
           </button>
         </span>
       ) : null}
     </span>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
   );
 }
 
