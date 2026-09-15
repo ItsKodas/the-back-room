@@ -371,6 +371,36 @@ describe("a table while it is being called off", () => {
     await until(async () => (await chipsOf(ada.id)) === before);
     await until(async () => (await store.bank("roulette")) === BANK);
   });
+
+  /*
+   * Blackjack takes a leaver's bet off the felt and queues it in the escrow,
+   * rather than leaving it on the cloth the way the wheel does, so standing up
+   * mid-close is a second route to the same chips there and not here.
+   */
+  it("hands a blackjack bet back exactly once when its seat stands up mid-close", async () => {
+    const { store, ada, client, hold, chipsOf } = await start({
+      reconnectGraceMs: 60_000,
+      emptyRoomTtlMs: 60_000,
+    });
+    const before = await chipsOf(ada.id);
+    const player = await client();
+    const code = await openTable(player, "blackjack");
+    await act(player, { type: "bet", amount: 100 });
+    await until(async () => (await chipsOf(ada.id)) === before - 100);
+    expect(server?.rooms.get(code)?.table.status).toBe("lobby");
+    const refund = hold(ada.id, 1);
+
+    const closing = server?.closeTable(code, "admin");
+    await refund.arrived;
+    player.emit("lobby:leave");
+    await sleep(200);
+    refund.release();
+    await closing;
+    await sleep(100);
+
+    expect(await chipsOf(ada.id)).toBe(before);
+    expect(await store.bank("blackjack")).toBe(BANK);
+  });
 });
 
 describe("the server stopping", () => {
