@@ -8,6 +8,7 @@ export const seat = (id: string, over: Partial<SeatView> = {}): SeatView => ({
   score: 0,
   drawing: false,
   guessed: false,
+  ready: false,
   ...over,
 });
 
@@ -25,6 +26,7 @@ export function viewOf(over: Partial<TableView> = {}): TableView {
     drawMs: 80_000,
     hints: "few",
     minimum: 3,
+    readyCount: 0,
     maxSeats: 8,
     seats,
     teams: [],

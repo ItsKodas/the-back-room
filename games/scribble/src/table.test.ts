@@ -9,7 +9,60 @@ describe("waiting for enough people", () => {
     expect(table.phase).toBe("waiting");
     expect(table.deadline).toBeNull();
     table.join("s2", "P2", null);
-    expect(table.deadline).toBe(clock.now() + 15_000);
+    expect(table.deadline).toBe(clock.now() + 30_000);
+  });
+
+  /*
+   * The rule the whole ready system hangs off: it may hurry a deal along and
+   * it may never hold one up. A table that one idle player could keep shut is
+   * a table that has stopped dealing itself.
+   */
+  it("deals when the clock runs out however many are ready", () => {
+    const { table, clock } = tableFor();
+    table.setReady("s0", true);
+    clock.advance(30_000);
+    table.deal();
+    expect(table.phase).toBe("picking");
+  });
+
+  it("deals at once when everybody seated is ready", () => {
+    const { table, clock } = tableFor();
+    expect(table.deadline).toBe(clock.now() + 30_000);
+    table.setReady("s0", true);
+    table.setReady("s1", true);
+    expect(table.deadline).toBe(clock.now() + 30_000);
+    table.setReady("s2", true);
+    expect(table.deadline).toBe(clock.now());
+  });
+
+  it("puts the wait back when somebody who was ready changes their mind", () => {
+    const { table, clock } = tableFor();
+    for (const id of ["s0", "s1", "s2"]) {
+      table.setReady(id, true);
+    }
+    expect(table.deadline).toBe(clock.now());
+    table.setReady("s1", false);
+    expect(table.deadline).toBe(clock.now() + 30_000);
+  });
+
+  it("counts readiness against who is still here, so a leaver cannot hold it open", () => {
+    const { table, clock } = tableFor({}, 4);
+    table.setReady("s0", true);
+    table.setReady("s1", true);
+    table.setReady("s2", true);
+    expect(table.deadline).toBe(clock.now() + 30_000);
+    table.removeSeat("s3");
+    expect(table.deadline).toBe(clock.now());
+  });
+
+  it("shows who is ready, and forgets it once the game is under way", () => {
+    const { table } = tableFor();
+    table.setReady("s0", true);
+    expect(table.view("s0").you?.ready).toBe(true);
+    expect(table.view("s0").readyCount).toBe(1);
+    table.deal();
+    expect(table.view("s0").you?.ready).toBe(false);
+    expect(table.view("s0").readyCount).toBe(0);
   });
 
   it("stops the countdown if somebody leaves and it is no longer enough", () => {
@@ -38,6 +91,7 @@ describe("a turn", () => {
     expect(table.phase).toBe("picking");
     expect(table.turn).toEqual({ drawers: ["s0"], picker: "s0", team: null });
     expect(table.choices).toEqual(["lighthouse", "accordion", "sandcastle"]);
+    // The pick clock, not the wait for people: dealing has already happened.
     expect(table.deadline).toBe(clock.now() + 15_000);
   });
 

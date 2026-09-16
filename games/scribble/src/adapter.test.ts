@@ -46,7 +46,10 @@ describe("the table's own clock", () => {
     const { game, table, clock } = start({ hints: "few", drawSeconds: 80 });
 
     const countdown = game.pause?.(table);
-    expect(countdown).toMatchObject({ key: "countdown:0", ms: 15_000 });
+    // The deadline rides in the key so readiness bringing the deal forward
+    // re-arms the room's timer rather than leaving the original wait running.
+    expect(countdown?.key).toMatch(/^countdown:0:\d+$/);
+    expect(countdown).toMatchObject({ ms: 30_000 });
     countdown?.run();
 
     expect(game.pause?.(table)).toMatchObject({ key: "pick:1", ms: 15_000 });
