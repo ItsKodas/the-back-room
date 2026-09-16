@@ -93,4 +93,8 @@ describe("the fittings' stylesheet", () => {
     const body = css.slice(css.indexOf(".lcd__input {"), css.indexOf("}", css.indexOf(".lcd__input {")));
     expect(body).toMatch(/font-size:\s*16px/);
   });
+
+  it("lets a word lamp size to its word rather than break it mid-label", () => {
+    expect(css).toMatch(/\.lamp--fit\s*\{[^}]*flex:\s*1 1 auto;[^}]*white-space:\s*nowrap;/);
+  });
 });

@@ -1,0 +1,269 @@
+import type { HintLevel, PackId, TableView } from "@backroom/game-scribble";
+import {
+  DRAW_SECONDS,
+  MIN_CUSTOM_ALONE,
+  minimumPlayers,
+  PACK_IDS,
+  PACKS,
+  parseCustomWords,
+  ROUNDS,
+  TEAM_COUNTS,
+} from "@backroom/game-scribble";
+import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Seg } from "../fittings/Seg.js";
+import type { Account } from "../game/useAccount.js";
+import { useAccount } from "../game/useAccount.js";
+import { Navbar } from "../nav/Navbar.js";
+import { Taken } from "../net/Taken.js";
+import { TableSetup } from "../table/TableSetup.js";
+import type { TableSocketHook } from "../table/useTableSocket.js";
+import { useTableSocket } from "../table/useTableSocket.js";
+import { GuessLog } from "./GuessLog.js";
+import { Napkin } from "./Napkin.js";
+import { Reveal } from "./Reveal.js";
+import { Strip } from "./Strip.js";
+import { TeamPick } from "./TeamPick.js";
+import { Teams } from "./Teams.js";
+import { Tray } from "./Tray.js";
+import type { InkHandle, Tool } from "./useInk.js";
+import { useInk } from "./useInk.js";
+import { WordPick } from "./WordPick.js";
+import "@backroom/game-scribble/theme.css";
+import "./scribble.css";
+
+type Table = TableSocketHook<TableView>;
+
+export function Felt({ table, state, seatId }: { table: Table; state: TableView; seatId: string | null }) {
+  const base = useInk(table, state, seatId);
+  const [tool, setTool] = useState<Tool>({ ink: "black", size: 1, mode: "pen" });
+  // Counts clears, so the wipe runs once for each rather than only the first.
+  const [wipes, setWipes] = useState(0);
+  const ink = useMemo<InkHandle>(
+    () => ({
+      ...base,
+      clear: () => {
+        setWipes((n) => n + 1);
+        base.clear();
+      },
+    }),
+    [base],
+  );
+  const short = Math.max(0, state.minimum - state.seats.length);
+
+  return (
+    <div className={`sc${ink.drawing ? " sc--drawing" : ""}`}>
+      <Teams state={state} seatId={seatId} />
+      <div className="sc__middle">
+        <Strip state={state} />
+        {state.phase === "waiting" && state.mode === "teams" ? (
+          <TeamPick state={state} seatId={seatId} act={table.act} error={table.error} />
+        ) : null}
+        {state.phase === "waiting" && state.mode === "solo" ? (
+          <p className="notice">
+            {short > 0 ? `Waiting for ${short} more to sit down.` : "Dealing as soon as the clock runs out."}
+          </p>
+        ) : null}
+        <div className="sc__stage">
+          <Napkin ink={ink} tool={tool} />
+          {wipes > 0 ? <span key={wipes} className="sc-napkin__wipe" aria-hidden="true" /> : null}
+          {state.phase === "picking" ? (
+            <WordPick state={state} seatId={seatId} act={table.act} error={table.error} />
+          ) : null}
+          {state.phase === "reveal" || state.phase === "over" ? <Reveal state={state} seatId={seatId} /> : null}
+        </div>
+        {ink.drawing ? <Tray tool={tool} onTool={setTool} onUndo={ink.undo} onClear={ink.clear} /> : null}
+      </div>
+      <GuessLog log={table.chat} seatId={seatId} state={state} error={table.error} onSay={table.say} />
+    </div>
+  );
+}
+
+function Sit({ table, invited, account }: { table: Table; invited: string; account: Account }) {
+  const [mode, setMode] = useState<"solo" | "teams">("solo");
+  const [teams, setTeams] = useState<number>(2);
+  const [rounds, setRounds] = useState<number>(3);
+  const [drawSeconds, setDrawSeconds] = useState<number>(80);
+  const [hints, setHints] = useState<HintLevel>("few");
+  const [packs, setPacks] = useState<PackId[]>(["everyday", "animals", "food"]);
+  const [custom, setCustom] = useState("");
+  const [onlyCustom, setOnlyCustom] = useState(false);
+  const parsed = parseCustomWords(custom);
+  const needed = minimumPlayers({ mode, teams });
+
+  const lamps = (label: string, choices: readonly number[], value: number, set: (n: number) => void, suffix = "") => (
+    <div className="entry">
+      <span className="label">{label}</span>
+      <div className="lamps" role="radiogroup" aria-label={label}>
+        {choices.map((choice) => (
+          <button key={choice} type="button" role="radio" aria-checked={value === choice} className="lamp" onClick={() => set(choice)}>
+            {choice}
+            {suffix}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <TableSetup
+      game="scribble"
+      pitch="One of you draws it. Everybody else races to name it — or two of a team draw it together."
+      invited={invited}
+      account={account}
+      busy={table.busy}
+      connected={table.connected}
+      onJoin={table.join}
+      onWatch={table.watch}
+      seats={{ initial: 8, ceiling: 10 }}
+      options={
+        <>
+          <div className="plates" role="radiogroup" aria-label="Mode">
+            {(["solo", "teams"] as const).map((option) => (
+              <button key={option} type="button" role="radio" aria-checked={mode === option} className="plate" onClick={() => setMode(option)}>
+                <span className="plate__name">{option === "solo" ? "Everyone for themselves" : "Teams"}</span>
+                <span className="plate__note">
+                  {option === "solo"
+                    ? "One person draws, the rest guess. Highest score wins. Needs 3."
+                    : "Two of a team draw together, everyone else guesses. Each team needs 2."}
+                </span>
+              </button>
+            ))}
+          </div>
+          {mode === "teams" ? lamps("Teams", TEAM_COUNTS, teams, setTeams) : null}
+          {lamps("Rounds", ROUNDS, rounds, setRounds)}
+          {lamps("Draw time", DRAW_SECONDS, drawSeconds, setDrawSeconds, "s")}
+          <div className="entry">
+            <span className="label">Hints</span>
+            <Seg<HintLevel>
+              label="Hints"
+              options={[
+                { value: "none", text: "None" },
+                { value: "few", text: "A few letters" },
+                { value: "generous", text: "Generous" },
+              ]}
+              value={hints}
+              onChange={setHints}
+            />
+          </div>
+          <div className="entry">
+            <span className="label">Word packs</span>
+            <div className="lamps" role="group" aria-label="Word packs">
+              {PACK_IDS.map((id) => {
+                const on = packs.includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={on}
+                    // The last pack cannot go out: a table with no words has nothing to draw.
+                    disabled={on && packs.length === 1 && !onlyCustom}
+                    className="lamp lamp--word lamp--fit"
+                    onClick={() => setPacks((was) => (on ? was.filter((one) => one !== id) : PACK_IDS.filter((one) => one === id || was.includes(one))))}
+                  >
+                    {PACKS[id].name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="entry">
+            <label className="label" htmlFor="scribble-custom">
+              Your own words
+            </label>
+            <textarea
+              className="input"
+              id="scribble-custom"
+              rows={3}
+              maxLength={6000}
+              value={custom}
+              placeholder="Kev's van, the jukebox, pint of mild"
+              onChange={(event) => setCustom(event.target.value)}
+            />
+            <p className="hint">
+              Separate with commas. {parsed.words.length} added
+              {parsed.skipped > 0 ? `, ${parsed.skipped} skipped` : ""}.
+              {parsed.words.length < MIN_CUSTOM_ALONE ? ` ${MIN_CUSTOM_ALONE} or more can replace the packs.` : ""}
+            </p>
+            <div className="lamps">
+              <button
+                type="button"
+                aria-pressed={onlyCustom}
+                disabled={parsed.words.length < MIN_CUSTOM_ALONE}
+                className="lamp lamp--word lamp--fit"
+                onClick={() => setOnlyCustom((was) => !was)}
+              >
+                Only my words
+              </button>
+            </div>
+          </div>
+        </>
+      }
+      note={({ maxSeats }) =>
+        maxSeats < needed
+          ? `${mode === "teams" ? `${teams} teams need` : "Scribble needs"} at least ${needed} seats.`
+          : "Played for fun — nothing here is ever chips. You get a five-character code to share."
+      }
+      onCreate={(name, { maxSeats }) =>
+        table.create(name, {
+          game: "scribble",
+          forFun: true,
+          maxSeats,
+          scribble: { mode, teams, rounds, drawSeconds, hints, packs, custom, onlyCustom },
+        })
+      }
+    />
+  );
+}
+
+export function Scribble() {
+  const navigate = useNavigate();
+  const params = useParams();
+  const account = useAccount();
+  const raw = (params["code"] ?? "").toUpperCase();
+  const looksLikeCode = raw.length === CODE_LENGTH && [...raw].every((letter) => CODE_ALPHABET.includes(letter));
+  const urlCode = looksLikeCode ? raw : "";
+
+  const back = useCallback(() => navigate("/scribble"), [navigate]);
+  const table = useTableSocket<TableView>("scribble", back, account.setChips);
+  const { state, seatId } = table;
+
+  useEffect(() => {
+    document.documentElement.dataset["game"] = "scribble";
+    return () => {
+      delete document.documentElement.dataset["game"];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state !== null && state.code !== urlCode) {
+      navigate(`/scribble/${state.code}`, { replace: true });
+    }
+  }, [state, urlCode, navigate]);
+
+  if (raw.length > 0 && !looksLikeCode) {
+    return <p className="not-found">No table with that code.</p>;
+  }
+
+  return (
+    <main className="play play--scribble">
+      <Navbar
+        game="Scribble"
+        {...(state !== null ? { table: { code: state.code, onLeave: table.leave, confirm: false } } : {})}
+        account={account}
+        connected={table.connected}
+      />
+      {table.error !== null ? <p className="play__error">{table.error}</p> : null}
+      {table.taken !== null ? (
+        <Taken message={table.taken} onRetry={table.retry} />
+      ) : state === null ? (
+        <Sit table={table} invited={urlCode} account={account} />
+      ) : (
+        <Felt table={table} state={state} seatId={seatId} />
+      )}
+    </main>
+  );
+}
+
+export default Scribble;

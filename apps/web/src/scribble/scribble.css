@@ -1,0 +1,589 @@
+/*
+ * The scribble felt: a napkin, the strip over it, the scores beside it and the
+ * guesses on the other side. The fittings supply every control; this sheet
+ * supplies only what the library stops short of — the felt itself.
+ *
+ * Phone first. At a desk the three columns stand side by side; on a phone they
+ * stack with the napkin full width and whatever your thumb needs next pinned
+ * under it.
+ */
+
+.sc {
+  display: grid;
+  gap: var(--gr-space-4);
+  margin-top: var(--gr-space-4);
+}
+
+.sc__middle {
+  display: grid;
+  gap: var(--gr-space-3);
+  min-width: 0;
+}
+
+.sc__stage {
+  position: relative;
+}
+
+@media (min-width: 900px) {
+  .sc {
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+    align-items: start;
+  }
+}
+
+/* ------------------------------------------------------------- the strip */
+
+.sc-strip {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--gr-space-3);
+  padding: 8px 12px 10px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.26);
+  box-shadow: inset 0 5px 10px rgb(0 0 0 / 0.42), 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+/* The clock, read without reading it: a fuse along the bottom that burns down. */
+.sc-strip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: var(--left, 0%);
+  background: linear-gradient(90deg, var(--gr-color-neon-dim), var(--gr-color-neon-hi));
+  box-shadow: 0 0 10px var(--gr-color-neon);
+  transition: width 250ms linear;
+}
+
+.sc-strip__turn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.sc-strip__turn span {
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.sc-strip__turn b {
+  font-weight: 600;
+  color: var(--gr-color-ink-lit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-word {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-lg);
+  font-weight: 500;
+  color: var(--gr-color-ink-lit);
+}
+
+.sc-word i {
+  display: grid;
+  place-items: end center;
+  width: 0.95em;
+  height: 1.35em;
+  font-style: normal;
+  line-height: 1;
+  border-bottom: 2px solid var(--gr-color-ink-faint);
+}
+
+/* A hint letter turning over into its blank: one small overshoot, once. */
+.sc-word i.is-open {
+  color: var(--gr-color-neon-core);
+  border-bottom-color: var(--gr-color-neon);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi);
+  animation: sc-flip 420ms var(--gr-settle);
+}
+
+.sc-word__gap {
+  width: 0.5em;
+}
+
+.sc-word__len {
+  align-self: end;
+  margin-left: 4px;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+.sc-word--shown {
+  letter-spacing: 0.2em;
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi), 0 0 22px var(--gr-color-neon);
+}
+
+.sc-clock {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon-hi);
+}
+
+@keyframes sc-flip {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0);
+  }
+}
+
+/* ------------------------------------------------------------- the napkin */
+
+.sc-napkin {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--sc-napkin);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.5),
+    0 14px 30px rgb(0 0 0 / 0.5);
+}
+
+.sc-napkin__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  /* Scaled crisp, not smeared: every pixel is one of the game's own. */
+  image-rendering: pixelated;
+}
+
+.sc-napkin--live .sc-napkin__canvas {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* The bar's name printed faintly in the corner, the way a real napkin has it. */
+.sc-napkin__print {
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  font-family: var(--gr-font-sign);
+  font-weight: 700;
+  color: var(--sc-napkin-print);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+
+/* Clearing wipes the napkin in one pass of fresh paper. */
+.sc-napkin__wipe {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--sc-napkin) 30%, var(--sc-napkin) 70%, transparent);
+  transform: translateX(-100%);
+  pointer-events: none;
+  animation: sc-wipe 380ms ease-out;
+}
+
+@keyframes sc-wipe {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.sc-over {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: var(--gr-space-3);
+  background: rgb(10 8 14 / 0.55);
+  overflow-y: auto;
+}
+
+.sc-pick,
+.sc-reveal {
+  width: 100%;
+  max-width: 360px;
+}
+
+.sc-reveal__cell {
+  font-size: var(--gr-text-xl);
+  animation: sc-letter 320ms var(--gr-settle) backwards;
+  animation-delay: calc(var(--at, 0) * 60ms);
+}
+
+@keyframes sc-letter {
+  from {
+    opacity: 0;
+    transform: translateY(-40%);
+  }
+}
+
+.sc-reveal__teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gr-space-2);
+}
+
+.sc-reveal .readout__figure {
+  animation: sc-tick 520ms var(--gr-settle);
+}
+
+@keyframes sc-tick {
+  from {
+    transform: scale(0.85);
+    opacity: 0.4;
+  }
+}
+
+.sc-reveal__result {
+  font-family: var(--gr-font-display);
+  color: var(--gr-color-ink-lit);
+}
+
+/* ------------------------------------------------------------- teams */
+
+.sc-team {
+  --t: var(--sc-team-0);
+}
+.sc-team--1 {
+  --t: var(--sc-team-1);
+}
+.sc-team--2 {
+  --t: var(--sc-team-2);
+}
+.sc-team--3 {
+  --t: var(--sc-team-3);
+}
+
+.sc-teams {
+  display: grid;
+  gap: var(--gr-space-2);
+}
+
+.sc-teams__wells {
+  display: grid;
+  gap: var(--gr-space-2);
+}
+
+/*
+ * On a phone a pill opens exactly one roster — `Teams` marks the tapped
+ * well `is-open` rather than the row around them, since only one is ever
+ * open at a time. Every well starts hidden here and the desktop query below
+ * puts all of them back, `is-open` or not.
+ */
+.sc-teams__wells .well.sc-team {
+  display: none;
+}
+
+.sc-teams__wells .well.sc-team.is-open {
+  display: grid;
+}
+
+@media (min-width: 900px) {
+  .sc-pills {
+    display: none;
+  }
+  .sc-teams__wells .well.sc-team {
+    display: grid;
+  }
+}
+
+.sc-team__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.sc-team__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--gr-color-ink-lit);
+}
+
+.sc-team__name::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--t);
+}
+
+.sc-team__score,
+.sc-pts {
+  font-family: var(--gr-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-pts {
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.sc-pts--got,
+.sc-got {
+  color: var(--gr-color-good);
+}
+
+.sc-pen {
+  color: var(--gr-color-neon-hi);
+}
+
+.sc-team--drawing {
+  box-shadow:
+    inset 0 5px 10px rgb(0 0 0 / 0.42),
+    inset 0 0 0 1px color-mix(in srgb, var(--t) 55%, transparent);
+}
+
+.sc-roster {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--gr-text-sm);
+}
+
+.sc-roster li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+
+.sc-roster li.is-you {
+  background: var(--gr-color-smoke);
+}
+
+.sc-roster__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Somebody getting it: their name flashes the outcome green, once. */
+.sc-roster__name.sc-got {
+  animation: sc-flash 700ms ease-out;
+}
+
+@keyframes sc-flash {
+  from {
+    background: color-mix(in srgb, var(--gr-color-good) 35%, transparent);
+  }
+}
+
+.sc-pills {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: 5px;
+}
+
+.sc-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.26);
+  color: var(--gr-color-ink-lit);
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sc-pill::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--t);
+}
+
+.sc-pill.sc-team--drawing {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--t) 60%, transparent);
+}
+
+.plate.sc-team .plate__name {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------- the log */
+
+.sc-guesses .housing__body {
+  gap: 10px;
+  padding: 12px;
+}
+
+.sc-log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: var(--gr-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.sc-log__who {
+  margin-right: 6px;
+  color: var(--gr-color-ink-dim);
+}
+
+.sc-log__who--you {
+  color: var(--gr-color-neon-hi);
+}
+
+.sc-log__got {
+  padding: 5px 10px;
+  border-radius: 10px;
+  color: var(--gr-color-good);
+  background: color-mix(in srgb, var(--gr-color-good) 12%, transparent);
+  font-weight: 500;
+  animation: sc-got 360ms var(--gr-settle);
+}
+
+@keyframes sc-got {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+.sc-log__close {
+  color: var(--gr-color-ink-dim);
+  font-style: italic;
+}
+
+.sc-log__pair {
+  padding-left: 10px;
+  border-left: 2px solid var(--gr-color-neon-dim);
+}
+
+.sc-log__aside {
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--gr-color-good) 50%, transparent);
+  color: var(--gr-color-ink-dim);
+}
+
+/* Said, not yet heard by the table. */
+.sc-log__pending {
+  opacity: 0.55;
+}
+
+.sc-send {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.sc-send .slab {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------- the tray */
+
+.sc-tray {
+  padding: 8px;
+  gap: 8px;
+}
+
+.sc-inks {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.lamp.sc-ink,
+.lamp.sc-size {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+}
+
+.lamp.sc-size {
+  width: 40px;
+}
+
+.lamp.sc-ink span {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.5);
+}
+
+.sc-ink--black span { background: #1f1c22; }
+.sc-ink--red span { background: #d9413b; }
+.sc-ink--orange span { background: #ef7d2d; }
+.sc-ink--yellow span { background: #f1c232; }
+.sc-ink--green span { background: #2f9d59; }
+.sc-ink--blue span { background: #2e6fd4; }
+.sc-ink--purple span { background: #7b4bc8; }
+.sc-ink--brown span { background: #7a4f2e; }
+.sc-ink--white span { background: #ffffff; }
+
+.lamp.sc-size span {
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sc-tray__row,
+.sc-tray__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sc-tray__gap {
+  flex: 1;
+}
+
+/* On a phone the tray and the guess box stay under the thumb while the napkin scrolls. */
+@media (max-width: 899px) {
+  .sc--drawing .sc-tray,
+  .sc-send {
+    position: sticky;
+    bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 3;
+  }
+}
+
+/* ------------------------------------------------------------- the off switch */
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-strip::after,
+  .sc-word i.is-open,
+  .sc-napkin__wipe,
+  .sc-reveal__cell,
+  .sc-reveal .readout__figure,
+  .sc-roster__name.sc-got,
+  .sc-log__got {
+    animation: none;
+    transition: none;
+  }
+}

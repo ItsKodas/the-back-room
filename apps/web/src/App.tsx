@@ -6,6 +6,7 @@ import { DeathRoll } from "./deathroll/DeathRoll.js";
 import { Leaderboard } from "./leaderboard/Leaderboard.js";
 import { Poker } from "./poker/Poker.js";
 import { Roulette } from "./roulette/Roulette.js";
+import { Scribble } from "./scribble/Scribble.js";
 import Slots from "./slots/Slots.js";
 import { Play } from "./game/Play.js";
 import { useButtonSound } from "./game/useButtonSound.js";
@@ -51,6 +52,8 @@ export default function App() {
       <Route path="/tips" element={<Tips />} />
       <Route path="/two-up" element={<TwoUp />} />
       <Route path="/two-up/:code" element={<TwoUp />} />
+      <Route path="/scribble" element={<Scribble />} />
+      <Route path="/scribble/:code" element={<Scribble />} />
       <Route path="/blackjack/:code" element={<Blackjack />} />
       {/*
         * A bare code at the root, so a link that was shared before there were
