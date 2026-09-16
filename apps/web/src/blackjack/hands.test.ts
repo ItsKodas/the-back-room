@@ -132,4 +132,21 @@ describe("what a seat says about itself", () => {
       tone: "good",
     });
   });
+
+  it("says push and lost, the two commonest outcomes at the table", () => {
+    expect(handTag(hand({ bet: 500, done: true, outcome: "push", returned: 500 }))).toEqual({
+      text: "Push",
+      tone: "quiet",
+    });
+    expect(handTag(hand({ bet: 500, done: true, outcome: "lost", returned: 0 }))).toEqual({
+      text: "Lost",
+      tone: "bad",
+    });
+  });
+
+  it("says Blackjack for a natural reached before the hand around it has settled", () => {
+    // outcome stays null mid-round; only isNatural says this hand is a blackjack.
+    const natural = hand({ bet: 500, done: true, outcome: null, cards: [card("A"), card("K")], total: 21 });
+    expect(handTag(natural)).toEqual({ text: "Blackjack", tone: "quiet" });
+  });
 });
