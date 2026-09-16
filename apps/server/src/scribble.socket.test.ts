@@ -154,6 +154,28 @@ describe("a line being drawn", () => {
     guesser.emit("game:action", { type: "stroke", id: "k1", seq: 0, ink: "red", size: 1, pts: [1, 1] });
     expect(await errors).toEqual(["Only the people drawing can draw."]);
   });
+
+  it("tells a refused drawer before the action's own ack, so a client can attribute the refusal correctly", async () => {
+    // A pair draws together, so one can reuse the other's line id and be told
+    // whose it is — proving the same ordering an ink client's attribution
+    // depends on: room:error for a refusal always beats that action's ack.
+    const { drawers } = await drawing(["Ada", "Bo", "Cy", "Di"], { mode: "teams", teams: 2 });
+    expect(drawers).toHaveLength(2);
+    const [first, second] = drawers as [Client, Client];
+    await new Promise<void>((resolve) => {
+      first.emit("game:action", { type: "stroke", id: "k1", seq: 0, ink: "red", size: 1, pts: [1, 1] }, () => resolve());
+    });
+
+    const order: string[] = [];
+    second.on("room:error", () => order.push("error"));
+    await new Promise<void>((resolve) => {
+      second.emit("game:action", { type: "stroke", id: "k1", seq: 1, ink: "red", size: 1, pts: [2, 2] }, () => {
+        order.push("ack");
+        resolve();
+      });
+    });
+    expect(order).toEqual(["error", "ack"]);
+  });
 });
 
 describe("chat at a scribble table", () => {

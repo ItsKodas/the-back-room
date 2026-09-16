@@ -41,6 +41,19 @@ interface Pending {
   open: boolean;
 }
 
+/**
+ * One ink action sent and not yet acknowledged, oldest first.
+ *
+ * The server processes one socket in emit order and answers each action
+ * before the next, so this queue's front is always the action a refusal is
+ * about — there is nothing else it could be.
+ */
+type Inflight =
+  | { kind: "stroke"; id: string; count: number }
+  | { kind: "fill"; id: string }
+  | { kind: "undo" }
+  | { kind: "clear" };
+
 const copy = (mark: Mark): Mark => (mark.kind === "stroke" ? { ...mark, pts: [...mark.pts] } : { ...mark });
 
 /**
@@ -67,6 +80,7 @@ export class InkBook {
    */
   private stampOf = new Map<string, number>();
   private stampCounter = 0;
+  private inflight: Inflight[] = [];
   private readonly me: string;
   private readonly makeId: () => string;
 
@@ -214,6 +228,7 @@ export class InkBook {
     const mark: FillMark = { kind: "fill", id: this.makeId(), by: this.me, ink, x, y };
     this.pending.push({ mark, seq: 1, unsent: [], open: false });
     this.stamp(mark.id);
+    this.inflight.push({ kind: "fill", id: mark.id });
     this.version += 1;
     return { type: "fill", id: mark.id, ink, x, y };
   }
@@ -236,7 +251,11 @@ export class InkBook {
       this.server = this.server.filter((one) => one.id !== mark.id);
       this.stampOf.delete(mark.id);
       this.version += 1;
-      return local === undefined || local.seq > 0;
+      const tellServer = local === undefined || local.seq > 0;
+      if (tellServer) {
+        this.inflight.push({ kind: "undo" });
+      }
+      return tellServer;
     }
     return false;
   }
@@ -246,6 +265,7 @@ export class InkBook {
     this.pending = [];
     this.stampOf = new Map();
     this.stampCounter = 0;
+    this.inflight.push({ kind: "clear" });
     this.version += 1;
   }
 
@@ -257,33 +277,82 @@ export class InkBook {
         continue;
       }
       while (one.unsent.length > 0) {
+        const pts = one.unsent.splice(0, MAX_BATCH * 2);
         batches.push({
           type: "stroke",
           id: mark.id,
           seq: one.seq,
           ink: mark.ink,
           size: mark.size,
-          pts: one.unsent.splice(0, MAX_BATCH * 2),
+          pts,
         });
+        this.inflight.push({ kind: "stroke", id: mark.id, count: pts.length });
         one.seq += 1;
       }
     }
     return batches;
   }
 
+  private dropMark(id: string): void {
+    this.pending = this.pending.filter((one) => one.mark.id !== id);
+    this.stampOf.delete(id);
+  }
+
+  /** Rolls a stroke back to what it held before a refused batch, and stops sending for it. */
+  private truncateStroke(id: string, count: number): void {
+    const one = this.pending.find((each) => each.mark.id === id);
+    if (one === undefined || one.mark.kind !== "stroke") {
+      return;
+    }
+    one.mark.pts.length = Math.max(0, one.mark.pts.length - count);
+    one.unsent = [];
+    one.open = false;
+    if (one.mark.pts.length === 0) {
+      this.dropMark(id);
+    }
+  }
+
   /**
-   * Gives up whatever the table cannot possibly have gotten.
-   *
-   * A refusal names no line, so this cannot know which pending mark it was
-   * about — only what could not yet be on the server: an open stroke, or one
-   * whose tail never went out. A mark already sent whole stays, since the
-   * refusal might be about something else entirely, sent since.
+   * With no outstanding action to blame, the only ink the server provably
+   * lacks is whatever is still waiting to go out on an open line — nothing
+   * of it has been sent, whichever action the refusal actually named.
+   */
+  private dropOpenTail(): void {
+    for (const one of this.pending) {
+      if (!one.open || one.unsent.length === 0 || one.mark.kind !== "stroke") {
+        continue;
+      }
+      one.mark.pts.length = Math.max(0, one.mark.pts.length - one.unsent.length);
+      one.unsent = [];
+      one.open = false;
+    }
+    for (const one of [...this.pending]) {
+      if (one.mark.kind === "stroke" && one.mark.pts.length === 0) {
+        this.dropMark(one.mark.id);
+      }
+    }
+  }
+
+  /** The done callback on a successful send calls this, moving the queue past whatever it was. */
+  acked(): void {
+    this.inflight.shift();
+  }
+
+  /**
+   * Attributes a refusal to the action it refused: the oldest one still
+   * waiting on an ack. A stroke batch is rolled back to what came before it
+   * and closed; a fill is removed outright; an undo or a clear changes
+   * nothing here, since there is no local mark left to roll back either —
+   * the next state, or the turn ending, is what rules on those.
    */
   refused(): void {
-    const dropped = this.pending.filter((one) => one.open || one.unsent.length > 0 || one.seq === 0);
-    this.pending = this.pending.filter((one) => !one.open && one.unsent.length === 0 && one.seq > 0);
-    for (const one of dropped) {
-      this.stampOf.delete(one.mark.id);
+    const next = this.inflight[0];
+    if (next === undefined) {
+      this.dropOpenTail();
+    } else if (next.kind === "stroke") {
+      this.truncateStroke(next.id, next.count);
+    } else if (next.kind === "fill") {
+      this.dropMark(next.id);
     }
     this.version += 1;
   }

@@ -85,7 +85,7 @@ export function useInk(table: InkTable, state: TableView, seatId: string | null)
 
   const flush = useCallback(() => {
     for (const batch of book.takeBatches()) {
-      act({ ...batch });
+      act({ ...batch }, () => book.acked());
     }
   }, [act, book]);
 
@@ -127,18 +127,18 @@ export function useInk(table: InkTable, state: TableView, seatId: string | null)
         flush();
       },
       fill(tool, x, y) {
-        act({ ...book.fill(tool.ink, x, y) });
+        act({ ...book.fill(tool.ink, x, y) }, () => book.acked());
         notify();
       },
       undo() {
         if (book.undo()) {
-          act({ type: "undo" });
+          act({ type: "undo" }, () => book.acked());
         }
         notify();
       },
       clear() {
         book.clear();
-        act({ type: "clear" });
+        act({ type: "clear" }, () => book.acked());
         notify();
       },
     }),

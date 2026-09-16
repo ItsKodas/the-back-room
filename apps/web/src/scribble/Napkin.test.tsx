@@ -99,6 +99,7 @@ describe("the napkin", () => {
     vi.advanceTimersByTime(FLUSH_MS);
     expect(act).toHaveBeenCalledWith(
       expect.objectContaining({ type: "stroke", seq: 0, ink: "red", size: 1, pts: [100, 100, 200, 100] }),
+      expect.any(Function),
     );
   });
 
@@ -208,7 +209,7 @@ describe("the napkin", () => {
     );
     fireEvent.pointerDown(container.querySelector("canvas") as HTMLCanvasElement, { clientX: 5, clientY: 5, pointerId: 1 });
     expect(pixel(900, 700)).toEqual([...INK_RGB.green]);
-    expect(act).toHaveBeenCalledWith(expect.objectContaining({ type: "fill", ink: "green", x: 10, y: 10 }));
+    expect(act).toHaveBeenCalledWith(expect.objectContaining({ type: "fill", ink: "green", x: 10, y: 10 }), expect.any(Function));
   });
 
   it("ignores a second finger while the first is still down", () => {
@@ -261,7 +262,7 @@ describe("the book follows the seat", () => {
     result.current.end();
     act.mockClear();
     result.current.undo();
-    expect(act).toHaveBeenCalledWith({ type: "undo" });
+    expect(act).toHaveBeenCalledWith({ type: "undo" }, expect.any(Function));
   });
 });
 

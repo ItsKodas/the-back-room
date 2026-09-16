@@ -95,36 +95,91 @@ describe("your own ink", () => {
 });
 
 describe("what a refusal can give up", () => {
-  // Only what the table cannot possibly have is dropped: an open line, or one
-  // whose tail never went out. A line already flushed whole stays until a
-  // state rules on it, because the refusal might be about something else
-  // entirely — a fill, an undo — sent since.
-  it("gives up an open line", () => {
-    const ink = book();
-    ink.begin("red", 1, 10, 10);
-    ink.extend(20, 20);
-    ink.refused();
-    expect(ink.marks()).toEqual([]);
-  });
-
-  it("gives up a line that ended but was never fully sent", () => {
-    const ink = book();
-    ink.begin("red", 1, 10, 10);
-    ink.extend(20, 20);
-    ink.end();
-    // No takeBatches(): the tail is still unsent.
-    ink.refused();
-    expect(ink.marks()).toEqual([]);
-  });
-
-  it("keeps a line already sent whole, since the refusal cannot be about un-sending it", () => {
+  // A refusal names no line, so this attributes it to the oldest ink action
+  // still waiting on an ack: exactly the one the server's ordering guarantees
+  // it was about. takeBatches()/fill()/a told undo/a clear each queue what
+  // they send; acked() is what the done callback on a successful send calls,
+  // moving the queue on so the next refusal blames whatever comes next.
+  it("removes a line flushed whole by end(), and a following undo sends nothing for it", () => {
     const ink = book();
     ink.begin("red", 1, 10, 10);
     ink.extend(20, 20);
     ink.end();
     ink.takeBatches();
     ink.refused();
-    expect(ink.marks()).toEqual([{ kind: "stroke", id: "id0", by: "me", ink: "red", size: 1, pts: [10, 10, 20, 20] }]);
+    expect(ink.marks()).toEqual([]);
+    expect(ink.undo()).toBe(false);
+  });
+
+  it("truncates a refused batch, leaving only the batches before it", () => {
+    const ink = book();
+    ink.begin("red", 1, 0, 0);
+    for (let x = 1; x < 100; x += 1) {
+      ink.extend(x, 0);
+    }
+    ink.takeBatches(); // batch 0 (64 points), batch 1 (36 points)
+    ink.acked(); // batch 0 accepted
+    ink.refused(); // batch 1 refused
+    expect(ink.marks()).toEqual([
+      { kind: "stroke", id: "id0", by: "me", ink: "red", size: 1, pts: Array.from({ length: 64 }, (_, i) => [i, 0]).flat() },
+    ]);
+  });
+
+  it("removes a refused fill", () => {
+    const ink = book();
+    ink.fill("blue", 5, 6);
+    ink.refused();
+    expect(ink.marks()).toEqual([]);
+  });
+
+  it("falls back to the open line's unsent tail when nothing is outstanding", () => {
+    const ink = book();
+    ink.begin("red", 1, 10, 10);
+    ink.extend(20, 20);
+    // Never taken, so nothing was ever sent — the queue is empty.
+    ink.refused();
+    expect(ink.marks()).toEqual([]);
+  });
+
+  it("changes nothing when there is no outstanding action and no open line", () => {
+    const ink = book();
+    ink.sync([{ kind: "stroke", id: "old", by: "me", ink: "red", size: 1, pts: [1, 1] }], true);
+    ink.refused();
+    expect(ink.marks()).toEqual([{ kind: "stroke", id: "old", by: "me", ink: "red", size: 1, pts: [1, 1] }]);
+  });
+
+  it("does nothing locally for an undo that gets refused, leaving the next state to rule on it", () => {
+    const ink = book();
+    ink.sync([{ kind: "stroke", id: "old", by: "me", ink: "red", size: 1, pts: [1, 1] }], true);
+    ink.begin("red", 1, 5, 5);
+    ink.end();
+    ink.takeBatches();
+    ink.acked();
+    expect(ink.undo()).toBe(true);
+    ink.refused();
+    expect(ink.marks()).toEqual([{ kind: "stroke", id: "old", by: "me", ink: "red", size: 1, pts: [1, 1] }]);
+  });
+
+  it("does nothing locally for a clear that gets refused, leaving the next state to rule on it", () => {
+    const ink = book();
+    ink.sync([{ kind: "stroke", id: "old", by: "me", ink: "red", size: 1, pts: [1, 1] }], true);
+    ink.clear();
+    ink.refused();
+    expect(ink.marks()).toEqual([]);
+  });
+
+  it("matches the server's picture once a state confirms what a refusal truncated", () => {
+    const ink = book();
+    ink.begin("red", 1, 0, 0);
+    for (let x = 1; x < 100; x += 1) {
+      ink.extend(x, 0);
+    }
+    ink.takeBatches();
+    ink.acked();
+    ink.refused();
+    const serverPts = Array.from({ length: 64 }, (_, i) => [i, 0]).flat();
+    ink.sync([{ kind: "stroke", id: "id0", by: "me", ink: "red", size: 1, pts: serverPts }], true);
+    expect(ink.marks()).toEqual([{ kind: "stroke", id: "id0", by: "me", ink: "red", size: 1, pts: serverPts }]);
   });
 });
 
