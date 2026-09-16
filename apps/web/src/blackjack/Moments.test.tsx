@@ -57,4 +57,20 @@ describe("a bust", () => {
     rerender(<Moments me={seat("a", "Ada")} />);
     expect(container.querySelector(".bj__stamp")).toBeNull();
   });
+
+  it("gives a second bust inside the same moment its own full-length stamp", () => {
+    const { container, rerender } = render(<Moments me={seat("a", "Ada", { hands: [live, live] })} />);
+
+    rerender(<Moments me={seat("a", "Ada", { hands: [busted, live] })} />);
+    act(() => vi.advanceTimersByTime(1_000));
+
+    // The first bust's own deadline (1600ms after it) has now passed, but the
+    // second bust just landed and earns its own full moment from here.
+    rerender(<Moments me={seat("a", "Ada", { hands: [busted, busted] })} />);
+    act(() => vi.advanceTimersByTime(700));
+    expect(container.querySelector(".bj__stamp")).not.toBeNull();
+
+    act(() => vi.advanceTimersByTime(MOMENT_MS - 700));
+    expect(container.querySelector(".bj__stamp")).toBeNull();
+  });
 });
