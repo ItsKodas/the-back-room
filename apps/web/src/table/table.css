@@ -1,0 +1,467 @@
+/*
+ * What every table in the building has, whatever is played at it: the page
+ * that is exactly the window, table talk, the activity log, a refusal over the
+ * board, and the room's own scrollbars.
+ *
+ * Imported by TalkSheet.tsx, Activity.tsx and Refusal.tsx, which is what makes
+ * it load. Every table page uses at least one of them.
+ */
+
+/* ------------------------------------------------------------ the window */
+
+/*
+ * The page is the window, not at least the window: a table that grew to its
+ * content would scroll the buttons off a phone, which is the whole thing this
+ * layout exists to stop.
+ */
+.shell:has(> .play--fit) {
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.shell__bar:has(+ .play--fit) {
+  padding-top: var(--gr-space-3);
+}
+
+/*
+ * On a phone the bar keeps to the table's own edges. At the building's 22px
+ * a signed-in row — sign, name, chips — is a few pixels wider than 375px.
+ */
+@media (max-width: 640px) {
+  .shell__bar:has(+ .play--fit) {
+    padding-inline: var(--gr-space-3);
+  }
+}
+
+.play--fit {
+  /* The container the talk drawer asks about, whatever table is inside. */
+  container: fit / inline-size;
+  /* The frame a refusal blurs and centres itself in. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  width: 100%;
+  min-height: 0;
+  padding: var(--gr-space-2) var(--gr-space-3) calc(var(--gr-space-3) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 720px) {
+  .play--fit {
+    padding-inline: var(--gr-space-5);
+    padding-bottom: var(--gr-space-5);
+  }
+}
+
+.play--fit > .play__error {
+  flex: none;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------ table talk */
+
+/*
+ * Opened on purpose, never pushed at you. A sheet from the bottom on a phone
+ * that stops short of the scores, so the game stays in view while you type; a
+ * drawer from the right at a desk.
+ */
+.talk__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  background: rgb(0 0 0 / 0.45);
+  cursor: default;
+  animation: table-fade 200ms ease both;
+}
+
+@keyframes table-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.talk {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: max(120px, 28%);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  background: linear-gradient(
+    180deg,
+    var(--gr-color-smoke-lit) 0%,
+    var(--gr-color-smoke) 10%,
+    var(--gr-color-slate) 50%,
+    color-mix(in srgb, var(--gr-color-slate) 55%, var(--gr-color-shadow)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 -18px 40px rgb(0 0 0 / 0.5);
+  animation: table-talk-up 340ms var(--gr-settle) both;
+}
+
+.talk:focus {
+  outline: none;
+}
+
+@keyframes table-talk-up {
+  from {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+}
+
+.talk__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gr-space-2) var(--gr-space-2) var(--gr-space-2) var(--gr-space-4);
+  border-bottom: 1px solid rgb(0 0 0 / 0.45);
+}
+
+.talk__title {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+/* The building's chat, dressed the same in the sheet and in the lobby's panel. */
+:is(.talk, .talk-panel) .chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+:is(.talk, .talk-panel) .chat > .panel__label {
+  display: none;
+}
+
+:is(.talk, .talk-panel) .chat__log {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+  margin: 0;
+  padding: var(--gr-space-3) var(--gr-space-4);
+  align-content: end;
+  gap: var(--gr-space-2);
+}
+
+:is(.talk, .talk-panel) .chat__entry {
+  padding: 10px var(--gr-space-3) var(--gr-space-3);
+  border-top: 1px solid rgb(0 0 0 / 0.4);
+  background: rgb(0 0 0 / 0.14);
+}
+
+:is(.talk, .talk-panel) .chat__entry .field__input {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: var(--gr-radius-key);
+  background: rgb(0 0 0 / 0.38);
+  box-shadow: var(--gr-sink);
+  /* A phone zooms the page in on a focused field under 16px. */
+  font-size: 16px;
+}
+
+:is(.talk, .talk-panel) .chat__entry .btn {
+  min-height: 48px;
+  padding: 0 var(--gr-space-4);
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: var(--gr-radius-key);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(0 0 0 / 0.22)),
+    var(--gr-color-smoke);
+  color: var(--gr-color-ink);
+  box-shadow:
+    var(--gr-lip),
+    0 3px 0 rgb(0 0 0 / 0.45);
+}
+
+/* The lobby's panel: a height of its own, so a long evening scrolls inside it. */
+.talk-panel .chat__log {
+  min-height: 140px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+@container fit (min-width: 760px) {
+  .talk {
+    top: 0;
+    left: auto;
+    width: 380px;
+    animation-name: table-talk-in;
+  }
+
+  .talk__scrim {
+    background: rgb(0 0 0 / 0.2);
+  }
+}
+
+@keyframes table-talk-in {
+  from {
+    opacity: 0;
+    transform: translateX(40%);
+  }
+}
+
+/*
+ * The talk key, pinned to a play area's top-left corner. On the table rather
+ * than the bar: a phone's bar is already as full as a phone is wide, and a
+ * corner costs the table no row.
+ */
+.table-talk-corner {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+}
+
+.table-talk-corner .talk-key {
+  width: 36px;
+  min-height: 36px;
+}
+
+/* How much has been said since you last looked. */
+.talk-key {
+  position: relative;
+}
+
+.talk-key[aria-expanded="true"] {
+  color: var(--gr-color-neon-hi);
+}
+
+.talk-key__count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--gr-radius-pill);
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 8px var(--gr-color-neon);
+  color: var(--gr-color-shadow);
+  font-family: var(--gr-font-data);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------- the activity */
+
+/*
+ * What the table said happened, kept. The log lives in the talk sheet on a
+ * phone and a panel of its own at a desk, placed by each table.
+ */
+.activity {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  align-content: end;
+  gap: 2px;
+  overflow-y: auto;
+  font-size: var(--gr-text-xs);
+}
+
+.activity__line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--gr-space-2);
+  padding: 3px 4px;
+  color: var(--gr-color-ink-dim);
+  overflow-wrap: anywhere;
+}
+
+.activity__at {
+  font-family: var(--gr-font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink-faint);
+}
+
+/* The newest line is the news: brighter, and it arrives rather than appears. */
+.activity__line:last-child {
+  color: var(--gr-color-ink-lit);
+  animation: table-line-in 260ms var(--gr-settle) both;
+}
+
+@keyframes table-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.activity__quiet {
+  padding: 4px;
+  color: var(--gr-color-ink-faint);
+}
+
+/* In the sheet: the same log at reading size, filling what talk would. */
+.talk__activity {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.talk__activity .activity {
+  padding: var(--gr-space-3) var(--gr-space-4);
+  font-size: var(--gr-text-sm);
+}
+
+.talk__head .seg {
+  flex: none;
+}
+
+/* ------------------------------------------------------------ scrolling */
+
+/*
+ * Every box at the table that scrolls — the activity log, talk, and whatever
+ * a game marks .table-scroll (a score card, for one) — wears the room's own
+ * bar: thin, dark, and rounded, a groove in the panel with a thumb that only
+ * brightens under the pointer. The browser's grey bar with its arrows was the
+ * one part of the table still drawn by the system.
+ */
+/*
+ * The standard properties only where the drawn bar below is not understood.
+ * Chrome lets scrollbar-width and scrollbar-color win over ::-webkit-scrollbar,
+ * and its thin system bar still carries arrows — so Chrome and Safari get the
+ * drawn one, and Firefox, which has no other way, gets these.
+ */
+@supports not selector(::-webkit-scrollbar) {
+  :is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gr-color-smoke-lit) transparent;
+  }
+}
+
+:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.25);
+}
+
+:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--gr-color-smoke-lit) padding-box;
+}
+
+:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--gr-color-neon) 55%, var(--gr-color-smoke-lit)) padding-box;
+}
+
+/* No arrows: the thumb and the wheel are how anybody moves these. */
+:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* ------------------------------------------------------------- a refusal */
+
+/*
+ * The table saying no, over the middle of the board with the board blurred
+ * behind it, so it is the one thing in focus until it is read. Bad is an
+ * outcome colour, never the accent, so the card is edged in it rather than lit.
+ */
+.refusal {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--gr-space-4);
+}
+
+.refusal__scrim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--gr-radius-cab);
+  background: rgb(0 0 0 / 0.38);
+  -webkit-backdrop-filter: blur(6px) saturate(0.8);
+  backdrop-filter: blur(6px) saturate(0.8);
+  cursor: pointer;
+  animation: table-fade 200ms ease both;
+}
+
+.refusal__card {
+  position: relative;
+  max-width: min(100%, 360px);
+  margin: 0;
+  padding: var(--gr-space-4) var(--gr-space-5);
+  border: 1px solid color-mix(in srgb, var(--gr-color-bad) 70%, black);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--gr-color-bad) 22%, transparent), transparent),
+    var(--gr-color-slate);
+  box-shadow:
+    var(--gr-lip),
+    0 0 0 3px color-mix(in srgb, var(--gr-color-bad) 18%, transparent),
+    0 24px 60px rgb(0 0 0 / 0.6);
+  font-size: var(--gr-text-lg);
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--gr-color-ink-lit);
+  /* A tap on the card is a tap on the scrim under it. */
+  pointer-events: none;
+  animation: table-refuse 360ms var(--gr-settle) both;
+}
+
+/* Arrives with a small shake of the head: the one motion that says no. */
+@keyframes table-refuse {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.02) translateX(-6px);
+  }
+  70% {
+    transform: translateX(4px);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------ off switch */
+
+@media (prefers-reduced-motion: reduce) {
+  .talk,
+  .talk__scrim,
+  .activity__line:last-child,
+  .refusal__scrim,
+  .refusal__card {
+    animation: none;
+    transition: none;
+  }
+}

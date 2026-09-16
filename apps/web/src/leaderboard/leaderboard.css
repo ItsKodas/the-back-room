@@ -166,7 +166,7 @@
  * place. The rail around it is the card; this is only what sits inside.
  */
 .standings,
-.activity {
+.floor-activity {
   display: flex;
   flex-direction: column;
   gap: var(--gr-space-2);

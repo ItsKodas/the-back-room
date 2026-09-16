@@ -23,6 +23,10 @@ export const STAKE_SETTLE_MS = 300;
  * Only offered when everyone at the table is signed in and there are no bots —
  * a bot has no balance to lose and no account to pay, so letting one into a pot
  * would mint or destroy chips.
+ *
+ * Takes Greed's RoomView because Greed is the only table with a pre-game
+ * stake so far. Generalise the shape once a second table needs one — nothing
+ * here should be assumed to already cover it.
  */
 export function Stake({
   room,

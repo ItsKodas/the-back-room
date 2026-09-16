@@ -42,6 +42,8 @@ export function useIntent(
   view: TableView | null,
   seatId: string | null,
   error: string | null,
+  /** Moves on for every refusal, including one in the same words as the last. */
+  errorKey = 0,
 ): Intent {
   const turn = view?.toAct ?? null;
   const [sent, setSent] = useState<Sent | null>(null);
@@ -80,11 +82,12 @@ export function useIntent(
   }, [turn, seatId, sent]);
 
   /** A refusal takes it back at once rather than waiting out the patience. */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error !== null) {
       setSent(null);
     }
-  }, [error]);
+  }, [error, errorKey]);
 
   return {
     move: sent?.kind ?? null,

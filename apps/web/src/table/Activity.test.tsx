@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-import type { RoomView, TurnView } from "@backroom/shared";
 import { render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { ActivitySource } from "./Activity.js";
 import { ActivityLog, useActivity } from "./Activity.js";
 
-function room(code: string, lastEvent: string | null, rollSeq = 0): RoomView {
-  return { code, lastEvent, turn: { rollSeq } as TurnView } as unknown as RoomView;
+function room(code: string, text: string | null, seq = 0): ActivitySource {
+  return { code, text, seq };
 }
 
-function log(initial: RoomView | null) {
+function log(initial: ActivitySource | null) {
   return renderHook(({ view }) => useActivity(view), { initialProps: { view: initial } });
 }
 
@@ -45,6 +45,12 @@ describe("the activity log", () => {
 
   it("has nothing to say until the table does", () => {
     const { result } = log(room("AAAAA", null));
+    expect(result.current).toEqual([]);
+  });
+
+  it("forgets the log when the table goes", () => {
+    const { result, rerender } = log(room("AAAAA", "Koda goes first"));
+    rerender({ view: null });
     expect(result.current).toEqual([]);
   });
 });

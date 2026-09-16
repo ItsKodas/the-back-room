@@ -1,5 +1,5 @@
-import type { RoomView } from "@backroom/shared";
 import { useEffect, useRef, useState } from "react";
+import "./table.css";
 
 /** One thing the table said happened. */
 export interface ActivityEntry {
@@ -12,44 +12,57 @@ export interface ActivityEntry {
 const KEEP = 100;
 
 /**
+ * What a table says, as a log: which table, its latest line, and a counter that
+ * moves on with every action it reports. The counter is what tells the same
+ * words twice running ("Koda rolled 5") apart from one broadcast sent twice.
+ */
+export interface ActivitySource {
+  code: string;
+  text: string | null;
+  seq: number;
+}
+
+/**
  * Everything the table has said happened, oldest first.
  *
  * The server only ever sends the latest line, so the history is kept here as
- * lines arrive. A line is new when its words change, or when a throw lands —
- * the same words twice running ("Koda rolled 5") are two throws, and the roll
- * counter moving on is what tells them apart. The counter starting again at a
- * new turn is not a throw, so it adds nothing. A different table is a
- * different log.
+ * lines arrive. A line is new when its words change, or when the counter moves
+ * on. The counter starting again (a new turn, at Greed) is not an action, so it
+ * adds nothing. A different table is a different log.
  */
-export function useActivity(room: RoomView | null): ActivityEntry[] {
+export function useActivity(source: ActivitySource | null): ActivityEntry[] {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const last = useRef<{ code: string; text: string | null; seq: number } | null>(null);
   const nextId = useRef(1);
+  // Taken apart so a caller building a fresh object each render does not make
+  // every render look like news.
+  const code = source?.code ?? null;
+  const text = source?.text ?? null;
+  const seq = source?.seq ?? 0;
 
   useEffect(() => {
-    if (room === null) {
+    if (code === null) {
       last.current = null;
       setEntries([]);
       return;
     }
-    const seq = room.turn?.rollSeq ?? 0;
     const prev = last.current;
-    last.current = { code: room.code, text: room.lastEvent, seq };
+    last.current = { code, text, seq };
 
-    const sameTable = prev !== null && prev.code === room.code;
+    const sameTable = prev !== null && prev.code === code;
     if (!sameTable) {
       setEntries([]);
     }
-    if (room.lastEvent === null) {
+    if (text === null) {
       return;
     }
-    if (sameTable && prev.text === room.lastEvent && seq <= prev.seq) {
+    if (sameTable && prev.text === text && seq <= prev.seq) {
       return;
     }
-    const entry = { id: nextId.current, at: Date.now(), text: room.lastEvent };
+    const entry = { id: nextId.current, at: Date.now(), text };
     nextId.current += 1;
     setEntries((list) => [...(sameTable ? list : []), entry].slice(-KEEP));
-  }, [room]);
+  }, [code, text, seq]);
 
   return entries;
 }

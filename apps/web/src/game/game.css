@@ -2845,40 +2845,6 @@
   flex: none;
 }
 
-/*
- * A move at the table: a glyph over a word, two to a row.
- *
- * Stacked rather than side by side because these sit in a narrow column and
- * come in pairs — hit against stand, double against split — and a pair reads
- * as a choice only when the two halves are the same shape.
- */
-.btn--move {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gr-space-1);
-  padding: var(--gr-space-3) var(--gr-space-2);
-  line-height: 1.2;
-}
-
-.btn--move svg {
-  width: 22px;
-  height: 22px;
-  flex: none;
-}
-
-/* What the move costs. Gold, because it is money. */
-.btn__cost {
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-xs);
-  font-style: normal;
-  color: var(--gr-color-chip);
-}
-
-.btn:disabled .btn__cost {
-  color: inherit;
-}
-
 /* A word under a control about when it actually bites. */
 .bots__hint {
   margin: var(--gr-space-1) 0 0;

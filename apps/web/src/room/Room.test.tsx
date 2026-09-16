@@ -113,7 +113,7 @@ describe("the room's groups", () => {
     const { container } = show();
 
     expect(container.querySelector(".rail--right .standings")).toBeTruthy();
-    expect(container.querySelector(".rail--left .activity")).toBeTruthy();
+    expect(container.querySelector(".rail--left .floor-activity")).toBeTruthy();
     expect(container.querySelector(".room .standings")).toBeNull();
   });
 });

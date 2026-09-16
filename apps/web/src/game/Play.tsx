@@ -10,11 +10,11 @@ import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HouseRulesEditor } from "./HouseRulesEditor.js";
-import { Stake } from "./Stake.js";
+import { Stake } from "../table/Stake.js";
 import { Table } from "./Table.js";
-import { TalkKey, TalkPanel, TalkSheet, useTalk } from "./TalkSheet.js";
-import { ActivityLog, useActivity } from "./Activity.js";
-import { Refusal } from "./Refusal.js";
+import { TalkKey, TalkPanel, TalkSheet, useTalk } from "../table/TalkSheet.js";
+import { ActivityLog, useActivity } from "../table/Activity.js";
+import { Refusal } from "../table/Refusal.js";
 import type { Account } from "./useAccount.js";
 import { useAccount } from "./useAccount.js";
 import { TauntPicker } from "../taunt/TauntPicker.js";
@@ -54,8 +54,11 @@ export function Play() {
   } = useRoom(account.setChips);
   useSound(room, seatId);
   const talk = useTalk(chat, seatId);
-  // Kept from the first line the table says, so nothing is lost while talk is shut.
-  const activity = useActivity(room);
+  // Kept from the first line the table says, so nothing is lost while talk is
+  // shut. Greed's roll counter is what tells two identical throws apart.
+  const activity = useActivity(
+    room === null ? null : { code: room.code, text: room.lastEvent, seq: room.turn?.rollSeq ?? 0 },
+  );
   // The felt, as against the door, the join and the lobby, which are pages.
   const atTable = taken === null && room !== null && room.status !== "lobby";
 
@@ -92,7 +95,7 @@ export function Play() {
   }
 
   return (
-    <main className={`play${atTable ? " play--greed" : ""}`}>
+    <main className={`play${atTable ? " play--fit" : ""}`}>
       {/* At the table a refusal takes the middle of the board; on a page it stays a strip. */}
       {atTable ? (
         <Refusal message={error} id={errorKey} />

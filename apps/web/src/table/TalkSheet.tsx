@@ -2,7 +2,8 @@ import type { ChatMessage } from "@backroom/shared";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Seg } from "../fittings/Seg.js";
-import { Chat } from "./Chat.js";
+import { Chat } from "../game/Chat.js";
+import "./table.css";
 
 const SHEET_ID = "table-talk";
 

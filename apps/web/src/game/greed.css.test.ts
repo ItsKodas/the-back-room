@@ -19,6 +19,19 @@ function rule(selector: string): string {
   return css.match(new RegExp(`^${escaped} \\{([^}]*)\\}`, "m"))?.[1] ?? "";
 }
 
+describe("what greed.css leaves to the building", () => {
+  /*
+   * Talk, activity, refusals and the one-screen page are every table's, so they
+   * live in table/table.css. A second copy here is a second thing to keep in
+   * step, and the first one to drift.
+   */
+  it("carries no shared table rules of its own", () => {
+    expect(css).not.toMatch(/^\.(talk|talk__scrim|activity|refusal|refusal__card) \{/m);
+    expect(css).not.toContain("play--greed");
+    expect(css).not.toMatch(/^:is\(\.activity/m);
+  });
+});
+
 describe("the dice on the felt", () => {
   /*
    * The felt sizes a die from its own width and height, through --d set on the

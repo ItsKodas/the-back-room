@@ -209,7 +209,7 @@ export function Felt({
   state: TableView;
   seatId: string | null;
 }) {
-  const intent = useIntent(state, seatId, table.error);
+  const intent = useIntent(state, seatId, table.error, table.errorKey);
   const me = state.seats.find((seat) => seat.id === seatId) ?? null;
 
   /*

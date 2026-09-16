@@ -56,6 +56,8 @@ export function useIntent(
   seatId: string | null,
   act: (action: Record<string, unknown>) => void,
   error: string | null,
+  /** Moves on for every refusal, including one in the same words as the last. */
+  errorKey = 0,
 ): Intent {
   const [sent, setSent] = useState<Sent | null>(null);
   // Only ever one `Sent` outstanding, so only one timer needs to exist for
@@ -146,11 +148,12 @@ export function useIntent(
    * "still writing". This is what lets `pass`'s economy write take however
    * long it takes without the pot dropping back and then jumping up again.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error !== null) {
       setSent(null);
     }
-  }, [error]);
+  }, [error, errorKey]);
 
   return {
     rolling: sent?.kind === "roll",

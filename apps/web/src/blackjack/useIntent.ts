@@ -31,10 +31,14 @@ interface Sent {
 export interface Intent {
   /** The stake to show: this player's own last click until the table agrees. */
   bet: number | null;
+  /** Readiness to show: this player's own last press until the table agrees. */
+  ready: boolean | null;
   /** A move gone and not yet answered, or null when the table is up to date. */
   move: Move | null;
   /** Records a stake as placed. Call it as the message goes, not after. */
   place: (amount: number) => void;
+  /** Records a readiness press. Call it as the message goes, not after. */
+  setReady: (ready: boolean) => void;
   /** Records a move as sent. */
   send: (kind: Move) => void;
 }
@@ -43,6 +47,8 @@ export function useIntent(
   view: TableView | null,
   seatId: string | null,
   error: string | null,
+  /** Moves on for every refusal, including one in the same words as the last. */
+  errorKey = 0,
 ): Intent {
   const me = view?.seats.find((seat) => seat.id === seatId) ?? null;
   const cards = me?.hands.reduce((total, hand) => total + hand.cards.length, 0) ?? 0;
@@ -51,6 +57,7 @@ export function useIntent(
   const phase = view?.phase ?? null;
 
   const [bet, setBet] = useState<number | null>(null);
+  const [ready, setReadyState] = useState<boolean | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
   const timers = useRef<number[]>([]);
 
@@ -77,6 +84,14 @@ export function useIntent(
     [forget],
   );
 
+  const setReady = useCallback(
+    (value: boolean) => {
+      setReadyState(value);
+      forget(() => setReadyState(null));
+    },
+    [forget],
+  );
+
   const send = useCallback(
     (kind: Move) => {
       setSent({ kind, cards, hands, turn });
@@ -98,17 +113,31 @@ export function useIntent(
     }
   }, [bet, me]);
 
+  // The same catching-up, for readiness: the table holding the answer this
+  // player pressed is what says the press landed.
+  useEffect(() => {
+    if (ready !== null && me !== null && me.ready === ready) {
+      setReadyState(null);
+    }
+  }, [ready, me]);
+
+  // Keyed on the count as well as the words: a second refusal in the same
+  // words is still a refusal, and would otherwise leave the move hanging.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error !== null) {
       setBet(null);
+      setReadyState(null);
       setSent(null);
     }
-  }, [error]);
+  }, [error, errorKey]);
 
-  // A hand that has been dealt is no longer one anybody is betting on.
+  // A hand that has been dealt is no longer one anybody is betting or
+  // readying up on.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fires on the phase changing, which is the point
   useEffect(() => {
     setBet(null);
+    setReadyState(null);
   }, [phase]);
 
   /*
@@ -125,7 +154,7 @@ export function useIntent(
     }
   }, [sent, cards, hands, turn]);
 
-  return { bet, move: sent?.kind ?? null, place, send };
+  return { bet, ready, move: sent?.kind ?? null, place, setReady, send };
 }
 
 /**
