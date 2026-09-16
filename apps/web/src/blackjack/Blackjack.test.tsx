@@ -100,15 +100,19 @@ function socket(state: TableView | null, over: Partial<TableSocketHook<TableView
   };
 }
 
-function show(hook: TableSocketHook<TableView>) {
-  vi.mocked(useTableSocket).mockReturnValue(hook as TableSocketHook<unknown>);
-  return render(
+function tree() {
+  return (
     <MemoryRouter initialEntries={["/blackjack/HG4ME"]}>
       <Routes>
         <Route path="/blackjack/:code" element={<Blackjack />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function show(hook: TableSocketHook<TableView>) {
+  vi.mocked(useTableSocket).mockReturnValue(hook as TableSocketHook<unknown>);
+  return render(tree());
 }
 
 beforeEach(() => {
@@ -211,6 +215,34 @@ describe("the host's Table key", () => {
   it("is not there for anybody else", () => {
     show(socket(view({ hostId: "b" })));
     expect(screen.queryByRole("button", { name: "Table" })).toBeNull();
+  });
+});
+
+describe("Ready lands on the press", () => {
+  /*
+   * A socket whose act never answers, standing in for a bad connection: the
+   * round trip is long enough that a version showing only the table's own
+   * word would sit on "Ready" for a whole frame's worth of somebody's evening.
+   */
+  it("says Waiting the moment Ready is pressed, before the table replies", () => {
+    show(socket(view()));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Ready/ }));
+
+    expect(screen.getByRole("button", { name: /^Waiting/ })).toBeTruthy();
+  });
+
+  it("takes the press back on a refusal", () => {
+    const { rerender } = show(socket(view()));
+    fireEvent.click(screen.getByRole("button", { name: /^Ready/ }));
+    expect(screen.getByRole("button", { name: /^Waiting/ })).toBeTruthy();
+
+    vi.mocked(useTableSocket).mockReturnValue(
+      socket(view(), { error: "Last call — you can only take chips back now.", errorKey: 1 }) as TableSocketHook<unknown>,
+    );
+    rerender(tree());
+
+    expect(screen.getByRole("button", { name: /^Ready/ })).toBeTruthy();
   });
 });
 

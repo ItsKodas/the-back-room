@@ -11,6 +11,7 @@ function controls(over: Partial<ControlsProps> = {}) {
     state,
     me: state.seats[0] ?? null,
     mine: 0,
+    ready: false,
     chips: 12_400,
     move: null,
     left: 20,
@@ -78,7 +79,7 @@ describe("the controls while betting", () => {
 
   it("un-ready on a second press", () => {
     const state = view({ seats: [seat("a", "Ada", { bet: 500, ready: true }), seat("b", "Bo")] });
-    const { container, props } = controls({ state, me: state.seats[0] ?? null, mine: 500 });
+    const { container, props } = controls({ state, me: state.seats[0] ?? null, mine: 500, ready: true });
     const waiting = slabs(container)[0];
     expect(waiting?.textContent).toMatch(/^Waiting…/);
     if (waiting !== undefined) {

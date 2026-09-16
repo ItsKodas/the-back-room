@@ -166,6 +166,13 @@ function BlackjackTable({
     intent.place(amount);
     table.act({ type: "bet", amount });
   };
+  const ready = (value: boolean) => {
+    intent.setReady(value);
+    table.act({ type: "ready", ready: value });
+  };
+  // This player's own last press until the table agrees, so "Waiting…" shows
+  // on the tap rather than after a round trip.
+  const readyShown = intent.ready ?? me?.ready ?? false;
   const log = <ActivityLog entries={activity} />;
 
   return (
@@ -237,6 +244,7 @@ function BlackjackTable({
           state={state}
           me={me}
           mine={mine}
+          ready={readyShown}
           chips={chips}
           move={intent.move}
           left={left}
@@ -267,7 +275,7 @@ function BlackjackTable({
             />
           }
           onStake={stake}
-          onReady={(ready) => table.act({ type: "ready", ready })}
+          onReady={ready}
           onDeal={() => table.act({ type: "deal" })}
           onMove={move}
         />

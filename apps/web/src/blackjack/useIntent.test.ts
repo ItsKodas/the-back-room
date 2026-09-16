@@ -120,6 +120,54 @@ describe("a stake, before the table has agreed to it", () => {
   });
 });
 
+describe("readiness, before the table has agreed to it", () => {
+  it("shows what this player asked for", () => {
+    const view = table({ ready: false });
+    const { result } = renderHook(() => useIntent(view, "a", null));
+
+    act(() => result.current.setReady(true));
+
+    expect(result.current.ready).toBe(true);
+  });
+
+  it("stops showing it the moment the table holds the same answer", () => {
+    const { result, rerender } = renderHook(
+      ({ view }: { view: TableView }) => useIntent(view, "a", null),
+      { initialProps: { view: table({ ready: false }) } },
+    );
+    act(() => result.current.setReady(true));
+
+    rerender({ view: table({ ready: true }) });
+
+    expect(result.current.ready).toBeNull();
+  });
+
+  it("gives up on a press the table refused", () => {
+    const view = table({ ready: false });
+    const { result, rerender } = renderHook(
+      ({ error }: { error: string | null }) => useIntent(view, "a", error),
+      { initialProps: { error: null as string | null } },
+    );
+    act(() => result.current.setReady(true));
+
+    rerender({ error: "Last call — you can only take chips back now." });
+
+    expect(result.current.ready).toBeNull();
+  });
+
+  it("clears when the hand is dealt, whatever was on the felt", () => {
+    const { result, rerender } = renderHook(
+      ({ view }: { view: TableView }) => useIntent(view, "a", null),
+      { initialProps: { view: table({ ready: true }, { phase: "betting" }) } },
+    );
+    act(() => result.current.setReady(true));
+
+    rerender({ view: table({ ready: true }, { phase: "playing" }) });
+
+    expect(result.current.ready).toBeNull();
+  });
+});
+
 describe("a move, before the table has answered", () => {
   it("remembers what was sent", () => {
     const { result } = renderHook(() => useIntent(table(), "a", null));

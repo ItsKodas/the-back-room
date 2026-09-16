@@ -20,6 +20,8 @@ export interface ControlsProps {
   me: SeatView | null;
   /** The stake to show: this player's own last press until the table agrees. */
   mine: number;
+  /** Readiness to show: this player's own last press until the table agrees. */
+  ready: boolean;
   /** The account's balance, or null for a guest. */
   chips: number | null;
   /** A move sent and not yet answered. */
@@ -70,7 +72,7 @@ export function Controls(props: ControlsProps) {
  * stack comes back off in one go: a stake you cannot take back before the cards
  * are out would make a misclick cost a hand.
  */
-function Betting({ state, me, mine, chips, left, isHost, onStake, onReady, onDeal }: Seated) {
+function Betting({ state, me, mine, ready, chips, left, isHost, onStake, onReady, onDeal }: Seated) {
   /*
    * One clock with two jobs: it is what the slab says and what locks the chips.
    * Read once, so a chip never refuses itself a tick before the words say so.
@@ -78,7 +80,7 @@ function Betting({ state, me, mine, chips, left, isHost, onStake, onReady, onDea
   const lastCall = left !== null && left <= LAST_CALL_MS / 1000;
   const available = availableTo(state, me, chips, mine);
   const short = mine > 0 && mine < state.minBet;
-  const under = me.ready
+  const under = ready
     ? "for the others"
     : short
       ? `at least ${fmt(state.minBet)}`
@@ -128,12 +130,12 @@ function Betting({ state, me, mine, chips, left, isHost, onStake, onReady, onDea
           type="button"
           className="slab bj__main"
           aria-keyshortcuts="Space"
-          aria-pressed={me.ready}
+          aria-pressed={ready}
           disabled={short}
-          onClick={() => onReady(!me.ready)}
+          onClick={() => onReady(!ready)}
         >
           <span>
-            {me.ready ? "Waiting…" : "Ready"}
+            {ready ? "Waiting…" : "Ready"}
             <kbd>Space</kbd>
           </span>
           <small>{under}</small>
