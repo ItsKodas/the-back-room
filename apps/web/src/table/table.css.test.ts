@@ -81,6 +81,28 @@ describe("scrolling boxes at a table", () => {
     expect(guarded).toContain("scrollbar-width: thin");
     expect(css.replace(guarded, "")).not.toMatch(/scrollbar-(width|color):/);
   });
+
+  /*
+   * The log is the one box that carries no bar. It keeps itself at the newest
+   * line, and it only just overflows, so a bar flashed in and out at the
+   * panel's edge on every event — pulling the eye off the line that arrived.
+   */
+  it("gives the activity log no bar at all, in either kind of browser", () => {
+    expect(rule(".activity::-webkit-scrollbar")).toContain("width: 0");
+    expect(block("@supports not selector(::-webkit-scrollbar)")).toContain("scrollbar-width: none");
+    // And the drawn bar's own rules must not claim the log back.
+    expect(css).not.toMatch(/:is\(\.activity,/);
+  });
+});
+
+describe("the bar over a table", () => {
+  /*
+   * A table is a lit panel with an edge of its own. The bar's hairline landed a
+   * few pixels above it, which read as a line ruled across the table.
+   */
+  it("drops its hairline so no line sits on the felt", () => {
+    expect(rule(".shell__bar:has(+ .play--fit) .nav")).toContain("border-bottom: none");
+  });
 });
 
 describe("motion at a table", () => {

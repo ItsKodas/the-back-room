@@ -25,6 +25,18 @@
 }
 
 /*
+ * No hairline over a table.
+ *
+ * The bar's own bottom edge landed a few pixels above the felt, so it read as
+ * a line ruled across the table rather than as the underside of the bar. A
+ * table is a lit panel with an edge of its own, which is division enough.
+ */
+.shell__bar:has(+ .play--fit) .nav {
+  padding-bottom: var(--gr-space-3);
+  border-bottom: none;
+}
+
+/*
  * On a phone the bar keeps to the table's own edges. At the building's 22px
  * a signed-in row — sign, name, chips — is a few pixels wider than 375px.
  */
@@ -350,35 +362,53 @@
  * drawn one, and Firefox, which has no other way, gets these.
  */
 @supports not selector(::-webkit-scrollbar) {
-  :is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log) {
+  :is(.table-scroll, .talk .chat__log, .talk-panel .chat__log) {
     scrollbar-width: thin;
     scrollbar-color: var(--gr-color-smoke-lit) transparent;
   }
+
+  /* The log's bar is hidden outright; see below. */
+  .activity {
+    scrollbar-width: none;
+  }
 }
 
-:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-track {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-track {
   border-radius: 999px;
   background: rgb(0 0 0 / 0.25);
 }
 
-:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
   background: var(--gr-color-smoke-lit) padding-box;
 }
 
-:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb:hover {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--gr-color-neon) 55%, var(--gr-color-smoke-lit)) padding-box;
 }
 
 /* No arrows: the thumb and the wheel are how anybody moves these. */
-:is(.activity, .table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-button {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-button {
   display: none;
+}
+
+/*
+ * The activity log carries no bar at all.
+ *
+ * It keeps itself scrolled to the newest line, so a bar tells a reader nothing
+ * they are about to act on — and because the log only just overflows, every
+ * new line flashed one in and out at the panel's edge, pulling the eye off the
+ * line that had just arrived. The wheel, a drag and the keyboard still move it.
+ */
+.activity::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 /* ------------------------------------------------------------- a refusal */
