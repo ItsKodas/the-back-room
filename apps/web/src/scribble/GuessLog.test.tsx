@@ -83,4 +83,47 @@ describe("the guess log", () => {
     render(<GuessLog log={[]} seatId="s1" state={state} error={null} onSay={() => {}} />);
     expect(screen.getByRole("textbox")).toHaveAttribute("placeholder", "Say something to Sam");
   });
+
+  it("swaps the pending line even once the chat log is capped at 60 lines", () => {
+    // useTableSocket caps the room's chat at 60 lines (`.slice(-60)`), so a length-based
+    // cursor stops advancing the moment the cap is hit — this reproduces that shape.
+    const filler = Array.from({ length: 60 }, (_, index) => line({ seatId: "sX", text: `filler${index}`, at: index }));
+    const { container, rerender } = render(
+      <GuessLog log={filler} seatId="s1" state={viewOf()} error={null} onSay={() => {}} />,
+    );
+    send("castle");
+    const capped = [...filler.slice(1), line({ seatId: "s1", name: "Bo", text: "castle", kind: "guess", at: 61 })];
+    rerender(<GuessLog log={capped} seatId="s1" state={viewOf()} error={null} onSay={() => {}} />);
+    expect(container.querySelector(".sc-log__pending")).toBeNull();
+    expect(screen.getAllByText("castle")).toHaveLength(1);
+  });
+
+  it("removes only one of two identical pending guesses when one is confirmed", () => {
+    const { container, rerender } = render(<GuessLog log={[]} seatId="s1" state={viewOf()} error={null} onSay={() => {}} />);
+    send("castle");
+    send("castle");
+    rerender(<GuessLog log={[line({ seatId: "s1", name: "Bo", text: "castle", kind: "guess" })]} seatId="s1" state={viewOf()} error={null} onSay={() => {}} />);
+    expect(container.querySelectorAll(".sc-log__pending")).toHaveLength(1);
+  });
+
+  it("shrugs off a table line that matches no pending guess of yours", () => {
+    const { container } = render(
+      <GuessLog log={[line({ seatId: "s1", text: "nomatch", kind: "guess" })]} seatId="s1" state={viewOf()} error={null} onSay={() => {}} />,
+    );
+    expect(container.querySelector(".sc-log__pending")).toBeNull();
+  });
+
+  it("tolerates an error arriving with no pending guess to drop", () => {
+    render(<GuessLog log={[]} seatId="s1" state={viewOf()} error="Easy on the chat." onSay={() => {}} />);
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("clears its pending timer when it unmounts before the timer fires", () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<GuessLog log={[]} seatId="s1" state={viewOf()} error={null} onSay={() => {}} />);
+    send("castle");
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
 });
