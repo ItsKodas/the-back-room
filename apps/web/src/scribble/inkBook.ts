@@ -47,9 +47,15 @@ interface Pending {
  * The server processes one socket in emit order and answers each action
  * before the next, so this queue's front is always the action a refusal is
  * about — there is nothing else it could be.
+ *
+ * A stroke batch records where it started in `pts`, not how many points it
+ * held: the finger can stay down through a slow round trip, so a later batch
+ * of the same still-open line is routinely also outstanding by the time an
+ * earlier one is refused, and a size counted from the tail would roll back
+ * whatever was drawn since instead of the refused batch itself.
  */
 type Inflight =
-  | { kind: "stroke"; id: string; count: number }
+  | { kind: "stroke"; id: string; at: number }
   | { kind: "fill"; id: string }
   | { kind: "undo" }
   | { kind: "clear" };
@@ -277,6 +283,9 @@ export class InkBook {
         continue;
       }
       while (one.unsent.length > 0) {
+        // The unsent numbers are exactly the tail of pts, so this is where
+        // this batch's points start within it.
+        const at = mark.pts.length - one.unsent.length;
         const pts = one.unsent.splice(0, MAX_BATCH * 2);
         batches.push({
           type: "stroke",
@@ -286,7 +295,7 @@ export class InkBook {
           size: mark.size,
           pts,
         });
-        this.inflight.push({ kind: "stroke", id: mark.id, count: pts.length });
+        this.inflight.push({ kind: "stroke", id: mark.id, at });
         one.seq += 1;
       }
     }
@@ -298,13 +307,21 @@ export class InkBook {
     this.stampOf.delete(id);
   }
 
-  /** Rolls a stroke back to what it held before a refused batch, and stops sending for it. */
-  private truncateStroke(id: string, count: number): void {
+  /**
+   * Rolls a stroke back to what it held before a refused batch, and stops
+   * sending for it.
+   *
+   * `Math.min` rather than a plain assignment: a second, later batch of the
+   * same line can be refused after an earlier truncation already shortened
+   * `pts`, and its `at` is stale by then — applying it outright would pad the
+   * array back out with points that were never actually there.
+   */
+  private truncateStroke(id: string, at: number): void {
     const one = this.pending.find((each) => each.mark.id === id);
     if (one === undefined || one.mark.kind !== "stroke") {
       return;
     }
-    one.mark.pts.length = Math.max(0, one.mark.pts.length - count);
+    one.mark.pts.length = Math.min(one.mark.pts.length, at);
     one.unsent = [];
     one.open = false;
     if (one.mark.pts.length === 0) {
@@ -350,7 +367,7 @@ export class InkBook {
     if (next === undefined) {
       this.dropOpenTail();
     } else if (next.kind === "stroke") {
-      this.truncateStroke(next.id, next.count);
+      this.truncateStroke(next.id, next.at);
     } else if (next.kind === "fill") {
       this.dropMark(next.id);
     }

@@ -125,6 +125,40 @@ describe("what a refusal can give up", () => {
     ]);
   });
 
+  // The finger can stay down through a slow round trip (assume it does — see
+  // CLAUDE.md), so a second batch of the same line is routinely still
+  // outstanding when the first's refusal lands. Rolling back by how many
+  // points a batch held, counted from wherever the line currently ends, undoes
+  // whatever was typed after it instead of the batch itself; only the
+  // position the refused batch started at survives that.
+  it("rolls a refused batch back to where it started, not by how many points it held", () => {
+    const ink = book();
+    ink.begin("red", 1, 0, 0);
+    ink.extend(1, 0);
+    ink.takeBatches(); // batch A: the whole line so far, starting at position 0
+    ink.extend(2, 0);
+    ink.takeBatches(); // batch B: one more point, still in flight, finger still down
+    ink.refused(); // blames A: nothing preceded it, so the line empties
+    expect(ink.marks()).toEqual([]);
+  });
+
+  it("rolls back to where a batch started even with a later one also outstanding, and never grows pts back", () => {
+    const ink = book();
+    ink.begin("red", 1, 0, 0);
+    ink.extend(1, 0);
+    ink.takeBatches(); // batch 0: position 0, the pair (0,0)-(1,0)
+    ink.acked(); // batch 0 accepted
+    ink.extend(2, 0);
+    ink.takeBatches(); // batch 1: position 4
+    ink.extend(3, 0);
+    ink.takeBatches(); // batch 2: position 6, still in flight, finger still down
+    ink.refused(); // blames batch 1: rolls back to position 4, keeping only batch 0's pair
+    expect(ink.marks()).toEqual([{ kind: "stroke", id: "id0", by: "me", ink: "red", size: 1, pts: [0, 0, 1, 0] }]);
+    ink.acked(); // batch 1's own guaranteed ack moves the queue to batch 2
+    ink.refused(); // blames batch 2: position 6 is stale now that pts is only 4 long
+    expect(ink.marks()).toEqual([{ kind: "stroke", id: "id0", by: "me", ink: "red", size: 1, pts: [0, 0, 1, 0] }]);
+  });
+
   it("removes a refused fill", () => {
     const ink = book();
     ink.fill("blue", 5, 6);
