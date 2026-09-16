@@ -17,7 +17,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Seg } from "../fittings/Seg.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
@@ -295,12 +295,19 @@ export function Scribble() {
   const table = useTableSocket<TableView>("scribble", back, account.setChips);
   const { state, seatId } = table;
 
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "scribble";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  /*
+   * The bar belongs to the building's shell, so this page only says what
+   * should be on it rather than drawing one of its own. `room` is part of
+   * that: the shell puts it on the document, where the haze and the
+   * background outside this page can see it — a room that painted only its
+   * own subtree would be a pink rectangle sitting in the building's blue.
+   */
+  useNav({
+    room: "scribble",
+    game: "Scribble",
+    ...(state !== null ? { table: { code: state.code, onLeave: table.leave, confirm: false } } : {}),
+    connected: table.connected,
+  });
 
   useEffect(() => {
     if (state !== null && state.code !== urlCode) {
@@ -312,14 +319,14 @@ export function Scribble() {
     return <p className="not-found">No table with that code.</p>;
   }
 
+  /*
+   * The widening is the napkin's, not the page's: only a table in progress
+   * asks for more than `--page-width`. Setting up one is a form like every
+   * other game's, and a form stretched across a desk is harder to read, not
+   * easier.
+   */
   return (
-    <main className="play play--scribble">
-      <Navbar
-        game="Scribble"
-        {...(state !== null ? { table: { code: state.code, onLeave: table.leave, confirm: false } } : {})}
-        account={account}
-        connected={table.connected}
-      />
+    <main className={`play${state !== null ? " play--scribble" : ""}`}>
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
       {table.taken !== null ? (
         <Taken message={table.taken} onRetry={table.retry} />
