@@ -52,7 +52,8 @@ describe("the blackjack table on one screen", () => {
    */
   it("fills the fitted page, whose shell is exactly the window", () => {
     const shell = ruleIn(shared, ".shell:has(> .play--fit)");
-    expect(shell).toContain("height: 100dvh");
+    // The viewport less the notch and the home bar, which #root already pads for.
+    expect(shell).toContain("height: calc(100dvh");
     expect(shell).toContain("grid-template-rows: auto minmax(0, 1fr)");
     const table = ruleIn(css, ".bj");
     expect(table).toContain("container: bj / inline-size");

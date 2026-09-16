@@ -15,7 +15,14 @@
  * layout exists to stop.
  */
 .shell:has(> .play--fit) {
-  height: 100dvh;
+  /*
+   * The window the table gets is the viewport less what #root already reserves
+   * for the notch and the home bar. Taking the whole 100dvh inside that padding
+   * made the document taller than the screen by exactly those insets — a strip
+   * of empty room at the bottom to scroll into, which is the one thing a table
+   * that is the window must never have.
+   */
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -46,7 +53,16 @@
   }
 }
 
-.play--fit {
+/*
+ * Two classes, and they are load-bearing.
+ *
+ * main.tsx imports App — and with it every component's sheet, this one included
+ * — before game.css, so `.play`'s own padding is the later rule and wins a tie
+ * between two single classes. It carries 64px at the bottom, which under a
+ * table that is exactly the window is a dead band below the controls. The
+ * bottom inset is #root's to reserve, so it is not added again here.
+ */
+.play.play--fit {
   /* The container the talk drawer asks about, whatever table is inside. */
   container: fit / inline-size;
   /* The frame a refusal blurs and centres itself in. */
@@ -56,11 +72,11 @@
   gap: var(--gr-space-2);
   width: 100%;
   min-height: 0;
-  padding: var(--gr-space-2) var(--gr-space-3) calc(var(--gr-space-3) + env(safe-area-inset-bottom, 0px));
+  padding: var(--gr-space-2) var(--gr-space-3) var(--gr-space-3);
 }
 
 @media (min-width: 720px) {
-  .play--fit {
+  .play.play--fit {
     padding-inline: var(--gr-space-5);
     padding-bottom: var(--gr-space-5);
   }
