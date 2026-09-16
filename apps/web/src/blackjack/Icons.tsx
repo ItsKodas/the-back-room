@@ -108,6 +108,20 @@ export function ClockIcon() {
   );
 }
 
+/** Two sliders: the table's own settings, which are what a host adjusts. */
+export function TableIcon() {
+  return (
+    <Glyph>
+      <path d="M4 7h10" />
+      <path d="M18 7h2" />
+      <path d="M4 17h4" />
+      <path d="M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </Glyph>
+  );
+}
+
 /**
  * Discord's mark, filled rather than stroked.
  *
