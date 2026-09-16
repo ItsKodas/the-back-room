@@ -136,7 +136,16 @@ function BlackjackTable({
   const activity = useActivity({ code: state.code, text: state.lastEvent, seq: state.eventSeq });
   const [sheet, setSheet] = useState<"pays" | "table" | null>(null);
   const closeSheet = useCallback(() => setSheet(null), []);
-  const toggleSheet = (which: "pays" | "table") => setSheet((was) => (was === which ? null : which));
+  // Talk and a sheet are two dialogs claiming the same rectangle at desk width, so
+  // opening one has to close the other rather than stacking a second scrim on top.
+  const toggleSheet = (which: "pays" | "table") => {
+    talk.close();
+    setSheet((was) => (was === which ? null : which));
+  };
+  const toggleTalk = () => {
+    setSheet(null);
+    talk.toggle();
+  };
   const root = useRef<HTMLElement | null>(null);
   useBlackjackKeys(root);
   const isHost = state.hostId === seatId && seatId !== null;
@@ -176,7 +185,7 @@ function BlackjackTable({
             />
           </div>
           <div className="table-talk-corner">
-            <TalkKey open={talk.open} unread={talk.unread} onToggle={talk.toggle} />
+            <TalkKey open={talk.open} unread={talk.unread} onToggle={toggleTalk} />
           </div>
           <div className="bj__corner">
             <button

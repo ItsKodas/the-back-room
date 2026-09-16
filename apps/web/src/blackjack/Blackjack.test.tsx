@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import type { TableView } from "@backroom/game-blackjack";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { opensForFun } from "../table/TableSetup.js";
@@ -124,6 +124,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+beforeAll(() => {
+  // jsdom lays nothing out, so it has no scrolling to do.
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
 const slabs = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>(".slab")];
 
 describe("the table's one slab", () => {
@@ -206,5 +211,18 @@ describe("the host's Table key", () => {
   it("is not there for anybody else", () => {
     show(socket(view({ hostId: "b" })));
     expect(screen.queryByRole("button", { name: "Table" })).toBeNull();
+  });
+});
+
+describe("talk and a sheet", () => {
+  it("keep only one dialog open: opening the rules card while talk is open closes talk", () => {
+    show(socket(view()));
+    fireEvent.click(screen.getByRole("button", { name: "Table talk" }));
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "How it pays" }));
+
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("How it pays");
   });
 });
