@@ -24,7 +24,7 @@ const table: CardSpec = {
   code: "6PMKG",
   players: [null, null, null],
   maxSeats: 6,
-  note: "Open — pull up a chair",
+  note: "Open, pull up a chair",
 };
 
 describe("the card a link unfurls into", () => {
