@@ -86,7 +86,10 @@ describe("the scribble room's stylesheet", () => {
     const napkinBlocks = [...css.matchAll(/\.sc-napkin\s*\{([^}]*)\}/g)].map((match) => match[1] ?? "");
     const sized = napkinBlocks.find((block) => block.includes("max-height"));
     expect(sized, "no .sc-napkin rule sets max-height at all").toBeDefined();
-    expect(sized).toMatch(/max-height:\s*calc\(100svh - \d+px\)/);
+    // The reservation itself is phase-aware (a shorter phase has no tray to
+    // leave room for) and set from React, not a literal number here — see
+    // the next test for where it's read from.
+    expect(sized).toMatch(/max-height:\s*calc\(100svh - var\(--sc-chrome, \d+px\)\)/);
     // The half that actually stops the grid column overflowing — without it,
     // `width: 100%` on the napkin would still fill the column regardless of
     // how short the height-derived cap above it is. Read from `.sc`'s own
@@ -103,13 +106,25 @@ describe("the scribble room's stylesheet", () => {
     const scBlocks = [...css.matchAll(/\.sc\s*\{([^}]*)\}/g)].map((match) => match[1] ?? "");
     const withVar = scBlocks.find((block) => block.includes("--sc-napkin-w"));
     expect(withVar, "no .sc rule defines --sc-napkin-w").toBeDefined();
-    expect(withVar).toMatch(/--sc-napkin-w:\s*min\(100%, calc\(\(100svh - \d+px\) \* 4 \/ 3\)\)/);
+    expect(withVar).toMatch(/--sc-napkin-w:\s*min\(100%, calc\(\(100svh - var\(--sc-chrome, \d+px\)\) \* 4 \/ 3\)\)/);
     // The 100% here is what stops an explicit grid track — unlike the
     // napkin's own width: 100%, which self-limits regardless — from asking
     // for more than the row has and overflowing the page sideways.
     expect(withVar).toMatch(
       /grid-template-columns:\s*minmax\(220px, 1fr\) minmax\(0, var\(--sc-napkin-w\)\) minmax\(280px, 1fr\)/,
     );
+  });
+
+  it("charges the chrome reservation to the phase that's actually on screen, not the tallest one always", () => {
+    // The old rule spent a single, tallest-phase number (mid-turn: tray
+    // below the strip) on every phase, so a short window in picking or
+    // reveal paid for a tray that wasn't there. `--sc-chrome` is read here
+    // (both places, matching `--sc-napkin-w`'s own single-definition rule)
+    // but set once, in Scribble.tsx, from the phase actually on screen — so
+    // it must never be redefined here in the stylesheet.
+    expect(css).not.toMatch(/--sc-chrome:/);
+    const chromeReads = [...css.matchAll(/var\(--sc-chrome, \d+px\)/g)];
+    expect(chromeReads).toHaveLength(2);
   });
 
   it("caps how far a growing side column stretches its own panel, so a roster or a guess box never reads as a mostly-empty pane", () => {
@@ -151,6 +166,20 @@ describe("the scribble room's stylesheet", () => {
     const keyframe = [...css.matchAll(/@keyframes sc-fuse\s*\{([\s\S]*?)\n\}/g)][0]?.[1] ?? "";
     expect(keyframe).toMatch(/from\s*\{\s*width:\s*var\(--fuse-from, 0%\);/);
     expect(keyframe).toMatch(/to\s*\{\s*width:\s*0%;/);
+  });
+
+  it("centres the masked word on the strip by giving both side tracks the same size", () => {
+    // Two `auto` tracks size the middle one to whatever's left after the
+    // drawer line and the clock take exactly what they need — that presses
+    // the word up against the clock, not centred. Equal `1fr` side tracks
+    // are what actually centres the middle one regardless of the drawer
+    // line's length.
+    const rule = [...css.matchAll(/\.sc-strip\s*\{([^}]*)\}/g)][0]?.[1] ?? "";
+    expect(rule).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\);/);
+    // Without this, an `auto` track's default `justify-items: stretch` puts
+    // the clock at its track's start edge, reopening the gutter this exists
+    // to close on the right.
+    expect(css).toMatch(/\.sc-clock\s*\{[^}]*justify-self:\s*end;[^}]*\}/);
   });
 
   it("widens the room's own page rather than the six games that share .play", () => {

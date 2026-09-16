@@ -11,6 +11,7 @@ import {
   TEAM_COUNTS,
 } from "@backroom/game-scribble";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Seg } from "../fittings/Seg.js";
@@ -37,6 +38,20 @@ import "./scribble.css";
 
 type Table = TableSocketHook<TableView>;
 
+/*
+ * How much of the viewport `--sc-napkin-w` and `.sc-napkin`'s own max-height
+ * (scribble.css) have to leave to everything else in the column, measured
+ * off the real DOM rather than guessed: navbar + page padding + the strip
+ * (single line) comes to ~232px; the drawer's own tray, shown below the
+ * strip only while they're actually drawing, adds ~120px of its own height
+ * plus the row-gap above it (12px) for ~364px. A guesser mid-turn — and
+ * every other phase the napkin is visible in, picking and reveal — never
+ * gets a tray (see `ink.drawing` below), so charging them for one is dead
+ * space this pays back.
+ */
+const NAPKIN_CHROME_WITH_TRAY = 364;
+const NAPKIN_CHROME_NO_TRAY = 232;
+
 export function Felt({ table, state, seatId }: { table: Table; state: TableView; seatId: string | null }) {
   const base = useInk(table, state, seatId);
   const sound = useScribbleSound({ state, seatId, log: table.chat, onRelay: table.onRelay });
@@ -59,9 +74,10 @@ export function Felt({ table, state, seatId }: { table: Table; state: TableView;
     [base, sound],
   );
   const short = Math.max(0, state.minimum - state.seats.length);
+  const chrome = ink.drawing ? NAPKIN_CHROME_WITH_TRAY : NAPKIN_CHROME_NO_TRAY;
 
   return (
-    <div className={`sc${ink.drawing ? " sc--drawing" : ""}`}>
+    <div className={`sc${ink.drawing ? " sc--drawing" : ""}`} style={{ "--sc-chrome": `${chrome}px` } as CSSProperties}>
       <Teams state={state} seatId={seatId} />
       <div className="sc__middle">
         <Strip state={state} />
@@ -73,13 +89,23 @@ export function Felt({ table, state, seatId }: { table: Table; state: TableView;
             {short > 0 ? `Waiting for ${short} more to sit down.` : "Dealing as soon as the clock runs out."}
           </p>
         ) : null}
-        <div className="sc__stage">
-          <Napkin ink={ink} tool={tool} wipe={wipes} />
-          {state.phase === "picking" ? (
-            <WordPick state={state} seatId={seatId} act={table.act} error={table.error} />
-          ) : null}
-          {state.phase === "reveal" || state.phase === "over" ? <Reveal state={state} seatId={seatId} /> : null}
-        </div>
+        {/*
+         * No turn exists in "waiting" — the napkin is definitionally blank,
+         * so mounting it is only dead space under the team-pick screen or a
+         * solo table's own notice. `useInk` lives in `Felt`, not here, so
+         * unmounting this stage never touches the `InkBook`; when it remounts
+         * for "picking" the raster starts fresh from that same book, which
+         * has nothing in it to have lost.
+         */}
+        {state.phase === "waiting" ? null : (
+          <div className="sc__stage">
+            <Napkin ink={ink} tool={tool} wipe={wipes} />
+            {state.phase === "picking" ? (
+              <WordPick state={state} seatId={seatId} act={table.act} error={table.error} />
+            ) : null}
+            {state.phase === "reveal" || state.phase === "over" ? <Reveal state={state} seatId={seatId} /> : null}
+          </div>
+        )}
         {ink.drawing ? <Tray tool={tool} onTool={setTool} onUndo={ink.undo} onClear={ink.clear} /> : null}
       </div>
       <GuessLog log={table.chat} seatId={seatId} state={state} error={table.error} onSay={table.say} />

@@ -53,8 +53,12 @@
      * grid track is sized toward whatever this asks for regardless of the
      * row's own width, so on a viewport tall enough to ask for more than the
      * row actually has, this is what stops the grid overflowing sideways.
+     *
+     * `--sc-chrome` is not set here — see `.sc-napkin`'s own comment for
+     * what it holds and why it lives in Scribble.tsx instead of a second
+     * copy of this calc.
      */
-    --sc-napkin-w: min(100%, calc((100svh - 364px) * 4 / 3));
+    --sc-napkin-w: min(100%, calc((100svh - var(--sc-chrome, 364px)) * 4 / 3));
     /*
      * The middle column is pinned to the napkin's own size rather than asked
      * to fill whatever is left of the row — a wide window's slack goes to
@@ -119,7 +123,16 @@
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /*
+   * Equal side tracks are what actually centres the masked word: two `auto`
+   * tracks (the old reading) size themselves to exactly what the drawer
+   * line and the clock need, which presses the word up against the clock
+   * rather than centring it. `.sc-word` itself wraps onto more lines rather
+   * than growing sideways past what's left, so this never reopens the
+   * building's no-sideways-scroll rule even for the longest word a pack
+   * can hand out.
+   */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: var(--gr-space-3);
   padding: 8px 12px 10px;
@@ -233,6 +246,13 @@
   font-variant-numeric: tabular-nums;
   color: var(--gr-color-neon-core);
   text-shadow: 0 0 8px var(--gr-color-neon-hi);
+  /*
+   * A grid item's default `justify-self: stretch` puts this at its track's
+   * start edge, not its end — pinning it to the right is what keeps it hard
+   * against the strip's own edge now that its track is a full `1fr` rather
+   * than sized to its own content.
+   */
+  justify-self: end;
 }
 
 @keyframes sc-flip {
@@ -268,13 +288,21 @@
      * viewport's height a question, so a tall desk sat behind a wasted half
      * of its own screen no matter how much taller than wide it was.
      *
-     * 364px is the room's own chrome measured off the real DOM at its
-     * tallest — mid-turn, with the tray showing below the strip and the
-     * navbar and page padding above it. A shorter phase (waiting, picking)
-     * leaves a little more of the viewport unused rather than less; nothing
-     * here ever asks for more height than the page actually has.
+     * `--sc-chrome` is everything else in the column's own vertical stack —
+     * navbar, page padding, the strip, and the tray when there is one — set
+     * once in Scribble.tsx (`.sc`'s own inline style) rather than here,
+     * because it isn't one number: a turn's drawer has a tray below the
+     * strip and everyone else doesn't, so charging every phase for the tray
+     * left a short window in picking or reveal shrinking the napkin to pay
+     * for a tray that wasn't on screen. Both figures are real DOM
+     * measurements (navbar + page padding + strip ≈ 232px; add the tray's
+     * own ≈120px and the row-gap above it for 364px), not guesses — see
+     * Scribble.tsx for where each applies. The `364px` fallback here only
+     * covers a render where that inline style hasn't landed yet; it is the
+     * safe (larger) figure, since undershooting the reservation is what
+     * makes the tray overlap the napkin.
      */
-    max-height: calc(100svh - 364px);
+    max-height: calc(100svh - var(--sc-chrome, 364px));
     /* The half that actually stops the grid column overflowing: without a
        matching max-width, `width: 100%` would still fill the column and the
        aspect-ratio would stretch the picture rather than shrink it. Read from
