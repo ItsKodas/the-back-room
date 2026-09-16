@@ -6,8 +6,8 @@ import { SCRIBBLE } from "./listing.js";
 const theme = readFileSync(new URL("./theme.css", import.meta.url), "utf8");
 
 describe("how Scribble lists itself", () => {
-  it("is a party game for three to ten", () => {
-    expect(SCRIBBLE).toMatchObject({ id: "scribble", shape: "party", minSeats: 3, maxSeats: 10 });
+  it("is a party game for three to ten, open to sit down at", () => {
+    expect(SCRIBBLE).toMatchObject({ id: "scribble", shape: "party", minSeats: 3, maxSeats: 10, open: true });
   });
 
   it("paints its link card in the colours its room is painted in", () => {

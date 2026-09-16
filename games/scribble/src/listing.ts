@@ -19,7 +19,7 @@ export const SCRIBBLE: GameListing = {
    * drawing game cannot be refereed: two friends on a call can say the word
    * out loud, so chips on it would pay whoever colludes best.
    */
-  open: false,
+  open: true,
   mark: { text: "SCRIBBLE", accentAt: 0 },
   // The same values theme.css sets. They have to agree; a test holds them to it.
   theme: { wall: "#131218", felt: "#f2efe9", accent: "#e2409c", accentHi: "#ff9ad3" },
