@@ -40,9 +40,20 @@ export interface Page {
    * week and should not be a result anybody lands on.
    */
   noindex?: boolean;
+  /** Every game that is open, for the links a page makes to them. */
+  games?: readonly (GameFacts & { id: string })[];
 }
 
 export const SITE_NAME = "The Back Room";
+
+/**
+ * The front door's title, which has to say what the room is.
+ *
+ * The name alone told a search result nothing, and every word here is one the
+ * door's own text uses, so the title is a summary of the page rather than a
+ * claim about it.
+ */
+const DOOR_TITLE = `${SITE_NAME}: Blackjack, Poker, Slots and Dice for Chips`;
 
 /** Into an HTML attribute, where a player's name is otherwise markup. */
 function attr(text: string): string {
@@ -188,9 +199,86 @@ ${forScript({ "@context": "https://schema.org", "@graph": graph })}
 </script>`;
 }
 
+/** How the chips work, which every indexed page says, because it is the question. */
+const CHIPS = `<h2>How the chips work</h2>
+      <p>Chips are free. Every player is handed a fresh handful of them each day, and there is no way to pay for more: nothing here takes money, and nothing here pays out anything but chips.</p>
+      <p>A chip you win came from another player. A table playing for chips only deals while at least two real people are sitting at it, and a table that loses its second player pauses rather than carrying on. Blackjack and the slot machine are the two exceptions, and each pays from a bank of its own that only players' stakes fill, so a win there still comes from everybody who played before you.</p>
+      <p>Bots only ever sit at tables played for fun, where the chips belong to the table and are gone when it closes.</p>`;
+
+/** One line per game, linked to its page. */
+function gameList(games: readonly (GameFacts & { id: string })[]): string {
+  const items = games.map((game) => {
+    const seats = game.maxSeats === 1 ? "Played on your own." : `Up to ${game.maxSeats} to a table.`;
+    return `<li><a href="/${attr(game.id)}">${attr(game.name)}</a>: ${attr(game.blurb)} ${seats}</li>`;
+  });
+  return `<ul>
+        ${items.join("\n        ")}
+      </ul>`;
+}
+
+/**
+ * What the page says in its body before the app has loaded.
+ *
+ * #root is empty until the bundle arrives, so a crawler that runs no script
+ * found no heading, no words and no links on any page here. This is written
+ * inside #root for it instead, and React replaces the lot the moment it
+ * mounts. On a slow connection it is also what a person sees in the meantime,
+ * which is the room saying what it is rather than a black screen.
+ *
+ * Nothing for a page that asked not to be indexed: nobody is meant to land on
+ * those from a search, and a person following the link is about to be shown
+ * the real thing.
+ */
+export function door(page: Page): string {
+  if (page.noindex === true) {
+    return "";
+  }
+  const games = page.games ?? [];
+
+  if (page.game !== undefined) {
+    const here = page.game.id;
+    const others = games.filter((game) => game.id !== here);
+    return `<main class="door">
+      <p class="door__back"><a href="/">${SITE_NAME}</a></p>
+      <h1>${attr(page.game.name)}</h1>
+      <p>${attr(page.description)}${page.game.maxSeats === 1 ? "" : " Open a table, send the link to whoever you are playing with, and the table deals itself."}</p>
+      ${CHIPS}
+      ${others.length === 0 ? "" : `<h2>More games</h2>\n      ${gameList(others)}`}
+    </main>`;
+  }
+
+  return `<main class="door">
+      <h1>${SITE_NAME}</h1>
+      <p>Blackjack, poker, slots and dice for chips, played with real people in your browser. The Back Room is a free room for cards and dice: pull up a chair at a table, play a few hands with friends or strangers, and leave whenever you like. There is no real money anywhere near it.</p>
+      <h2>The games</h2>
+      ${gameList(games)}
+      ${CHIPS}
+      <h2>How a table works</h2>
+      <p>Tables deal themselves. Nobody has to press start: a round comes round on its own clock, and players sit down and leave whenever they like. Whoever opens a table decides its shape, from how many seats it has to how long the betting window stays open and whether it plays for chips or for fun.</p>
+      <p>Every table has a short code of its own, so bringing a friend is a matter of sending them the link.</p>
+      <h2>Getting in</h2>
+      <p>Anybody can sit down at a table played for fun. Tables that play for chips ask you to sign in with <a href="https://discord.com/" rel="noopener">Discord</a> first, so that what you win stays yours. The room works on a phone as well as on a desk, and it can be added to a home screen like an app.</p>
+    </main>`;
+}
+
 /** Where the written head goes, and what the client ships in its place. */
 export const META_OPEN = "<!--meta-->";
 export const META_CLOSE = "<!--/meta-->";
+/** Where the written body goes, inside #root. */
+export const DOOR_OPEN = "<!--door-->";
+export const DOOR_CLOSE = "<!--/door-->";
+
+/** Writes `content` between a pair of markers, or returns null if there are none. */
+function between(html: string, open: string, close: string, content: string): string | null {
+  const start = html.indexOf(open);
+  const end = html.indexOf(close);
+  if (start === -1 || end === -1 || end < start) {
+    return null;
+  }
+  return `${html.slice(0, start + open.length)}
+    ${content}
+    ${html.slice(end)}`;
+}
 
 /**
  * The page, with its own head in it.
@@ -201,17 +289,14 @@ export const META_CLOSE = "<!--/meta-->";
  * asked for.
  */
 export function inject(html: string, page: Page): string {
-  const open = html.indexOf(META_OPEN);
-  const close = html.indexOf(META_CLOSE);
-  if (open === -1 || close === -1 || close < open) {
-    return html;
-  }
   // The graph goes inside the markers with the head, so the next address
   // served rewrites it rather than stacking a second one on top of it.
   const written = [headTags(page), jsonLd(page)].filter((part) => part !== "").join("\n    ");
-  return `${html.slice(0, open + META_OPEN.length)}
-    ${written}
-    ${html.slice(close)}`;
+  const headed = between(html, META_OPEN, META_CLOSE, written);
+  if (headed === null) {
+    return html;
+  }
+  return between(headed, DOOR_OPEN, DOOR_CLOSE, door(page)) ?? headed;
 }
 
 /** What one game is, as far as its page needs to know. */
@@ -245,10 +330,12 @@ export interface TableFacts {
 export interface Lookups {
   game(id: string): GameFacts | null;
   table(code: string): TableFacts | null;
+  /** The games somebody can sit down at, in the room's order. */
+  games(): (GameFacts & { id: string })[];
 }
 
 const SITE_LINE =
-  "A back room for cards and dice, played for chips and nothing else. Blackjack, Greed, and a fresh handful every day — no real money anywhere near it.";
+  "A back room for cards and dice, played for chips and nothing else. Blackjack, poker, slots and a fresh handful of chips every day, with no real money anywhere near it.";
 
 /**
  * What one address says about itself.
@@ -267,11 +354,12 @@ export function pageFor(path: string, site: string, look: Lookups): Page {
 
   if (parts.length === 0) {
     return {
-      title: SITE_NAME,
+      title: DOOR_TITLE,
       description: SITE_LINE,
       image: `${site}/og/site.png`,
       url,
       site,
+      games: look.games(),
     };
   }
 
@@ -317,11 +405,12 @@ export function pageFor(path: string, site: string, look: Lookups): Page {
   if (game !== null) {
     return {
       title: `${game.name} · ${SITE_NAME}`,
-      description: `${game.blurb} Played for chips and nothing else, at up to ${game.maxSeats} to a table.`,
+      description: `${game.blurb} Played for chips and nothing else, ${game.maxSeats === 1 ? "on your own" : `at up to ${game.maxSeats} to a table`}.`,
       image: `${site}/og/${first}.png`,
       url,
       site,
       game: { ...game, id: first },
+      games: look.games(),
       /*
        * The game's own page is worth indexing; a table of it never is, and
        * neither is a game that has not opened. A listing is in the catalogue

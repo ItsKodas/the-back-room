@@ -4,7 +4,7 @@ import type { Server as HttpServer } from "node:http";
 import { createServer as createHttpServer } from "node:http";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ChatRoute, GameAdapter, GameDeps, PlayTable, SeatIdentity } from "@backroom/core";
+import type { ChatRoute, GameAdapter, GameDeps, GameListing, PlayTable, SeatIdentity } from "@backroom/core";
 import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core";
 import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
@@ -79,7 +79,7 @@ import { readAdmins } from "./admin.js";
 import { ADMIN_BULK_PATHS, answerUnrecorded, mountAdminDesk } from "./admin-desk.js";
 import type { AuthConfig } from "./auth.js";
 import { mountAuth, readAuthConfig } from "./auth.js";
-import { friendlyRedirect } from "./domains.js";
+import { canonicalRedirect, friendlyRedirect } from "./domains.js";
 import { EMOTE_UPLOAD_PATH, emoteUrls, mountEmotes } from "./emotes.js";
 import { SOMETHING_WENT_WRONG, acking, handle } from "./handle.js";
 import { mountLeaderboard } from "./leaderboard.js";
@@ -481,6 +481,9 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   }
 
   const app = express();
+  // Nothing a visitor needs, and a free hint to anybody shopping for a known
+  // hole in a known framework.
+  app.disable("x-powered-by");
   /*
    * Nothing posted here is large — a code, a stake, a note — so the limit is
    * small on purpose. Without this, request.body is undefined and every POST
@@ -514,7 +517,9 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    */
   const gameIds = CATALOGUE.all().map((game) => game.id);
   app.use((request, response, next) => {
-    const target = friendlyRedirect(request.hostname, request.path, gameIds, clientOrigin);
+    const target =
+      canonicalRedirect(request.hostname, request.originalUrl, clientOrigin) ??
+      friendlyRedirect(request.hostname, request.path, gameIds, clientOrigin);
     if (target === null) {
       next();
       return;
@@ -693,7 +698,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       // In seating order, so the faces on the card are the faces at the table.
       players: seated.table.seats.map((seat) => seat.avatar),
       maxSeats: seated.table.maxSeats,
-      note: seated.table.status === "lobby" ? "Open — pull up a chair" : "Hand in play",
+      note: seated.table.status === "lobby" ? "Open, pull up a chair" : "Hand in play",
     };
   }
 
@@ -813,19 +818,21 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   });
 
   /** Everything meta.ts has to ask the room about, and nothing more. */
+  const facts = (listing: GameListing) => ({
+    name: listing.name,
+    blurb: listing.blurb,
+    minSeats: listing.minSeats,
+    maxSeats: listing.maxSeats,
+    shape: listing.shape,
+    open: listing.open,
+  });
   const lookups = {
     game(id: string) {
       const listing = CATALOGUE.get(id);
-      return listing === undefined
-        ? null
-        : {
-            name: listing.name,
-            blurb: listing.blurb,
-            minSeats: listing.minSeats,
-            maxSeats: listing.maxSeats,
-            shape: listing.shape,
-            open: listing.open,
-          };
+      return listing === undefined ? null : facts(listing);
+    },
+    games() {
+      return CATALOGUE.playable().map((listing) => ({ ...facts(listing), id: listing.id }));
     },
     table(code: string) {
       const card = tableCard(code);

@@ -16,6 +16,8 @@ export type Cue =
   | "drop"
   | "bank"
   | "farkle"
+  /* The table turning a press down: shorter and quieter than losing a turn. */
+  | "refused"
   | "greed"
   | "hotDice"
   | "yourTurn"
@@ -789,6 +791,14 @@ export function play(
         if (!played) {
           tone({ frequency: 220, to: 70, duration: 0.5, type: "sawtooth", gain: 0.14 });
           noise(0.25, 260, 0.2);
+        }
+      });
+      break;
+    case "refused":
+      // The same sample as a farkle, quieter: a no, not a loss.
+      void sample(pickNamed("ui", "error"), 0.35).then((played) => {
+        if (!played) {
+          tone({ frequency: 240, to: 150, duration: 0.18, type: "square", gain: 0.07 });
         }
       });
       break;

@@ -76,6 +76,8 @@ export interface TableSocketHook<TView> {
   listed: boolean;
   seatId: string | null;
   error: string | null;
+  /** Moves on for every refusal, so the same words twice are still shown twice. */
+  errorKey: number;
   connected: boolean;
   /**
    * The server's reason for turning this window away, or null.
@@ -163,6 +165,16 @@ export function useTableSocket<TView>(
   const [state, setState] = useState<TView | null>(null);
   const [seatId, setSeatId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * Counted, not just stored: React will not re-render for a string it already
+   * has, so a table saying the same no twice would otherwise say it once.
+   */
+  const [errorKey, setErrorKey] = useState(0);
+  /** The table or the server saying no to something this player did. */
+  const refuse = useCallback((message: string) => {
+    setError(message);
+    setErrorKey((key) => key + 1);
+  }, []);
   const [connected, setConnected] = useState(false);
   const [taken, setTaken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -226,7 +238,9 @@ export function useTableSocket<TView>(
       setState(raw as unknown as TView);
     });
     socket.on("room:error", (message: string) => {
-      setError(message);
+      refuse(message);
+      // A game that wants to act on its own refusals subscribes here: the
+      // error state alone cannot tell two identical refusals apart.
       for (const listener of errorListeners.current) {
         listener(message);
       }
@@ -270,16 +284,19 @@ export function useTableSocket<TView>(
       socket.close();
       socketRef.current = null;
     };
-  }, [game]);
+  }, [game, refuse]);
 
-  // Complaints clear themselves rather than stacking up.
+  // Complaints clear themselves rather than stacking up. Keyed on the refusal as
+  // well as the words, so a second identical refusal gets its full four seconds
+  // instead of vanishing on the first one's clock.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error === null) {
       return;
     }
     const timer = setTimeout(() => setError(null), 4000);
     return () => clearTimeout(timer);
-  }, [error]);
+  }, [error, errorKey]);
 
   const create = useCallback((name: string, options: CreateOptions = {}) => {
     const socket = socketRef.current;
@@ -293,10 +310,10 @@ export function useTableSocket<TView>(
         setSeatId(result.seatId);
         writeSeat(game, { code: result.code, seatId: result.seatId });
       } else {
-        setError(result.error);
+        refuse(result.error);
       }
     });
-  }, [game]);
+  }, [game, refuse]);
 
   const join = useCallback((name: string, code: string) => {
     const socket = socketRef.current;
@@ -310,10 +327,10 @@ export function useTableSocket<TView>(
         setSeatId(result.seatId);
         writeSeat(game, { code: result.code, seatId: result.seatId });
       } else {
-        setError(result.error);
+        refuse(result.error);
       }
     });
-  }, [game]);
+  }, [game, refuse]);
 
   const watch = useCallback((code: string) => {
     const socket = socketRef.current;
@@ -328,10 +345,10 @@ export function useTableSocket<TView>(
         writeSeat(game, null);
         setSeatId(null);
       } else {
-        setError(result.error);
+        refuse(result.error);
       }
     });
-  }, [game]);
+  }, [game, refuse]);
 
   const leave = useCallback(() => {
     writeSeat(game, null);
@@ -392,12 +409,12 @@ export function useTableSocket<TView>(
         // A refusal is worth saying out loud: somebody just spent chips, or
         // thought they had.
         if (!result.ok) {
-          setError(result.error);
+          refuse(result.error);
         }
         done?.(result);
       });
     },
-    [],
+    [refuse],
   );
 
   return {
@@ -405,6 +422,7 @@ export function useTableSocket<TView>(
     listed,
     seatId,
     error,
+    errorKey,
     landed,
     stakes,
     taunt,

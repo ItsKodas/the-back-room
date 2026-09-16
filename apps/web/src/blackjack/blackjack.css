@@ -1,293 +1,966 @@
 /*
- * The blackjack table.
+ * The blackjack table, on one screen.
  *
- * The layout says what the game is before a word is read: the dealer alone
- * across the top, everybody else in a row beneath facing them. That is the
- * whole difference from Greed — there, players face each other and the middle
- * of the table is the contested thing; here every seat plays the house and the
- * only hand that matters to all of them is the one at the top.
+ * The dealer alone across the head of the felt and everybody else beneath,
+ * facing them: every seat plays the house, so the only hand that matters to all
+ * of them is the one at the top. On a phone the page is exactly the window — a
+ * readout, the felt, and the controls under the thumb — and only the felt
+ * flexes, with the cards sized off its height as well as its width, so a short
+ * phone shrinks the cards rather than pushing Hit below the fold. Past 760px of
+ * table the same markup puts the felt on the left and a side column of readout,
+ * rules, activity and controls on the right.
+ *
+ * Imported by Blackjack.tsx and the style gallery's Deck.tsx. Poker deals the
+ * same cards, so the card, hand and chip-pile rules near the end are the
+ * building's and stay unscoped; everything about this table is a .bj class.
+ * This sheet loads before fittings.css, so a rule that has to beat a fitting
+ * uses two classes. What every table shares is in table/table.css.
  */
 
+/* ------------------------------------------------------------- the table */
+
 .bj {
-  padding-top: var(--gr-space-5);
+  container: bj / inline-size;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * A grid of its own inside the container, because a container cannot ask a
+ * container query about itself.
+ */
+.bj__in {
+  height: 100%;
   display: grid;
-  grid-template-columns: 1fr 240px;
-  grid-template-areas: "dealer side" "seats side";
-  gap: var(--gr-space-5);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "read" "felt" "controls";
+  gap: var(--gr-space-2);
 }
 
-/* -------------------------------------------------------------- the dealer */
+/* ------------------------------------------------------------ the readout */
 
-.bj__dealer {
-  grid-area: dealer;
-  display: flex;
+.readout.bj__read {
+  grid-area: read;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--gr-space-4);
-  padding: var(--gr-space-4) var(--gr-space-5);
-  border-radius: var(--gr-radius-md);
-  /* The house sits on its own patch of felt, lit from above and nowhere else. */
-  background:
-    radial-gradient(120% 180% at 50% -40%, var(--gr-color-felt-lit), transparent 70%),
-    var(--gr-color-felt-deep);
-  border: var(--gr-edge-soft);
-  box-shadow: var(--gr-well);
-  min-height: 118px;
+  gap: var(--gr-space-3);
+  padding: 9px 14px 10px;
+  overflow: hidden;
+  text-align: left;
 }
 
-.bj__whose {
-  margin: 0;
-  font-family: var(--gr-font-display);
-  font-size: var(--gr-text-lg);
-  color: var(--gr-color-ink-dim);
-  letter-spacing: 0.04em;
-  min-width: 5.5em;
+.bj__big {
+  display: grid;
+  min-width: 0;
 }
 
-.bj__dealer .bj-card {
-  --bj-card-w: 64px;
+.bj__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
 }
 
-.bj__total {
+.bj__figure-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gr-space-2);
+  min-width: 0;
+}
+
+.bj__figure {
   font-family: var(--gr-font-data);
+  font-size: var(--gr-text-2xl);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  font-size: var(--gr-text-lg);
+  line-height: 1.05;
   color: var(--gr-color-ink-lit);
 }
 
-/* --------------------------------------------------------------- the seats */
-
-/* The seats and what is said under them: one region of the felt. */
-.bj__floor {
-  grid-area: seats;
-  display: grid;
-  gap: var(--gr-space-2);
+/* Chips, so gold, and lit the way the jackpot is. */
+.bj__figure--chips {
+  color: var(--gr-color-chip-hi);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--gr-color-chip) 55%, transparent),
+    0 0 22px color-mix(in srgb, var(--gr-color-chip) 25%, transparent);
 }
+
+/* Good and bad are what happened to the money, never the accent. */
+.bj__figure--good {
+  color: var(--gr-color-good);
+}
+
+.bj__figure--bad {
+  color: var(--gr-color-bad);
+}
+
+.bj__note {
+  white-space: nowrap;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  color: var(--gr-color-ink-dim);
+}
+
+.bj__stats {
+  display: grid;
+  gap: 1px;
+  /* Wide enough that a label and its number read as a pair, not a squeeze. */
+  min-width: 132px;
+  margin: 0;
+}
+
+.bj__stats div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--gr-text-xs);
+}
+
+.bj__stats dt {
+  color: var(--gr-color-ink-dim);
+}
+
+.bj__stats dd {
+  margin: 0;
+  font-family: var(--gr-font-data);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink);
+}
+
+.bj__stats .bj__gold {
+  color: var(--gr-color-chip-hi);
+}
+
+/* The clock, draining along the top edge of the screen. */
+.bj__clock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--t);
+  height: 2px;
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 8px var(--gr-color-neon);
+  transition: width 1s linear;
+}
+
+/* Betting: the window is the chips' clock, so it drains in gold. */
+.bj__clock--chips {
+  background: var(--gr-color-chip-hi);
+  box-shadow: 0 0 8px var(--gr-color-chip);
+}
+
+/* -------------------------------------------------------------- the felt */
+
+.bj__felt {
+  grid-area: felt;
+  container: bj-felt / size;
+  position: relative;
+  min-height: 0;
+  border-radius: var(--gr-radius-cab);
+  background:
+    radial-gradient(110% 70% at 50% 0%, var(--gr-color-felt-lit), transparent 75%),
+    var(--gr-color-felt);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.5),
+    inset 0 8px 30px rgb(0 0 0 / 0.45);
+  overflow: hidden;
+  /*
+   * Cards take the room the felt has, in both directions. The height terms are
+   * what keep the dealer, your hand and the other seats inside the felt on a
+   * short phone: smaller cards, never a pushed-off Hit. Set here on the
+   * container and inherited; a card never declares its own.
+   */
+  --bj-card-dealer: clamp(34px, min(19cqi, 15cqh), 74px);
+  --bj-card-mine: clamp(38px, min(22cqi, 18cqh), 84px);
+  --bj-card-other: clamp(20px, min(9.5cqi, 8.5cqh), 38px);
+}
+
+/*
+ * Nothing on the felt is text to be selected. Dragging across a hand should not
+ * leave half the table highlighted, and a rank is a drawing that happens to be
+ * made of letters. Talk sits outside this, where selecting text is the point.
+ */
+.bj__felt,
+.bj-card {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* What scrolls when there are more seats than fit: inside the felt, never the page. */
+.bj__cloth {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The ? and Table keys, opposite talk's corner. */
+.bj__corner {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+
+.bj__corner .key {
+  width: 36px;
+  min-height: 36px;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ the dealer */
+
+.bj__dealer {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  /* Clear of the corner keys on both sides. */
+  padding: 4px 48px 6px;
+  --bj-card-w: var(--bj-card-dealer);
+}
+
+.bj__dealer-who {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gr-space-2);
+  margin: 0;
+  font-family: var(--gr-font-display);
+  font-size: var(--gr-text-sm);
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--gr-color-ink) 55%, transparent);
+}
+
+.bj__dealer-who b {
+  font-family: var(--gr-font-data);
+  font-weight: 600;
+  color: var(--gr-color-ink-lit);
+}
+
+.bj__watchers {
+  font-family: var(--gr-font-ui);
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0;
+  color: var(--gr-color-ink-faint);
+}
+
+.bj__arc {
+  flex: none;
+  height: 1px;
+  margin: 0 18px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gr-color-chip-hi) 28%, transparent), transparent);
+}
+
+/* A hand at this table holds exactly the room its cards need. */
+.bj .bj-hand {
+  min-height: 0;
+  gap: 4px;
+}
+
+/*
+ * The dealer's hand never overlaps, at any count.
+ *
+ * Hand.tsx marks any hand of four or more places `bj-hand--tight` for the
+ * seats it was built for, where a wide row would spill into the next player's
+ * — and the dealer draws to four routinely. The dealer has the whole width of
+ * the felt to itself, so that squeeze is not wanted here; four classes beats
+ * the shared rule's three regardless of which comes first in the sheet.
+ */
+.bj__dealer .bj-hand .bj-card + .bj-card {
+  margin-left: 0;
+}
+
+/* Where a card will go, so a hand between deals keeps its height. */
+.bj__slot {
+  flex: none;
+  width: var(--bj-card-w, 47px);
+  aspect-ratio: 5 / 7;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+/* ------------------------------------------------------------- the seats */
 
 .bj__seats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
-  gap: var(--gr-space-3);
-  /*
-   * Every seat in a row the same height, rather than each one its own.
-   *
-   * Not a fixed height: a stake of nine chips is genuinely taller than a stake
-   * of one, and squashing the pile would throw away the thing a pile is for.
-   * The row grows to whatever the fullest seat in it needs and the rest keep
-   * up, so nothing jumps as a hand is played.
-   */
-  align-items: stretch;
+  gap: 6px;
+}
+
+.bj__others {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .bj__seat {
+  position: relative;
   display: grid;
-  gap: var(--gr-space-3);
-  padding: var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
   background: rgb(0 0 0 / 0.26);
-  border: var(--gr-edge-soft);
-  border-left: 3px solid var(--gr-color-neon-dim);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.35),
+    var(--gr-lip);
 }
 
-/* Glowing means it is happening now — the same promise the building makes
-   everywhere else, kept here. */
+/* Yours, marked the way the leaderboard marks your row. */
+.bj__seat--mine {
+  --bj-card-w: var(--bj-card-mine);
+  outline: 1px solid var(--gr-color-chip-dim);
+  outline-offset: -1px;
+}
+
+/* A compact plate: a line of small cards and what they come to. */
+.bj__seat--other {
+  --bj-card-w: var(--bj-card-other);
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+/*
+ * Whose turn it is, in the room's neon because it is happening now; and a glow
+ * that moves, because it is waiting on somebody. The ring is inside the
+ * animation too, so the two never fight over the one box-shadow.
+ */
 .bj__seat--turn {
-  border-color: var(--gr-color-neon);
-  border-left-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 13%, transparent);
+  background: color-mix(in srgb, var(--gr-color-neon) 14%, rgb(0 0 0 / 0.2));
+  box-shadow:
+    inset 0 0 0 1px var(--gr-color-neon),
+    0 0 18px color-mix(in srgb, var(--gr-color-neon) 35%, transparent);
+  animation: bj-waiting 2.1s ease-in-out infinite;
 }
 
-.bj__seat--waiting,
-.bj__seat--gone {
-  opacity: 0.55;
-  border-left-color: var(--gr-color-ink-dim);
+/* Waiting for the next hand, or gone: dimmed, never hidden, and its tag says which. */
+.bj__seat--out {
+  opacity: 0.5;
 }
 
-.bj__who {
+/* Paid. Gold, and only on the way in. */
+.bj__seat--paid {
+  animation: bj-paid 900ms ease-out;
+}
+
+.bj__seat-head {
   display: flex;
   align-items: center;
   gap: var(--gr-space-2);
+  min-width: 0;
+}
+
+/*
+ * The avatar and the clock drawn round it. A wrapper so the ring has something
+ * the size of the face to sit on, rather than stretching across the header.
+ */
+.bj__face {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.bj__face .turn-ring {
+  position: absolute;
+  inset: -3px;
+}
+
+.bj__seat .seat__avatar {
+  width: 26px;
+  height: 26px;
+  border-width: 1.5px;
+  font-size: 12px;
+}
+
+.bj__seat--turn .seat__avatar {
+  border-color: var(--gr-color-neon-hi);
+  box-shadow: 0 0 10px var(--gr-color-neon);
+}
+
+.bj__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--gr-text-sm);
+  font-weight: 500;
+  color: var(--gr-color-ink-lit);
 }
 
 /* Gold, because it is their money sitting on the felt. */
 .bj__bet {
   margin-left: auto;
   font-family: var(--gr-font-data);
-  font-variant-numeric: tabular-nums;
   font-size: var(--gr-text-sm);
-  color: var(--gr-color-chip);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-chip-hi);
 }
 
-/*
- * Play money, at a table playing for none.
- *
- * Deliberately not gold. Gold is this building's promise that a figure is
- * your money, and this figure is not — it is invented at the table, never
- * reaches an account, and dies when the table does.
- */
+/* Play money on a seat that has not bet: faint, because it never reaches an account. */
 .bj__purse {
   margin-left: auto;
   font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
   font-variant-numeric: tabular-nums;
-  font-size: var(--gr-text-sm);
   color: var(--gr-color-ink-faint);
 }
 
-/*
- * A seat's hands, usually one.
- *
- * Stacked rather than side by side. Two hands beside each other halves the
- * width the cards get, and a split is the moment you most want to read them —
- * whereas height is the one thing a column of seats has spare.
- */
-.bj__hands {
-  display: grid;
-  gap: var(--gr-space-2);
+.bj__play {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bj__pile {
+  display: flex;
+  flex: none;
+}
+
+.bj__pile--dropped {
+  animation: bj-drop 300ms cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
 /*
- * Which of the two you are being asked about.
- *
- * Only ever drawn when there is more than one: with a single hand the seat's
- * own border already says whose turn it is, and saying it twice would make the
- * ordinary case look like the exception. So the padding and the border sit on
- * the split container, and a seat holding one hand is untouched.
+ * Shrinkable and self-contained, so a hand long enough to outgrow the row
+ * scrolls within itself rather than pushing the total off the plate — the
+ * felt does not scroll sideways, but a hand may, inside its own box.
  */
-.bj__hands--split .bj__hand {
-  padding: var(--gr-space-2);
-  border: 1px solid transparent;
-  border-radius: var(--gr-radius-sm);
+.bj__seat .bj-hand {
+  gap: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.bj__seat--other .bj-hand {
+  gap: 2px;
+}
+
+/*
+ * A dealt hand overlaps, the way it sits on a real felt. The index is in the
+ * corner of every card, so a covered card still says what it is.
+ */
+.bj__seat .bj-hand .bj-card + .bj-card {
+  margin-left: calc(var(--bj-card-w) * -0.28);
+}
+
+.bj__seat--other .seat__avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.bj__seat--other .bj__name {
+  font-size: var(--gr-text-xs);
+}
+
+.bj__seat--other .bj__bet {
+  font-size: 11px;
+}
+
+/* A state on a seat or a hand, arriving when it becomes true rather than being there all along. */
+.bj__tag {
+  animation: bj-said 260ms ease-out;
+}
+
+.bj__seat--other .bj__tag {
+  padding: 1px 8px 1px 6px;
+  font-size: 10.5px;
+}
+
+.tag.bj__tag--good {
+  color: var(--gr-color-good);
+}
+
+.tag.bj__tag--good::before {
+  background: var(--gr-color-good);
+}
+
+.tag.bj__tag--bad {
+  color: var(--gr-color-bad);
+}
+
+.tag.bj__tag--bad::before {
+  background: var(--gr-color-bad);
+}
+
+/* ------------------------------------------------------------- the count */
+
+/* What a hand is worth, at the far end of the row from the stake. */
+.bj__count {
+  display: grid;
+  justify-items: end;
+  flex: none;
+  margin: 0 0 0 auto;
+  line-height: 1;
+  font-family: var(--gr-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.bj__count-total {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--gr-color-ink-lit);
+}
+
+.bj__seat--other .bj__count-total {
+  font-size: 15px;
+}
+
+/* Soft, which is the difference between a decision and a formality. */
+.bj__count-soft {
+  margin-top: 2px;
+  font-family: var(--gr-font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+/* Past twenty-one: the bad colour, with a shake in the other direction to a tick. */
+.bj__count--bad .bj__count-total {
+  color: var(--gr-color-bad);
+  animation: bj-bust 420ms ease-in-out;
+}
+
+/* Gold, because a blackjack is not a good score — it is a payout. */
+.bj__count--chip .bj__count-total {
+  color: var(--gr-color-chip-hi);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--gr-color-chip) 50%, transparent);
+}
+
+/* A total that has just changed, because a card arrived. */
+.bj__count--ticked .bj__count-total {
+  animation: bj-tick 320ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+/* ------------------------------------------------------------ the splits */
+
+/*
+ * A split seat keeps one plate and gains a box per hand. The card size is set
+ * on the seat, the container, and inherited.
+ *
+ * Same specificity as .bj__seat--mine, so this has to come after it in the
+ * sheet to win --bj-card-w on a split hand of your own — source order here is
+ * load-bearing.
+ */
+.bj__seat--split {
+  --bj-card-w: clamp(26px, min(12cqi, 15cqh), 52px);
+}
+
+/* Not a rule the table plays today; the layout holds it anyway. */
+.bj__seat--split.bj__seat--four {
+  --bj-card-w: clamp(18px, min(8.5cqi, 10cqh), 32px);
+}
+
+.bj__boxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.bj__seat--four .bj__boxes {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.bj__box {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 7px 7px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.22);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
   transition:
     opacity 180ms ease,
     background-color 180ms ease,
-    border-color 180ms ease;
+    box-shadow 180ms ease;
 }
 
-/*
- * The hand not being played steps back, and the live one is lit.
- *
- * This was a two-pixel rule down the left, which is the same amount of ink
- * whether it is there or not — you had to go looking for it to find out which
- * hand you were being asked about. Contrast is what carries at a glance, so
- * the quiet one goes quiet.
- *
- * The lit half borrows the treatment a seat already uses for whose turn it is,
- * rather than inventing a second way of saying the same thing one level down.
- */
-.bj__hands--split .bj__hand:not(.bj__hand--live) {
-  opacity: 0.45;
+/* The hand the buttons act on. Lit, because it is the one happening now. */
+.bj__box--live {
+  background: color-mix(in srgb, var(--gr-color-neon) 16%, rgb(0 0 0 / 0.2));
+  box-shadow:
+    inset 0 0 0 1.5px var(--gr-color-neon-hi),
+    0 0 14px color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
 }
 
-/*
- * Matched through the container rather than on its own, so it out-ranks the
- * transparent border set just above by weight rather than by !important. A
- * bare .bj__hand--live is one class against two and loses, which is the same
- * specificity trap that once shipped Greed lit blue.
- */
-.bj__hands--split .bj__hand--live {
-  opacity: 1;
-  border-color: var(--gr-color-neon);
-  background-color: color-mix(in srgb, var(--gr-color-neon) 14%, transparent);
+/* The other steps back while it waits: contrast carries at a glance, a thin rule does not. */
+.bj__box--wait {
+  opacity: 0.62;
 }
 
-/*
- * No glow on it, deliberately. The seat is already pulsing to say it is
- * waiting on you; a second pulse inside it would be two motions arguing over
- * one thing. This says *which*, and the seat says *now*.
- */
-
-/* What this hand alone has on the felt, when the seat has more than one. */
-.bj__stake-small {
-  margin-left: var(--gr-space-2);
-  font-family: var(--gr-font-data);
-  font-variant-numeric: tabular-nums;
-  color: var(--gr-color-chip);
-}
-
-/*
- * How the hand went, as a mark on the felt rather than a caption under it.
- *
- * A pill because it is a verdict: it wants to be findable across four seats at
- * a glance, and bare text under a row of cards reads as a footnote. Sized to
- * its own words so a seat with nothing to say has nothing sitting under it.
- */
-.bj__result {
-  /* Sized to its own words, so it is a pill around the verdict rather than a
-     bar across the seat. */
+.bj__box-top {
   display: flex;
-  width: fit-content;
   align-items: center;
-  gap: var(--gr-space-2);
-  /* Off the cards. It was sitting against them, which is what made it read as
-     part of the hand rather than as what became of it. */
-  margin-top: var(--gr-space-3);
-  padding: 3px 10px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: var(--gr-text-sm);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--gr-color-ink-dim);
-  background: rgb(255 255 255 / 0.05);
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
 }
 
-/* A hand still being played has nothing to say, and an empty pill is worse
-   than no pill — it is a shape with no content, which reads as a bug. */
-.bj__result:empty {
-  display: none;
+.bj__box--live .bj__box-top {
+  color: var(--gr-color-neon-hi);
 }
 
-.bj__result--good {
-  color: var(--gr-color-good);
-  background: color-mix(in srgb, var(--gr-color-good) 15%, transparent);
-  border-color: color-mix(in srgb, var(--gr-color-good) 32%, transparent);
+.bj__box-top b {
+  font-family: var(--gr-font-data);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--gr-color-chip-hi);
 }
 
-.bj__result--bad {
-  color: var(--gr-color-bad);
-  background: color-mix(in srgb, var(--gr-color-bad) 15%, transparent);
-  border-color: color-mix(in srgb, var(--gr-color-bad) 32%, transparent);
+.bj__box-play {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
-.bj__watchers {
+/* Four across has no room for a total beside three cards, so it goes under. */
+.bj__seat--four .bj__box-play {
+  flex-wrap: wrap;
+}
+
+/*
+ * Tighter in a box: half a seat's width holds the same cards.
+ *
+ * Same specificity as .bj__seat .bj-hand .bj-card + .bj-card, so this has to
+ * come after it in the sheet to win the -42% overlap inside a box — source
+ * order here is load-bearing.
+ */
+.bj__box .bj-hand .bj-card + .bj-card {
+  margin-left: calc(var(--bj-card-w) * -0.42);
+}
+
+.bj__box .bj__count-total {
+  font-size: 20px;
+}
+
+.bj__seat--four .bj__box {
+  padding: 5px;
+}
+
+.bj__seat--four .bj__box-top {
+  font-size: 9px;
+}
+
+.bj__seat--four .bj__box .bj__count-total {
+  font-size: 14px;
+}
+
+.bj__box .bj__tag {
+  justify-self: start;
+}
+
+/* Somebody else's split, on a compact plate: two little hands and a hairline between. */
+.bj__minis {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bj__mini {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bj__mini .bj__count {
+  margin-left: 0;
+}
+
+.bj__mini .bj__count-total {
+  font-size: 13px;
+}
+
+.bj__mini--live .bj__count-total {
+  color: var(--gr-color-neon-hi);
+}
+
+.bj__minis i {
+  align-self: stretch;
+  width: 1px;
+  background: rgb(255 255 255 / 0.12);
+}
+
+/* ------------------------------------------------------- the big moments */
+
+/* A hand dealt twenty-one: the one lit word on the felt, once. */
+.bj__banner {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 3;
   margin: 0;
+  padding: 4px 18px 8px;
+  font-family: var(--gr-font-display);
+  font-size: clamp(1.6rem, 12cqi, 2.4rem);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--gr-color-chip-hi);
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--gr-color-chip) 80%, transparent),
+    0 0 36px color-mix(in srgb, var(--gr-color-chip) 45%, transparent),
+    0 3px 0 rgb(0 0 0 / 0.6);
+  transform: translate(-50%, -50%) rotate(-4deg);
+  pointer-events: none;
+  animation: bj-banner 420ms var(--gr-settle) both;
+}
+
+/* Gone past it: a stamp, once. */
+.bj__stamp {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 3;
+  margin: 0;
+  padding: 4px 16px 8px;
+  border: 3px solid var(--gr-color-bad);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.35);
+  font-family: var(--gr-font-display);
+  font-size: clamp(1.8rem, 16cqi, 3rem);
+  line-height: 1;
+  color: var(--gr-color-bad);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.4);
+  transform: translate(-50%, -50%) rotate(-7deg);
+  pointer-events: none;
+  animation: bj-stamp 260ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+/* ------------------------------------------------------------- the sheets */
+
+.bj__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.45);
+  cursor: default;
+  animation: bj-fade 200ms ease both;
+}
+
+.bj__sheet {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  background: linear-gradient(
+    180deg,
+    var(--gr-color-smoke-lit) 0%,
+    var(--gr-color-smoke) 10%,
+    var(--gr-color-slate) 50%,
+    color-mix(in srgb, var(--gr-color-slate) 55%, var(--gr-color-shadow)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 -18px 40px rgb(0 0 0 / 0.5);
+  animation: bj-rise 300ms var(--gr-settle) both;
+}
+
+.bj__sheet:focus {
+  outline: none;
+}
+
+/* The rules card, over the felt it describes. */
+.bj__sheet--felt {
+  top: 0;
+}
+
+/* The host's settings: up from the bottom, stopping short of the readout. */
+.bj__sheet--page {
+  top: max(120px, 28%);
+}
+
+.bj__sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-2) var(--gr-space-2) var(--gr-space-2) var(--gr-space-4);
+  border-bottom: 1px solid rgb(0 0 0 / 0.45);
+}
+
+.bj__sheet-title,
+.bj__panel-title {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+.bj__sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-4);
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.bj__field {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.bj__bots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+/* ------------------------------------------------------ the rules card */
+
+.bj__pays {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+}
+
+.bj__pay {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gr-space-2);
+  padding: 4px 6px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+  border-radius: 6px;
   font-size: var(--gr-text-xs);
   color: var(--gr-color-ink-dim);
 }
 
-/* ------------------------------------------------------------- the actions */
-
-.bj__actions {
-  grid-area: side;
-  display: grid;
-  gap: var(--gr-space-2);
-  align-content: start;
+.bj__pay dd {
+  margin: 0;
+  white-space: nowrap;
+  font-family: var(--gr-font-data);
+  font-weight: 600;
+  color: var(--gr-color-ink);
 }
 
-.bj__chips {
+/* What applies to the hand in front of you now, found on the card. */
+.bj__pay--lit {
+  background: color-mix(in srgb, var(--gr-color-neon) 16%, transparent);
+  color: var(--gr-color-neon-hi);
+}
+
+/* The side column's panels only exist at a desk; a phone reaches them through ? and talk. */
+.bj__rules {
+  grid-area: rules;
+  display: none;
+}
+
+.bj__activity {
+  grid-area: activity;
+  display: none;
+}
+
+/* ---------------------------------------------------------- the controls */
+
+.bj__controls {
+  grid-area: controls;
   display: grid;
-  /* One row, however many the house mints: a fixed four left the fifth chip
-     orphaned on a second row, hanging off the left with three empty columns
-     beside it. A chip is a thing you tap, not a panel — at two per row they
-     filled the side of the page and outshouted the felt. */
-  /* minmax(0,…) rather than 1fr: a plain 1fr will not shrink a track below its
-     content, so the widest chip pushed the row out past the panel it sits in. */
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  justify-content: center;
   gap: var(--gr-space-2);
+}
+
+.bj__controls :is(.slab, .key) {
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  min-height: 52px;
+  padding-inline: var(--gr-space-2);
+  line-height: 1.15;
+}
+
+.bj__controls .key--icon {
+  width: 52px;
+  padding: 0;
+}
+
+.bj__controls .slab {
+  font-size: var(--gr-text-lg);
+}
+
+.bj__controls small {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-shadow: none;
+  opacity: 0.85;
+}
+
+.bj__controls .key small {
+  color: var(--gr-color-ink-dim);
+}
+
+/* A price on a key is chips, so gold, even on a key that is not lit. */
+.bj__controls .key .bj__cost {
+  color: var(--gr-color-chip-hi);
+}
+
+/* A key's letter is for a keyboard, which a phone does not have. */
+.bj__controls kbd {
+  display: none;
+}
+
+/* The chips, sunk into the panel above the keys that act on them. */
+.well.bj__tray {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px 8px;
 }
 
 /*
- * The chip is drawn, not styled — see Chip.tsx. What is left here is only how
- * it behaves under a pointer, so the button itself is nothing but a hit area
- * with no box of its own to show through the round shape inside it.
+ * The chip is drawn, not styled — see Chip.tsx. What is left here is how it
+ * behaves under a finger, so the button is nothing but a round hit area.
  */
 .bj__chip {
+  display: grid;
+  place-items: center;
+  flex: 0 1 52px;
+  width: 52px;
+  height: 52px;
+  min-width: 0;
   padding: 0;
   border: none;
-  background: none;
   border-radius: 50%;
+  background: none;
   line-height: 0;
   cursor: pointer;
   transition:
@@ -296,9 +969,10 @@
 }
 
 .bj__chip .chip {
-  width: 100%;
-  height: auto;
   display: block;
+  width: 100%;
+  max-width: 48px;
+  height: auto;
   filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
 }
 
@@ -317,100 +991,202 @@
   outline-offset: 3px;
 }
 
-/* More than the stake allows: still a chip, just not one you can reach. */
+/* Not one you can add: still a chip, just not one you can reach, and it says why. */
 .bj__chip:disabled {
   opacity: 0.25;
   cursor: not-allowed;
   filter: grayscale(0.7);
 }
 
-.bj__stake {
-  margin: var(--gr-space-1) 0 var(--gr-space-2);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gr-space-1);
+.bj__row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--gr-space-2);
+}
+
+.bj__row--host {
+  grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1.4fr);
+}
+
+/* Stand across the top, Double and Split under it, Hit down the thumb's side. */
+.bj__controls--turn {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-rows: auto auto;
+  align-items: stretch;
+}
+
+.bj__stand {
+  grid-column: 1 / 3;
+}
+
+.bj__controls--turn .slab {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  /* The slab is drawn as a shadow below itself, so it leaves room for it. */
+  height: calc(100% - var(--gr-press));
+}
+
+/* Waiting on somebody else: their turn is the wide thing, taunting the other. */
+.bj__controls--wait {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.bj__controls--wait .taunt-picker {
+  width: 100%;
+}
+
+.bj__controls--wait .taunt-picker__open {
+  flex-direction: row;
+}
+
+.bj__watching {
+  margin: 0;
+  padding: var(--gr-space-2) 0;
   text-align: center;
-  font-family: var(--gr-font-data);
-  font-variant-numeric: tabular-nums;
   font-size: var(--gr-text-sm);
-  color: var(--gr-color-ink-faint);
+  color: var(--gr-color-ink-dim);
 }
 
-/* Gold, because whatever the chips are painted, this figure is money. */
-.bj__stake-total {
-  font-size: var(--gr-text-xl);
-  color: var(--gr-color-chip);
-}
+/* --------------------------------------------------------------- the desk */
 
-.stack {
-  display: block;
-  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
-}
-
-/*
- * A chip put down.
- *
- * Dropped from a little above and settling, because that is what a chip does
- * when somebody pushes one onto a felt. Each chip in a pile lands on its own,
- * staggered, so a stake of four reads as four chips rather than as one object
- * appearing all at once.
- */
-@keyframes chip-land {
-  0% {
-    opacity: 0;
-    transform: translateY(-15px) scale(1.09);
+@container bj (min-width: 760px) {
+  .bj__in {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "felt read" "felt rules" "felt activity" "felt controls";
+    gap: var(--gr-space-4) var(--gr-space-5);
   }
-  70% {
-    opacity: 1;
-    transform: translateY(2px) scale(0.99);
+
+  .readout.bj__read {
+    padding: 14px 18px;
   }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+
+  .bj__figure {
+    font-size: var(--gr-text-3xl);
+  }
+
+  .bj__stats div {
+    font-size: var(--gr-text-sm);
+  }
+
+  .bj__rules,
+  .bj__activity {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgb(0 0 0 / 0.26);
+    box-shadow:
+      inset 0 5px 10px rgb(0 0 0 / 0.42),
+      0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  /* The card is in the side column now, so its key would open a second copy. */
+  .bj__help {
+    display: none;
+  }
+
+  .bj__felt {
+    --bj-card-dealer: clamp(40px, min(12cqi, 20cqh), 124px);
+    --bj-card-mine: clamp(40px, min(9.5cqi, 17cqh), 100px);
+    --bj-card-other: clamp(24px, min(6.2cqi, 12cqh), 70px);
+  }
+
+  .bj__cloth {
+    gap: 18px;
+    padding: var(--gr-space-5);
+  }
+
+  .bj__dealer {
+    padding-top: 14px;
+  }
+
+  .bj__dealer .bj-hand {
+    gap: 8px;
+  }
+
+  .bj__dealer-who {
+    font-size: var(--gr-text-base);
+  }
+
+  /* Along the bottom of the felt, yours wider: it is the hand you are reading. */
+  .bj__seats {
+    grid-auto-flow: column;
+    grid-template-columns: minmax(0, 1.5fr);
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: end;
+    gap: 12px;
+    margin-top: auto;
+  }
+
+  .bj__others {
+    display: contents;
+  }
+
+  .bj__seat {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .bj__play {
+    flex-wrap: wrap;
+  }
+
+  .bj__count-total {
+    font-size: 30px;
+  }
+
+  .bj__seat--other .seat__avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .bj__seat--other .bj__name {
+    font-size: var(--gr-text-sm);
+  }
+
+  .bj__seat--other .bj__count-total {
+    font-size: 22px;
+  }
+
+  /* A drawer from the right at a desk, as talk is. */
+  .bj__sheet--page {
+    top: 0;
+    left: auto;
+    width: 380px;
+  }
+
+  .bj__controls kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    margin-left: 6px;
+    padding: 0 4px;
+    border-radius: 5px;
+    background: rgb(0 0 0 / 0.35);
+    box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.08);
+    font-family: var(--gr-font-data);
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--gr-color-ink-dim);
+    text-shadow: none;
+    vertical-align: 1px;
   }
 }
 
-.stack__chip {
-  /* An SVG group scales about the document's origin unless told otherwise,
-     which throws the chip across the felt instead of settling it. */
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: chip-land 280ms cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
-}
+/* ============================================ the cards (shared with poker) */
 
 /*
- * What a hand has riding on it, laid beside the cards rather than above them.
- *
- * Bottom-aligned on purpose: a stack grows upward from the felt, so lining the
- * two up by their tops would have a tall wager floating and a short one sunk.
- */
-/*
- * The stake, the hand and the count, across the width of the seat.
- *
- * Pushed apart rather than packed left: what is riding on the hand goes to one
- * edge, what it comes to goes to the other, and the cards sit between them. On
- * one line through their middles, because the pile sitting on the cards'
- * bottom edge read as three things resting on a shelf rather than one hand.
- */
-.bj__felt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gr-space-3);
-  /* A long hand shrinks; the number beside it never does. */
-  min-width: 0;
-}
-
-/* ---------------------------------------------------------------- the cards */
-
-/*
- * Prefixed, unlike everything else in this file.
- *
- * `.card` and `.hand` are the two most obvious names a card game could pick,
- * and they were already taken: Greed's scorecard is a `.card`. Every page
- * loads every game's stylesheet, so the collision silently dressed Greed's
- * points table as a playing card. A game's own classes get its own prefix.
+ * Prefixed, unlike most card-game names. `.card` and `.hand` were already
+ * taken — Greed's scorecard is a `.card` — and every page loads every game's
+ * stylesheet, so the collision once dressed Greed's points table as a playing
+ * card.
  */
 .bj-hand {
   display: flex;
@@ -420,44 +1196,18 @@
 }
 
 /*
- * A seat with no cards still holds room for them.
- *
- * This used to collapse, on the reasoning that an empty box the size of a hand
- * is nothing worth showing. It is worth showing: without it a seat sitting a
- * round out is half the height of the seats beside it, and the whole row
- * jumps every time somebody joins, folds or is dealt in.
- */
-
-/*
- * A hand that has outgrown its row, overlapped rather than spread.
- *
- * The index lives in the corner of every card, so an overlapped one still
- * says what it is — which is the whole reason a real deck puts it there.
+ * A hand that has outgrown its row, overlapped rather than spread. The index
+ * lives in the corner of every card, so an overlapped one still says what it is.
  */
 .bj-hand--tight .bj-card + .bj-card {
   margin-left: -26px;
 }
 
 /*
- * One card, at the size the felt asks for.
- *
- * Width only. The drawing carries its own 2.5×3.5 proportion, so a card can
- * never be set to a shape a card is not — and every number inside it scales
- * with the box rather than being re-tuned per size.
+ * One card, at the size its container asks for. Width only: the drawing
+ * carries its own 2.5×3.5 proportion, and every number inside it scales with
+ * the box.
  */
-/*
- * Nothing on the felt is text to be selected.
- *
- * Dragging across a hand should not leave half the table highlighted in blue,
- * and a rank is a drawing that happens to be made of letters. Chat sits
- * outside this, where selecting text is the entire point.
- */
-.bj,
-.bj-card {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 .bj-card {
   width: var(--bj-card-w, 47px);
   height: auto;
@@ -484,10 +1234,11 @@
 
 .bj-card__rank {
   font-family: var(--gr-font-display);
-  /* A sixth of the card's height, which is where a real deck puts it. Bigger
-     and the index starts competing with the pips for the middle of the card. */
+  /* A sixth of the card's height, which is where a real deck puts it. */
   font-size: 23px;
   fill: currentColor;
+  /* Snapped-to-pixel hinting makes small type jump a pixel at a time as a card turns. */
+  text-rendering: geometricPrecision;
 }
 
 /* The court's panel: the suit's own colour, at the weight of a wash. */
@@ -503,14 +1254,10 @@
   fill: none;
 }
 
-/* ------------------------------------------------------------- the back */
-
 /*
- * The weave, in whatever colours the game being played is dressed in.
- *
- * Read off the page rather than written here: a table's theme sets these three
- * and gets a deck of its own without a second drawing of one. The defaults are
- * the room's own blue.
+ * The weave, in whatever colours the game being played is dressed in. A
+ * table's theme sets these three and gets a deck of its own without a second
+ * drawing of one.
  */
 .bj-card--down {
   --bj-back: var(--gr-color-neon-deep, #0b3fd4);
@@ -532,8 +1279,7 @@
   fill: var(--bj-back-warp);
 }
 
-/* The one gold line on the back, which is the only thing tying it to the
-   chips — a back with no warm colour on it belongs to a different room. */
+/* The one gold line on the back, which is what ties it to the chips. */
 .bj-card__edge {
   fill: none;
   stroke: var(--gr-color-chip);
@@ -541,147 +1287,70 @@
   opacity: 0.75;
 }
 
-@media (max-width: 720px) {
-  /*
-   * The controls come before the seats on a phone.
-   *
-   * On a desk the panel sits beside the felt and is always in view; stacked,
-   * it lands under however many seats there happen to be, so betting meant
-   * scrolling past everybody at the table and back up again every round. The
-   * dealer is what you are playing against, what you do about it is next, and
-   * who else is here is below that.
-   */
-  .bj {
-    grid-template-columns: 1fr;
-    grid-template-areas: "dealer" "side" "seats";
-  }
-
-  /*
-   * The dealer's row was the widest thing in the building.
-   *
-   * A label that will not wrap, two cards drawn larger than anybody else's and
-   * padding for a desk came to more than a phone is wide — and one row that
-   * will not fit takes the whole page sideways with it. It wraps now, on
-   * smaller cards, in less room.
-   */
-  .bj__dealer {
-    flex-wrap: wrap;
-    gap: var(--gr-space-3);
-    padding: var(--gr-space-3);
-  }
-
-  .bj__dealer .bj-card {
-    --bj-card-w: 52px;
-  }
-
-  /* Cards first, then what they come to, rather than a column of one each. */
-  .bj__whose {
-    flex-basis: 100%;
-  }
-
-  .bj__seats {
-    grid-template-columns: 1fr;
-  }
-
-  /* A thumb, not a mouse. */
-  .bj__chip {
-    width: 56px;
-  }
-}
-
-/* Moves come in pairs, so they are laid out in pairs. */
-.bj__moves {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--gr-space-2);
-  margin-bottom: var(--gr-space-2);
-}
-
 /*
- * The table's clock.
- *
- * Lit, because a countdown is the most live thing on a table that runs itself
- * — everything else here is waiting on a person, and this is the thing that
- * is not.
+ * A card leans toward the pointer and lifts off the felt. The angles come from
+ * the pointer, on the element, in Cards.tsx — this only says what to do with
+ * them. The transition is for coming back to rest, not for following the
+ * pointer, which is what made the corner type shiver.
  */
-.bj__clock {
-  display: flex;
-  align-items: center;
-  gap: var(--gr-space-2);
-  margin: 0 0 var(--gr-space-3);
-  font-family: var(--gr-font-data);
-  font-size: var(--gr-text-sm);
-  color: var(--gr-color-neon-hi);
+.bj-card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  position: relative;
+  transition:
+    transform 220ms ease-out,
+    filter 150ms ease-out;
 }
 
-.bj__clock svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
+.bj-card:hover {
+  /* Following the pointer directly; interpolating between sixty updates a second was not smooth. */
+  transition: filter 150ms ease-out;
+  will-change: transform;
+  backface-visibility: hidden;
+  /* Above its neighbours, which in an overlapped hand is the whole point. */
+  z-index: 6;
+  transform: perspective(620px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(1.05);
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
 }
 
-/* Last call. Gold rather than neon, because this is a line about chips and
-   not about the table being alive, and the chips above it have just gone
-   grey — the colour has to move somewhere the eye is already going. */
-.bj__clock--last {
-  color: var(--gr-color-chip);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+/* ----------------------------------------------- a stake as a pile of chips */
+
+.stack {
+  display: block;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
 }
 
-/* ------------------------------------------------------------- the count */
-
-/*
- * What a hand is worth, beside the cards it is worth it on.
- *
- * The same place the dealer's total sits, because the two are the same
- * question asked of two hands and a player comparing them should not have to
- * look in two different directions. Larger than the dealer's: this is the one
- * on the row that is yours.
- */
-.bj__count {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: none;
-  margin: 0 0 0 var(--gr-space-2);
-  line-height: 1;
-  font-family: var(--gr-font-data);
-  font-variant-numeric: tabular-nums;
-}
-
-.bj__count-total {
-  font-size: 2rem;
-  font-weight: 500;
-  color: var(--gr-color-ink-lit);
-}
-
-/* Soft, which is the difference between a decision and a formality. */
-.bj__count-soft {
-  margin-top: 3px;
-  font-family: var(--gr-font-ui);
-  font-size: var(--gr-text-xs);
-  letter-spacing: 0.06em;
-  color: var(--gr-color-ink-faint);
-}
-
-.bj__count--bad .bj__count-total {
-  color: var(--gr-color-bad);
-}
-
-/* Gold, because a blackjack is not a good score — it is a payout. */
-.bj__count--chip .bj__count-total {
-  color: var(--gr-color-chip);
+.stack__chip {
+  /* An SVG group scales about the document's origin unless told otherwise,
+     which throws the chip across the felt instead of settling it. */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chip-land 280ms cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
 }
 
 /* ============================================================ the motion */
 
 /*
  * Everything that happens at a card table happens to something, and the point
- * of animating it is to say which thing. A card comes from the shoe. A stake
- * lands on the felt. A total changes because a card arrived. None of these are
- * decoration: each one answers "what just changed?" without a word.
+ * of animating it is to say which thing: a card comes from the shoe, a stake
+ * lands, a total changes because a card arrived.
  */
+
+/* A chip put down: dropped from a little above and settling, each on its own. */
+@keyframes chip-land {
+  0% {
+    opacity: 0;
+    transform: translateY(-15px) scale(1.09);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 /* Out of the shoe — up and to the right of the felt — turning as it comes. */
 @keyframes bj-deal {
@@ -699,9 +1368,7 @@
   }
 }
 
-/* The hole card, turned over. Squashed through the middle rather than rotated
-   in three dimensions: the card is a flat drawing either way, and a real flip
-   would need both faces to exist at once for one frame nobody sees. */
+/* The hole card, turned over: squashed through the middle rather than rotated in 3D. */
 @keyframes bj-turn {
   0% {
     transform: scaleX(0.06) rotate(-3deg);
@@ -718,15 +1385,9 @@
 }
 
 /*
- * A card being turned over where it lies, in two halves.
- *
- * The back folds away and the face opens out in its place, and the swap
- * happens at the moment neither is showing anything. Two animations rather
- * than one because the element genuinely changes between them — what makes it
- * read as a single card is that the motion does not stop.
- *
- * The fold holds its end state: the back has to stay closed for the frame
- * between the two, or it snaps back to full width and flashes.
+ * A card turned over where it lies, in two halves: the back folds away and the
+ * face opens out in its place. The fold holds its end state, or the back snaps
+ * back to full width for the frame between the two and flashes.
  */
 @keyframes bj-fold {
   0% {
@@ -765,8 +1426,6 @@
   animation: bj-unfold 120ms ease-out backwards;
 }
 
-/* ---- the stake */
-
 /* Dropped onto the felt from the hand that placed it. */
 @keyframes bj-drop {
   0% {
@@ -780,13 +1439,6 @@
   }
 }
 
-.bj__stake--dropped {
-  animation: bj-drop 300ms cubic-bezier(0.2, 0.9, 0.25, 1);
-}
-
-/* ---- the count */
-
-/* A total that has just changed, because a card arrived. */
 @keyframes bj-tick {
   0% {
     transform: scale(1);
@@ -799,8 +1451,7 @@
   }
 }
 
-/* Past twenty-one. Sharper than a tick and in the other direction, so it does
-   not read as one more card going well. */
+/* Sharper than a tick and sideways, so it does not read as one more card going well. */
 @keyframes bj-bust {
   0%,
   100% {
@@ -820,53 +1471,38 @@
   }
 }
 
-.bj__count--ticked .bj__count-total {
-  animation: bj-tick 320ms cubic-bezier(0.3, 1.4, 0.5, 1);
-}
-
-.bj__count--bad .bj__count-total {
-  animation: bj-bust 420ms ease-in-out;
-}
-
-/* ---- the seat */
-
-/* Whose turn it is. Glow means it is happening now, and a glow that moves
-   means it is happening now and waiting on you. */
 @keyframes bj-waiting {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgb(46 123 255 / 0);
+    box-shadow:
+      inset 0 0 0 1px var(--gr-color-neon),
+      0 0 6px color-mix(in srgb, var(--gr-color-neon) 20%, transparent);
   }
   50% {
-    box-shadow: 0 0 18px 2px rgb(46 123 255 / 0.32);
+    box-shadow:
+      inset 0 0 0 1px var(--gr-color-neon),
+      0 0 22px 2px color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
   }
 }
 
-.bj__seat--turn {
-  animation: bj-waiting 2.1s ease-in-out infinite;
-}
-
-/* Paid. Gold, and only on the way in — a loss gets nothing, which is both
-   quieter to sit through and truer to how a table treats one. */
 @keyframes bj-paid {
   0% {
-    box-shadow: 0 0 0 0 rgb(224 176 72 / 0);
-    border-color: var(--gr-color-chip);
+    box-shadow:
+      inset 0 0 0 1px var(--gr-color-chip),
+      0 0 0 0 rgb(224 176 72 / 0);
   }
   35% {
-    box-shadow: 0 0 26px 4px rgb(224 176 72 / 0.42);
-    border-color: var(--gr-color-chip-hi);
+    box-shadow:
+      inset 0 0 0 1px var(--gr-color-chip-hi),
+      0 0 26px 4px rgb(224 176 72 / 0.42);
   }
   100% {
-    box-shadow: 0 0 0 0 rgb(224 176 72 / 0);
+    box-shadow:
+      inset 0 0 0 1px rgb(0 0 0 / 0.35),
+      0 0 0 0 rgb(224 176 72 / 0);
   }
 }
 
-.bj__seat--paid {
-  animation: bj-paid 900ms ease-out;
-}
-
-/* What the hand came to, arriving under it rather than appearing. */
 @keyframes bj-said {
   0% {
     opacity: 0;
@@ -878,192 +1514,70 @@
   }
 }
 
-.bj__result {
-  animation: bj-said 260ms ease-out;
-}
-
-/* ---- the controls */
-
-/* A press should land under the finger, not a round trip later. */
-.btn--move:active:not(:disabled) {
-  transform: translateY(2px) scale(0.97);
-}
-
-/* Sent, and waiting on the table. Dimmed rather than disabled-looking: the
-   move is going to happen, it just has not been confirmed. */
-.bj__moves--sent .btn--move {
-  opacity: 0.5;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bj__hands--split .bj__hand {
-    transition: none;
+@keyframes bj-banner {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-4deg) scale(0.8);
   }
+}
 
+@keyframes bj-stamp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-7deg) scale(1.6);
+  }
+}
+
+@keyframes bj-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes bj-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* ------------------------------------------------------------ off switch */
+
+/*
+ * Every selector that moves, repeated exactly, so each is switched off by name.
+ * blackjack.css.test.ts fails if one is missing. Without the motion every state
+ * still reads: the lit seat is still lit, the stamp is still there.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .bj__clock,
+  .bj__seat--turn,
+  .bj__seat--paid,
+  .bj__pile--dropped,
+  .bj__tag,
+  .bj__count--bad .bj__count-total,
+  .bj__count--ticked .bj__count-total,
+  .bj__box,
+  .bj__banner,
+  .bj__stamp,
+  .bj__scrim,
+  .bj__sheet,
+  .bj__chip,
+  .bj__chip:hover:not(:disabled),
+  .bj__chip:active:not(:disabled),
+  .bj-card,
+  .bj-card:hover,
+  .stack__chip,
   .bj-card--deal,
   .bj-card--turn,
   .bj-card--fold,
-  .bj-card--unfold,
-  .bj__stake--dropped,
-  .bj__count--ticked .bj__count-total,
-  .bj__count--bad .bj__count-total,
-  .bj__seat--turn,
-  .bj__seat--paid,
-  .bj__result {
+  .bj-card--unfold {
     animation: none;
-  }
-
-}
-
-/* ---- picking a card up */
-
-/*
- * A card leans toward the pointer and lifts off the felt.
- *
- * Two things at once and both wanted: the lift makes a card in an overlapped
- * hand readable without moving anything else, and the lean is what stops it
- * being a flat picture that got bigger. The angles come from the pointer, on
- * the element, in Cards.tsx — this only says what to do with them.
- */
-.bj-card {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
-  position: relative;
-  /*
-   * The transition is for coming back to rest, not for following the pointer.
-   * A move sets the angles every frame, and a transform transition restarts on
-   * every one of them — so the card is always easing toward an angle the
-   * pointer has already left, which is what made the corner type shiver.
-   */
-  transition:
-    transform 220ms ease-out,
-    filter 150ms ease-out;
-}
-
-.bj-card:hover {
-  /* Following the pointer directly. Sixty updates a second is already smooth;
-     interpolating between them is what was not. */
-  transition: filter 150ms ease-out;
-  /* Composited as one layer, so the type is not re-hinted every frame. */
-  will-change: transform;
-  backface-visibility: hidden;
-}
-
-/* Snapped-to-pixel hinting is what makes small type jump a whole pixel at a
-   time as a card turns. Precision costs nothing at these sizes. */
-.bj-card__rank {
-  text-rendering: geometricPrecision;
-}
-
-.bj-card:hover {
-  /* Above its neighbours, which in an overlapped hand is the whole point. */
-  z-index: 6;
-  /*
-   * Turned rather than thrown forward. There is no translateZ here on purpose:
-   * pushing the card toward the viewer reads as it leaving the felt, and what
-   * is wanted is a card being tilted where it lies. The scale is just enough
-   * to lift it clear of the cards it overlaps.
-   */
-  transform: perspective(620px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(1.05);
-  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
-}
-
-/* ---- the tray */
-
-@media (prefers-reduced-motion: reduce) {
-  .stack__chip {
-    animation: none;
-  }
-  .bj-card,
-  .bj-card:hover,
-  .bj__chip,
-  .bj__chip:hover:not(:disabled) {
     transition: none;
+  }
+
+  .bj__chip:hover:not(:disabled),
+  .bj__chip:active:not(:disabled),
+  .bj-card:hover {
     transform: none;
   }
-}
-
-/*
- * The label and what there is to bet with, on one line.
- *
- * The balance sits opposite the label rather than under it: this panel is read
- * top-down while deciding a stake, and a number tucked below the heading reads
- * as part of the heading rather than as the answer to "how much have I got?".
- */
-.panel__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--gr-space-2);
-}
-
-.bj__bank {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--gr-text-sm);
-  font-variant-numeric: tabular-nums;
-  color: var(--gr-color-chip);
-  white-space: nowrap;
-}
-
-/*
- * Done deciding.
- *
- * Quiet until it is pressed, and plainly latched once it is: the point of the
- * button is that everybody can see who the table is still waiting on, and a
- * control that looked the same either way would answer nothing.
- */
-.bj__ready {
-  width: 100%;
-  min-height: 44px;
-  margin-top: var(--gr-space-2);
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
-  font-size: var(--gr-text-sm);
-  cursor: pointer;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.bj__ready:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--gr-color-good) 50%, transparent);
-}
-
-.bj__ready:focus-visible {
-  outline: 2px solid var(--gr-color-neon);
-  outline-offset: 3px;
-}
-
-.bj__ready:disabled {
-  cursor: default;
-  opacity: 0.4;
-}
-
-.bj__ready--on {
-  border-color: var(--gr-color-good);
-  background: color-mix(in srgb, var(--gr-color-good) 16%, transparent);
-  color: var(--gr-color-ink-lit);
-}
-
-/*
- * The avatar and the clock drawn round it.
- *
- * A wrapper so the ring has something the size of the face to be positioned
- * against — the header is a row of name, stake and purse, and a ring stretched
- * to that would be an ellipse across all three.
- */
-.bj__face {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-}
-
-.bj__face .turn-ring {
-  position: absolute;
-  inset: -3px;
 }

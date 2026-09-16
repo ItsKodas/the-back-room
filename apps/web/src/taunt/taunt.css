@@ -9,22 +9,6 @@
  * actually load. There have been orphan stylesheets in this repo.
  */
 
-/*
- * The chat and the taunt button share a row at the foot of a table: they are
- * the two ways to say something to the people you are playing against, and one
- * of them costs money.
- */
-.play__talk {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--gr-space-2);
-}
-
-.play__talk > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-
 .taunt-picker {
   position: relative;
 }

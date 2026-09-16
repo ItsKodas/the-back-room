@@ -1,0 +1,1879 @@
+<title>Blackjack Felt Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bevan&family=Dancing+Script:wght@600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/*
+ * The Back Room's own tokens, with the blackjack room's repaint on top.
+ * Deliberately one theme: the building has no daylight version.
+ */
+:root {
+  color-scheme: dark;
+  --night: #0b1712;
+  --slate: #12241c;
+  --shadow: #050c09;
+  --smoke: #1a3327;
+  --smoke-lit: #22422f;
+  --felt: #17402e;
+  --felt-lit: #1e5039;
+  --felt-deep: #0e2c1f;
+  --neon-core: #ffffff;
+  --neon-hi: #7ba9ff;
+  --neon: #2e7bff;
+  --neon-dim: #1b4a91;
+  --neon-deep: #0b3fd4;
+  --chip: #e0b048;
+  --chip-hi: #f5d68a;
+  --chip-dim: #8a6b28;
+  --ink: #dcebe1;
+  --ink-lit: #f1f8f3;
+  --ink-dim: #8ba193;
+  --ink-faint: #5d7268;
+  --good: #3fbf7a;
+  --bad: #c2543f;
+
+  --f-sign: "Dancing Script", cursive;
+  --f-display: "Bevan", Georgia, serif;
+  --f-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, monospace;
+
+  --r-key: 12px;
+  --r-cab: 18px;
+  --press: 6px;
+  --spring: cubic-bezier(0.16, 2.2, 0.4, 1);
+  --settle: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --bezel: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+  --lip: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --sink: inset 0 2px 6px rgb(0 0 0 / 0.55);
+  --glass: linear-gradient(180deg, rgb(255 255 255 / 0.42) 0%, rgb(255 255 255 / 0.13) 34%, rgb(255 255 255 / 0.02) 48%, transparent 60%);
+  --scan: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.028) 0 1px, transparent 1px 3px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--night);
+  color: var(--ink);
+}
+
+body {
+  margin: 0;
+  font-family: var(--f-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(90% 50% at 50% -10%, rgb(30 80 57 / 0.55), transparent 70%),
+    var(--night);
+}
+
+/* ===================================================== the sheet around it */
+
+.page {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding-inline: 24px;
+  padding-block: 48px 96px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-family: var(--f-data);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: clamp(2rem, 5vw, 3.1rem);
+  line-height: 1.05;
+  color: var(--ink-lit);
+  text-wrap: balance;
+}
+
+.lede {
+  max-width: 64ch;
+  margin: 16px 0 0;
+  color: var(--ink-dim);
+  font-size: 16px;
+}
+
+.changes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 28px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changes li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.changes li::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--neon-hi);
+  box-shadow: 0 0 8px var(--neon);
+}
+
+.changes s {
+  color: var(--ink-faint);
+  text-decoration-color: var(--bad);
+}
+
+h2 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 64px 0 22px;
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: var(--ink-lit);
+}
+
+h2 small {
+  font-family: var(--f-data);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+.frames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 44px 32px;
+}
+
+.shot {
+  width: 375px;
+  flex: none;
+}
+
+.shot figcaption {
+  margin-top: 14px;
+}
+
+.shot h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-lit);
+}
+
+.shot p {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-dim);
+  text-wrap: pretty;
+}
+
+.ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.id {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  font-family: var(--f-data);
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+@media (max-width: 440px) {
+  .page { padding-inline: 16px; }
+  .frames {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 12px;
+  }
+  .shot { scroll-snap-align: start; }
+}
+
+.decide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.decide li {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.26);
+  box-shadow: inset 0 5px 10px rgb(0 0 0 / 0.42), 0 1px 0 rgb(255 255 255 / 0.05);
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+.decide b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-lit);
+  font-weight: 600;
+}
+
+/* ============================================================== a device */
+
+.phone {
+  position: relative;
+  width: 375px;
+  height: 667px;
+  overflow: hidden;
+  border-radius: 30px;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgb(30 80 57 / 0.5), transparent 70%),
+    var(--night);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.8),
+    0 0 0 7px #0a0f0d,
+    0 0 0 8px rgb(255 255 255 / 0.06),
+    0 30px 70px rgb(0 0 0 / 0.6);
+}
+
+.phone--short { height: 560px; }
+
+.app {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 0 12px 14px;
+}
+
+/* ------------------------------------------------------------- the bar */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 54px;
+  padding-top: 6px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.sign {
+  font-family: var(--f-sign);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--neon-core);
+  text-shadow: 0 0 6px var(--neon-hi), 0 0 16px var(--neon);
+  white-space: nowrap;
+}
+
+.game {
+  font-family: var(--f-display);
+  font-size: 16px;
+  color: var(--ink-lit);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 4px 4px 4px 12px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.38);
+  box-shadow: var(--sink), 0 1px 0 rgb(255 255 255 / 0.05);
+  font-family: var(--f-data);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+}
+
+.pill i {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--smoke);
+  box-shadow: var(--lip);
+  font-style: normal;
+}
+
+.pill svg { width: 13px; height: 13px; }
+
+/* ----------------------------------------------------------- the readout */
+
+.readout {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px 10px;
+  border: 1px solid rgb(0 0 0 / 0.7);
+  border-radius: 14px;
+  background:
+    var(--scan),
+    radial-gradient(70% 160% at 30% -30%, rgb(46 123 255 / 0.18), transparent 70%),
+    color-mix(in srgb, var(--shadow) 88%, black);
+  box-shadow: inset 0 3px 12px rgb(0 0 0 / 0.8), 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.clock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--neon-hi);
+  box-shadow: 0 0 8px var(--neon);
+}
+
+.clock--chips {
+  background: var(--chip-hi);
+  box-shadow: 0 0 8px var(--chip);
+}
+
+.big { display: grid; min-width: 0; }
+
+.big__label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.big__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--f-data);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-lit);
+}
+
+.big__figure small {
+  font-family: var(--f-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+
+.gold {
+  color: var(--chip-hi);
+  text-shadow: 0 0 8px rgb(224 176 72 / 0.55), 0 0 22px rgb(224 176 72 / 0.25);
+}
+
+.good { color: var(--good); }
+
+.stats {
+  display: grid;
+  gap: 1px;
+  min-width: 132px;
+  margin: 0;
+}
+
+.stats div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+}
+
+.stats dt { color: var(--ink-dim); }
+
+.stats dd {
+  margin: 0;
+  font-family: var(--f-data);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.stats dd.gold { text-shadow: none; }
+
+/* ------------------------------------------------------------- the felt */
+
+.felt {
+  container: felt / size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px;
+  border-radius: var(--r-cab);
+  background:
+    radial-gradient(110% 70% at 50% 0%, var(--felt-lit), transparent 75%),
+    var(--felt);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.5), inset 0 8px 30px rgb(0 0 0 / 0.45);
+  overflow: hidden;
+  /*
+   * Cards take the room the felt has, in both directions. The height terms are
+   * sized so dealer, your hand and the other seats together stay inside the
+   * felt; a short phone gets smaller cards, never a pushed-off Hit.
+   */
+  --cw-dealer: clamp(34px, min(19cqi, 15cqh), 74px);
+  --cw-mine: clamp(38px, min(22cqi, 18cqh), 84px);
+  --cw-other: clamp(20px, min(9.5cqi, 8.5cqh), 38px);
+}
+
+/* A dealt hand overlaps, the way it sits on a real felt. The index is in the
+   corner of every card, so a covered card still says what it is. */
+.seat .hand .card + .card {
+  margin-left: calc(var(--cw) * -0.28);
+}
+
+.felt--scroll { overflow-y: auto; }
+
+.corner {
+  position: absolute;
+  top: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+}
+
+.corner--left { left: 8px; }
+.corner--right { right: 8px; }
+
+.key.key--corner {
+  position: relative;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--neon-hi);
+  box-shadow: 0 0 8px var(--neon);
+  color: var(--shadow);
+  font-family: var(--f-data);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* The house, on its own patch at the head of the table. */
+.dealer {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 4px 48px 6px;
+}
+
+.dealer__who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--f-display);
+  font-size: 13px;
+  color: rgb(220 235 225 / 0.55);
+  letter-spacing: 0.04em;
+}
+
+.dealer__who b {
+  font-family: var(--f-data);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-lit);
+}
+
+.hand {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.dealer .hand { --cw: var(--cw-dealer); }
+
+.arc {
+  height: 1px;
+  margin: 0 18px;
+  background: linear-gradient(90deg, transparent, rgb(245 214 138 / 0.28), transparent);
+}
+
+/* ------------------------------------------------------------- the cards */
+
+.card {
+  width: var(--cw, 44px);
+  height: auto;
+  flex: none;
+  display: block;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+  color: #1b1b1b;
+}
+
+.card--red { color: #b0202a; }
+
+.card__face { fill: #fdfbf6; stroke: rgb(0 0 0 / 0.32); stroke-width: 1; }
+
+.card__rank {
+  font-family: var(--f-display);
+  font-size: 15px;
+  fill: currentColor;
+}
+
+.card__suit { font-size: 11px; fill: currentColor; font-family: Georgia, serif; }
+.card__pip { font-size: 26px; fill: currentColor; font-family: Georgia, serif; }
+
+.card__back { fill: #0d1220; stroke: var(--neon-deep); stroke-width: 1; }
+.card__edge { fill: none; stroke: var(--chip); stroke-width: 1; opacity: 0.75; }
+
+.card--arriving {
+  animation: arrive 900ms ease-in-out infinite alternate;
+}
+
+@keyframes arrive {
+  from { transform: translate(10px, -14px) rotate(8deg); opacity: 0.65; }
+  to { transform: none; opacity: 1; }
+}
+
+.hand .slot {
+  width: var(--cw, 44px);
+  aspect-ratio: 50 / 70;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  background: rgb(0 0 0 / 0.12);
+}
+
+/* --------------------------------------------------------------- seats */
+
+.seats {
+  display: grid;
+  gap: 6px;
+}
+
+.others {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.seat {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.26);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35), var(--lip);
+}
+
+.seat--mine {
+  --cw: var(--cw-mine);
+  outline: 1px solid var(--chip-dim);
+}
+
+.seat--turn {
+  background: color-mix(in srgb, var(--neon) 14%, rgb(0 0 0 / 0.2));
+  box-shadow: inset 0 0 0 1px var(--neon), 0 0 18px rgb(46 123 255 / 0.35);
+}
+
+.seat--out { opacity: 0.5; }
+
+.seat__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.av {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-lit);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.22);
+}
+
+.seat--turn .av { box-shadow: 0 0 0 2px var(--neon-hi), 0 0 10px var(--neon); }
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-lit);
+}
+
+.stake {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--f-data);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--chip-hi);
+  font-variant-numeric: tabular-nums;
+}
+
+.seat__play {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.total {
+  margin-left: auto;
+  display: grid;
+  justify-items: end;
+  font-family: var(--f-data);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-lit);
+  font-variant-numeric: tabular-nums;
+}
+
+.total small {
+  font-family: var(--f-ui);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.total--chip { color: var(--chip-hi); text-shadow: 0 0 10px rgb(224 176 72 / 0.5); }
+.total--bad { color: var(--bad); }
+
+/* A compact plate: a line of small cards and what they come to. */
+.seat--other { --cw: var(--cw-other); padding: 6px 8px; gap: 4px; }
+.seat--other .av { width: 20px; height: 20px; font-size: 10px; }
+.seat--other .name { font-size: 12px; }
+.seat--other .stake { font-size: 11px; }
+.seat--other .hand { gap: 2px; }
+.seat--other .total { font-size: 15px; }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  color: var(--ink-dim);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tag::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.tag--live { color: var(--neon-hi); }
+.tag--live::before { background: var(--neon-hi); box-shadow: 0 0 6px var(--neon); }
+.tag--good { color: var(--good); }
+.tag--good::before { background: var(--good); }
+.tag--bad { color: var(--bad); }
+.tag--bad::before { background: var(--bad); }
+.tag--chips { color: var(--chip-hi); }
+.tag--chips::before { background: var(--chip); }
+
+/* A stake, as a pile you can read without counting. */
+.pile {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  flex: none;
+  width: 34px;
+}
+
+.pile span {
+  display: block;
+  width: 30px;
+  height: 6px;
+  margin-top: -2px;
+  border-radius: 50% / 100%;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.5);
+}
+
+/* ---------------------------------------------------------------- splits */
+
+/*
+ * A split seat keeps one plate and gains a row of hand boxes. The card size is
+ * set on the seat, the container, and inherited — never on the card itself.
+ */
+.seat--split {
+  --cw: clamp(26px, min(12cqi, 15cqh), 52px);
+}
+
+.seat--split.seat--four {
+  --cw: clamp(18px, min(8.5cqi, 10cqh), 32px);
+}
+
+/* Four across has no room for a total beside three cards, so it goes under. */
+.seat--four .hbox__play { flex-wrap: wrap; }
+
+.hands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.seat--four .hands { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+
+.hbox {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 7px 7px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.22);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
+}
+
+/* Which of your hands the buttons act on. Lit, because it is the one happening now. */
+.hbox--live {
+  background: color-mix(in srgb, var(--neon) 16%, rgb(0 0 0 / 0.2));
+  box-shadow: inset 0 0 0 1.5px var(--neon-hi), 0 0 14px rgb(46 123 255 / 0.4);
+}
+
+.hbox--wait { opacity: 0.62; }
+
+.hbox__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.hbox--live .hbox__top { color: var(--neon-hi); }
+
+.hbox__top b {
+  font-family: var(--f-data);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--chip-hi);
+  text-transform: none;
+}
+
+.hbox__play {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hbox .hand { gap: 0; }
+.hbox .hand .card + .card { margin-left: calc(var(--cw) * -0.42); }
+
+.hbox .total { font-size: 20px; }
+.seat--four .hbox .total { font-size: 14px; }
+.seat--four .hbox { padding: 5px; }
+.seat--four .hbox__top { font-size: 9px; }
+
+.hbox .tag { justify-self: start; }
+
+/* Somebody else's split, on a compact plate: two little hands and a rule between. */
+.minis {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.minis .mini { display: flex; align-items: center; gap: 3px; }
+.minis .mini .total { font-size: 13px; }
+.minis .mini--live .total { color: var(--neon-hi); }
+.minis i { width: 1px; align-self: stretch; background: rgb(255 255 255 / 0.12); }
+
+.rules-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 45%, transparent);
+  font-family: var(--f-data);
+  font-size: 11px;
+  color: #e4a393;
+}
+
+/* ------------------------------------------------- big moments on the felt */
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 2;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  padding: 4px 18px 8px;
+  font-family: var(--f-display);
+  font-size: 34px;
+  color: var(--chip-hi);
+  text-shadow: 0 0 12px rgb(224 176 72 / 0.8), 0 0 36px rgb(224 176 72 / 0.45), 0 3px 0 rgb(0 0 0 / 0.6);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* =========================================================== the controls */
+
+.ctl { display: grid; gap: 8px; }
+
+.row3 {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.moves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-rows: auto auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.moves .m-stand { grid-column: 1 / 3; }
+.moves .slab { grid-column: 3; grid-row: 1 / 3; height: calc(100% - var(--press)); }
+
+.wait {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.tray {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.26);
+  box-shadow: inset 0 5px 10px rgb(0 0 0 / 0.42), 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.chipbtn {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  filter: drop-shadow(0 3px 0 rgb(0 0 0 / 0.55));
+}
+
+.chipbtn:disabled { opacity: 0.35; filter: grayscale(0.6); }
+.chipbtn svg { width: 48px; height: 48px; }
+
+/* --------------------------------------------- the fittings, as they ship */
+
+.slab {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-key);
+  background: var(--shadow);
+  color: var(--neon-core);
+  font-family: var(--f-ui);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 10px rgb(255 255 255 / 0.4), 0 0 22px var(--neon-hi), 0 1px 0 rgb(0 0 0 / 0.35);
+  box-shadow: 0 var(--press) 0 var(--neon-deep), 0 calc(var(--press) + 5px) 14px rgb(0 0 0 / 0.5), var(--bezel);
+  margin-bottom: var(--press);
+}
+
+.slab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  background:
+    radial-gradient(70% 130% at 28% 118%, color-mix(in srgb, var(--neon) 85%, #fff) 0%, transparent 60%),
+    radial-gradient(60% 120% at 80% -18%, color-mix(in srgb, var(--neon-hi) 50%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, var(--neon-dim) 0%, color-mix(in srgb, var(--neon-deep) 40%, var(--shadow)) 100%);
+  background-size: 190% 190%;
+  animation: alive 5.2s ease-in-out infinite;
+}
+
+.slab::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glass), radial-gradient(90% 60% at 50% 108%, rgb(255 255 255 / 0.14), transparent 70%);
+}
+
+@keyframes alive {
+  0%, 100% { background-position: 22% 60%; }
+  50% { background-position: 78% 40%; }
+}
+
+.slab small,
+.key small {
+  font-family: var(--f-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-shadow: none;
+  opacity: 0.85;
+}
+
+.slab:disabled,
+.slab.is-off {
+  color: var(--ink-faint);
+  text-shadow: none;
+  box-shadow: var(--sink);
+  transform: translateY(var(--press));
+}
+
+.slab.is-off::before { background: var(--smoke); animation: none; }
+.slab.is-off::after { opacity: 0.2; }
+
+.slab.is-busy {
+  transform: translateY(var(--press));
+  box-shadow: 0 0 0 var(--neon-deep), 0 2px 6px rgb(0 0 0 / 0.45), var(--bezel);
+}
+
+.slab.is-busy::before { animation-duration: 1.4s; }
+
+.key {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 8px;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: var(--r-key);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(0 0 0 / 0.22)), var(--smoke);
+  color: var(--ink);
+  font-family: var(--f-ui);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.15;
+  box-shadow: var(--lip), 0 3px 0 rgb(0 0 0 / 0.45), 0 5px 10px rgb(0 0 0 / 0.25);
+}
+
+.key svg { width: 18px; height: 18px; }
+.key small { color: var(--ink-dim); }
+.key small.gold { color: var(--chip-hi); text-shadow: none; }
+
+.key.is-off {
+  color: var(--ink-faint);
+  background: rgb(0 0 0 / 0.2);
+  box-shadow: var(--sink);
+  transform: translateY(3px);
+}
+
+.key.is-off small { color: var(--ink-faint); }
+
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  margin-left: 6px;
+  border-radius: 5px;
+  background: rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.08);
+  font-family: var(--f-data);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  text-shadow: none;
+  vertical-align: 1px;
+}
+
+.seg {
+  position: relative;
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.38);
+  box-shadow: var(--sink), 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.seg span {
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+
+.seg .on {
+  color: var(--neon-core);
+  text-shadow: 0 0 10px var(--neon-hi);
+  background: linear-gradient(180deg, rgb(46 123 255 / 0.42), rgb(46 123 255 / 0.2));
+  box-shadow: inset 0 0 0 1px rgb(46 123 255 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.2), 0 0 16px rgb(46 123 255 / 0.38);
+}
+
+/* ==================================================== sheets and overlays */
+
+.scrim {
+  position: absolute;
+  inset: 54px 0 0;
+  z-index: 8;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.sheet {
+  position: absolute;
+  z-index: 9;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  top: 150px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--r-cab) var(--r-cab) 0 0;
+  background: linear-gradient(180deg, var(--smoke-lit) 0%, var(--smoke) 10%, var(--slate) 50%, color-mix(in srgb, var(--slate) 55%, var(--shadow)) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.09), 0 -18px 40px rgb(0 0 0 / 0.5);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid rgb(0 0 0 / 0.45);
+}
+
+.sheet__title {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
+.field-label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.hint { margin: 6px 0 0; font-size: 12px; color: var(--ink-faint); }
+
+.botkeys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.botkeys .key { min-height: 40px; font-size: 13px; }
+
+.log {
+  display: grid;
+  align-content: end;
+  gap: 2px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.log li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 3px 4px;
+  color: var(--ink-dim);
+}
+
+.log time {
+  font-family: var(--f-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.log li:last-child { color: var(--ink-lit); }
+
+.refusal {
+  position: absolute;
+  inset: 54px 0 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.refusal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.38);
+  -webkit-backdrop-filter: blur(6px) saturate(0.8);
+  backdrop-filter: blur(6px) saturate(0.8);
+}
+
+.refusal p {
+  position: relative;
+  margin: 0;
+  max-width: 300px;
+  padding: 16px 22px;
+  border: 1px solid color-mix(in srgb, var(--bad) 70%, black);
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bad) 22%, transparent), transparent), var(--slate);
+  box-shadow: var(--lip), 0 0 0 3px color-mix(in srgb, var(--bad) 18%, transparent), 0 24px 60px rgb(0 0 0 / 0.6);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--ink-lit);
+}
+
+/* ================================================================ the desk */
+
+.desk-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 1280px;
+  aspect-ratio: 1280 / 800;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.8), 0 0 0 6px #0a0f0d, 0 0 0 7px rgb(255 255 255 / 0.06), 0 30px 70px rgb(0 0 0 / 0.6);
+}
+
+.desk {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1280px;
+  height: 800px;
+  transform-origin: 0 0;
+  transform: scale(var(--k, 1));
+  background:
+    radial-gradient(90% 60% at 40% -10%, rgb(30 80 57 / 0.55), transparent 70%),
+    var(--night);
+}
+
+.desk .app {
+  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "bar bar" "felt read" "felt rules" "felt activity" "felt controls";
+  gap: 14px 22px;
+  padding: 0 36px 28px;
+}
+
+.desk .bar { grid-area: bar; height: 70px; border-bottom-color: rgb(255 255 255 / 0.06); }
+.desk .sign { font-size: 26px; }
+.desk .game { font-size: 22px; }
+.desk .readout { grid-area: read; padding: 14px 18px; }
+.desk .big__figure { font-size: 42px; }
+.desk .stats div { font-size: 12.5px; }
+.desk .felt {
+  grid-area: felt;
+  padding: 24px;
+  gap: 18px;
+  --cw-dealer: clamp(40px, min(12cqi, 20cqh), 124px);
+  --cw-mine: clamp(40px, min(9.5cqi, 17cqh), 100px);
+  --cw-other: clamp(24px, min(6.2cqi, 12cqh), 70px);
+}
+.desk .dealer { padding-top: 14px; }
+.desk .dealer__who { font-size: 16px; }
+.desk .ctl { grid-area: controls; }
+
+.desk-seats {
+  display: grid;
+  /* Your seat wider: it is the hand you are reading, so it gets the big cards. */
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: auto;
+}
+
+.desk .dealer .hand { gap: 8px; }
+
+.desk .seat { padding: 12px; gap: 10px; }
+.desk .seat--other .av { width: 26px; height: 26px; font-size: 12px; }
+.desk .seat--other .name { font-size: 13px; }
+.desk .seat--other .total { font-size: 22px; }
+.desk .seat .total { font-size: 30px; }
+.desk .seat__play { flex-wrap: wrap; }
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.26);
+  box-shadow: inset 0 5px 10px rgb(0 0 0 / 0.42), 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.panel h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.rules { grid-area: rules; }
+.activity { grid-area: activity; }
+
+.rules dl { display: grid; gap: 1px; margin: 0; }
+
+.rules div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.rules dd { margin: 0; font-family: var(--f-data); font-weight: 600; color: var(--ink); }
+.rules .lit { background: rgb(46 123 255 / 0.16); color: var(--neon-hi); }
+
+.desk .moves .key { font-size: 15px; }
+
+/* ============================================================= scrolling */
+
+/*
+ * Every box that scrolls wears the room's own bar: a thin groove with a thumb
+ * that brightens under the pointer, no arrows. The standard properties only
+ * where the drawn bar is not understood — Chrome lets scrollbar-width win over
+ * ::-webkit-scrollbar and draws its system bar, arrows and all.
+ */
+@supports not selector(::-webkit-scrollbar) {
+  :is(.felt--scroll, .sheet__body, .log, .frames) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--smoke-lit) transparent;
+  }
+}
+
+:is(.felt--scroll, .sheet__body, .log, .frames)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:is(.felt--scroll, .sheet__body, .log, .frames)::-webkit-scrollbar-track {
+  margin-block: 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.25);
+}
+
+.frames::-webkit-scrollbar-track {
+  margin-block: 0;
+  margin-inline: 4px;
+}
+
+:is(.felt--scroll, .sheet__body, .log, .frames)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--smoke-lit) padding-box;
+}
+
+:is(.felt--scroll, .sheet__body, .log, .frames)::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--neon) 55%, var(--smoke-lit)) padding-box;
+}
+
+:is(.felt--scroll, .sheet__body, .log, .frames)::-webkit-scrollbar-button,
+:is(.felt--scroll, .sheet__body, .log, .frames)::-webkit-scrollbar-corner {
+  display: none;
+  background: transparent;
+}
+
+/* The page itself, too: the sheet the frames sit on is part of the room.
+   Guarded the same way, or Chrome draws the system bar here as well. */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-color: var(--smoke-lit) var(--night);
+  }
+}
+
+html::-webkit-scrollbar { width: 10px; }
+html::-webkit-scrollbar-track { background: var(--night); }
+html::-webkit-scrollbar-thumb {
+  border: 3px solid var(--night);
+  border-radius: 999px;
+  background: var(--smoke-lit);
+}
+html::-webkit-scrollbar-button { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slab::before,
+  .slab.is-busy::before,
+  .card--arriving {
+    animation: none;
+  }
+}
+</style>
+
+<main class="page">
+  <p class="eyebrow">The Back Room · Blackjack · PR 2 mockups</p>
+  <h1>The card room, on one screen</h1>
+  <p class="lede">
+    Every frame below is drawn from the building's own tokens and fittings in the blackjack room's green:
+    the same slab, keys, readout and scanlined screen Greed's table now wears. Nine phone states at 375 × 667,
+    a short phone with a full table, and the desk layout. Tags name the requirement each frame answers.
+  </p>
+  <ul class="changes">
+    <li><span>The page is the window. <s>Scroll past the seats to bet</s> — the felt flexes, everything else keeps its height.</span></li>
+    <li><span>Controls sit under the thumb, one lit slab per state: Ready, then Hit.</span></li>
+    <li><span>A readout says what this turn is worth, with the clock draining along its top.</span></li>
+    <li><span>Talk is a key on the felt, not a panel under it. Activity replaces the one-line event strip.</span></li>
+    <li><span>Host tools go behind a Table key. <s>Bet time, listing and bots in the betting panel.</s></span></li>
+    <li><span>Refusals take the middle of the board. <s>A strip over the dealer.</s></span></li>
+  </ul>
+
+  <h2>Phone <small>375 × 667 · signed in, playing for chips</small></h2>
+  <div class="frames" id="phones"></div>
+
+  <h2>Splits <small>375 × 667 · a pair becomes two hands</small></h2>
+  <p class="lede" style="margin:-8px 0 26px">
+    Your seat keeps one plate and grows a box per hand. The box the buttons act on is lit; the other waits, dimmed.
+    Each box carries its own stake, total and outcome, and the readout switches to the hand you are deciding about.
+    The table splits a pair once per seat, so today a seat has at most two hands — the last frame is a stress test of four.
+  </p>
+  <div class="frames" id="splits"></div>
+
+  <h2>Desk <small>1280 × 800 · your turn</small></h2>
+  <div class="desk-wrap" id="deskWrap"><div class="desk" id="desk"></div></div>
+  <div class="ids" style="margin-top:14px">
+    <span class="id">L5 felt left, side column right</span><span class="id">T2 readout</span><span class="id">T3 rules card</span><span class="id">A2 activity panel</span><span class="id">K2 key hints on the keys</span>
+  </div>
+
+  <h2>For you to call</h2>
+  <ul class="decide">
+    <li><b>Your seat big, everyone else compact</b>On a phone your hand gets full-size cards and a large total; other seats shrink to a plate with small cards. At a desk every seat is a full plate along the bottom of the felt.</li>
+    <li><b>The chip tray lives in the controls</b>Betting is the turn's action, so the five chips sit directly above Take it back and Ready, inside thumb reach — not up on the felt next to your seat.</li>
+    <li><b>Deal now stays out for the host</b>It is a secondary key beside Ready while betting. Bet time, who can find the table and bots move behind the Table key on the felt.</li>
+  </ul>
+</main>
+
+<script>
+(() => {
+  const SUIT = { s: "♠", h: "♥", d: "♦", c: "♣" };
+  const FACES = {
+    100: { body: "#2b3038", trim: "#eceff3", spots: 8 },
+    250: { body: "#8e3358", trim: "#f6d7e4", spots: 6 },
+    500: { body: "#4b3277", trim: "#e2d6f7", spots: 4 },
+    1000: { body: "#a8791c", trim: "#fbecc6", spots: 3 },
+    5000: { body: "#a33c1e", trim: "#f7d8c9", spots: 6 },
+  };
+  let uid = 0;
+
+  const card = (rank, suit, extra = "") => {
+    const red = suit === "h" || suit === "d";
+    return `<svg class="card${red ? " card--red" : ""} ${extra}" viewBox="0 0 50 70" role="img" aria-label="${rank}${SUIT[suit]}">
+      <rect class="card__face" x=".5" y=".5" width="49" height="69" rx="4"/>
+      <text class="card__rank" x="4.5" y="16">${rank}</text>
+      <text class="card__suit" x="5" y="27">${SUIT[suit]}</text>
+      <text class="card__pip" x="27" y="50" text-anchor="middle">${SUIT[suit]}</text>
+    </svg>`;
+  };
+
+  const back = (extra = "") => {
+    const id = `weave${uid++}`;
+    return `<svg class="card ${extra}" viewBox="0 0 50 70" role="img" aria-label="A card, face down">
+      <defs><pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="#12203c"/><rect width="2.6" height="6" fill="#1f3a70"/></pattern></defs>
+      <rect class="card__back" x=".5" y=".5" width="49" height="69" rx="4" fill="url(#${id})"/>
+      <rect x="4" y="4" width="42" height="62" rx="2.5" fill="url(#${id})"/>
+      <rect class="card__edge" x="4" y="4" width="42" height="62" rx="2.5"/>
+    </svg>`;
+  };
+
+  const chip = (amount) => {
+    const f = FACES[amount];
+    const circ = 2 * Math.PI * 43;
+    const dash = circ / f.spots;
+    const label = amount >= 1000 ? amount.toLocaleString("en-US") : String(amount);
+    const size = label.length > 3 ? 17 : 24;
+    return `<svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="48" fill="${f.body}"/>
+      <circle cx="50" cy="50" r="43" fill="none" stroke="${f.trim}" stroke-width="11" stroke-dasharray="${dash * 0.4} ${dash * 0.6}" transform="rotate(-8 50 50)"/>
+      <circle cx="50" cy="50" r="33" fill="${f.trim}" stroke="rgb(0 0 0 / .35)" stroke-width="1.5"/>
+      <text x="50" y="51" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Mono, monospace" font-weight="600" font-size="${size}" fill="${f.body}">${label}</text>
+    </svg>`;
+  };
+
+  const pile = (amount) => {
+    let left = amount;
+    const discs = [];
+    for (const d of [5000, 1000, 500, 250, 100]) {
+      while (left >= d && discs.length < 7) {
+        discs.push(d);
+        left -= d;
+      }
+    }
+    return `<span class="pile" aria-hidden="true">${discs
+      .map((d) => `<span style="background:linear-gradient(180deg, ${FACES[d].trim} 0 22%, ${FACES[d].body} 22% 100%)"></span>`)
+      .join("")}</span>`;
+  };
+
+  const icon = {
+    talk: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>`,
+    table: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>`,
+    undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>`,
+    leave: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 17l5-5-5-5M15 12H3"/></svg>`,
+    taunt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.4 2.2 2 3.5 2s2.5-.6 3.5-2M9 9.5h.01M15 9.5h.01"/></svg>`,
+    close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  };
+
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  const bar = () => `<header class="bar"><span class="sign">The Back Room</span><span class="game">Blackjack</span>
+    <span class="pill">HG4ME<i aria-label="Leave">${icon.leave}</i></span></header>`;
+
+  const readout = ({ label, figure, figClass = "", note = "", stats, clock, clockClass = "" }) => `
+    <section class="readout" aria-label="This turn">
+      ${clock ? `<span class="clock ${clockClass}" style="width:${clock}%"></span>` : ""}
+      <div class="big"><span class="big__label">${label}</span>
+        <span class="big__figure"><span class="${figClass}">${figure}</span>${note ? `<small>${note}</small>` : ""}</span></div>
+      <dl class="stats">${stats.map(([dt, dd, cls = ""]) => `<div><dt>${dt}</dt><dd class="${cls}">${dd}</dd></div>`).join("")}</dl>
+    </section>`;
+
+  const corners = ({ unread = 0, host = false } = {}) => `
+    <div class="corner corner--left"><button class="key key--corner" aria-label="Table talk">${icon.talk}${unread ? `<span class="count">${unread}</span>` : ""}</button></div>
+    <div class="corner corner--right"><button class="key key--corner" aria-label="How it pays">?</button>${host ? `<button class="key key--corner" aria-label="Table">${icon.table}</button>` : ""}</div>`;
+
+  const dealer = ({ cards = [], hole = false, total = "", label = "Dealer" }) => `
+    <div class="dealer"><span class="dealer__who">${label}${total !== "" ? ` <b>${total}</b>` : ""}</span>
+      <span class="hand">${cards.length === 0 ? `<span class="slot"></span><span class="slot"></span>` : cards.map(([r, s]) => card(r, s)).join("") + (hole ? back() : "")}</span></div>
+    <div class="arc"></div>`;
+
+  const mine = ({ name = "Koda", color = "#3f8a66", cards = [], total = "", totalClass = "", soft = false, stake = 0, tag = "", turn = false, arriving = false }) => `
+    <article class="seat seat--mine${turn ? " seat--turn" : ""}">
+      <header class="seat__head"><span class="av" style="background:${color}">${name[0]}</span><span class="name">${name} (you)</span>
+        ${tag}${stake ? `<span class="stake">${fmt(stake)}</span>` : ""}</header>
+      <div class="seat__play">
+        ${stake ? pile(stake) : ""}
+        <span class="hand">${cards.length === 0 ? `<span class="slot"></span><span class="slot"></span>` : cards.map(([r, s]) => card(r, s)).join("")}${arriving ? back("card--arriving") : ""}</span>
+        ${total !== "" ? `<span class="total ${totalClass}">${total}${soft ? "<small>soft</small>" : ""}</span>` : ""}
+      </div>
+    </article>`;
+
+  const other = ({ name, color, cards = [], total = "", totalClass = "", stake = 0, tag = "", turn = false, out = false }) => `
+    <article class="seat seat--other${turn ? " seat--turn" : ""}${out ? " seat--out" : ""}">
+      <header class="seat__head"><span class="av" style="background:${color}">${name[0]}</span><span class="name">${name}</span>
+        ${stake ? `<span class="stake">${fmt(stake)}</span>` : ""}</header>
+      <div class="seat__play"><span class="hand">${cards.map(([r, s]) => card(r, s)).join("")}</span>
+        ${tag}${total !== "" ? `<span class="total ${totalClass}">${total}</span>` : ""}</div>
+    </article>`;
+
+  const tag = (text, kind = "") => `<span class="tag${kind ? ` tag--${kind}` : ""}">${text}</span>`;
+
+  const tray = (lastCall = false) => `<div class="tray" role="group" aria-label="Add chips">${[100, 250, 500, 1000, 5000]
+    .map((a) => `<button class="chipbtn" ${lastCall ? "disabled" : ""} aria-label="Add ${fmt(a)}">${chip(a)}</button>`)
+    .join("")}</div>`;
+
+  const ctlBet = ({ host = true, ready = false } = {}) => `
+    <section class="ctl">${tray()}
+      <div class="${host ? "row3" : "row2"}">
+        <button class="key" aria-label="Take it back">${icon.undo}</button>
+        ${host ? `<button class="key">Deal now</button>` : ""}
+        <button class="slab">${ready ? "Waiting…<small>for the others</small>" : "Ready<small>cards out 0:14</small>"}</button>
+      </div></section>`;
+
+  const ctlTurn = ({ busy = false, kbd = false } = {}) => `
+    <section class="ctl"><div class="moves">
+      <button class="key m-stand${busy ? " is-off" : ""}">Stand${kbd ? "<kbd>S</kbd>" : ""}</button>
+      <button class="key${busy ? " is-off" : ""}">Double${kbd ? "<kbd>D</kbd>" : ""}<small class="gold">+500</small></button>
+      <button class="key is-off">Split${kbd ? "<kbd>P</kbd>" : ""}<small>no pair</small></button>
+      <button class="slab${busy ? " is-busy" : ""}">Hit${kbd ? "<kbd>Space</kbd>" : ""}<small>${busy ? "a card is coming" : "on 16"}</small></button>
+    </div></section>`;
+
+  const ctlWait = (who, left) => `
+    <section class="ctl"><div class="wait">
+      <button class="slab is-off" disabled>${who}<small>${left}</small></button>
+      <button class="key">${icon.taunt}<small>Taunt</small></button>
+    </div></section>`;
+
+  const OTHERS_PLAYING = [
+    { name: "Mara", color: "#9a5b7c", cards: [["10", "d"], ["9", "s"]], total: 19, stake: 250, tag: tag("Stood") },
+    { name: "Jun", color: "#4a8fa0", cards: [["8", "c"], ["6", "h"]], total: 14, stake: 1000 },
+  ];
+
+  const phones = [
+    {
+      title: "Betting, as the host",
+      body: "Your stake is the big gold figure and moves on the press. Chips sit right above Ready; Deal now is the host's second key. Bet time, listing and bots are behind the Table key top-right.",
+      ids: ["L1", "K1", "F2", "S5", "T2", "C1", "Host key"],
+      html:
+        bar() +
+        readout({ label: "Your stake", figure: "500", figClass: "gold", stats: [["Balance", "12,400", "gold"], ["Table", "100–10,000"], ["Cards out", "0:14"]], clock: 47, clockClass: "clock--chips" }) +
+        `<section class="felt">${corners({ unread: 2, host: true })}${dealer({})}
+          <div class="seats">${mine({ stake: 500, tag: tag("Not ready") })}
+          <div class="others">${other({ name: "Mara", color: "#9a5b7c", stake: 250, tag: tag("Ready", "live") })}${other({ name: "Jun", color: "#4a8fa0", tag: tag("Yet to bet") })}</div></div></section>` +
+        ctlBet(),
+    },
+    {
+      title: "Your turn",
+      body: "Your seat lights neon. The readout's figure is your total, with the stake and the dealer's up card beside it. Hit is the lit slab; Stand, Double and Split are keys with their cost on them.",
+      ids: ["T1", "T2", "K1", "F2", "F5"],
+      html:
+        bar() +
+        readout({ label: "Your hand", figure: "16", stats: [["On it", "500", "gold"], ["Dealer shows", "10"], ["You have", "0:12"]], clock: 62 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["10", "s"]], hole: true, total: "10" })}
+          <div class="seats">${mine({ cards: [["9", "h"], ["7", "c"]], total: 16, stake: 500, turn: true })}
+          <div class="others">${other(OTHERS_PLAYING[0])}${other({ ...OTHERS_PLAYING[1], tag: tag("Next") })}</div></div></section>` +
+        ctlTurn(),
+    },
+    {
+      title: "Hit, before the table answers",
+      body: "The press lands at once: the slab goes down busy and a card arrives face down on your hand. It turns over when the server sends it — nothing on screen is guessed.",
+      ids: ["F4", "T4", "Never invent a fact"],
+      html:
+        bar() +
+        readout({ label: "Your hand", figure: "16", note: "a card is coming", stats: [["On it", "500", "gold"], ["Dealer shows", "10"], ["You have", "0:11"]], clock: 58 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["10", "s"]], hole: true, total: "10" })}
+          <div class="seats">${mine({ cards: [["9", "h"], ["7", "c"]], total: 16, stake: 500, turn: true, arriving: true })}
+          <div class="others">${other(OTHERS_PLAYING[0])}${other({ ...OTHERS_PLAYING[1], tag: tag("Next") })}</div></div></section>` +
+        ctlTurn({ busy: true }),
+    },
+    {
+      title: "Somebody else's turn",
+      body: "Jun is lit and the readout follows Jun's hand. Nothing to press but a taunt, so the slab is out and says whose turn and how long. Talk has an unread count.",
+      ids: ["T1", "T2", "K5", "C2"],
+      html:
+        bar() +
+        readout({ label: "Jun's hand", figure: "14", stats: [["On it", "1,000", "gold"], ["Dealer shows", "10"], ["Jun has", "0:09"]], clock: 38 }) +
+        `<section class="felt">${corners({ unread: 3 })}${dealer({ cards: [["10", "s"]], hole: true, total: "10" })}
+          <div class="seats">${mine({ cards: [["9", "h"], ["7", "c"], ["3", "d"]], total: 19, stake: 500, tag: tag("Stood") })}
+          <div class="others">${other(OTHERS_PLAYING[0])}${other({ ...OTHERS_PLAYING[1], turn: true })}</div></div></section>` +
+        ctlWait("Jun's turn", "0:09"),
+    },
+    {
+      title: "Hand over — a blackjack",
+      body: "One lit moment, once: the banner over the felt, your total in gold because a blackjack is a payout. The readout gives the net in the good colour and what came back.",
+      ids: ["T5", "F3", "M1"],
+      html:
+        bar() +
+        readout({ label: "This hand", figure: "+750", figClass: "good", note: "3 to 2", stats: [["Back", "1,250", "gold"], ["Dealer", "19"], ["Next hand", "0:06"]], clock: 70 }) +
+        `<section class="felt">${corners()}<p class="banner" aria-hidden="true">Blackjack</p>${dealer({ cards: [["10", "s"], ["9", "c"]], total: "19" })}
+          <div class="seats">${mine({ cards: [["A", "s"], ["K", "h"]], total: 21, totalClass: "total--chip", stake: 500, tag: tag("Paid 750", "chips") })}
+          <div class="others">${other({ ...OTHERS_PLAYING[0], tag: tag("Push") })}${other({ name: "Jun", color: "#4a8fa0", cards: [["8", "c"], ["6", "h"], ["9", "d"]], total: 23, totalClass: "total--bad", stake: 1000, tag: tag("Bust", "bad") })}</div></div></section>` +
+        ctlWait("Next hand", "in 6s"),
+    },
+    {
+      title: "A table saying no",
+      body: "At last call the chip tray is already off, so this is rare — but when the server refuses, it takes the middle of the board with everything blurred behind it, and sounds once.",
+      ids: ["N1", "N2", "N3", "N6"],
+      html:
+        bar() +
+        readout({ label: "Your stake", figure: "500", figClass: "gold", stats: [["Balance", "12,400", "gold"], ["Table", "100–10,000"], ["Last call", "0:02"]], clock: 7, clockClass: "clock--chips" }) +
+        `<section class="felt">${corners()}${dealer({})}
+          <div class="seats">${mine({ stake: 500, tag: tag("Ready", "live") })}
+          <div class="others">${other({ name: "Mara", color: "#9a5b7c", stake: 250, tag: tag("Ready", "live") })}${other({ name: "Jun", color: "#4a8fa0", stake: 1000, tag: tag("Ready", "live") })}</div></div></section>` +
+        `<section class="ctl">${tray(true)}<div class="row2"><button class="key" aria-label="Take it back">${icon.undo}</button><button class="slab">Waiting…<small>for the others</small></button></div></section>` +
+        `<div class="refusal" role="alert"><p>Last call — chips can come off the felt now, not on.</p></div>`,
+    },
+    {
+      title: "Talk, with the activity tab",
+      body: "The talk key opens a sheet that rises from the bottom and stops under the readout, so the hand stays in view. Activity is the second tab: the table's sentences, newest at the bottom.",
+      ids: ["C1", "C3", "A1", "A2"],
+      html:
+        bar() +
+        readout({ label: "Jun's hand", figure: "14", stats: [["On it", "1,000", "gold"], ["Dealer shows", "10"], ["Jun has", "0:09"]], clock: 38 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["10", "s"]], hole: true, total: "10" })}<div class="seats">${mine({ cards: [["9", "h"], ["7", "c"], ["3", "d"]], total: 19, stake: 500 })}</div></section>` +
+        ctlWait("Jun's turn", "0:09") +
+        `<div class="scrim"></div><div class="sheet" role="dialog" aria-label="Table talk">
+          <div class="sheet__head"><span class="seg"><span>Talk</span><span class="on">Activity</span></span><button class="key key--corner" aria-label="Close">${icon.close}</button></div>
+          <div class="sheet__body"><ol class="log">
+            <li><time>9:41</time><span>Place your bets</span></li>
+            <li><time>9:42</time><span>Mara is ready</span></li>
+            <li><time>9:42</time><span>Jun is ready</span></li>
+            <li><time>9:42</time><span>Cards out</span></li>
+            <li><time>9:42</time><span>Mara stood on 19</span></li>
+            <li><time>9:43</time><span>Koda hit — 3 of diamonds</span></li>
+            <li><time>9:43</time><span>Koda stood on 19</span></li>
+          </ol></div></div>`,
+    },
+    {
+      title: "The Table key, for the host",
+      body: "What used to fill the betting panel, in a sheet only the host sees. Changes to bet time take effect next hand; bots are offered only at a for-fun table.",
+      ids: ["F1 Seg", "Host decides the table's shape"],
+      html:
+        bar() +
+        readout({ label: "Your stake", figure: "500", figClass: "gold", stats: [["Balance", "12,400", "gold"], ["Table", "100–10,000"], ["Cards out", "0:21"]], clock: 70, clockClass: "clock--chips" }) +
+        `<section class="felt">${corners({ host: true })}${dealer({})}<div class="seats">${mine({ stake: 500 })}</div></section>` +
+        ctlBet() +
+        `<div class="scrim"></div><div class="sheet" role="dialog" aria-label="Table" style="top:210px">
+          <div class="sheet__head"><span class="sheet__title">Table HG4ME</span><button class="key key--corner" aria-label="Close">${icon.close}</button></div>
+          <div class="sheet__body">
+            <div><p class="field-label">Time to bet</p><span class="seg"><span>15s</span><span class="on">30s</span><span>60s</span></span><p class="hint">Takes effect on the next hand.</p></div>
+            <div><p class="field-label">Who can find it</p><span class="seg"><span class="on">Public</span><span>Private</span></span></div>
+            <div><p class="field-label">Add a player</p><div class="botkeys"><button class="key is-off">Easy</button><button class="key is-off">Normal</button><button class="key is-off">Hard</button></div><p class="hint">Bots sit only at a for-fun table.</p></div>
+          </div></div>`,
+    },
+    {
+      title: "Short phone, full table",
+      body: "375 × 560 with six seats. Cards size from the felt's height as well as its width, so they shrink rather than push Hit below the fold; the other seats scroll inside the felt, never the page.",
+      ids: ["L3", "L4", "L8 375×560", "L6"],
+      short: true,
+      html:
+        bar() +
+        readout({ label: "Your hand", figure: "12", stats: [["On it", "250", "gold"], ["Dealer shows", "6"], ["You have", "0:14"]], clock: 80 }) +
+        `<section class="felt felt--scroll">${corners()}${dealer({ cards: [["6", "d"]], hole: true, total: "6" })}
+          <div class="seats">${mine({ cards: [["7", "s"], ["5", "h"]], total: 12, stake: 250, turn: true })}
+          <div class="others">
+            ${other({ name: "Mara", color: "#9a5b7c", cards: [["Q", "h"], ["8", "c"]], total: 18, stake: 250 })}
+            ${other({ name: "Jun", color: "#4a8fa0", cards: [["9", "s"], ["9", "d"]], total: 18, stake: 1000 })}
+            ${other({ name: "Rosa", color: "#8a6fc0", cards: [["4", "c"], ["J", "d"]], total: 14, stake: 500 })}
+            ${other({ name: "Tomas", color: "#5f8a4a", tag: tag("Next hand"), out: true })}
+            ${other({ name: "Ines", color: "#a0714a", cards: [["2", "h"], ["K", "s"]], total: 12, stake: 100, tag: tag("Dropped"), out: true })}
+          </div></div></section>` +
+        ctlTurn(),
+    },
+  ];
+
+  document.getElementById("phones").innerHTML = phones
+    .map((p) => `<figure class="shot" style="margin:0"><div class="phone${p.short ? " phone--short" : ""}"><div class="app">${p.html}</div></div>
+      <figcaption><h3>${p.title}</h3><p>${p.body}</p><div class="ids">${p.ids.map((i) => `<span class="id">${i}</span>`).join("")}</div></figcaption></figure>`)
+    .join("");
+
+  /*
+   * A split seat: one plate, a box per hand. `live` is the index the buttons act
+   * on, or -1 when the seat is not being asked anything.
+   */
+  const split = ({ hands, live = -1, turn = false, four = false, stake }) => `
+    <article class="seat seat--mine seat--split${four ? " seat--four" : ""}${turn ? " seat--turn" : ""}">
+      <header class="seat__head"><span class="av" style="background:#3f8a66">K</span><span class="name">Koda (you)</span>
+        <span class="stake">${fmt(stake)}</span></header>
+      <div class="hands">${hands
+        .map(
+          (h, i) => `<div class="hbox${i === live ? " hbox--live" : live >= 0 ? " hbox--wait" : ""}">
+            <span class="hbox__top">${four ? `H${i + 1}` : `Hand ${i + 1}`}<b>${fmt(h.bet)}</b></span>
+            <span class="hbox__play"><span class="hand">${h.cards.map(([r, s]) => card(r, s)).join("")}${h.arriving ? back("card--arriving") : ""}</span>
+              <span class="total ${h.totalClass ?? ""}">${h.total}</span></span>
+            ${h.tag ?? ""}
+          </div>`,
+        )
+        .join("")}</div>
+    </article>`;
+
+  const otherSplit = ({ name, color, hands, live = -1, stake, turn = false }) => `
+    <article class="seat seat--other${turn ? " seat--turn" : ""}">
+      <header class="seat__head"><span class="av" style="background:${color}">${name[0]}</span><span class="name">${name}</span>
+        <span class="stake">${fmt(stake)}</span></header>
+      <div class="minis">${hands
+        .map((h, i) => `${i ? "<i></i>" : ""}<span class="mini${i === live ? " mini--live" : ""}"><span class="hand">${h.cards.map(([r, s]) => card(r, s)).join("")}</span><span class="total ${h.totalClass ?? ""}">${h.total}</span></span>`)
+        .join("")}</div>
+    </article>`;
+
+  const ctlSplitTurn = ({ canDouble = true } = {}) => `
+    <section class="ctl"><div class="moves">
+      <button class="key m-stand">Stand<small>hand ${canDouble ? 1 : 2}</small></button>
+      <button class="key${canDouble ? "" : " is-off"}">Double<small class="${canDouble ? "gold" : ""}">${canDouble ? "+500" : "3 cards"}</small></button>
+      <button class="key is-off">Split<small>once a seat</small></button>
+      <button class="slab">Hit<small>hand ${canDouble ? 1 : 2}</small></button>
+    </div></section>`;
+
+  const splits = [
+    {
+      title: "Split, playing the first hand",
+      body: "Eights split into two hands of 500 each. Hand 1 is lit and the buttons say which hand they act on; Hand 2 waits dimmed. Split is out — a seat splits once. Mara split too, shown small.",
+      ids: ["T1 live hand marked", "T2 readout follows the hand", "F5 cost on Double"],
+      html:
+        bar() +
+        readout({ label: "Hand 1 of 2", figure: "18", stats: [["On this hand", "500", "gold"], ["Dealer shows", "6"], ["You have", "0:13"]], clock: 66 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["6", "d"]], hole: true, total: "6" })}
+          <div class="seats">${split({
+            stake: 1000,
+            turn: true,
+            live: 0,
+            hands: [
+              { bet: 500, cards: [["8", "s"], ["K", "d"]], total: 18 },
+              { bet: 500, cards: [["8", "h"], ["3", "c"]], total: 11 },
+            ],
+          })}
+          <div class="others">${otherSplit({ name: "Mara", color: "#9a5b7c", stake: 500, hands: [{ cards: [["A", "c"], ["9", "h"]], total: 20 }, { cards: [["A", "d"], ["6", "s"]], total: 17 }] })}${other({ name: "Jun", color: "#4a8fa0", cards: [["10", "c"], ["7", "h"]], total: 17, stake: 1000, tag: tag("Next") })}</div></div></section>` +
+        ctlSplitTurn(),
+    },
+    {
+      title: "On to the second hand",
+      body: "Hand 1 stood on 18 and says so; the light moves to Hand 2, which hit to 20. The readout's figure follows it. Double has gone quiet because the hand is past two cards, and the key says why.",
+      ids: ["One motion per thing", "F5 say it on the key"],
+      html:
+        bar() +
+        readout({ label: "Hand 2 of 2", figure: "20", stats: [["On this hand", "500", "gold"], ["Dealer shows", "6"], ["You have", "0:15"]], clock: 75 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["6", "d"]], hole: true, total: "6" })}
+          <div class="seats">${split({
+            stake: 1000,
+            turn: true,
+            live: 1,
+            hands: [
+              { bet: 500, cards: [["8", "s"], ["K", "d"]], total: 18, tag: tag("Stood") },
+              { bet: 500, cards: [["8", "h"], ["3", "c"], ["9", "s"]], total: 20 },
+            ],
+          })}
+          <div class="others">${otherSplit({ name: "Mara", color: "#9a5b7c", stake: 500, hands: [{ cards: [["A", "c"], ["9", "h"]], total: 20 }, { cards: [["A", "d"], ["6", "s"]], total: 17 }] })}${other({ name: "Jun", color: "#4a8fa0", cards: [["10", "c"], ["7", "h"]], total: 17, stake: 1000, tag: tag("Next") })}</div></div></section>` +
+        ctlSplitTurn({ canDouble: false }),
+    },
+    {
+      title: "A split, settled both ways",
+      body: "The dealer made 20. One deal, one answer: the readout gives the net across both hands, and each box says what happened to it — Hand 1 lost, Hand 2 pushed and got its 500 back.",
+      ids: ["T5 no stamp for a push", "F3 good and bad per hand"],
+      html:
+        bar() +
+        readout({ label: "This hand", figure: "−500", note: "across 2 hands", stats: [["Back", "500", "gold"], ["Dealer", "20"], ["Next hand", "0:06"]], clock: 70 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["6", "d"], ["4", "h"], ["K", "s"]], total: "20" })}
+          <div class="seats">${split({
+            stake: 1000,
+            hands: [
+              { bet: 500, cards: [["8", "s"], ["K", "d"]], total: 18, tag: tag("Lost", "bad") },
+              { bet: 500, cards: [["8", "h"], ["3", "c"], ["9", "s"]], total: 20, tag: tag("Push") },
+            ],
+          })}
+          <div class="others">${otherSplit({ name: "Mara", color: "#9a5b7c", stake: 500, hands: [{ cards: [["A", "c"], ["9", "h"]], total: 20 }, { cards: [["A", "d"], ["6", "s"]], total: 17, totalClass: "total--bad" }] })}${other({ name: "Jun", color: "#4a8fa0", cards: [["10", "c"], ["7", "h"]], total: 17, stake: 1000, tag: tag("Lost", "bad") })}</div></div></section>` +
+        ctlWait("Next hand", "in 6s"),
+    },
+    {
+      title: "Stress test: four hands",
+      body: "Not today's rules — a seat splits once. If re-splitting is ever allowed, the boxes go four across, cards overlap tighter off the felt's own size, and Hand 3 still reads as the one being played.",
+      ids: ["L3", "L4", "L6 nothing sideways"],
+      note: "Not today's rules",
+      html:
+        bar() +
+        readout({ label: "Hand 3 of 4", figure: "13", stats: [["On this hand", "500", "gold"], ["Dealer shows", "5"], ["You have", "0:12"]], clock: 60 }) +
+        `<section class="felt">${corners()}${dealer({ cards: [["5", "c"]], hole: true, total: "5" })}
+          <div class="seats">${split({
+            stake: 2500,
+            turn: true,
+            live: 2,
+            four: true,
+            hands: [
+              { bet: 1000, cards: [["7", "s"], ["4", "d"], ["Q", "h"]], total: 21, totalClass: "total--chip" },
+              { bet: 500, cards: [["7", "h"], ["J", "c"]], total: 17 },
+              { bet: 500, cards: [["7", "d"], ["6", "s"]], total: 13 },
+              { bet: 500, cards: [["7", "c"], ["2", "h"]], total: 9 },
+            ],
+          })}
+          <div class="others">${other({ name: "Mara", color: "#9a5b7c", cards: [["10", "d"], ["9", "s"]], total: 19, stake: 250, tag: tag("Stood") })}${other({ name: "Jun", color: "#4a8fa0", cards: [["8", "c"], ["6", "h"]], total: 14, stake: 1000, tag: tag("Next") })}</div></div></section>` +
+        ctlTurn().replace("<small>on 16</small>", "<small>hand 3</small>").replace('<small class="gold">+500</small>', '<small class="gold">+500</small>'),
+    },
+  ];
+
+  document.getElementById("splits").innerHTML = splits
+    .map((p) => `<figure class="shot" style="margin:0"><div class="phone"><div class="app">${p.html}</div></div>
+      <figcaption><h3>${p.title}</h3>${p.note ? `<span class="rules-note">${p.note}</span>` : ""}<p>${p.body}</p><div class="ids">${p.ids.map((i) => `<span class="id">${i}</span>`).join("")}</div></figcaption></figure>`)
+    .join("");
+
+  document.getElementById("desk").innerHTML = `<div class="app">
+    ${bar()}
+    <section class="felt">${corners({ unread: 1, host: true })}
+      ${dealer({ cards: [["10", "s"]], hole: true, total: "10" })}
+      <div class="desk-seats">
+        ${mine({ cards: [["9", "h"], ["7", "c"]], total: 16, stake: 500, turn: true })}
+        ${other({ name: "Mara", color: "#9a5b7c", cards: [["10", "d"], ["9", "s"]], total: 19, stake: 250, tag: tag("Stood") })}
+        ${other({ name: "Jun", color: "#4a8fa0", cards: [["8", "c"], ["6", "h"]], total: 14, stake: 1000, tag: tag("Next") })}
+        ${other({ name: "Rosa", color: "#8a6fc0", tag: tag("Next hand"), out: true })}
+      </div>
+    </section>
+    ${readout({ label: "Your hand", figure: "16", stats: [["On it", "500", "gold"], ["Dealer shows", "10"], ["You have", "0:12"]], clock: 62 })}
+    <aside class="panel rules" aria-label="How it pays"><h4>How it pays</h4><dl>
+      <div><dt>Blackjack</dt><dd>3 to 2</dd></div>
+      <div><dt>A win</dt><dd>1 to 1</dd></div>
+      <div><dt>A push</dt><dd>stake back</dd></div>
+      <div><dt>Dealer stands on</dt><dd>17</dd></div>
+      <div class="lit"><dt>Double on your first two cards</dt><dd>+500</dd></div>
+      <div><dt>Split a pair, once</dt><dd>—</dd></div>
+    </dl></aside>
+    <aside class="panel activity" aria-label="Activity"><h4>Activity</h4><ol class="log">
+      <li><time>9:41</time><span>Place your bets</span></li>
+      <li><time>9:42</time><span>Cards out</span></li>
+      <li><time>9:42</time><span>Mara stood on 19</span></li>
+      <li><time>9:42</time><span>Koda's turn</span></li>
+    </ol></aside>
+    ${ctlTurn({ kbd: true })}
+  </div>`;
+
+  const wrap = document.getElementById("deskWrap");
+  const desk = document.getElementById("desk");
+  const fit = () => desk.style.setProperty("--k", String(wrap.clientWidth / 1280));
+  fit();
+  new ResizeObserver(fit).observe(wrap);
+})();
+</script>

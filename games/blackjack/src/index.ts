@@ -14,7 +14,7 @@ export type { HandValue } from "./hand.js";
 export { isBlackjack, value } from "./hand.js";
 export { BLACKJACK } from "./listing.js";
 export type { Outcome, Phase, Seat, SeatView, TableView } from "./table.js";
-export { LAST_CALL_MS, Table, WINDOWS } from "./table.js";
+export { LAST_CALL_MS, SETTLE_MS, Table, WINDOWS } from "./table.js";
 export {
   BLACKJACK_RETURN,
   DOUBLE,

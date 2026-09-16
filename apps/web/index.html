@@ -27,10 +27,10 @@
       this file straight over without asking anybody.
     -->
     <!--meta-->
-    <title>The Back Room</title>
+    <title>The Back Room: Blackjack, Poker, Slots and Dice for Chips</title>
     <meta
       name="description"
-      content="A back room for cards and dice, played for chips and nothing else. Blackjack, Greed, and a fresh handful every day — no real money anywhere near it."
+      content="A back room for cards and dice, played for chips and nothing else. Blackjack, poker, slots and a fresh handful of chips every day, with no real money anywhere near it."
     />
     <meta property="og:site_name" content="The Back Room" />
     <meta property="og:type" content="website" />
@@ -70,9 +70,48 @@
         href="https://fonts.googleapis.com/css2?family=Bevan&family=Dancing+Script:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       />
     </noscript>
+    <!--
+      What the server writes into #root between the door markers, for a crawler
+      that runs no script and for the moment before the bundle lands. React
+      replaces it on mount, so these rules only ever style that moment.
+    -->
+    <style>
+      .door {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2.5rem 16px 4rem;
+        color: var(--gr-color-ink, #dfe7f2);
+        font-family: var(--gr-font-ui, system-ui, sans-serif);
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+      }
+      .door h1 {
+        margin: 0 0 1rem;
+        font-family: var(--gr-font-display, Georgia, serif);
+        font-size: clamp(2rem, 8vw, 3rem);
+        font-weight: 400;
+        line-height: 1.1;
+        color: var(--gr-color-ink-lit, #f2f6fb);
+      }
+      .door h2 {
+        margin: 2rem 0 0.5rem;
+        font-size: 1.1rem;
+        color: var(--gr-color-ink-lit, #f2f6fb);
+      }
+      .door p,
+      .door li {
+        color: var(--gr-color-ink-dim, #8b97a8);
+      }
+      .door ul {
+        padding-left: 1.25rem;
+      }
+      .door a {
+        color: var(--gr-color-neon-hi, #7ba9ff);
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><!--door--><!--/door--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

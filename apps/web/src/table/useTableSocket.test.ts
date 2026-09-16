@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const handlers = new Map<string, (arg: unknown) => void>();
 const fake = {
@@ -29,6 +29,11 @@ describe("what a table window tells the server about itself", () => {
     made.mockClear();
     window.sessionStorage.clear();
     fake.active = true;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    fake.emit.mockClear();
   });
 
   it("names its game and its window in the handshake", () => {
@@ -103,6 +108,51 @@ describe("what a table window tells the server about itself", () => {
     handlers.get("room:closed")?.({ code: "ZZZZZ", reason: "empty" });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(onLeave).not.toHaveBeenCalled();
+  });
+
+  it("counts the same refusal twice as two refusals", async () => {
+    /*
+     * React will not re-render for a string it already has, so a table that
+     * says the same no twice would otherwise say it once and then go quiet.
+     */
+    const { result } = renderHook(() => useTableSocket("blackjack", () => {}));
+    handlers.get("room:error")?.("Last call — you can only take chips back now.");
+    await waitFor(() => expect(result.current.errorKey).toBe(1));
+    handlers.get("room:error")?.("Last call — you can only take chips back now.");
+    await waitFor(() => expect(result.current.errorKey).toBe(2));
+    expect(result.current.error).toBe("Last call — you can only take chips back now.");
+  });
+
+  it("counts a refused join as a refusal", async () => {
+    const { result } = renderHook(() => useTableSocket("blackjack", () => {}));
+    result.current.join("Ada", "ABCDE");
+    const call = fake.emit.mock.calls.find((args) => args[0] === "lobby:join");
+    const ack = call?.[2] as (result: { ok: false; error: string }) => void;
+    ack({ ok: false, error: "No table with that code." });
+    await waitFor(() => expect(result.current.errorKey).toBe(1));
+  });
+
+  it("does not count a closed table as a refusal", async () => {
+    // A notice, not a no: the player lands on a page that shows it as a strip.
+    const { result } = renderHook(() => useTableSocket("blackjack", () => {}));
+    handlers.get("room:state")?.({ game: "blackjack", code: "ABCDE", listed: true, taunts: [], seats: [] });
+    await waitFor(() => expect(result.current.state).not.toBeNull());
+    handlers.get("room:closed")?.({ code: "ABCDE", reason: "empty" });
+    await waitFor(() => expect(result.current.error).toMatch(/closed/i));
+    expect(result.current.errorKey).toBe(0);
+  });
+
+  it("gives a repeated refusal its own four seconds", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useTableSocket("blackjack", () => {}));
+    act(() => handlers.get("room:error")?.("Not your turn."));
+    act(() => vi.advanceTimersByTime(3_000));
+    act(() => handlers.get("room:error")?.("Not your turn."));
+    act(() => vi.advanceTimersByTime(3_000));
+    // Six seconds after the first, three after the second: still showing.
+    expect(result.current.error).toBe("Not your turn.");
+    act(() => vi.advanceTimersByTime(1_100));
+    expect(result.current.error).toBeNull();
   });
 });
 

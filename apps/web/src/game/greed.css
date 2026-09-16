@@ -1,0 +1,1009 @@
+/*
+ * The Greed table, on one screen.
+ *
+ * Scores are lanes in a race to the target, the dice own the felt, and what a
+ * turn is worth sits on a readout between the felt and the thumb. On a phone
+ * the page is exactly the window: only the felt flexes, and the dice are sized
+ * off its height as well as its width, so a short phone shrinks the dice
+ * rather than pushing Roll below the fold. Past 760px of table the same markup
+ * becomes lanes across the top with the felt and a side column under them.
+ *
+ * Imported by Table.tsx, which is what makes it load. What every table shares —
+ * the page on one screen, talk, activity, refusals, scrollbars — is in
+ * table/table.css.
+ */
+
+/* ------------------------------------------------------------- the table */
+
+.gt {
+  container: gt / inline-size;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.gt__in {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "lanes" "felt" "read" "controls";
+  gap: var(--gr-space-2);
+}
+
+@container gt (min-width: 760px) {
+  .gt__in {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: "lanes lanes" "felt read" "felt card" "felt activity" "felt controls";
+    gap: var(--gr-space-4) var(--gr-space-5);
+  }
+}
+
+/* ------------------------------------------------------------- the lanes */
+
+.lanes {
+  grid-area: lanes;
+  display: grid;
+  gap: 2px;
+  padding: var(--gr-space-2) var(--gr-space-3);
+  border: 1px solid rgb(0 0 0 / 0.7);
+  border-radius: 14px;
+  background:
+    var(--gr-scan),
+    radial-gradient(70% 160% at 50% -30%, color-mix(in srgb, var(--gr-color-neon) 20%, transparent), transparent 70%),
+    color-mix(in srgb, var(--gr-color-shadow) 88%, black);
+  box-shadow:
+    inset 0 3px 12px rgb(0 0 0 / 0.8),
+    0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.lanes__meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gr-space-3);
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-faint);
+}
+
+/* Gold, because a pot is chips. */
+.lanes__pot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-chip);
+}
+
+.lanes__list {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane {
+  --m: 18px;
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: var(--gr-space-2);
+  min-height: 24px;
+}
+
+.lane__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+/* Said to a screen reader on a phone, where there is no room to print it. */
+.lane__state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lane__track {
+  position: relative;
+  align-self: stretch;
+}
+
+/* The distance to run, dashed, with a post at the finish. */
+.lane__track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: repeating-linear-gradient(90deg, rgb(255 255 255 / 0.14) 0 4px, transparent 4px 8px);
+}
+
+.lane__track::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: var(--gr-color-ink-faint);
+}
+
+/* Where a turn has to reach before anybody is on the board. */
+.lane__entry {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: var(--p);
+  width: 1px;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.lane__marker,
+.lane__ghost {
+  position: absolute;
+  top: 50%;
+  left: clamp(calc(var(--m) / 2), var(--p), calc(100% - var(--m) / 2));
+  width: var(--m);
+  height: var(--m);
+  transform: translate(-50%, -50%);
+}
+
+/* A bank moves the marker, and the move is the news. */
+.lane__marker {
+  transition: left 700ms var(--gr-settle);
+}
+
+.lane__marker .seat__avatar {
+  width: 100%;
+  height: 100%;
+  border-width: 1px;
+  font-size: calc(var(--m) * 0.5);
+}
+
+/*
+ * Where banking now would put the player rolling: a promise the readout
+ * already makes, drawn where the eye is already looking.
+ */
+.lane__ghost {
+  border-radius: 50%;
+  border: 1.5px dashed var(--gr-color-neon-hi);
+  opacity: 0.85;
+}
+
+.lane__score {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--gr-color-ink);
+}
+
+.lane--turn .lane__name,
+.lane--turn .lane__score {
+  color: var(--gr-color-neon-hi);
+}
+
+.lane--turn .lane__marker .seat__avatar {
+  border-color: var(--gr-color-neon-hi);
+  box-shadow: 0 0 10px var(--gr-color-neon);
+}
+
+.lane--won .lane__name,
+.lane--won .lane__score {
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 8px var(--gr-color-neon);
+}
+
+/* Yours, marked the way the leaderboard marks your row. */
+.lane--you {
+  margin-inline: -6px;
+  padding-inline: 6px;
+  border-radius: 8px;
+  outline: 1px solid var(--gr-color-chip-dim);
+  outline-offset: -1px;
+}
+
+/* Sitting there but not in this game, or gone: dimmed, never hidden. */
+.lane--away {
+  opacity: 0.5;
+}
+
+@container gt (min-width: 760px) {
+  .lanes {
+    padding: var(--gr-space-3) var(--gr-space-5);
+  }
+
+  .lane {
+    --m: 24px;
+    grid-template-columns: 170px minmax(0, 1fr) 70px;
+    gap: var(--gr-space-4);
+    min-height: 30px;
+  }
+
+  .lane__name,
+  .lane__score {
+    font-size: var(--gr-text-sm);
+  }
+
+  .lane__state {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    margin-left: var(--gr-space-2);
+    font-size: var(--gr-text-xs);
+    color: var(--gr-color-ink-faint);
+  }
+}
+
+/* -------------------------------------------------------------- the felt */
+
+.gt__felt {
+  grid-area: felt;
+  container: felt / size;
+  position: relative;
+  min-height: 0;
+  border-radius: var(--gr-radius-cab);
+  border: 4px solid color-mix(in srgb, var(--gr-color-smoke) 80%, black);
+  background: radial-gradient(90% 70% at 50% 45%, var(--gr-color-felt-lit), var(--gr-color-felt) 55%, var(--gr-color-felt-deep));
+  box-shadow:
+    inset 0 6px 22px rgb(0 0 0 / 0.65),
+    0 0 0 1px rgb(0 0 0 / 0.6),
+    0 1px 0 rgb(255 255 255 / 0.06);
+  overflow: hidden;
+}
+
+.gt__cloth {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 3cqh, 14px);
+  padding: var(--gr-space-6) var(--gr-space-3) var(--gr-space-3);
+  /*
+   * A die, sized off the felt's height as well as its width. This is what
+   * lets the whole table fit a short phone.
+   */
+  --d: clamp(40px, min(22cqi, 27cqh), 88px);
+  --gap: clamp(8px, 3.4cqi, 16px);
+}
+
+.gt__dice {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gap);
+  /* Three to a row on a phone, so six dice make a block rather than a line. */
+  max-width: calc(var(--d) * 3 + var(--gap) * 2 + 2px);
+  padding-top: var(--gr-space-2);
+}
+
+/* The whole cup gets a faint jolt while the dice are in it. */
+.gt__dice--rolling {
+  animation: gt-jolt 0.26s ease-in-out infinite;
+}
+
+@keyframes gt-jolt {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  33% {
+    transform: translateX(-2px);
+  }
+  66% {
+    transform: translateX(2px);
+  }
+}
+
+/*
+ * One line, the way dice land on a table, as soon as the felt is wide enough
+ * for six at a size worth tapping — a tablet as well as a desk. Decided by the
+ * felt's own width rather than the page's, and the die sized so six and their
+ * gaps always fit across it. Only a phone's felt keeps two rows of three.
+ */
+@container felt (min-width: 480px) {
+  .gt__cloth {
+    --d: clamp(40px, min(12.5cqi, 27cqh), 88px);
+  }
+
+  .gt__dice {
+    flex-wrap: nowrap;
+    max-width: none;
+  }
+}
+
+@container gt (min-width: 760px) {
+  .gt__help {
+    display: none;
+  }
+}
+
+.gt__say {
+  margin: 0;
+  min-height: 1.4em;
+  max-width: 44ch;
+  text-align: center;
+  text-wrap: balance;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink);
+}
+
+.gt__combo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  min-height: 22px;
+}
+
+.gt__combo .tag {
+  background: rgb(0 0 0 / 0.35);
+  color: var(--gr-color-ink);
+  font-family: var(--gr-font-data);
+}
+
+.gt__combo .tag::before {
+  background: var(--gr-color-neon-hi);
+}
+
+/* The first thing to go when a phone is short: the words say the same. */
+@container felt (max-height: 230px) {
+  .gt__combo {
+    display: none;
+  }
+}
+
+.gt__help {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 36px;
+  min-height: 36px;
+  font-family: var(--gr-font-ui);
+  font-weight: 600;
+}
+
+/* Nothing scores. A stamp, once. */
+.gt__stamp {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 1;
+  margin: 0;
+  padding: 4px 16px 8px;
+  border: 3px solid var(--gr-color-bad);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.35);
+  font-family: var(--gr-font-display);
+  font-size: clamp(1.8rem, 16cqi, 3rem);
+  line-height: 1;
+  color: var(--gr-color-bad);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.4);
+  transform: translate(-50%, -50%) rotate(-7deg);
+  pointer-events: none;
+  animation: gt-stamp 260ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+@keyframes gt-stamp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-7deg) scale(1.6);
+  }
+}
+
+/* The rarest roll: the one lit word on the felt. */
+.gt__banner {
+  position: absolute;
+  left: 50%;
+  top: var(--gr-space-3);
+  z-index: 1;
+  margin: 0;
+  font-family: var(--gr-font-display);
+  font-size: clamp(1.6rem, 12cqi, 2.6rem);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 4px var(--gr-color-neon-core),
+    0 0 18px var(--gr-color-neon),
+    0 0 46px var(--gr-color-neon-deep);
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: gt-banner 420ms var(--gr-settle) both;
+}
+
+@keyframes gt-banner {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-40%) scale(0.8);
+  }
+}
+
+.gt__felt--greed {
+  border-color: color-mix(in srgb, var(--gr-color-neon) 60%, black);
+  box-shadow:
+    inset 0 6px 22px rgb(0 0 0 / 0.65),
+    0 0 0 1px var(--gr-color-neon),
+    0 0 34px color-mix(in srgb, var(--gr-color-neon) 30%, transparent);
+}
+
+/* The score card over the felt, on a phone. */
+.gt__sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  padding: var(--gr-space-3);
+  background: color-mix(in srgb, var(--gr-color-shadow) 94%, transparent);
+  animation: gt-rise 300ms var(--gr-settle) both;
+}
+
+@keyframes gt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+.gt__sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gr-space-1);
+}
+
+.gt__sheet-title {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.gt__sheet .card {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ dice */
+
+/*
+ * Bone, with the letters printed in the gem each face is named for. Shaded
+ * from the room's own ink, so the dice move with the palette.
+ */
+.die {
+  /*
+   * No size of its own. The felt sets --d from its own width and height, and a
+   * die declaring one here would beat the value it inherits — which is how every
+   * die came out at one fixed size whatever the felt had room for.
+   */
+  --bone-hi: var(--gr-color-ink-lit);
+  --bone: color-mix(in srgb, var(--gr-color-ink) 88%, var(--gr-color-neon-hi));
+  --bone-lo: color-mix(in srgb, var(--gr-color-ink) 72%, var(--gr-color-night));
+  --bone-edge: color-mix(in srgb, var(--gr-color-ink-dim) 60%, var(--gr-color-night));
+
+  position: relative;
+  flex: none;
+  width: var(--d);
+  height: var(--d);
+  padding: calc(var(--d) * 0.14);
+  border: 0;
+  border-radius: calc(var(--d) * 0.22);
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  background: radial-gradient(120% 100% at 30% 18%, var(--bone-hi), var(--bone) 50%, var(--bone-lo));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.6),
+    inset 0 -3px 0 rgb(0 0 0 / 0.1),
+    0 4px 0 var(--bone-edge),
+    0 9px 14px rgb(0 0 0 / 0.55);
+  cursor: pointer;
+  transition:
+    transform 360ms var(--gr-settle),
+    box-shadow 220ms ease,
+    filter 220ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.die:disabled {
+  cursor: default;
+}
+
+.die:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 4px;
+}
+
+.die__pip {
+  width: calc(var(--d) * 0.16);
+  height: calc(var(--d) * 0.16);
+  border-radius: 50%;
+  background: var(--gr-color-shadow);
+  place-self: center;
+}
+
+.die__letter {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  place-self: center;
+  font-family: var(--gr-font-display);
+  font-size: calc(var(--d) * 0.52);
+  line-height: 1;
+  /* Printed into the bone rather than laid on it. */
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.55);
+  transform: translateY(4%);
+  transition: opacity 120ms ease;
+}
+
+/*
+ * The six gems. Mixed from the room's tokens where the room has the colour;
+ * diamond is the one it has no word for, since this room lights nothing blue,
+ * so it is written down here, next to the five it has to stand apart from.
+ */
+.die__letter--silver,
+.card__die--silver {
+  color: color-mix(in srgb, var(--gr-color-ink-dim) 62%, var(--gr-color-shadow));
+}
+
+.die__letter--gold,
+.card__die--gold {
+  color: color-mix(in srgb, var(--gr-color-neon) 85%, var(--gr-color-shadow));
+}
+
+.die__letter--ruby,
+.card__die--ruby {
+  color: color-mix(in srgb, var(--gr-color-bad) 88%, var(--gr-color-shadow));
+}
+
+.die__letter--ebony,
+.card__die--ebony {
+  color: var(--gr-color-shadow);
+}
+
+.die__letter--emerald,
+.card__die--emerald {
+  color: color-mix(in srgb, var(--gr-color-good) 72%, var(--gr-color-shadow));
+}
+
+.die__letter--diamond,
+.card__die--diamond {
+  color: #3a6ea8;
+}
+
+/* Kept: lifted off the cloth and lit, because it is chosen and happening now. */
+.die--held {
+  transform: translateY(-10px);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.6),
+    0 4px 0 var(--bone-edge),
+    0 18px 18px rgb(0 0 0 / 0.5),
+    0 0 0 3px var(--gr-color-neon),
+    0 0 26px color-mix(in srgb, var(--gr-color-neon) 70%, transparent);
+}
+
+.die--dead {
+  filter: saturate(0.3) brightness(0.55);
+}
+
+/*
+ * In the air: a blur of sides going past. The faces the tumble cycles through
+ * are random, so they are smeared past reading — a streak of colour says the
+ * die is turning without any one face claiming to be the result, which is the
+ * server's to say and turns over sharp when the dice land.
+ */
+.die--rolling {
+  cursor: default;
+  animation: gt-tumble 0.26s ease-in-out infinite;
+}
+
+.die--rolling .die__letter,
+.die--rolling .die__pip {
+  opacity: 0.75;
+  filter: blur(2.5px);
+  transform: translateY(4%) scaleY(1.25);
+}
+
+@keyframes gt-tumble {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  20% {
+    transform: translateY(-11px) rotate(-14deg);
+  }
+  45% {
+    transform: translateY(-3px) rotate(9deg);
+  }
+  70% {
+    transform: translateY(-8px) rotate(-6deg);
+  }
+}
+
+/* $GREED: each die lifts and flares in turn, so the word reads itself out. */
+.die--greed {
+  z-index: 1;
+  animation: gt-greed 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes gt-greed {
+  22% {
+    transform: translateY(-22px) scale(1.12) rotate(-5deg);
+    box-shadow:
+      0 4px 0 var(--bone-edge),
+      0 18px 26px rgb(0 0 0 / 0.6),
+      0 0 0 4px var(--gr-color-neon),
+      0 0 30px 6px color-mix(in srgb, var(--gr-color-neon) 55%, transparent);
+  }
+  55% {
+    transform: translateY(-6px) scale(1.04) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/* ------------------------------------------------------------ the readout */
+
+.gt__read {
+  grid-area: read;
+  position: relative;
+  display: grid;
+  /*
+   * The figure at one end and the stats at the other, each its own size. A
+   * stretched stats column left every label hard against the figure and its
+   * number out at the far edge, reading as two things instead of one.
+   */
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px var(--gr-space-5);
+  padding: 9px 14px 8px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.gt__big {
+  display: grid;
+}
+
+.gt__label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.gt__figure {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--gr-color-ink-lit);
+}
+
+.gt__figure--good {
+  color: var(--gr-color-good);
+}
+
+.gt__figure--bust {
+  color: var(--gr-color-bad);
+}
+
+.gt__figure s {
+  margin-left: 6px;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-faint);
+}
+
+.gt__winner {
+  font-size: var(--gr-text-lg);
+  font-weight: 600;
+  color: var(--gr-color-neon-core);
+  text-shadow: 0 0 10px var(--gr-color-neon);
+}
+
+.gt__stats {
+  display: grid;
+  gap: 1px;
+  /* Wide enough that a label and its number read as a pair, not a squeeze. */
+  min-width: 150px;
+  margin: 0;
+}
+
+.gt__stats div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gr-space-2);
+  font-size: var(--gr-text-xs);
+}
+
+.gt__stats dt {
+  color: var(--gr-color-ink-dim);
+}
+
+.gt__stats dd {
+  margin: 0;
+  font-family: var(--gr-font-data);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink);
+}
+
+.gt__stats .gt__low {
+  color: var(--gr-color-bad);
+}
+
+/* The turn clock, draining along the top edge of the screen. */
+.gt__clock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--t);
+  height: 2px;
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 8px var(--gr-color-neon);
+  transition: width 1s linear;
+}
+
+.gt__clock--low {
+  background: var(--gr-color-bad);
+  box-shadow: 0 0 8px var(--gr-color-bad);
+}
+
+@container gt (min-width: 760px) {
+  .gt__read {
+    padding: 14px var(--gr-space-4);
+  }
+
+  .gt__figure {
+    font-size: var(--gr-text-3xl);
+  }
+}
+
+/* ------------------------------------------------------------ the card */
+
+.gt__card {
+  grid-area: card;
+  display: none;
+}
+
+@container gt (min-width: 760px) {
+  .gt__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gr-space-1);
+    min-height: 0;
+    padding: var(--gr-space-3) 14px;
+    border-radius: 14px;
+    background: rgb(0 0 0 / 0.26);
+    box-shadow:
+      inset 0 5px 10px rgb(0 0 0 / 0.42),
+      0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  .gt__card .card {
+    overflow-y: auto;
+    min-height: 0;
+  }
+}
+
+.card {
+  margin: 0;
+  display: grid;
+  /* A track that can shrink, or the longest row sets the card's width and the
+     points column is pushed out past the edge. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 1px;
+}
+
+.card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gr-space-2);
+  padding: 4px 4px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+  border-radius: 6px;
+}
+
+.card__row dt {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-2);
+  min-width: 0;
+}
+
+.card__row dd {
+  margin: 0;
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink);
+  white-space: nowrap;
+}
+
+.card__dice {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.card__die {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: linear-gradient(155deg, var(--gr-color-ink-lit), color-mix(in srgb, var(--gr-color-ink) 78%, var(--gr-color-night)));
+  box-shadow: 0 1.5px 0 color-mix(in srgb, var(--gr-color-ink-dim) 60%, var(--gr-color-night));
+  font-family: var(--gr-font-display);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--gr-color-shadow);
+}
+
+.card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+/* What the dice picked up are worth, found on the card. */
+.card__row--lit {
+  background: color-mix(in srgb, var(--gr-color-neon) 16%, transparent);
+}
+
+.card__row--lit .card__name {
+  color: var(--gr-color-neon-hi);
+}
+
+.card__foot {
+  margin: var(--gr-space-2) 0 0;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+/* ------------------------------------------------------------ the controls */
+
+.gt__controls {
+  grid-area: controls;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  align-items: start;
+  gap: var(--gr-space-2);
+}
+
+/* Waiting on somebody else: their turn is the wide thing, taunting the other. */
+.gt__controls--wait {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+
+.gt__controls .slab,
+.gt__controls .key {
+  flex-direction: column;
+  width: 100%;
+  min-height: 52px;
+  line-height: 1.15;
+}
+
+.gt__controls .slab {
+  font-size: var(--gr-text-lg);
+}
+
+.gt__controls small {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-shadow: none;
+  opacity: 0.85;
+}
+
+.gt__controls .key b {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gt__controls .key small {
+  font-family: var(--gr-font-ui);
+  color: var(--gr-color-ink-dim);
+}
+
+.gt__controls .taunt-picker {
+  width: 100%;
+}
+
+.gt__controls .taunt-picker__open {
+  flex-direction: row;
+}
+
+.gt__watching {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--gr-space-2) 0;
+  text-align: center;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+/* ---------------------------------------------------------- the activity */
+
+/*
+ * What the table said happened, kept. A panel of its own at a desk, under the
+ * card; on a phone it is the second tab in the talk sheet, because a phone has
+ * no spare row to give it.
+ */
+.gt__activity {
+  grid-area: activity;
+  display: none;
+}
+
+@container gt (min-width: 760px) {
+  .gt__activity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gr-space-1);
+    min-height: 0;
+    padding: var(--gr-space-3) 14px;
+    border-radius: 14px;
+    background: rgb(0 0 0 / 0.26);
+    box-shadow:
+      inset 0 5px 10px rgb(0 0 0 / 0.42),
+      0 1px 0 rgb(255 255 255 / 0.05);
+  }
+}
+
+/* ------------------------------------------------------------ off switch */
+
+@media (prefers-reduced-motion: reduce) {
+  .gt__dice--rolling,
+  .gt__stamp,
+  .gt__banner,
+  .gt__sheet,
+  .gt__clock,
+  .lane__marker,
+  .die,
+  .die__letter,
+  .die--rolling,
+  .die--greed {
+    animation: none;
+    transition: none;
+  }
+
+  /* Without the tumble, a die in the air still has to read as unresolved. */
+  .die--rolling {
+    opacity: 0.55;
+  }
+
+  /* And $GREED is still marked, just without the lift. */
+  .die--greed {
+    box-shadow:
+      0 4px 0 var(--bone-edge),
+      0 0 0 3px var(--gr-color-neon-hi);
+  }
+}

@@ -34,7 +34,7 @@ const SHELL = `<!doctype html>
     <meta property="og:image" content="/og/site.png" />
     ${META_CLOSE}
   </head>
-  <body><div id="root"></div></body>
+  <body><div id="root"><!--door--><!--/door--></div></body>
 </html>
 `;
 
@@ -146,6 +146,23 @@ describe("the page a link unfurls into", () => {
 
     expect(answer.status).toBe(200);
     expect(await answer.text()).toContain("<svg");
+  });
+});
+
+describe("what a crawler that runs no script reads", () => {
+  it("finds a heading on the front door rather than an empty root", async () => {
+    const html = await get("/");
+
+    expect(html).toMatch(/<div id="root">[\s\S]*<h1/);
+    expect(html).toContain('href="/blackjack"');
+  });
+
+  it("is not told what the server is built with", async () => {
+    // Nothing a visitor needs, and a free hint to anybody looking for a
+    // framework with a known hole in it.
+    const answer = await fetch(`http://127.0.0.1:${port}/`);
+
+    expect(answer.headers.get("x-powered-by")).toBeNull();
   });
 });
 

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 export interface AccountProfile {
   id: string;
@@ -48,8 +57,33 @@ interface MeResponse {
   profile?: AccountProfile;
 }
 
-/** The signed-in profile, or nothing at all — guests play without one. */
+const Shared = createContext<Account | null>(null);
+
+/**
+ * One account for the whole building.
+ *
+ * Every page used to ask for its own, so every link was a fresh "who are you"
+ * with nothing to show until it was answered — and a balance set by one page
+ * was not the balance the next page started from.
+ */
+export function AccountProvider({ children }: { children: ReactNode }) {
+  const account = useOwnAccount(true);
+  return createElement(Shared.Provider, { value: account }, children);
+}
+
+/**
+ * The signed-in profile, or nothing at all — guests play without one.
+ *
+ * The building's shared one when there is a provider above; otherwise its
+ * own, so a page rendered on its own still knows who is playing.
+ */
 export function useAccount(): Account {
+  const shared = useContext(Shared);
+  const own = useOwnAccount(shared === null);
+  return shared ?? own;
+}
+
+function useOwnAccount(enabled: boolean): Account {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [available, setAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -77,7 +111,11 @@ export function useAccount(): Account {
     })();
   }, []);
 
-  useEffect(refresh, [refresh]);
+  useEffect(() => {
+    if (enabled) {
+      refresh();
+    }
+  }, [enabled, refresh]);
 
   const setChips = useCallback((chips: number) => {
     setProfile((current) => (current === null ? current : { ...current, chips }));
@@ -91,13 +129,9 @@ export function useAccount(): Account {
     })();
   }, []);
 
-  return {
-    profile,
-    available,
-    loading,
-    admin,
-    refresh,
-    setChips,
-    signOut,
-  };
+  // Stable between renders that changed nothing, since every page reads it.
+  return useMemo(
+    () => ({ profile, available, loading, admin, refresh, setChips, signOut }),
+    [profile, available, loading, admin, refresh, setChips, signOut],
+  );
 }

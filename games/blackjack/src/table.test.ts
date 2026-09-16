@@ -653,3 +653,28 @@ describe("being ready", () => {
   });
 });
 
+describe("what the table says", () => {
+  /*
+   * The browser keeps the log from the latest line alone, and it can only tell
+   * a second "Ada is ready" from the same broadcast arriving twice if something
+   * moves between them.
+   */
+  it("counts the same words said twice running as two things said", () => {
+    const table = new Table("TEST1");
+    seatTwo(table);
+    table.setReady("a", true);
+    expect(table.view().eventSeq).toBe(3);
+    table.setReady("a", true);
+    expect(table.view().lastEvent).toBe("Ada is ready");
+    expect(table.view().eventSeq).toBe(4);
+  });
+
+  it("does not move for a look at the table that says nothing new", () => {
+    const table = new Table("TEST1");
+    seatTwo(table);
+    expect(table.view().eventSeq).toBe(2);
+    table.view();
+    expect(table.view().eventSeq).toBe(2);
+  });
+});
+

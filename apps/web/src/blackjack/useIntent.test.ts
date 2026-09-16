@@ -120,6 +120,54 @@ describe("a stake, before the table has agreed to it", () => {
   });
 });
 
+describe("readiness, before the table has agreed to it", () => {
+  it("shows what this player asked for", () => {
+    const view = table({ ready: false });
+    const { result } = renderHook(() => useIntent(view, "a", null));
+
+    act(() => result.current.setReady(true));
+
+    expect(result.current.ready).toBe(true);
+  });
+
+  it("stops showing it the moment the table holds the same answer", () => {
+    const { result, rerender } = renderHook(
+      ({ view }: { view: TableView }) => useIntent(view, "a", null),
+      { initialProps: { view: table({ ready: false }) } },
+    );
+    act(() => result.current.setReady(true));
+
+    rerender({ view: table({ ready: true }) });
+
+    expect(result.current.ready).toBeNull();
+  });
+
+  it("gives up on a press the table refused", () => {
+    const view = table({ ready: false });
+    const { result, rerender } = renderHook(
+      ({ error }: { error: string | null }) => useIntent(view, "a", error),
+      { initialProps: { error: null as string | null } },
+    );
+    act(() => result.current.setReady(true));
+
+    rerender({ error: "Last call — you can only take chips back now." });
+
+    expect(result.current.ready).toBeNull();
+  });
+
+  it("clears when the hand is dealt, whatever was on the felt", () => {
+    const { result, rerender } = renderHook(
+      ({ view }: { view: TableView }) => useIntent(view, "a", null),
+      { initialProps: { view: table({ ready: true }, { phase: "betting" }) } },
+    );
+    act(() => result.current.setReady(true));
+
+    rerender({ view: table({ ready: true }, { phase: "playing" }) });
+
+    expect(result.current.ready).toBeNull();
+  });
+});
+
 describe("a move, before the table has answered", () => {
   it("remembers what was sent", () => {
     const { result } = renderHook(() => useIntent(table(), "a", null));
@@ -175,6 +223,23 @@ describe("a move, before the table has answered", () => {
     act(() => result.current.send("double"));
 
     rerender({ error: "You cannot cover that bet." });
+
+    expect(result.current.move).toBeNull();
+  });
+
+  it("gives up on a move refused in the same words as the last refusal", () => {
+    /*
+     * The table said no, then this player tried again and it said no in the
+     * same words. The words did not change, so only the count can say so.
+     */
+    const no = "You cannot cover that bet.";
+    const { result, rerender } = renderHook(
+      ({ key }: { key: number }) => useIntent(table(), "a", no, key),
+      { initialProps: { key: 1 } },
+    );
+    act(() => result.current.send("double"));
+
+    rerender({ key: 2 });
 
     expect(result.current.move).toBeNull();
   });

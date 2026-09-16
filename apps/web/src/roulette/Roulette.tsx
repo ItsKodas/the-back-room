@@ -9,7 +9,7 @@ import { Chat } from "../game/Chat.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
@@ -48,12 +48,26 @@ export function Roulette() {
   const table = useTableSocket<TableView>("roulette", back, account.setChips);
   const { state, seatId } = table;
 
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "roulette";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  useNav({
+    room: "roulette",
+    game: "Roulette",
+    ...(state !== null
+      ? {
+          table: {
+            code: state.code,
+            onLeave: table.leave,
+            /*
+             * Asked twice while the window is open, because chips on the
+             * cloth are already in the bank and standing up gives them up.
+             * Not asked once the wheel is turning: nothing is owed to a
+             * seat that leaves then, and the spin does not need them.
+             */
+            confirm: state.phase === "betting" && (state.you?.staked ?? 0) > 0,
+          },
+        }
+      : {}),
+    connected: table.connected,
+  });
 
   useEffect(() => {
     if (state !== null && state.code !== urlCode) {
@@ -68,26 +82,6 @@ export function Roulette() {
   return (
     // Wider only at the cloth: the screen before it is the building's width.
     <main className={state === null ? "play" : "play play--wheel"}>
-      <Navbar
-        game="Roulette"
-        {...(state !== null
-          ? {
-              table: {
-                code: state.code,
-                onLeave: table.leave,
-                /*
-                 * Asked twice while the window is open, because chips on the
-                 * cloth are already in the bank and standing up gives them up.
-                 * Not asked once the wheel is turning: nothing is owed to a
-                 * seat that leaves then, and the spin does not need them.
-                 */
-                confirm: state.phase === "betting" && (state.you?.staked ?? 0) > 0,
-              },
-            }
-          : {})}
-        account={account}
-        connected={table.connected}
-      />
 
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
 

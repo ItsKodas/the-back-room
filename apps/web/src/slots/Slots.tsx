@@ -1,8 +1,9 @@
 import type { Face } from "@backroom/game-slots";
 import {
-  CHIPS,
+  BET_KEYS,
   FUN_BANK,
   FUN_PURSE,
+  HIGH_STAKES_KEYS,
   jackpotPay,
   maxStake,
   MIN_STAKE,
@@ -11,16 +12,15 @@ import {
   STAKE_DIVISOR,
 } from "@backroom/game-slots";
 import type { SpinLine, SpinNews, SpinResult } from "@backroom/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { DiscordIcon } from "../blackjack/Icons.js";
 import { play, riser, startLoop } from "../game/audio.js";
 import { Avatar } from "../game/Avatar.js";
-import { Chip } from "../chips/Chip.js";
-import { ChipStack } from "../chips/ChipStack.js";
+import { ChipMark } from "../chips/Chip.js";
 import { useAccount } from "../game/useAccount.js";
 import { exact } from "../game/money.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Digits } from "../game/Digits.js";
 import { Taken } from "../net/Taken.js";
 import { windowId } from "../net/windowId.js";
@@ -376,8 +376,59 @@ function sayWhat(won: number): string | null {
   return won > 0 ? exact(won) : null;
 }
 
-/** The tray, smallest first, because it reads left to right. */
-const TRAY = [...CHIPS].reverse();
+/** The row of keys across the belly: the ordinary one, or high stakes. */
+export function keysFor(high: boolean): readonly number[] {
+  return high ? HIGH_STAKES_KEYS : BET_KEYS;
+}
+
+/** What a bet a line has to get past: the lines it is spread over, and two ceilings. */
+interface Reach {
+  lines: number;
+  cap: number;
+  balance: number | null;
+}
+
+/**
+ * Whether a bet a line can go on: the balance has to cover it on every line
+ * bought, and so does the bank.
+ *
+ * Only ever what the machine offers. The server asks the same two questions of
+ * the stake itself and refuses what fails them.
+ */
+export function covers(bet: number, { lines, cap, balance }: Reach): boolean {
+  const spin = bet * lines;
+  return bet >= MIN_STAKE && balance !== null && spin <= balance && spin <= cap;
+}
+
+/** The most a line can take on this many lines, from the player and from the bank. */
+function mostALine({ lines, cap, balance }: Reach): number {
+  return Math.floor(Math.min(balance ?? 0, cap) / Math.max(1, lines));
+}
+
+/**
+ * Whether a held bet is still held once the high stakes switch is flipped.
+ *
+ * A key the new row does not have is let go rather than swapped for the
+ * nearest one: moving somebody's stake is a decision about their money, and
+ * nobody pressed anything. A figure of their own is on neither row, so the
+ * switch has nothing to say about it.
+ */
+export function keptAcrossSwitch(bet: number, high: boolean): boolean {
+  const onAKey = BET_KEYS.includes(bet) || HIGH_STAKES_KEYS.includes(bet);
+  return bet === 0 || !onAKey || keysFor(high).includes(bet);
+}
+
+/** A typed figure, read the way the machine writes one: commas welcome and ignored. */
+export function readBet(typed: string): number | null {
+  const digits = typed.replace(/[^\d]/g, "");
+  return digits === "" ? null : Number(digits);
+}
+
+/** A bet the machine let go of, and why — kept only until another is chosen. */
+export interface Released {
+  bet: number;
+  why: "switch" | "cover";
+}
 
 interface MachineSign {
   bank: number;
@@ -406,17 +457,6 @@ const FUN_SIGN: MachineSign = {
 
 export default function Slots() {
   const account = useAccount();
-  /*
-   * Which room you are standing in, on the document rather than this element:
-   * the page's background and its haze live on body, so a game repainting only
-   * its own subtree sits in the building's blue with a violet rectangle in it.
-   */
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "slots";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
 
   const [sign, setSign] = useState<MachineSign | null>(null);
   const [grid, setGrid] = useState<Face[][] | undefined>(undefined);
@@ -464,6 +504,10 @@ export default function Slots() {
   const won = useMemo(() => winningCells(lit ? lines : []), [lit, lines]);
   const [spinning, setSpinning] = useState(false);
   const [stake, setStake] = useState(0);
+  /** Which row of keys the belly is showing. */
+  const [highStakes, setHighStakes] = useState(false);
+  /** A bet the machine let go of, kept only to say so. */
+  const [released, setReleased] = useState<Released | null>(null);
   /** Which machine: the one that pays chips, or the one that pays nothing. */
   const [forFun, setForFun] = useState(false);
   /** The play purse, which lives at the machine and never sees an account. */
@@ -555,7 +599,7 @@ export default function Slots() {
   /**
    * How many of the nine lines are being bought.
    *
-   * The chips on the tray are the bet *per line*, so this multiplies what
+   * The key held is the bet *per line*, so this multiplies what
    * leaves the account. A line nobody bought does not pay however it lands,
    * which is the whole meaning of choosing fewer.
    */
@@ -715,8 +759,8 @@ export default function Slots() {
       ? null
       : account.profile.chips - pending;
   /*
-   * What actually leaves the account: a bet on every line bought. The chips on
-   * the tray are the bet *per line*, which is how a machine with selectable
+   * What actually leaves the account: a bet on every line bought. The key held
+   * is the bet *per line*, which is how a machine with selectable
    * lines has to work — otherwise choosing fewer would quietly make each one
    * worth more rather than making the spin cheaper.
    */
@@ -738,14 +782,37 @@ export default function Slots() {
         balance !== null &&
         total <= balance));
 
-  /** Whether one more of this chip could go on: the bank's ceiling and yours. */
   /*
-   * Costed against one line until lines are chosen, so the tray is usable
-   * before the picker has been touched rather than either dead or lying.
+   * A held bet that can no longer be covered is let go, rather than left lit
+   * over a lever that will not move.
+   *
+   * Not mid-spin: the stake is out of the shown balance until the answer
+   * lands, so a bet of everything would read as uncovered for exactly as long
+   * as the reels turn. And never dropped to a smaller key instead — nobody
+   * pressed anything, so nobody's stake changes.
    */
-  const perSpin = (amount: number) => (stake + amount) * Math.max(1, lineCount);
-  const canAdd = (amount: number) =>
-    !settling && perSpin(amount) <= cap && balance !== null && perSpin(amount) <= balance;
+  useEffect(() => {
+    if (settling || stake === 0 || covers(stake, { lines: lineCount, cap, balance })) {
+      return;
+    }
+    setReleased({ bet: stake, why: "cover" });
+    setStake(0);
+  }, [settling, stake, lineCount, cap, balance]);
+
+  const chooseStake = (bet: number) => {
+    setStake(bet);
+    setReleased(null);
+  };
+
+  const flipStakes = (high: boolean) => {
+    if (keptAcrossSwitch(stake, high)) {
+      setReleased(null);
+    } else {
+      setReleased({ bet: stake, why: "switch" });
+      setStake(0);
+    }
+    setHighStakes(high);
+  };
 
   /**
    * Everything the machine is making a noise about, stopped.
@@ -991,6 +1058,7 @@ export default function Slots() {
     setAuto(false);
     setForFun(next);
     setStake(0);
+    setReleased(null);
     setGrid(undefined);
     setLines([]);
     setLit(false);
@@ -1162,18 +1230,18 @@ export default function Slots() {
   // Signed in, or playing for nothing — either way there is a machine to play.
   const canPlay = forFun || account.profile !== null;
 
+  useNav({
+    room: "slots",
+    game: (
+      <>
+        SL<em>O</em>TS
+      </>
+    ),
+    connected,
+  });
+
   return (
     <main className="slots" data-game="slots">
-      <Navbar
-        game={
-          <>
-            SL<em>O</em>TS
-          </>
-        }
-        account={account}
-        connected={connected}
-      />
-
       {taken !== null ? (
         <Taken
           message={taken}
@@ -1272,16 +1340,16 @@ export default function Slots() {
                   {canPlay ? (
                     <Controls
                       stake={stake}
-                      onAdd={(amount) => setStake((on) => on + amount)}
-                      onClear={() => setStake(0)}
-                      canAdd={canAdd}
+                      onStake={chooseStake}
+                      highStakes={highStakes}
+                      onHighStakes={flipStakes}
+                      released={released}
                       busy={settling}
                       balance={balance ?? 0}
                       cap={cap}
                       forFun={forFun}
                       lineCount={lineCount}
                       onLines={setLineCount}
-                      total={total}
                       onPull={pull}
                       canPull={canPull}
                       freeLeft={freeLeft}
@@ -1445,23 +1513,6 @@ function WinBreakdown({ lines, jackpot }: { lines: SpinLine[]; jackpot: boolean 
   );
 }
 
-/** An arrow curving back on itself: chips coming off the felt. */
-function TakeBackIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="take__icon">
-      <title>Take back</title>
-      <path
-        d="M20 17a7 7 0 0 0-7-7H5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-      <path d="M9 5.5 4 10l5 4.5Z" fill="currentColor" />
-    </svg>
-  );
-}
-
 /** Two arrows chasing each other: the machine going round again. */
 function RepeatIcon() {
   return (
@@ -1522,7 +1573,9 @@ function LinePicker({
       <span className={`picker__cost${lines === 0 ? " picker__cost--asking" : ""}`}>
         {lines === 0
           ? "Pick your lines"
-          : `${exact(perLine)} a line — ${exact(perLine * lines)} a spin`}
+          : perLine === 0
+            ? `${lines} ${lines === 1 ? "line" : "lines"}`
+            : `${exact(perLine)} a line — ${exact(perLine * lines)} a spin`}
       </span>
     </div>
   );
@@ -1726,27 +1779,27 @@ function ModeSwitch({
 }
 
 /**
- * The tray, the bet, and the lever.
+ * The keys, the lines, and the lever.
  *
- * Chips are built up rather than picked from, the way they are at a card
- * table: press the hundred four times and four hundred is on. It is the same
- * gesture in both rooms, and it is the one that lets somebody make a stake the
- * house never thought to offer.
+ * A bet is set rather than built: a key makes its figure the bet a line, the
+ * way the buttons on a real cabinet do, and stays held in until another is
+ * pressed or the bet can no longer be covered. A figure nobody put on a key
+ * can be typed instead.
  *
  * A stake stays put between spins, because a slot machine keeps your bet.
  */
 export function Controls({
   stake,
-  onAdd,
-  onClear,
-  canAdd,
+  onStake,
+  highStakes,
+  onHighStakes,
+  released,
   busy,
   balance,
   cap,
   forFun,
   lineCount,
   onLines,
-  total,
   onPull,
   canPull,
   auto,
@@ -1754,9 +1807,12 @@ export function Controls({
   freeLeft,
 }: {
   stake: number;
-  onAdd: (amount: number) => void;
-  onClear: () => void;
-  canAdd: (amount: number) => boolean;
+  /** Make this the bet a line. */
+  onStake: (bet: number) => void;
+  highStakes: boolean;
+  onHighStakes: (high: boolean) => void;
+  /** A bet the machine let go of, so the belly can say why. */
+  released: Released | null;
   busy: boolean;
   balance: number;
   cap: number;
@@ -1765,15 +1821,11 @@ export function Controls({
   onLines: (lines: number) => void;
   /** Free spins the machine still owes, counted down as they are used. */
   freeLeft: number;
-  total: number;
   onPull: () => void;
   canPull: boolean;
   auto: boolean;
   onAuto: () => void;
 }) {
-  /* What one more of a chip would make the whole spin cost. */
-  const perSpin = (amount: number) => (stake + amount) * Math.max(1, lineCount);
-
   if (cap < MIN_STAKE) {
     return (
       <p className="slots__shut">
@@ -1781,65 +1833,24 @@ export function Controls({
             retuned for the bonus, at which point it was quietly understating
             what the bank needs by about a tenth. */}
         The bank cannot cover a {exact(MIN_STAKE)} spin yet. It needs{" "}
-        {exact(MIN_STAKE * STAKE_DIVISOR)} in it before the smallest chip goes on.
+        {exact(MIN_STAKE * STAKE_DIVISOR)} in it before it can take a spin.
       </p>
     );
   }
 
   return (
     <div className="slots__controls">
+      <BetKeys
+        stake={stake}
+        onStake={onStake}
+        highStakes={highStakes}
+        onHighStakes={onHighStakes}
+        released={released}
+        busy={busy}
+        reach={{ lines: lineCount, cap, balance }}
+      />
+
       <LinePicker lines={lineCount} onChange={onLines} disabled={busy} perLine={stake} />
-
-      <div className="slots__tray" data-quiet>
-        {TRAY.map((amount) => (
-          <button
-            key={amount}
-            type="button"
-            className="slots__chip"
-            disabled={!canAdd(amount)}
-            title={
-              perSpin(amount) > cap
-                ? `The bank cannot cover ${exact(perSpin(amount))} yet`
-                : `Add ${exact(amount)} a line`
-            }
-            onClick={() => onAdd(amount)}
-          >
-            <Chip amount={amount} size={54} />
-          </button>
-        ))}
-      </div>
-
-      {/* The pile you have built, beside the figure. The number is the exact
-          answer; the stack is the one you can read without counting. */}
-      <div className={`slots__bet${stake > 0 ? " slots__bet--on" : ""}`}>
-        {stake > 0 && lineCount > 0 ? (
-          <>
-            <ChipStack amount={total} width={64} />
-            <span className="slots__bet-total">{exact(total)}</span>
-            {/*
-              * A control rather than a line of underlined text, but with the
-              * word kept: on its own the arrow was a guess, and this is the
-              * one button here that undoes something.
-              */}
-            <button
-              type="button"
-              className="take"
-              onClick={onClear}
-              disabled={busy}
-              title="Take your chips back off the felt"
-            >
-              <TakeBackIcon />
-              <span className="take__word">Take back</span>
-            </button>
-          </>
-        ) : (
-          <span className="slots__bet-empty">
-            {stake > 0 && lineCount === 0
-              ? `${exact(stake)} a line — choose how many`
-              : `nothing on yet — ${exact(MIN_STAKE)} a line minimum`}
-          </span>
-        )}
-      </div>
 
       {/*
         * The button, set into the machine rather than laid on the page.
@@ -1863,7 +1874,7 @@ export function Controls({
            * thing they are about to hit, not at the top of the machine.
            */}
           <span className="spin__face">
-            {busy ? "Spinning" : freeLeft > 0 ? "Free spin" : "Spin"}
+            {busy ? "Spinning" : freeLeft > 0 ? "Free spin" : stake === 0 ? "Choose a bet" : "Spin"}
           </span>
           {freeLeft > 0 && (
             <span className="spin__left">
@@ -1889,10 +1900,221 @@ export function Controls({
       </div>
 
       <p className="slots__purse">
-        <span>
+        <span className="slots__sum">
+          <ChipMark />
           {exact(balance)} {forFun ? "play chips" : "chips"}
         </span>
         <span className="slots__cap">Max {exact(cap)} a spin</span>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The line under the keys: whatever the player most needs told.
+ *
+ * Said in words rather than left to a tooltip, because hover is not a way to
+ * reach anything on a phone, and "why is that key dark?" is the question a dark
+ * key asks.
+ */
+function betSaid({
+  released,
+  highStakes,
+  busy,
+  stake,
+  typed,
+  holding,
+  keys,
+  reach,
+}: {
+  released: Released | null;
+  highStakes: boolean;
+  busy: boolean;
+  stake: number;
+  typed: number | null;
+  holding: boolean;
+  keys: readonly number[];
+  reach: Reach;
+}): string {
+  if (released !== null) {
+    if (released.why === "switch") {
+      return `Your ${exact(released.bet)} bet was released: it isn't on the ${highStakes ? "high stakes" : "standard"} keys.`;
+    }
+    const spin = released.bet * reach.lines;
+    const over =
+      spin > reach.cap ? `more than the bank covers (${exact(reach.cap)})` : `more than your ${exact(reach.balance ?? 0)}`;
+    return `Your ${exact(released.bet)} bet was released: ${reach.lines} lines of it is ${exact(spin)}, ${over}.`;
+  }
+
+  if (typed !== null && !holding && !covers(typed, reach)) {
+    const most = mostALine(reach);
+    if (typed < MIN_STAKE) {
+      return `Bets start at ${exact(MIN_STAKE)} a line.`;
+    }
+    if (most < MIN_STAKE) {
+      return `You can't cover ${reach.lines} lines, even at ${exact(MIN_STAKE)} a line.`;
+    }
+    return `The most you can bet on ${reach.lines} lines is ${exact(most)} a line.`;
+  }
+
+  // Mid-spin the stake is out of the balance, so this would flicker for nothing.
+  const off = busy ? undefined : keys.find((bet) => bet !== stake && !covers(bet, reach));
+  const choose = stake === 0 ? "Choose a key, or type a custom bet." : "";
+  if (off === undefined) {
+    return choose;
+  }
+  const spin = off * reach.lines;
+  const why =
+    spin > reach.cap && spin <= (reach.balance ?? 0)
+      ? `the bank can't cover ${reach.lines} lines of it`
+      : `more than your ${exact(reach.balance ?? 0)} on ${reach.lines} lines`;
+  return `${choose} ${exact(off)} and up: ${why}.`.trim();
+}
+
+/**
+ * The keys across the belly, the switch that swaps their row, and a box for a
+ * figure of your own.
+ *
+ * Nothing here is the rule. The server checks every stake against the balance
+ * and the bank and refuses what fails; this only decides what to light.
+ */
+function BetKeys({
+  stake,
+  onStake,
+  highStakes,
+  onHighStakes,
+  released,
+  busy,
+  reach,
+}: {
+  stake: number;
+  onStake: (bet: number) => void;
+  highStakes: boolean;
+  onHighStakes: (high: boolean) => void;
+  released: Released | null;
+  busy: boolean;
+  reach: Reach;
+}) {
+  const keys = keysFor(highStakes);
+  const id = useId();
+  /*
+   * What has been typed, which is not a bet until it is put on. Kept in here
+   * because nothing outside the box has any use for half a number.
+   */
+  const [draft, setDraft] = useState(() => (stake > 0 && !keys.includes(stake) ? exact(stake) : ""));
+  const typed = readBet(draft);
+  /* The bet is a figure of the player's own, which no key on this row is. */
+  const ownHeld = stake > 0 && !keys.includes(stake);
+  /* And it is the figure in the box, rather than one typed over it since. */
+  const holding = ownHeld && typed === stake;
+  const most = mostALine(reach);
+
+  const betOwn = () => {
+    if (busy || typed === null || !covers(typed, reach)) {
+      return;
+    }
+    setDraft(exact(typed));
+    onStake(typed);
+  };
+
+  return (
+    <div className="bet">
+      <div className="bet__head">
+        <span className="bet__label" id={`${id}-keys`}>
+          Bet a line
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={highStakes}
+          className="bet__stakes"
+          // Not mid-spin: the row can release the bet the reels are answering.
+          disabled={busy}
+          onClick={() => onHighStakes(!highStakes)}
+        >
+          <span className="bet__track" aria-hidden="true">
+            <span className="bet__thumb" />
+          </span>
+          <span>High stakes</span>
+        </button>
+      </div>
+
+      <div
+        className={`bet__keys bet__keys--${keys.length}`}
+        role="radiogroup"
+        aria-labelledby={`${id}-keys`}
+        data-busy={busy || undefined}
+      >
+        {keys.map((bet, index) => (
+          <button
+            // Keyed on the figure, so a thousand held across the switch is the
+            // same key staying down rather than a new one coming up under it.
+            key={bet}
+            type="button"
+            role="radio"
+            aria-checked={stake === bet}
+            className="bet__key"
+            style={{ animationDelay: `${index * 35}ms` }}
+            // The held key never goes dark: mid-spin its own stake is out of
+            // the balance, which is not the same as being unable to cover it.
+            disabled={stake !== bet && !covers(bet, reach)}
+            onClick={() => {
+              if (!busy) {
+                onStake(bet);
+              }
+            }}
+          >
+            <span className="bet__face">
+              <ChipMark size={12} />
+              {exact(bet)}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="own" data-held={ownHeld || undefined}>
+        <label className="own__label" htmlFor={`${id}-own`}>
+          Custom bet
+        </label>
+        <span className="own__field">
+          <ChipMark size={14} />
+          <input
+            id={`${id}-own`}
+            type="text"
+            inputMode="numeric"
+            enterKeyHint="done"
+            autoComplete="off"
+            aria-label="Custom bet a line"
+            placeholder={most >= MIN_STAKE ? `${exact(MIN_STAKE)} – ${exact(most)}` : "Can't cover a line"}
+            value={draft}
+            disabled={busy}
+            onChange={(event) => setDraft(event.target.value.replace(/[^\d,]/g, ""))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                betOwn();
+              }
+            }}
+            onBlur={() => setDraft(typed === null ? "" : exact(typed))}
+          />
+        </span>
+        {/*
+          * Latches like a key, because it is one: the box holds a figure, and
+          * this is what puts it on. Nothing is bet on a keystroke — typing a
+          * thousand goes through a one and a ten on the way.
+          */}
+        <button
+          type="button"
+          className="bet__key own__set"
+          aria-pressed={holding}
+          disabled={!holding && (busy || typed === null || !covers(typed, reach))}
+          onClick={holding ? undefined : betOwn}
+        >
+          <span className="bet__face">{holding ? "Held" : "Bet it"}</span>
+        </button>
+      </div>
+
+      <p className={`bet__said${released !== null ? " bet__said--news" : ""}`} aria-live="polite">
+        {betSaid({ released, highStakes, busy, stake, typed, holding, keys, reach })}
       </p>
     </div>
   );

@@ -6,7 +6,7 @@ import { DiscordIcon } from "../blackjack/Icons.js";
 import { play } from "../game/audio.js";
 import { exact } from "../game/money.js";
 import { useAccount } from "../game/useAccount.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { ChipFlight, type FlightPoint } from "./ChipFlight.js";
 import { Jar, type TapPoint } from "./Jar.js";
 import { Upgrades } from "./Upgrades.js";
@@ -80,18 +80,6 @@ function prefersReducedMotion(): boolean {
 
 export default function Tips() {
   const account = useAccount();
-
-  /*
-   * Which room you are standing in, on the document rather than this
-   * element: the page's background lives on body, so a game repainting only
-   * its own subtree sits in the building's colours with nothing of its own.
-   */
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "tips";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
 
   /**
    * The server's jar — replaced wholesale by every ack, refusals included.
@@ -346,18 +334,18 @@ export default function Tips() {
     });
   };
 
+  useNav({
+    room: "tips",
+    game: (
+      <>
+        TIP <em>J</em>AR
+      </>
+    ),
+    connected,
+  });
+
   return (
     <main className="tips" data-game="tips">
-      <Navbar
-        game={
-          <>
-            TIP <em>J</em>AR
-          </>
-        }
-        account={account}
-        connected={connected}
-      />
-
       {account.loading ? null : account.profile === null ? (
         <SignInToTap available={account.available} />
       ) : serverJar === null ? (

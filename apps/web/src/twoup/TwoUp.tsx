@@ -11,7 +11,7 @@ import { exact } from "../game/money.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
-import { Navbar } from "../nav/Navbar.js";
+import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
@@ -69,12 +69,27 @@ export function TwoUp() {
   const table = useTableSocket<TableView>("two-up", back, account.setChips);
   const { state, seatId } = table;
 
-  useEffect(() => {
-    document.documentElement.dataset["game"] = "two-up";
-    return () => {
-      delete document.documentElement.dataset["game"];
-    };
-  }, []);
+  useNav({
+    room: "two-up",
+    game: "Two-up",
+    ...(state !== null
+      ? {
+          table: {
+            code: state.code,
+            onLeave: table.leave,
+            /*
+             * Asked only in the casino school and only while chips are on
+             * the cloth. A ring's stake — a centre or a cover — is already
+             * contested by the time it is down, the same reason roulette
+             * only asks during its own betting window.
+             */
+            confirm:
+              state.school === "casino" && state.phase === "betting" && (state.you?.staked ?? 0) > 0,
+          },
+        }
+      : {}),
+    connected: table.connected,
+  });
 
   useEffect(() => {
     if (state !== null && state.code !== urlCode) {
@@ -88,30 +103,6 @@ export function TwoUp() {
 
   return (
     <main className="play play--twoup">
-      <Navbar
-        game="Two-up"
-        {...(state !== null
-          ? {
-              table: {
-                code: state.code,
-                onLeave: table.leave,
-                /*
-                 * Asked only in the casino school and only while chips are on
-                 * the cloth. A ring's stake — a centre or a cover — is already
-                 * contested by the time it is down, the same reason roulette
-                 * only asks during its own betting window.
-                 */
-                confirm:
-                  state.school === "casino" &&
-                  state.phase === "betting" &&
-                  (state.you?.staked ?? 0) > 0,
-              },
-            }
-          : {})}
-        account={account}
-        connected={table.connected}
-      />
-
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
 
       {table.taken !== null ? (
@@ -187,13 +178,14 @@ export function Felt({
    * the one place every optimistic figure on this felt gives up at once,
    * whichever of them the table was actually refusing.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (table.error !== null) {
       setPending({});
       setPendingCentre(0);
       setPendingCover(0);
     }
-  }, [table.error]);
+  }, [table.error, table.errorKey]);
 
   /* -------------------------------------------------------------- the kip */
 
@@ -204,11 +196,12 @@ export function Felt({
   useEffect(() => {
     setSwung(false);
   }, [state.phase]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (table.error !== null) {
       setSwung(false);
     }
-  }, [table.error]);
+  }, [table.error, table.errorKey]);
 
   const canThrow = state.phase === "kip" && seatId !== null && seatId === state.spinnerId;
   const onThrow = () => {

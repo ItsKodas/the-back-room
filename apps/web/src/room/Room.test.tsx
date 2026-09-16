@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { play } from "../game/audio.js";
 import { Room } from "./Room.js";
+
+vi.mock("../game/audio.js", async (original) => ({
+  ...(await original<typeof import("../game/audio.js")>()),
+  play: vi.fn(),
+  unlock: vi.fn(),
+}));
 
 const GAMES = [
   {
@@ -75,7 +82,7 @@ function show() {
 }
 
 describe("the room's groups", () => {
-  it("keeps the games you sit at in order: tables, machines, then the back", async () => {
+  it("keeps the groups in order: the bar, the tables, then the back", async () => {
     stubFetch();
     show();
 
@@ -83,26 +90,54 @@ describe("the room's groups", () => {
       expect(screen.getByText("In the back")).toBeTruthy();
     });
 
-    const labels = screen.getAllByText(/^(At the tables|Against the wall|In the back)$/);
-    expect(labels.map((node) => node.textContent)).toEqual([
-      "At the tables",
-      "Against the wall",
-      "In the back",
-    ]);
+    const labels = screen.getAllByText(/^(At the bar|At the tables|In the back)$/);
+    expect(labels.map((node) => node.textContent)).toEqual(["At the bar", "At the tables", "In the back"]);
   });
 
-  it("puts the board and the bar in a strip above the tables, not in a section of their own", async () => {
+  it("puts the machine and the jar together above the tables", async () => {
     stubFetch();
     const { container } = show();
 
     const jar = await screen.findByRole("link", { name: /The Tip Jar/ });
-    const front = container.querySelector(".room__front");
-    expect(front?.contains(jar)).toBe(true);
-    expect(front?.querySelector(".standings")).toBeTruthy();
-    // A tile or a cabinet is a game you sit down at; the jar is neither.
-    expect(jar.classList.contains("cabinet")).toBe(false);
+    const slots = screen.getByRole("link", { name: /Slots/ });
+    const wall = container.querySelector(".room__wall");
+    expect(wall?.contains(jar)).toBe(true);
+    expect(wall?.contains(slots)).toBe(true);
 
     const tables = screen.getByText("At the tables");
-    expect(front?.compareDocumentPosition(tables)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(wall?.compareDocumentPosition(tables)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("keeps the board in the right-hand rail and the floor in the left", () => {
+    stubFetch();
+    const { container } = show();
+
+    expect(container.querySelector(".rail--right .standings")).toBeTruthy();
+    expect(container.querySelector(".rail--left .floor-activity")).toBeTruthy();
+    expect(container.querySelector(".room .standings")).toBeNull();
+  });
+});
+
+describe("walking into a game", () => {
+  beforeEach(() => {
+    vi.mocked(play).mockClear();
+  });
+
+  it("sounds the door opening from every kind of card", async () => {
+    stubFetch();
+    show();
+
+    for (const name of [/Greed/, /Slots/, /The Tip Jar/, /Taunts/]) {
+      vi.mocked(play).mockClear();
+      fireEvent.click(await screen.findByRole("link", { name }));
+      expect(vi.mocked(play).mock.calls).toEqual([["open"]]);
+    }
+  });
+
+  it("stays quiet when the click opens a new tab instead of walking in", async () => {
+    stubFetch();
+    show();
+    fireEvent.click(await screen.findByRole("link", { name: /Greed/ }), { ctrlKey: true });
+    expect(play).not.toHaveBeenCalled();
   });
 });

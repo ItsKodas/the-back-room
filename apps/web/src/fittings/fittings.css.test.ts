@@ -89,6 +89,18 @@ describe("the fittings' stylesheet", () => {
     expect(css).not.toMatch(/(^|[},\s])\.field(?![\w-])[^{]*\{/m);
   });
 
+  it("keeps the slab's lit screen inside its rounded corners", () => {
+    /*
+     * The glass over the screen followed the slab's corners and the screen
+     * under it did not. Clipping by overflow alone leaks at a curve on a
+     * button that moves, so a white pixel of screen showed at each corner.
+     */
+    for (const block of [".slab::before {", ".slab::after {"]) {
+      const body = css.slice(css.indexOf(block), css.indexOf("}", css.indexOf(block)));
+      expect(body, `${block} does not follow the corners`).toMatch(/border-radius:\s*inherit/);
+    }
+  });
+
   it("keeps the table-code field at 16px, so iOS Safari does not zoom in on focus", () => {
     const body = css.slice(css.indexOf(".lcd__input {"), css.indexOf("}", css.indexOf(".lcd__input {")));
     expect(body).toMatch(/font-size:\s*16px/);

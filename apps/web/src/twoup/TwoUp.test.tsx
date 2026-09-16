@@ -98,6 +98,19 @@ describe("the two-up felt", () => {
     expect(container.querySelector(".tu__spot-mine")).toBeNull();
   });
 
+  it("gives up the optimistic chip when the table refuses it in the same words again", () => {
+    const act = vi.fn();
+    const no = "You do not have the chips for that.";
+    const { container, rerender } = render(
+      <Felt table={stub({ act, error: no, errorKey: 1 })} state={view()} seatId="s1" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Heads" }));
+    expect(container.querySelector(".tu__spot-mine")?.textContent).toBe("25");
+
+    rerender(<Felt table={stub({ act, error: no, errorKey: 2 })} state={view()} seatId="s1" />);
+    expect(container.querySelector(".tu__spot-mine")).toBeNull();
+  });
+
   it("keeps a coin's face unread while it is in the air", () => {
     render(
       <Felt
