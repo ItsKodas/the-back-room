@@ -167,8 +167,8 @@ export function jsonLd(page: Page): string {
       url: page.url,
       image: page.image,
       inLanguage: "en",
-      // The load-bearing line. Chips come from the daily and from nowhere
-      // else, and this is the only place that fact is written down in a form
+      // The load-bearing line. Chips cannot be bought and never leave as money,
+      // and this is the only place that fact is written down in a form
       // something other than a person can read.
       isAccessibleForFree: true,
       // From the shape rather than from the seat count, because the seat count
@@ -201,9 +201,45 @@ ${forScript({ "@context": "https://schema.org", "@graph": graph })}
 
 /** How the chips work, which every indexed page says, because it is the question. */
 const CHIPS = `<h2>How the chips work</h2>
-      <p>Chips are free. Every player is handed a fresh handful of them each day, and there is no way to pay for more: nothing here takes money, and nothing here pays out anything but chips.</p>
-      <p>A chip you win came from another player. A table playing for chips only deals while at least two real people are sitting at it, and a table that loses its second player pauses rather than carrying on. Blackjack and the slot machine are the two exceptions, and each pays from a bank of its own that only players' stakes fill, so a win there still comes from everybody who played before you.</p>
+      <p>Chips are free. A new account starts with ten thousand of them, and there is no way to pay for more: nothing here takes money, and nothing here pays out anything but chips.</p>
+      <p>A chip you win came from another player. A table playing for chips only deals while at least two real people are sitting at it, and a table that loses its second player pauses rather than carrying on. The games played against the house, such as blackjack, roulette, two-up and the slot machine, each pay from a bank of their own that only players' stakes fill, so a win there still comes from everybody who played before you.</p>
       <p>Bots only ever sit at tables played for fun, where the chips belong to the table and are gone when it closes.</p>`;
+
+type Listed = readonly (GameFacts & { id: string })[];
+
+/**
+ * A link to a game by whatever name the sentence calls it, or just the name
+ * when that game is not open: prose mentions games the catalogue may not.
+ */
+function mention(games: Listed, id: string, text: string): string {
+  return games.some((game) => game.id === id) ? `<a href="/${attr(id)}">${text}</a>` : text;
+}
+
+/**
+ * The questions a newcomer actually has, at the front door only.
+ *
+ * Link text here never repeats a game's name from the list above: two links
+ * worded the same way to the same page read as one link said twice.
+ */
+function questions(games: Listed): string {
+  return `<h2>Questions people ask</h2>
+      <h3>Is it really free?</h3>
+      <p>Yes. There is nothing to buy, no subscription and no advert standing between you and a table. Chips cannot be bought, and they cannot be cashed out either, so a good night here is worth exactly what it felt like and nothing more.</p>
+      <h3>What happens when I run out of chips?</h3>
+      <p>Head to the ${mention(games, "tips", "jar on the bar")}. It fills slowly while you are away, and tapping it pays what has gathered into your account. It is never going to make anybody rich, but it will always get you back to a table.</p>
+      <h3>Can I play when nobody else is around?</h3>
+      <p>Two ways. A table played for fun can be filled with bots, which is a good way to learn a game before putting chips on it. For chips, pull the handle on ${mention(games, "slots", "the slot machine")} or sit down at ${mention(games, "blackjack", "a blackjack table")}: both are played against the house, and the house caps every stake so that its bank can always cover the biggest win it could owe you.</p>
+      <h3>How do I play with friends?</h3>
+      <p>Open a table, say ${mention(games, "poker", "a poker table")} or a round of ${mention(games, "greed", "dice at Greed")}, and send the link. Everyone who follows it lands at the same table, with no invites to accept and nothing to install. If the link gets lost, the short code on the table does the same job.</p>
+      <h3>Can I send chips to someone?</h3>
+      <p>Yes, once you are signed in. Chips can be sent from your account page to another player, up to twenty-five thousand in any twenty-four hours, and every transfer is written down. It is there for staking a friend back into a game, not for moving a fortune.</p>
+      <h3>Can the rules be changed?</h3>
+      <p>Whoever opens a table sets it up for everybody sitting at it: how many seats there are, how long bets stay open, and whether the table plays for chips or just for fun. Some games go further. At a table of Greed the host picks the score that wins the game and which of the rarer throws count, so the same six dice can play as a quick round or a long night.</p>
+      <h3>Is there a leaderboard?</h3>
+      <p>There is, for anybody signed in. <a href="/leaderboard">The leaderboard</a> ranks players by the chips they hold, by how far ahead they are overall, by how much they have staked, and by games played and won, so there is more than one way to be at the top of it.</p>
+      <h3>Does it work on a phone?</h3>
+      <p>Every game is built to be played with a thumb. Open the site in your phone's browser, and add it to your home screen if you want it to open like an app.</p>`;
+}
 
 /** One line per game, linked to its page. */
 function gameList(games: readonly (GameFacts & { id: string })[]): string {
@@ -240,7 +276,7 @@ export function door(page: Page): string {
     const others = games.filter((game) => game.id !== here);
     return `<main class="door">
       <p class="door__back"><a href="/">${SITE_NAME}</a></p>
-      <h1>${attr(page.game.name)}</h1>
+      <h1>${attr(page.game.name)} at ${SITE_NAME}</h1>
       <p>${attr(page.description)}${page.game.maxSeats === 1 ? "" : " Open a table, send the link to whoever you are playing with, and the table deals itself."}</p>
       ${CHIPS}
       ${others.length === 0 ? "" : `<h2>More games</h2>\n      ${gameList(others)}`}
@@ -248,7 +284,7 @@ export function door(page: Page): string {
   }
 
   return `<main class="door">
-      <h1>${SITE_NAME}</h1>
+      <h1>${SITE_NAME}: cards and dice for chips</h1>
       <p>Blackjack, poker, slots and dice for chips, played with real people in your browser. The Back Room is a free room for cards and dice: pull up a chair at a table, play a few hands with friends or strangers, and leave whenever you like. There is no real money anywhere near it.</p>
       <h2>The games</h2>
       ${gameList(games)}
@@ -258,6 +294,7 @@ export function door(page: Page): string {
       <p>Every table has a short code of its own, so bringing a friend is a matter of sending them the link.</p>
       <h2>Getting in</h2>
       <p>Anybody can sit down at a table played for fun. Tables that play for chips ask you to sign in with <a href="https://discord.com/" rel="noopener">Discord</a> first, so that what you win stays yours. The room works on a phone as well as on a desk, and it can be added to a home screen like an app.</p>
+      ${questions(games)}
     </main>`;
 }
 
@@ -335,7 +372,7 @@ export interface Lookups {
 }
 
 const SITE_LINE =
-  "A back room for cards and dice, played for chips and nothing else. Blackjack, poker, slots and a fresh handful of chips every day, with no real money anywhere near it.";
+  "Blackjack, poker, slots and dice, played for chips and never for money. Free to play with friends or strangers, on a phone or a desk.";
 
 /**
  * What one address says about itself.

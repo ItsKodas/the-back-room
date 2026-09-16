@@ -48,6 +48,25 @@ const room: Lookups = {
 
 const SITE = "https://back.example";
 
+/** A room with the real listings open, for what depends on how many there are. */
+const listings: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS];
+const facts = (game: GameListing) => ({
+  name: game.name,
+  blurb: game.blurb,
+  minSeats: game.minSeats,
+  maxSeats: game.maxSeats,
+  shape: game.shape,
+  open: game.open,
+});
+const everything: Lookups = {
+  game: (id) => {
+    const found = listings.find((game) => game.id === id);
+    return found === undefined ? null : facts(found);
+  },
+  table: () => null,
+  games: () => listings.map((game) => ({ ...facts(game), id: game.id })),
+};
+
 describe("what an address says about itself", () => {
   it("puts the host and the seats where an unfurler will read them", () => {
     const page = pageFor("/6PMKG", SITE, room);
@@ -194,6 +213,56 @@ describe("what a crawler reads before any script has run", () => {
     expect(words(html).length).toBeGreaterThanOrEqual(250);
   });
 
+  it("says enough at the front door to be a page rather than a sign", () => {
+    // An audit counted 423 and asked for about 800. Counted here the same
+    // rough way, with the lists and questions included.
+    expect(words(door(pageFor("/", SITE, everything))).length).toBeGreaterThanOrEqual(750);
+  });
+
+  it("gives every heading enough words to say something", () => {
+    for (const path of ["/", "/blackjack", "/slots", "/tips"]) {
+      const h1 = /<h1[^>]*>([^<]*)<\/h1>/.exec(door(pageFor(path, SITE, everything)))?.[1] ?? "";
+      expect(h1.length, `${path}: ${h1}`).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it("links around the room from the front door, each link named its own way", () => {
+    const html = door(pageFor("/", SITE, everything));
+    const internal = [...html.matchAll(/<a href="\/[^"]*"[^>]*>([^<]*)<\/a>/g)];
+    const names = internal.map((link) => (link[1] ?? "").toLowerCase());
+
+    expect(internal.length).toBeGreaterThanOrEqual(10);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("never links to a game that is not open", () => {
+    // The questions mention games by name, and a game that has closed or not
+    // yet opened is an address the client has no page for.
+    const html = door(pageFor("/", SITE, room));
+    const hrefs = [...html.matchAll(/href="(\/[^"]*)"/g)].map((link) => link[1])
+      .filter((href) => href !== "/leaderboard");
+
+    expect(new Set(hrefs)).toEqual(new Set(["/blackjack", "/slots"]));
+  });
+
+  it("does not promise a daily top-up the room no longer hands out", () => {
+    // The jar on the bar replaced it. A page still offering chips every day
+    // is a fact the server stopped saying.
+    for (const path of ["/", "/blackjack"]) {
+      const page = pageFor(path, SITE, everything);
+      const shown = `${page.description}\n${door(page)}`.toLowerCase();
+      expect(shown, path).not.toMatch(/every day|daily/);
+    }
+  });
+
+  it("keeps descriptions short enough for a result to show whole", () => {
+    // An audit measured the old one at 1019 of 1000 pixels, at 164 characters.
+    for (const path of ["/", "/blackjack", "/slots", "/poker"]) {
+      const description = pageFor(path, SITE, everything).description;
+      expect(description.length, `${path}: ${description}`).toBeLessThanOrEqual(145);
+    }
+  });
+
   it("links the front door to every game that is open, and somewhere outside", () => {
     const html = door(pageFor("/", SITE, room));
 
@@ -223,7 +292,7 @@ describe("what a crawler reads before any script has run", () => {
   it("gives a game its own heading and a way back to the door", () => {
     const html = door(pageFor("/blackjack", SITE, room));
 
-    expect(html).toMatch(/<h1[^>]*>Blackjack<\/h1>/);
+    expect(html).toMatch(/<h1[^>]*>Blackjack[^<]*<\/h1>/);
     expect(html).toContain('href="/"');
     expect(html).toContain('href="/slots"');
     expect(html).not.toContain('href="/blackjack"');
