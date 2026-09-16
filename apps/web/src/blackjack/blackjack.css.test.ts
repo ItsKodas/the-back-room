@@ -100,7 +100,7 @@ describe("cards on the felt", () => {
     const other = ruleIn(desk, ".bj__seat--other");
     expect(other).toContain("flex: 0 0 var(--bj-plate)");
     expect(other).toContain("container-type: inline-size");
-    expect(other).toContain("--bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px)");
+    expect(ruleIn(desk, ".bj__seat--other > *")).toContain("--bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px)");
     // A second row is height the dealer and your own hand give up.
     const full = ruleIn(desk, ".bj__felt:has(.bj__seat--other:nth-child(6))");
     expect(full).toContain("--bj-card-dealer: clamp(48px, min(16cqi, 9cqh), 150px)");
@@ -128,22 +128,32 @@ describe("cards on the felt", () => {
     expect(onCard).toEqual([]);
   });
 
-  it("shrinks and scrolls within itself at any width, so a long hand never pushes the total out of the row", () => {
-    // Phone width has no media query of its own to widen the row, so the hand
-    // itself has to be the thing that gives: shrinkable, and self-contained
-    // rather than spilling into the count beside it.
+  /*
+   * A hand used to scroll within itself so a long one kept its total in view.
+   * But a scroller counts a card still flying in from the shoe as overflow, so
+   * every deal flashed a scrollbar and clipped the card on its way in. A hand
+   * now fits whatever room its row gives it, overlapping deeper as it grows.
+   */
+  it("fits the room its row gives it, overlapping deeper as it grows, rather than scrolling", () => {
     const rule = ruleIn(css, ".bj__seat .bj-hand");
+    expect(rule).not.toMatch(/overflow/);
+    expect(rule).toContain("container-type: inline-size");
     expect(rule).toContain("min-width: 0");
-    expect(rule).toContain("overflow-x: auto");
+    expect(rule).toContain("flex: 0 1 calc(var(--bj-card-w) * (1 + (var(--bj-places, 1) - 1) * var(--bj-show)))");
+    expect(ruleIn(css, ".bj__seat .bj-hand .bj-card + .bj-card")).toContain(
+      "margin-left: clamp(var(--bj-card-w) * -0.82, (100cqi - var(--bj-card-w)) / (var(--bj-places, 2) - 1) - var(--bj-card-w), var(--bj-card-w) * (var(--bj-show) - 1))",
+    );
+    expect(css).not.toMatch(/\.bj[^{}]*\{[^}]*overflow-x: (auto|scroll)/);
   });
 
-  it("overlap by 28% in a dealt hand and 42% in a split box, and never at the dealer's", () => {
-    expect(ruleIn(css, ".bj__seat .bj-hand .bj-card + .bj-card")).toContain(
-      "margin-left: calc(var(--bj-card-w) * -0.28)",
-    );
-    expect(ruleIn(css, ".bj__box .bj-hand .bj-card + .bj-card")).toContain(
-      "margin-left: calc(var(--bj-card-w) * -0.42)",
-    );
+  it("are a length by the time they reach a hand, so a hand's own container units cannot resize them", () => {
+    // Otherwise a width written in the felt's cqi would be measured against the hand.
+    expect(block(css, "@property --bj-card-w")).toContain('syntax: "<length>"');
+  });
+
+  it("overlap by 28% in a dealt hand and 42% in a split box when there is room, and never at the dealer's", () => {
+    expect(ruleIn(css, ".bj__seat .bj-hand")).toContain("--bj-show: 0.72");
+    expect(ruleIn(css, ".bj__box .bj-hand")).toContain("--bj-show: 0.58");
     /*
      * Explicit, not merely absent. Hand.tsx marks any hand of four or more
      * places `bj-hand--tight` for the seats it was built for, and the dealer
@@ -161,6 +171,16 @@ describe("the rest of the table", () => {
 
   it("scrolls the felt inside itself, never the page", () => {
     expect(ruleIn(css, ".bj__cloth")).toContain("overflow-y: auto");
+  });
+
+  /*
+   * overflow-y: auto quietly makes overflow-x auto as well, and a card dealt in
+   * from the shoe starts out past the right edge — so without this, every deal
+   * near the edge flashed a sideways scrollbar under the felt.
+   */
+  it("never scrolls the felt or the other players sideways, even while a card is on its way in", () => {
+    expect(ruleIn(css, ".bj__cloth")).toContain("overflow-x: hidden");
+    expect(ruleIn(desk, ".bj__others")).toContain("overflow-x: hidden");
   });
 
   it("leaves none of the old buttons and panels behind", () => {

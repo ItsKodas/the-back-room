@@ -1,5 +1,5 @@
 import type { Card as CardData, Rank, Suit } from "@backroom/game-blackjack";
-import type { PointerEvent } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   CARD_H,
@@ -355,10 +355,13 @@ export function Hand({
    * and not two.
    */
   const places = cards.length + (arriving ? 1 : 0);
-  const tight = places + (hidden === true ? 1 : 0) > 3;
+  const length = places + (hidden === true ? 1 : 0);
+  const tight = length > 3;
 
   return (
-    <span className={`bj-hand${tight ? " bj-hand--tight" : ""}`}>
+    // The length goes to the felt, which overlaps the hand by however much it
+    // takes for that many places to fit the room the row has left.
+    <span className={`bj-hand${tight ? " bj-hand--tight" : ""}`} style={{ "--bj-places": length } as CSSProperties}>
       {Array.from({ length: places }, (_, index) => {
         /*
          * Position is the identity here. A hand only ever grows at its end,
