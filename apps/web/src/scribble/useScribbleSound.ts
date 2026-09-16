@@ -73,16 +73,33 @@ export function useScribbleSound({
    * enough to tick at all.
    */
   const offset = useMemo(() => state.now - Date.now(), [state.now]);
+  /*
+   * The last second announced, kept outside the interval's own closure.
+   *
+   * A legitimate resync (the table rebroadcasts its state, `now` moves on,
+   * `offset` above recomputes) restarts the interval effect below — correctly,
+   * since a stale offset would keep polling against the wrong clock. But a
+   * `let last` declared inside that effect is reborn at -1 on every one of
+   * those restarts, so the very next poll finds "not equal to -1" for
+   * whichever second it is already sitting on and announces it a second time
+   * — a repeat in exactly the stretch of a turn (the last ten seconds) busiest
+   * with guesses landing and the table re-broadcasting because of them. A ref
+   * survives the restart; only a new turn's own deadline is allowed to clear it.
+   */
+  const lastTick = useRef(-1);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fires on the deadline changing, which is the point — a new turn's own deadline is what may clear it, not the value itself
+  useEffect(() => {
+    lastTick.current = -1;
+  }, [state.deadline]);
   useEffect(() => {
     if (state.phase !== "drawing" || state.deadline === null) {
       return;
     }
     const deadline = state.deadline;
-    let last = -1;
     const timer = setInterval(() => {
       const left = Math.ceil((deadline - (Date.now() + offset)) / 1000);
-      if (left <= TICK_FROM && left > 0 && left !== last) {
-        last = left;
+      if (left <= TICK_FROM && left > 0 && left !== lastTick.current) {
+        lastTick.current = left;
         play("scribbleTick");
       }
     }, 200);
