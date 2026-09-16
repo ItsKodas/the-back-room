@@ -82,11 +82,36 @@ describe("cards on the felt", () => {
     expect(felt).toContain("--bj-card-mine: clamp(38px, min(22cqi, 18cqh), 84px)");
     expect(felt).toContain("--bj-card-other: clamp(20px, min(9.5cqi, 8.5cqh), 38px)");
     const wide = ruleIn(desk, ".bj__felt");
-    expect(wide).toContain("--bj-card-dealer: clamp(40px, min(12cqi, 20cqh), 124px)");
-    expect(wide).toContain("--bj-card-mine: clamp(40px, min(9.5cqi, 17cqh), 100px)");
-    expect(wide).toContain("--bj-card-other: clamp(24px, min(6.2cqi, 12cqh), 70px)");
+    expect(wide).toContain("--bj-card-dealer: clamp(48px, min(16cqi, 15cqh), 150px)");
+    expect(wide).toContain("--bj-card-mine: clamp(48px, min(15cqi, 15cqh), 132px)");
     expect(ruleIn(css, ".bj__seat--split")).toContain("--bj-card-w: clamp(26px, min(12cqi, 15cqh), 52px)");
-    expect(ruleIn(desk, ".bj__seats")).toContain("grid-template-columns: minmax(0, 1.5fr)");
+  });
+
+  /*
+   * At a desk the felt used to stop the cards at a sliver of its width and
+   * leave most of its height empty, and a full table was ten slivers in a row.
+   */
+  it("at a desk, gives everybody else narrower plates the more of them there are", () => {
+    expect(ruleIn(desk, ".bj__others")).toContain("flex-wrap: wrap");
+    expect(ruleIn(desk, ".bj__others")).toContain("--bj-plate: min(320px, max(200px, (100% - 24px) / 3))");
+    expect(ruleIn(desk, ".bj__others:has(> :nth-child(3))")).toContain("--bj-plate: max(180px, (100% - 36px) / 4)");
+    expect(ruleIn(desk, ".bj__others:has(> :nth-child(5))")).toContain("--bj-plate: max(148px, (100% - 48px) / 5)");
+    // Each plate sizes its cards off its own width, so a narrower plate is smaller cards.
+    const other = ruleIn(desk, ".bj__seat--other");
+    expect(other).toContain("flex: 0 0 var(--bj-plate)");
+    expect(other).toContain("container-type: inline-size");
+    expect(other).toContain("--bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px)");
+    // A second row is height the dealer and your own hand give up.
+    const full = ruleIn(desk, ".bj__felt:has(.bj__seat--other:nth-child(6))");
+    expect(full).toContain("--bj-card-dealer: clamp(48px, min(16cqi, 9cqh), 150px)");
+    expect(full).toContain("--bj-card-mine: clamp(48px, min(15cqi, 9cqh), 132px)");
+  });
+
+  it("at a desk, scrolls the other players rather than the felt, so your own hand stays in view", () => {
+    expect(ruleIn(desk, ".bj__seat--mine")).toContain("flex: none");
+    expect(ruleIn(desk, ".bj__others")).toContain("overflow-y: auto");
+    expect(ruleIn(desk, ".bj__others")).toContain("min-height: 0");
+    expect(ruleIn(desk, ".bj__seats")).toContain("min-height: 0");
   });
 
   it("inherit their width rather than declaring one on the card itself", () => {

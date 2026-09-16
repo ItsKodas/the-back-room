@@ -1090,10 +1090,15 @@
     display: none;
   }
 
+  /*
+   * A desk felt is taller than it is wide more often than not, so the height
+   * terms have room to matter: the dealer and your hand grow into it rather
+   * than stopping at a fraction of the width and leaving the middle empty.
+   * Everybody else is sized on their own plates, from how many share the row.
+   */
   .bj__felt {
-    --bj-card-dealer: clamp(40px, min(12cqi, 20cqh), 124px);
-    --bj-card-mine: clamp(40px, min(9.5cqi, 17cqh), 100px);
-    --bj-card-other: clamp(24px, min(6.2cqi, 12cqh), 70px);
+    --bj-card-dealer: clamp(48px, min(16cqi, 15cqh), 150px);
+    --bj-card-mine: clamp(48px, min(15cqi, 15cqh), 132px);
   }
 
   .bj__cloth {
@@ -1113,18 +1118,96 @@
     font-size: var(--gr-text-base);
   }
 
-  /* Along the bottom of the felt, yours wider: it is the hand you are reading. */
+  /*
+   * Yours nearest the edge of the felt, where you sit, centred and big: it is
+   * the hand you are reading. Everybody else in rows between you and the
+   * dealer. Still yours first in the document, so it is read first.
+   *
+   * When a full table is more than a short screen holds, it is the other rows
+   * that give and scroll among themselves: the felt scrolling instead would
+   * take your own hand off the bottom of it first.
+   */
   .bj__seats {
-    grid-auto-flow: column;
-    grid-template-columns: minmax(0, 1.5fr);
-    grid-auto-columns: minmax(0, 1fr);
-    align-items: end;
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
     margin-top: auto;
   }
 
+  .bj__seat--mine {
+    order: 1;
+    flex: none;
+    align-self: center;
+    width: min(100%, 640px);
+  }
+
+  /*
+   * Everybody else in centred rows between you and the dealer, their plates
+   * narrower the more of them there are: three abreast for one or two, four,
+   * then five. Each plate is a container of its own and sizes its cards off
+   * itself, so a narrower plate is smaller cards, whatever width the felt is.
+   */
   .bj__others {
-    display: contents;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: 12px;
+    min-height: 0;
+    /* Room inside the scroller for a turn's glow, which it would otherwise clip. */
+    margin: -8px;
+    padding: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    --bj-plate: min(320px, max(200px, (100% - 24px) / 3));
+  }
+
+  .bj__others:has(> :nth-child(3)) {
+    --bj-plate: max(180px, (100% - 36px) / 4);
+  }
+
+  .bj__others:has(> :nth-child(5)) {
+    --bj-plate: max(148px, (100% - 48px) / 5);
+  }
+
+  /*
+   * The width term is the plate's content box over what four cards come to
+   * at the overlap below — so a hand drawn to four fits its plate rather than
+   * scrolling inside it. The height term is the felt's, since a plate is only
+   * an inline-size container; and never as big as your own.
+   */
+  .bj__seat--other {
+    flex: 0 0 var(--bj-plate);
+    container-type: inline-size;
+    --bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px);
+  }
+
+  /*
+   * Somebody else's hand is glanced at, not read, so it sits deeper on itself,
+   * with no gap on top of the overlap for the budget above to miss.
+   */
+  .bj__seat--other .bj-hand {
+    gap: 0;
+  }
+
+  .bj__seat--other .bj-hand .bj-card + .bj-card {
+    margin-left: calc(var(--bj-card-w) * -0.5);
+  }
+
+  /*
+   * A second row of other players is height the dealer, your hand and theirs
+   * have to give up, or a full table scrolls the felt. Width terms untouched.
+   */
+  .bj__felt:has(.bj__seat--other:nth-child(6)) {
+    --bj-card-dealer: clamp(48px, min(16cqi, 9cqh), 150px);
+    --bj-card-mine: clamp(48px, min(15cqi, 9cqh), 132px);
+  }
+
+  .bj__felt:has(.bj__seat--other:nth-child(6)) .bj__seat--other {
+    --bj-card-w: clamp(26px, min(100cqi / 2.5, 8cqh), 100px);
+    gap: 6px;
+    padding: 8px 10px;
   }
 
   .bj__seat {
