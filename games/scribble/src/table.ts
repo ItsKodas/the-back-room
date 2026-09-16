@@ -551,7 +551,13 @@ export class ScribbleTable implements PlayTable {
     this.phase = "over";
     this.turn = null;
     this.deadline = this.now() + this.timings.resultMs;
-    const everyone = [...this.players.entries()];
+    /*
+     * Only the people still here. A leaver keeps their score — the board is
+     * honest about what they did — but this list is what the server hands the
+     * taunt pool, and a pool resolved against somebody who walked out pays
+     * chips on a result nobody at the table won.
+     */
+    const everyone = [...this.players.entries()].filter(([, player]) => player.present);
     if (this.options.mode === "teams") {
       const best = Math.max(...this.teamScores);
       const top = new Set(this.teamScores.flatMap((score, team) => (score === best ? [team] : [])));

@@ -201,6 +201,30 @@ describe("teams", () => {
     }
     expect(new Set(table.winners)).toEqual(new Set(table.teams[1]));
   });
+
+  /*
+   * A leaver keeps their score on purpose — the board still shows what they
+   * did. But the winners list is what the server hands the taunt pool, and a
+   * pool resolved against somebody who walked out pays chips on a result
+   * nobody at the table won.
+   */
+  it("does not crown somebody who left before the end", () => {
+    const { table } = tableFor({ rounds: 1 }, 4);
+    table.deal();
+    const leader = table.players.get("s0");
+    if (leader !== undefined) {
+      leader.score = 500;
+    }
+    table.removeSeat("s0");
+    while (table.phase !== "over") {
+      table.autoPick();
+      table.deadline = table.now();
+      table.advanceDrawing();
+      table.endReveal();
+    }
+    expect(table.winners).not.toContain("s0");
+    expect(table.winners.length).toBeGreaterThan(0);
+  });
 });
 
 describe("team balance across games", () => {
