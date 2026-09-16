@@ -36,6 +36,18 @@ describe("the readout while betting", () => {
     expect(model.stats.at(-1)).toEqual({ term: "Last call", value: "0:03", chips: false });
   });
 
+  it("totals what is on the felt for a watcher, with the table's limits beside it", () => {
+    const state = view({ seats: [seat("a", "Ada", { bet: 300 }), seat("b", "Bo", { bet: 200 })] });
+    const model = readoutFor(input({ state, seatId: null, left: 14 }));
+    expect(model.label).toBe("On the felt");
+    expect(model.figure).toBe("500");
+    expect(model.tone).toBe("chips");
+    expect(model.stats).toEqual([
+      { term: "Table", value: "100–10,000", chips: false },
+      { term: "Cards out", value: "0:14", chips: false },
+    ]);
+  });
+
   it("shows the purse at a for-fun table", () => {
     const state = view({ forFun: true, seats: [seat("a", "Ada", { purse: 4_500 }), seat("b", "Bo")] });
     expect(readoutFor(input({ state })).stats[0]).toEqual({ term: "Purse", value: "4,500", chips: true });
@@ -110,6 +122,14 @@ describe("the readout once the hand is over", () => {
     expect(readoutFor(input({ state: push }))).toMatchObject({ figure: "Push", tone: "plain" });
     const out = view({ phase: "settled", seats: [seat("a", "Ada")] });
     expect(readoutFor(input({ state: out }))).toMatchObject({ figure: "Sat out", tone: "plain" });
+  });
+
+  it("shows the dealer's total to a watcher, with no stake to speak of", () => {
+    const model = readoutFor(input({ state: settledHand(), seatId: null, left: 5 }));
+    expect(model.label).toBe("Dealer has");
+    expect(model.figure).toBe("19");
+    expect(model.tone).toBe("plain");
+    expect(model.stats).toEqual([{ term: "Next hand", value: "0:05", chips: false }]);
   });
 });
 
