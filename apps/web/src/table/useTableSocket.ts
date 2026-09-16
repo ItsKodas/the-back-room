@@ -5,6 +5,7 @@ import type {
   ClientToServer,
   ServerToClient,
   TableClosed,
+  TableRelay,
   TableState,
   TauntAck,
   TauntPlay,
@@ -104,6 +105,19 @@ export interface TableSocketHook<TView> {
   /** Sends a move. What is in it is between the caller and the game. */
   act: (action: Record<string, unknown>, done?: () => void) => void;
   /**
+   * Listens for relays — what a game sends between states, like a line being
+   * drawn. A subscription rather than state, because they arrive far too often
+   * to re-render the table for each one. Returns the way to stop listening.
+   */
+  onRelay: (listener: (relay: TableRelay) => void) => () => void;
+  /**
+   * Listens for every `room:error`, not just the latest — a subscription for
+   * the same reason as `onRelay`: a caller that only wants to react to a
+   * particular refusal (a game's own ink, say) needs each one as it lands,
+   * not the single slot `error` collapses them into.
+   */
+  onError: (listener: (message: string) => void) => () => void;
+  /**
    * Taunts thrown at this table, oldest first, for whatever is animating them.
    *
    * A log rather than "the current one": two can land in the same second and
@@ -169,6 +183,8 @@ export function useTableSocket<TView>(
   const [listed, setListedHere] = useState(true);
   const [landed, setLanded] = useState<TauntPlay[]>([]);
   const [stakes, setStakes] = useState<TauntStake[]>([]);
+  const relayListeners = useRef(new Set<(relay: TableRelay) => void>());
+  const errorListeners = useRef(new Set<(message: string) => void>());
 
   useEffect(() => {
     // No transports named on purpose: naming one makes it the only one tried,
@@ -221,7 +237,14 @@ export function useTableSocket<TView>(
       codeRef.current = (raw as { code?: string }).code ?? null;
       setState(raw as unknown as TView);
     });
-    socket.on("room:error", (message: string) => refuse(message));
+    socket.on("room:error", (message: string) => {
+      refuse(message);
+      // A game that wants to act on its own refusals subscribes here: the
+      // error state alone cannot tell two identical refusals apart.
+      for (const listener of errorListeners.current) {
+        listener(message);
+      }
+    });
     /*
      * The table was called off. Everything that was on it has already gone
      * back to the account, and the balance arrives on its own through
@@ -245,6 +268,11 @@ export function useTableSocket<TView>(
     socket.on("chat:message", (message: ChatMessage) =>
       setChat((log) => [...log, message].slice(-60)),
     );
+    socket.on("room:relay", (relay: TableRelay) => {
+      for (const listener of relayListeners.current) {
+        listener(relay);
+      }
+    });
     // Capped for the same reason, and shorter: nothing needs to look further
     // back than the handful still on screen.
     socket.on("taunt:play", (one: TauntPlay) =>
@@ -336,6 +364,20 @@ export function useTableSocket<TView>(
     socketRef.current?.emit("game:action", action as { type: string }, done);
   }, []);
 
+  const onRelay = useCallback((listener: (relay: TableRelay) => void) => {
+    relayListeners.current.add(listener);
+    return () => {
+      relayListeners.current.delete(listener);
+    };
+  }, []);
+
+  const onError = useCallback((listener: (message: string) => void) => {
+    errorListeners.current.add(listener);
+    return () => {
+      errorListeners.current.delete(listener);
+    };
+  }, []);
+
   const retry = useCallback(() => {
     setTaken(null);
     socketRef.current?.connect();
@@ -396,6 +438,8 @@ export function useTableSocket<TView>(
     watch,
     leave,
     act,
+    onRelay,
+    onError,
     say,
   };
 }

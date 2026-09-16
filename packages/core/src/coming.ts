@@ -71,26 +71,4 @@ export const COMING: readonly GameListing[] = [
     mark: { text: "CRAPS", accentAt: 0 },
     theme: { wall: "#1a1610", felt: "#33280f", accent: "#c08a1e", accentHi: "#ffd166" },
   },
-  {
-    id: "scribble",
-    name: "Scribble",
-    blurb: "One of you draws it. Everybody else races to name it.",
-    shape: "party",
-    /*
-     * Three at the least, because two is a game of charades with an audience
-     * of nobody: the whole of it is the race between the guessers.
-     */
-    minSeats: 3,
-    maxSeats: 10,
-    /*
-     * Played for nothing, and that is not a limitation to be lifted later. A
-     * drawing game is won by whoever draws and guesses best, which is a
-     * contest of skill between friends — put chips on it and the good drawer
-     * is simply taking money off the others every round. It wants no bank
-     * because it wants no stake.
-     */
-    open: false,
-    mark: { text: "SCRIBBLE", accentAt: 0 },
-    theme: { wall: "#171320", felt: "#f4f1ea", accent: "#d2603a", accentHi: "#ffa07a" },
-  },
 ];

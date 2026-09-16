@@ -44,6 +44,7 @@ export default defineConfig({
       "@backroom/game-greed",
       "@backroom/game-poker",
       "@backroom/game-roulette",
+      "@backroom/game-scribble",
       "@backroom/game-slots",
       "@backroom/game-two-up",
     ],

@@ -65,16 +65,15 @@ describe("the shapes a game can be", () => {
     }
   });
 
-  it("has a party game that is not played for chips", () => {
+  it("wants a crowd for every party game, not a duel", () => {
     /*
-     * The point of the section. A drawing game is won by whoever draws and
-     * guesses best, which is a contest of skill between friends — put chips on
-     * it and the good drawer is taking money off the others every round.
+     * A standing rule for whatever `COMING` holds, not a fact about any one
+     * entry: a party game is the race between the guessers, and a race needs
+     * more than one racer. Vacuously true while `COMING` has none — the rule
+     * still binds the next one added.
      */
     const party = COMING.filter((game) => game.shape === "party");
-    expect(party.length).toBeGreaterThan(0);
     for (const game of party) {
-      // Wants a crowd rather than a duel: the race between guessers is the game.
       expect(game.minSeats).toBeGreaterThanOrEqual(3);
     }
   });

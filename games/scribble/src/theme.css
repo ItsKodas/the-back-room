@@ -1,0 +1,51 @@
+/*
+ * The scribble room.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. Chip stays gold, good and bad stay what they are.
+ *
+ * The back of a napkin under a pink tube. The tube is relit a highlighter's
+ * colour, the one thing in a bar anybody draws with, and the napkin is the
+ * only pale surface in the building — a drawing has to be read in the ink it
+ * was made with, and ink on a dark felt is a drawing nobody can see.
+ */
+:root[data-game="scribble"],
+[data-game="scribble"] {
+  --gr-color-night: #131218;
+  --gr-color-slate: #1c1a23;
+  --gr-color-shadow: #08070b;
+  --gr-color-smoke: #26232f;
+  --gr-color-smoke-lit: #322e3c;
+
+  --gr-color-felt: #221c2a;
+  --gr-color-felt-lit: #2c2436;
+  --gr-color-felt-deep: #16121b;
+
+  --gr-color-neon-core: #fff3fa;
+  --gr-color-neon-hi: #ff9ad3;
+  --gr-color-neon: #e2409c;
+  --gr-color-neon-dim: #7c2659;
+  --gr-color-neon-deep: #a3226c;
+
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  --gr-color-ink: #e9e4ee;
+  --gr-color-ink-lit: #f8f5fb;
+  --gr-color-ink-dim: #9c95a8;
+  --gr-color-ink-faint: #6a6475;
+
+  /* The napkin, and the bar's name printed faintly in its corner. */
+  --sc-napkin: #f2efe9;
+  --sc-napkin-shade: #e2ddd4;
+  --sc-napkin-print: #e9a8c8;
+
+  /*
+   * Four team colours, chosen to stay clear of the tube's pink, the outcome
+   * green and red, and gold — which is money, and there is none here.
+   */
+  --sc-team-0: #58a8ff;
+  --sc-team-1: #ff8d45;
+  --sc-team-2: #a98bff;
+  --sc-team-3: #2fc4b2;
+}

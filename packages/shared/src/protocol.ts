@@ -91,6 +91,27 @@ export interface TauntStake {
 /** Any game's view of a table, wrapped in what the room knows about it. */
 export type TableState = TableEnvelope & Record<string, unknown>;
 
+/**
+ * Something a game sent to the rest of a table in place of a full state — a
+ * line being drawn. What the payload is belongs to the game.
+ */
+export interface TableRelay {
+  seatId: string;
+  payload: unknown;
+}
+
+/** A scribble table's shape, as the setup screen sends it. */
+export interface ScribbleSetup {
+  mode?: "solo" | "teams";
+  teams?: number;
+  rounds?: number;
+  drawSeconds?: number;
+  hints?: "none" | "few" | "generous";
+  packs?: string[];
+  custom?: string;
+  onlyCustom?: boolean;
+}
+
 export interface RoomView {
   code: string;
   status: RoomStatus;
@@ -165,6 +186,7 @@ export interface ClientToServer {
        * the host's. Snapped to a level the game offers.
        */
       ceiling?: number;
+      scribble?: ScribbleSetup;
     },
     ack: (result: Ack) => void,
   ) => void;
@@ -386,6 +408,7 @@ export interface ServerToClient {
    * to be added to, which is the coupling this whole layer just shed.
    */
   "room:state": (state: TableState) => void;
+  "room:relay": (relay: TableRelay) => void;
   "room:error": (message: string) => void;
   /**
    * The table you were at has been called off, and anything you had on it has
@@ -469,6 +492,8 @@ export interface ChatMessage {
   name: string;
   text: string;
   at: number;
+  /** What sort of line it is, when a game decided where it went — "got", "close", "pair"… */
+  kind?: string;
 }
 
 /** The subset of a ruleset a host may move from the lobby. */

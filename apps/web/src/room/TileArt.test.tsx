@@ -380,6 +380,14 @@ describe("the duel in death roll's corner", () => {
   });
 });
 
+describe("the napkin in scribble's corner", () => {
+  it("draws a napkin rather than the chips", () => {
+    const { container } = render(<TileArt game="scribble" />);
+    expect(container.querySelector(".art__napkin")).not.toBeNull();
+    expect(container.querySelectorAll(".art__piece")).toHaveLength(0);
+  });
+});
+
 describe("the pennies in two-up's corner", () => {
   it("tosses two coins, each with both faces", () => {
     const { container } = render(<TileArt game="two-up" />);

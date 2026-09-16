@@ -8,6 +8,7 @@ import { Leaderboard } from "./leaderboard/Leaderboard.js";
 import { Shell } from "./nav/Shell.js";
 import { Poker } from "./poker/Poker.js";
 import { Roulette } from "./roulette/Roulette.js";
+import { Scribble } from "./scribble/Scribble.js";
 import Slots from "./slots/Slots.js";
 import { Play } from "./game/Play.js";
 import { useButtonSound } from "./game/useButtonSound.js";
@@ -52,6 +53,8 @@ export default function App() {
           <Route path="/poker/:code" element={<Poker />} />
           <Route path="/roulette" element={<Roulette />} />
           <Route path="/roulette/:code" element={<Roulette />} />
+          <Route path="/scribble" element={<Scribble />} />
+          <Route path="/scribble/:code" element={<Scribble />} />
           <Route path="/slots" element={<Slots />} />
           <Route path="/tips" element={<Tips />} />
           <Route path="/two-up" element={<TwoUp />} />

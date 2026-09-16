@@ -499,6 +499,18 @@
   text-align: left;
 }
 
+/*
+ * A word lamp that sizes to its word. A lamp shares its row equally, which
+ * suits numbers and squeezes a row of words until "Food & drink" breaks inside
+ * its own button. These take their label's width and wrap as whole lamps.
+ */
+.lamp--fit {
+  flex: 1 1 auto;
+  padding: 0 14px;
+  white-space: nowrap;
+  text-align: center;
+}
+
 .lamp:focus-visible {
   outline: 2px solid var(--gr-color-neon-hi);
   outline-offset: 2px;

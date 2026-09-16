@@ -155,3 +155,58 @@ describe("what a table window tells the server about itself", () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+describe("relays", () => {
+  beforeEach(() => {
+    handlers.clear();
+    made.mockClear();
+    window.sessionStorage.clear();
+    fake.active = true;
+  });
+
+  it("hands each one to whoever is listening, without re-rendering the table for it", () => {
+    /*
+     * A partner's line arrives twenty times a second. Through React state that
+     * is twenty renders of the whole felt a second on somebody's phone.
+     */
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useTableSocket("scribble", () => {});
+    });
+    const heard: unknown[] = [];
+    const stop = result.current.onRelay((relay) => heard.push(relay));
+    const before = renders;
+
+    handlers.get("room:relay")?.({ seatId: "s1", payload: { kind: "clear" } });
+    expect(heard).toEqual([{ seatId: "s1", payload: { kind: "clear" } }]);
+    expect(renders).toBe(before);
+
+    stop();
+    handlers.get("room:relay")?.({ seatId: "s1", payload: { kind: "clear" } });
+    expect(heard).toHaveLength(1);
+  });
+});
+
+describe("errors", () => {
+  beforeEach(() => {
+    handlers.clear();
+    made.mockClear();
+    window.sessionStorage.clear();
+    fake.active = true;
+  });
+
+  it("hands every room:error to whoever is listening, and stops once they unsubscribe", () => {
+    const { result } = renderHook(() => useTableSocket("scribble", () => {}));
+    const heard: string[] = [];
+    const stop = result.current.onError((message) => heard.push(message));
+
+    handlers.get("room:error")?.("The napkin's full.");
+    handlers.get("room:error")?.("The napkin's full.");
+    expect(heard).toEqual(["The napkin's full.", "The napkin's full."]);
+
+    stop();
+    handlers.get("room:error")?.("The napkin's full.");
+    expect(heard).toHaveLength(2);
+  });
+});

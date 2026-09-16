@@ -467,6 +467,26 @@ export function CoinsArt() {
   );
 }
 
+/**
+ * A napkin with a lighthouse half drawn on it.
+ *
+ * Still, rather than moved on hover like the others: nothing on it is a thing
+ * that moves, and a drawing that wobbles reads as a drawing that is wrong.
+ */
+export function ScribbleArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      <g className="art__napkin" transform="rotate(-6 100 80)">
+        <rect x="38" y="28" width="124" height="104" rx="4" fill="#f2efe9" />
+        <path d="M84 110 L90 58 L110 58 L116 110 Z" fill="none" stroke="#1f1c22" strokeWidth="4" strokeLinejoin="round" />
+        <path d="M86 92 L114 92 M88 76 L112 76" stroke="#d9413b" strokeWidth="6" />
+        <path d="M112 64 L144 52 M112 70 L146 78" stroke="#f1c232" strokeWidth="4" strokeLinecap="round" />
+        <path d="M48 118 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="#2e6fd4" strokeWidth="4" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+
 /** The furniture a game keeps, by which game it is. */
 export function TileArt({ game }: { game: string }) {
   if (game === "death-roll") {
@@ -486,6 +506,9 @@ export function TileArt({ game }: { game: string }) {
   }
   if (game === "roulette") {
     return <WheelArt />;
+  }
+  if (game === "scribble") {
+    return <ScribbleArt />;
   }
   return <ChipsArt />;
 }
