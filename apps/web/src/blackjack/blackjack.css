@@ -270,6 +270,19 @@
   gap: 4px;
 }
 
+/*
+ * The dealer's hand never overlaps, at any count.
+ *
+ * Hand.tsx marks any hand of four or more places `bj-hand--tight` for the
+ * seats it was built for, where a wide row would spill into the next player's
+ * — and the dealer draws to four routinely. The dealer has the whole width of
+ * the felt to itself, so that squeeze is not wanted here; three classes beats
+ * the shared rule's two regardless of which comes first in the sheet.
+ */
+.bj__dealer .bj-hand .bj-card + .bj-card {
+  margin-left: 0;
+}
+
 /* Where a card will go, so a hand between deals keeps its height. */
 .bj__slot {
   flex: none;

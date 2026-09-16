@@ -102,14 +102,20 @@ describe("cards on the felt", () => {
     expect(onCard).toEqual([]);
   });
 
-  it("overlap by 28% in a dealt hand and 42% in a split box, and not at all at the dealer's", () => {
+  it("overlap by 28% in a dealt hand and 42% in a split box, and never at the dealer's", () => {
     expect(ruleIn(css, ".bj__seat .bj-hand .bj-card + .bj-card")).toContain(
       "margin-left: calc(var(--bj-card-w) * -0.28)",
     );
     expect(ruleIn(css, ".bj__box .bj-hand .bj-card + .bj-card")).toContain(
       "margin-left: calc(var(--bj-card-w) * -0.42)",
     );
-    expect(css).not.toMatch(/\.bj__dealer[^{]*\.bj-card \+ \.bj-card/);
+    /*
+     * Explicit, not merely absent. Hand.tsx marks any hand of four or more
+     * places `bj-hand--tight` for the seats it was built for, and the dealer
+     * routinely draws to four — so the shared -26px rule reaches the dealer's
+     * cards unless a dealer-scoped rule of higher specificity resets it.
+     */
+    expect(ruleIn(css, ".bj__dealer .bj-hand .bj-card + .bj-card")).toContain("margin-left: 0");
   });
 });
 
