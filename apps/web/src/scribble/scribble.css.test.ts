@@ -188,6 +188,17 @@ describe("the scribble room's stylesheet", () => {
     expect(css).toMatch(/\.sc-clock\s*\{[^}]*justify-self:\s*end;[^}]*\}/);
   });
 
+  it("keeps the clock flush right even when the word isn't there to hold the middle track open", () => {
+    // `Word` (Strip.tsx) renders nothing outside "drawing" — waiting,
+    // picking, reveal and over all give the strip only two children,
+    // `.sc-strip__turn` and `.sc-clock`. Without an explicit column, the
+    // clock auto-places into the empty middle `auto` track and the two
+    // equal `1fr` sides then centre it — dead centre, not flush right —
+    // which `justify-self: end` alone doesn't catch, since that pins the
+    // clock to whichever track it already landed in.
+    expect(css).toMatch(/\.sc-clock\s*\{[^}]*grid-column:\s*3;[^}]*\}/);
+  });
+
   it("widens the room's own page rather than the six games that share .play", () => {
     // `.play--scribble` alone ties `.play` on specificity — a coin flip on
     // stylesheet order that this room lost the first time. It has to be

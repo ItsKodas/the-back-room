@@ -253,6 +253,19 @@
    * than sized to its own content.
    */
   justify-self: end;
+  /*
+   * `Word` (Strip.tsx) renders nothing outside "drawing" — no `state.word`,
+   * no `state.mask` — so in waiting, picking, reveal and over the strip has
+   * only two children, `.sc-strip__turn` and this. Left to auto-placement,
+   * the clock would fall into the middle (empty) `auto` track instead of
+   * the third one, and the two equal `1fr` sides would then centre *it*
+   * instead of leaving it flush right — `justify-self: end` alone can't
+   * catch this, since it pins the clock to whichever track it's already in.
+   * Naming the track explicitly is what keeps this a no-op when the word
+   * *is* there (three children, third track already the clock's own) and a
+   * fix when it isn't.
+   */
+  grid-column: 3;
 }
 
 @keyframes sc-flip {
