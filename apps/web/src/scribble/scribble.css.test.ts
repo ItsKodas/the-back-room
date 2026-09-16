@@ -89,8 +89,35 @@ describe("the scribble room's stylesheet", () => {
     expect(sized).toMatch(/max-height:\s*calc\(100svh - \d+px\)/);
     // The half that actually stops the grid column overflowing — without it,
     // `width: 100%` on the napkin would still fill the column regardless of
-    // how short the height-derived cap above it is.
-    expect(sized).toMatch(/max-width:\s*calc\(\(100svh - \d+px\) \* 4 \/ 3\)/);
+    // how short the height-derived cap above it is. Read from `.sc`'s own
+    // custom property (checked next) rather than a second, hand-written calc.
+    expect(sized).toMatch(/max-width:\s*var\(--sc-napkin-w\)/);
+  });
+
+  it("sizes the napkin's width once and has the grid column read the same value, so the gutters either side of it can never drift", () => {
+    // Both a fixed-width grid track (so a wide window's slack goes to the
+    // side columns rather than the middle one) and the napkin's own
+    // max-width have to agree on this number exactly, or one side of the
+    // napkin ends up with more empty gutter than the other — and nothing
+    // would fail, since each alone is a perfectly valid width.
+    const scBlocks = [...css.matchAll(/\.sc\s*\{([^}]*)\}/g)].map((match) => match[1] ?? "");
+    const withVar = scBlocks.find((block) => block.includes("--sc-napkin-w"));
+    expect(withVar, "no .sc rule defines --sc-napkin-w").toBeDefined();
+    expect(withVar).toMatch(/--sc-napkin-w:\s*min\(100%, calc\(\(100svh - \d+px\) \* 4 \/ 3\)\)/);
+    // The 100% here is what stops an explicit grid track — unlike the
+    // napkin's own width: 100%, which self-limits regardless — from asking
+    // for more than the row has and overflowing the page sideways.
+    expect(withVar).toMatch(
+      /grid-template-columns:\s*minmax\(220px, 1fr\) minmax\(0, var\(--sc-napkin-w\)\) minmax\(280px, 1fr\)/,
+    );
+  });
+
+  it("caps how far a growing side column stretches its own panel, so a roster or a guess box never reads as a mostly-empty pane", () => {
+    // The grid track itself keeps growing (that's the chosen behaviour —
+    // covered above); this is what stops the *panel* rendered inside it, so
+    // an ultrawide desk gets a sidebar rather than a name on the left edge
+    // and a score a third of the screen away from it.
+    expect(css).toMatch(/\.sc-teams,\s*\.sc-guesses\s*\{[^}]*max-width:\s*360px;/);
   });
 
   it("widens the room's own page rather than the six games that share .play", () => {

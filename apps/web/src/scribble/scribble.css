@@ -43,8 +43,49 @@
 
 @media (min-width: 900px) {
   .sc {
-    grid-template-columns: 220px minmax(0, 1fr) 280px;
+    /*
+     * The one place this width is written: `.sc-napkin`'s own max-width below
+     * reads the same custom property rather than repeating the calc, so the
+     * two can never drift apart and open an asymmetric gutter.
+     *
+     * `min(100%, …)` matters here in a way it does not for the napkin's own
+     * max-width (which is already capped by its `width: 100%`): an explicit
+     * grid track is sized toward whatever this asks for regardless of the
+     * row's own width, so on a viewport tall enough to ask for more than the
+     * row actually has, this is what stops the grid overflowing sideways.
+     */
+    --sc-napkin-w: min(100%, calc((100svh - 364px) * 4 / 3));
+    /*
+     * The middle column is pinned to the napkin's own size rather than asked
+     * to fill whatever is left of the row — a wide window's slack goes to
+     * the side columns instead, which is the one of three readings the
+     * table asked for. Nothing below 900px reaches this: the phone layout
+     * stacks all three, full width, and stays exactly as it was.
+     *
+     * Wrapped in `minmax(0, …)` rather than left bare: a fixed-size track
+     * does not shrink, so on a desk tall enough to ask for more than a
+     * narrower-than-usual window actually has left over — after the two side
+     * columns take their own minimum — the row overflowed sideways rather
+     * than giving the napkin's track anything less than its full request.
+     */
+    grid-template-columns: minmax(220px, 1fr) minmax(0, var(--sc-napkin-w)) minmax(280px, 1fr);
     align-items: start;
+  }
+
+  /*
+   * The track keeps growing to absorb the slack — that is the chosen
+   * reading, and it is what keeps `.sc`'s own total width matched to the
+   * row's, so nothing here reintroduces a stray margin outside the grid.
+   * What stops here is the panel rendered inside it: past 360px a roster or
+   * a guess box is not "more room", it is a name on the left edge and a
+   * score a third of an ultrawide screen away from it. Looked at both ways
+   * before choosing this — at 1850px wide the sides sit under the cap
+   * already and this rule does nothing; at 2200px and up it is the
+   * difference between a sidebar and a mostly-empty pane.
+   */
+  .sc-teams,
+  .sc-guesses {
+    max-width: 360px;
   }
 }
 
@@ -194,8 +235,10 @@
     max-height: calc(100svh - 364px);
     /* The half that actually stops the grid column overflowing: without a
        matching max-width, `width: 100%` would still fill the column and the
-       aspect-ratio would stretch the picture rather than shrink it. */
-    max-width: calc((100svh - 364px) * 4 / 3);
+       aspect-ratio would stretch the picture rather than shrink it. Read from
+       `.sc`'s own custom property rather than repeated here — see its
+       comment for why. */
+    max-width: var(--sc-napkin-w);
   }
 }
 
