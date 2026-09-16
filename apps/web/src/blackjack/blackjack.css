@@ -19,6 +19,18 @@
 
 /* ------------------------------------------------------------- the table */
 
+/*
+ * A card's width is a length by the time anything inherits it. Written in the
+ * felt's container units and left as text, it would be measured again against
+ * whatever container the card sits in — and a hand is one, so it can fit its
+ * row.
+ */
+@property --bj-card-w {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 47px;
+}
+
 .bj {
   container: bj / inline-size;
   position: relative;
@@ -194,7 +206,11 @@
   -webkit-user-select: none;
 }
 
-/* What scrolls when there are more seats than fit: inside the felt, never the page. */
+/*
+ * What scrolls when there are more seats than fit: inside the felt, never the
+ * page, and only ever down. Left to itself overflow-y: auto makes the other
+ * axis auto too, and a card dealt in from the shoe starts past the right edge.
+ */
 .bj__cloth {
   position: absolute;
   inset: 0;
@@ -202,6 +218,7 @@
   flex-direction: column;
   gap: var(--gr-space-2);
   padding: 10px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -436,26 +453,27 @@
 }
 
 /*
- * Shrinkable and self-contained, so a hand long enough to outgrow the row
- * scrolls within itself rather than pushing the total off the plate — the
- * felt does not scroll sideways, but a hand may, inside its own box.
+ * A dealt hand overlaps, the way it sits on a real felt, showing --bj-show of
+ * each card under the next when there is room. When there is not, it gives
+ * way rather than pushing the total off the plate: it asks the row for its
+ * natural length, shrinks when the row cannot spare that, and overlaps deeper
+ * until its places fit what it got — down to the index in each card's corner,
+ * which still says what a covered card is.
+ *
+ * It fits rather than scrolls. A scroller counts a card still flying in from
+ * the shoe as overflow, so every deal flashed a scrollbar and clipped the
+ * card on its way in.
  */
 .bj__seat .bj-hand {
+  container-type: inline-size;
+  flex: 0 1 calc(var(--bj-card-w) * (1 + (var(--bj-places, 1) - 1) * var(--bj-show)));
   gap: 0;
   min-width: 0;
-  overflow-x: auto;
+  --bj-show: 0.72;
 }
 
-.bj__seat--other .bj-hand {
-  gap: 2px;
-}
-
-/*
- * A dealt hand overlaps, the way it sits on a real felt. The index is in the
- * corner of every card, so a covered card still says what it is.
- */
 .bj__seat .bj-hand .bj-card + .bj-card {
-  margin-left: calc(var(--bj-card-w) * -0.28);
+  margin-left: clamp(var(--bj-card-w) * -0.82, (100cqi - var(--bj-card-w)) / (var(--bj-places, 2) - 1) - var(--bj-card-w), var(--bj-card-w) * (var(--bj-show) - 1));
 }
 
 .bj__seat--other .seat__avatar {
@@ -645,12 +663,12 @@
 /*
  * Tighter in a box: half a seat's width holds the same cards.
  *
- * Same specificity as .bj__seat .bj-hand .bj-card + .bj-card, so this has to
- * come after it in the sheet to win the -42% overlap inside a box — source
- * order here is load-bearing.
+ * Same specificity as .bj__seat .bj-hand, so this has to come after it in the
+ * sheet to win the deeper overlap inside a box — source order here is
+ * load-bearing.
  */
-.bj__box .bj-hand .bj-card + .bj-card {
-  margin-left: calc(var(--bj-card-w) * -0.42);
+.bj__box .bj-hand {
+  --bj-show: 0.58;
 }
 
 .bj__box .bj__count-total {
@@ -1158,6 +1176,8 @@
     /* Room inside the scroller for a turn's glow, which it would otherwise clip. */
     margin: -8px;
     padding: 8px;
+    /* Down only, for the same reason the felt is: a card dealt in starts past the edge. */
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     --bj-plate: min(320px, max(200px, (100% - 24px) / 3));
@@ -1173,26 +1193,23 @@
 
   /*
    * The width term is the plate's content box over what four cards come to
-   * at the overlap below — so a hand drawn to four fits its plate rather than
-   * scrolling inside it. The height term is the felt's, since a plate is only
-   * an inline-size container; and never as big as your own.
+   * at the overlap below, so a hand drawn to four lies flat at that overlap.
+   * The height term is the felt's, since a plate is only an inline-size
+   * container; and never as big as your own. Declared on what the plate holds,
+   * because a container's own units measure the container above it.
    */
   .bj__seat--other {
     flex: 0 0 var(--bj-plate);
     container-type: inline-size;
+  }
+
+  .bj__seat--other > * {
     --bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px);
   }
 
-  /*
-   * Somebody else's hand is glanced at, not read, so it sits deeper on itself,
-   * with no gap on top of the overlap for the budget above to miss.
-   */
+  /* Somebody else's hand is glanced at, not read, so it sits deeper on itself. */
   .bj__seat--other .bj-hand {
-    gap: 0;
-  }
-
-  .bj__seat--other .bj-hand .bj-card + .bj-card {
-    margin-left: calc(var(--bj-card-w) * -0.5);
+    --bj-show: 0.5;
   }
 
   /*
@@ -1205,9 +1222,12 @@
   }
 
   .bj__felt:has(.bj__seat--other:nth-child(6)) .bj__seat--other {
-    --bj-card-w: clamp(26px, min(100cqi / 2.5, 8cqh), 100px);
     gap: 6px;
     padding: 8px 10px;
+  }
+
+  .bj__felt:has(.bj__seat--other:nth-child(6)) .bj__seat--other > * {
+    --bj-card-w: clamp(26px, min(100cqi / 2.5, 8cqh), 100px);
   }
 
   .bj__seat {

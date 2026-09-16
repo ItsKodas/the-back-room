@@ -92,3 +92,12 @@ describe("a card on its way", () => {
     expect(container.querySelector(".bj-hand--tight")).not.toBeNull();
   });
 });
+
+describe("a hand's length", () => {
+  it("tells the felt how many places it holds, a card on its way and a hole card included", () => {
+    const hand = (node: HTMLElement) => node.querySelector<HTMLElement>(".bj-hand");
+    // The felt overlaps a hand by as much as its places need to fit the row.
+    expect(hand(render(<Hand cards={[five, six]} arriving />).container)?.style.getPropertyValue("--bj-places")).toBe("3");
+    expect(hand(render(<Hand cards={[king]} hidden />).container)?.style.getPropertyValue("--bj-places")).toBe("2");
+  });
+});
