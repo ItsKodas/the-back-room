@@ -69,9 +69,21 @@ const noError: InkTable["onError"] = () => () => {};
 
 const pen: Tool = { ink: "red", size: 1, mode: "pen" };
 
-function Harness({ table, state, seatId, tool = pen }: { table: InkTable; state: TableView; seatId: string; tool?: Tool }) {
+function Harness({
+  table,
+  state,
+  seatId,
+  tool = pen,
+  wipe,
+}: {
+  table: InkTable;
+  state: TableView;
+  seatId: string;
+  tool?: Tool;
+  wipe?: number;
+}) {
   const ink = useInk(table, state, seatId);
-  return <Napkin ink={ink} tool={tool} />;
+  return <Napkin ink={ink} tool={tool} wipe={wipe} />;
 }
 
 const pixel = (x: number, y: number) => {
@@ -236,6 +248,18 @@ describe("the napkin", () => {
     fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
     fireEvent(canvas, new PointerEvent("lostpointercapture", { pointerId: 1, bubbles: true }));
     expect(act).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the clear-wipe inside the napkin's own clipped box, not loose over whatever sits beside it", () => {
+    // .sc-napkin is overflow: hidden and rounded; a sibling of it at the
+    // stage level is neither, and outlives its own animation once
+    // prefers-reduced-motion switches that off — parked permanently over
+    // whatever the felt puts next to the napkin.
+    const table: InkTable = { act: vi.fn(), onRelay: noRelay, onError: noError };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" wipe={1} />);
+    const wipe = container.querySelector(".sc-napkin__wipe");
+    expect(wipe).not.toBeNull();
+    expect(wipe?.parentElement).toHaveClass("sc-napkin");
   });
 });
 

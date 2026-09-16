@@ -8,6 +8,23 @@
  * under it.
  */
 
+/*
+ * The one hook `.play` leaves a room to widen itself past the shared 1000px
+ * page — free, because nothing else in the building's markup carries this
+ * class. `--page-width` and `.play` itself stay untouched: six other games
+ * share them. This is what lets the grid column below actually reach the
+ * size `.sc-napkin`'s own height-derived cap allows, rather than the felt
+ * staying boxed into a width no desk asked for.
+ *
+ * Chained to `.play` rather than standing alone: `.play--scribble` by itself
+ * is one class, exactly `.play`'s own specificity — a tie a later `<style>`
+ * tag could just as easily lose as win. Chained, it always outweighs `.play`
+ * regardless of which stylesheet the page happened to inject first.
+ */
+.play.play--scribble {
+  max-width: none;
+}
+
 .sc {
   display: grid;
   gap: var(--gr-space-4);
@@ -154,14 +171,38 @@
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.5),
     0 14px 30px rgb(0 0 0 / 0.5);
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  /* Centred once its own max-width below binds narrower than the column. */
+  margin-inline: auto;
+}
+
+@media (min-width: 900px) {
+  .sc-napkin {
+    /*
+     * The napkin binds on whichever axis runs out first, rather than only
+     * ever filling its grid column: `width: 100%` alone never asks the
+     * viewport's height a question, so a tall desk sat behind a wasted half
+     * of its own screen no matter how much taller than wide it was.
+     *
+     * 364px is the room's own chrome measured off the real DOM at its
+     * tallest — mid-turn, with the tray showing below the strip and the
+     * navbar and page padding above it. A shorter phase (waiting, picking)
+     * leaves a little more of the viewport unused rather than less; nothing
+     * here ever asks for more height than the page actually has.
+     */
+    max-height: calc(100svh - 364px);
+    /* The half that actually stops the grid column overflowing: without a
+       matching max-width, `width: 100%` would still fill the column and the
+       aspect-ratio would stretch the picture rather than shrink it. */
+    max-width: calc((100svh - 364px) * 4 / 3);
+  }
 }
 
 .sc-napkin__canvas {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 3;
-  max-width: 100%;
+  height: 100%;
   /* Scaled crisp, not smeared: every pixel is one of the game's own. */
   image-rendering: pixelated;
 }
@@ -420,6 +461,16 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--t) 60%, transparent);
 }
 
+/*
+ * The pill you tapped, read without tapping it again. An outline rather than
+ * a box-shadow so it never fights the drawing box-shadow above for the same
+ * property on a pill that happens to be both.
+ */
+.sc-pill[aria-expanded="true"] {
+  outline: 2px solid var(--gr-color-ink-lit);
+  outline-offset: -2px;
+}
+
 .plate.sc-team .plate__name {
   display: flex;
   justify-content: space-between;
@@ -561,6 +612,27 @@
 
 .sc-tray__gap {
   flex: 1;
+}
+
+/*
+ * Fill and Eraser have no other lit state anywhere in the building — the
+ * eraser is an ordinary ink (Amendment 8), not a mode with its own button
+ * styling elsewhere, so this is the one control the "selection reads without
+ * hover" rule left uncovered. Kept local rather than promoted to the
+ * fittings: whether every key in the building should light like this is a
+ * decision about every game's controls, not this one's.
+ */
+.sc-tray .key[aria-pressed="true"] {
+  border-color: var(--gr-color-neon);
+  color: var(--gr-color-neon-core);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gr-color-neon) 36%, transparent),
+    color-mix(in srgb, var(--gr-color-neon) 14%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 0 14px color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
 }
 
 /* On a phone the tray and the guess box stay under the thumb while the napkin scrolls. */

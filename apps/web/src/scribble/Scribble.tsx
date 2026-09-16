@@ -1,5 +1,6 @@
 import type { HintLevel, PackId, TableView } from "@backroom/game-scribble";
 import {
+  DEFAULT_PACKS,
   DRAW_SECONDS,
   MIN_CUSTOM_ALONE,
   minimumPlayers,
@@ -73,8 +74,7 @@ export function Felt({ table, state, seatId }: { table: Table; state: TableView;
           </p>
         ) : null}
         <div className="sc__stage">
-          <Napkin ink={ink} tool={tool} />
-          {wipes > 0 ? <span key={wipes} className="sc-napkin__wipe" aria-hidden="true" /> : null}
+          <Napkin ink={ink} tool={tool} wipe={wipes} />
           {state.phase === "picking" ? (
             <WordPick state={state} seatId={seatId} act={table.act} error={table.error} />
           ) : null}
@@ -87,7 +87,7 @@ export function Felt({ table, state, seatId }: { table: Table; state: TableView;
   );
 }
 
-function Sit({ table, invited, account }: { table: Table; invited: string; account: Account }) {
+export function Sit({ table, invited, account }: { table: Table; invited: string; account: Account }) {
   const [mode, setMode] = useState<"solo" | "teams">("solo");
   const [teams, setTeams] = useState<number>(2);
   const [rounds, setRounds] = useState<number>(3);
@@ -98,6 +98,27 @@ function Sit({ table, invited, account }: { table: Table; invited: string; accou
   const [onlyCustom, setOnlyCustom] = useState(false);
   const parsed = parseCustomWords(custom);
   const needed = minimumPlayers({ mode, teams });
+  /*
+   * Whether "only my words" is more than a press: the server never honours it
+   * below the minimum (options.ts), so a host who toggled it on and then
+   * thinned the textarea back out is not actually getting it, whatever the
+   * button still says.
+   */
+  const onlyCustomValid = onlyCustom && parsed.words.length >= MIN_CUSTOM_ALONE;
+
+  /*
+   * The last pack was let out only because "only my words" was standing in for
+   * it. If that stops being true — the words were thinned back below the
+   * minimum — a table with no packs and no valid custom list has nothing to
+   * draw, and options.ts would silently hand it the defaults regardless: the
+   * host would press Create believing one thing and get another. Restoring a
+   * pack here keeps what's on screen the same as what the server would do.
+   */
+  useEffect(() => {
+    if (packs.length === 0 && !onlyCustomValid) {
+      setPacks([...DEFAULT_PACKS]);
+    }
+  }, [packs.length, onlyCustomValid]);
 
   const lamps = (label: string, choices: readonly number[], value: number, set: (n: number) => void, suffix = "") => (
     <div className="entry">
@@ -164,8 +185,9 @@ function Sit({ table, invited, account }: { table: Table; invited: string; accou
                     key={id}
                     type="button"
                     aria-pressed={on}
-                    // The last pack cannot go out: a table with no words has nothing to draw.
-                    disabled={on && packs.length === 1 && !onlyCustom}
+                    // The last pack cannot go out unless custom words are genuinely
+                    // standing in for it — a table with no words has nothing to draw.
+                    disabled={on && packs.length === 1 && !onlyCustomValid}
                     className="lamp lamp--word lamp--fit"
                     onClick={() => setPacks((was) => (on ? was.filter((one) => one !== id) : PACK_IDS.filter((one) => one === id || was.includes(one))))}
                   >
@@ -196,7 +218,7 @@ function Sit({ table, invited, account }: { table: Table; invited: string; accou
             <div className="lamps">
               <button
                 type="button"
-                aria-pressed={onlyCustom}
+                aria-pressed={onlyCustomValid}
                 disabled={parsed.words.length < MIN_CUSTOM_ALONE}
                 className="lamp lamp--word lamp--fit"
                 onClick={() => setOnlyCustom((was) => !was)}
@@ -217,7 +239,7 @@ function Sit({ table, invited, account }: { table: Table; invited: string; accou
           game: "scribble",
           forFun: true,
           maxSeats,
-          scribble: { mode, teams, rounds, drawSeconds, hints, packs, custom, onlyCustom },
+          scribble: { mode, teams, rounds, drawSeconds, hints, packs, custom, onlyCustom: onlyCustomValid },
         })
       }
     />

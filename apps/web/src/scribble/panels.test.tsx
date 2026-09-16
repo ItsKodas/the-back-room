@@ -322,6 +322,24 @@ describe("the team scores", () => {
     expect(blue).toHaveAttribute("aria-expanded", "true");
     expect(orange).toHaveAttribute("aria-expanded", "false");
   });
+
+  it("marks the tapped well itself, so a phone's stylesheet has a class it can actually reach", () => {
+    // scribble.css binds `.sc-teams__wells .well.sc-team.is-open` — a
+    // compound selector on one element. A well opened any other way (the
+    // brief had `.sc-teams.is-open .sc-teams__wells`, is-open on the row
+    // around the wells instead) would leave that selector matching nothing,
+    // and every well would stay hidden on a phone forever.
+    const seats = [seat("s0", { team: 0 }), seat("s1", { team: 1 })];
+    const teams = [
+      { index: 0, name: "Blue", score: 10, members: ["s0"] },
+      { index: 1, name: "Orange", score: 5, members: ["s1"] },
+    ];
+    const { container } = render(<Teams state={viewOf({ mode: "teams", seats, teams, you: seats[0] ?? null })} seatId="s0" />);
+    fireEvent.click(screen.getAllByRole("button")[0] as HTMLElement);
+    const opened = container.querySelector(".is-open");
+    expect(opened).not.toBeNull();
+    expect(opened).toHaveClass("well", "sc-team", "is-open");
+  });
 });
 
 describe("the tray", () => {

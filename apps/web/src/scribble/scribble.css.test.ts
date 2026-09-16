@@ -2,10 +2,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { offendingDeclarations } from "../style/narrow.js";
+import { INK_RGB } from "./raster.js";
 
 const read = (...paths: string[]) => readFileSync(paths.find((path) => existsSync(path)) as string, "utf8");
 const css = read(resolve(process.cwd(), "apps/web/src/scribble/scribble.css"), resolve(process.cwd(), "src/scribble/scribble.css"));
 const page = read(resolve(process.cwd(), "apps/web/src/scribble/Scribble.tsx"), resolve(process.cwd(), "src/scribble/Scribble.tsx"));
+
+/** #rrggbb, lower case, the way this sheet writes every ink swatch. */
+const hex = ([r, g, b]: readonly [number, number, number]) =>
+  `#${[r, g, b].map((one) => one.toString(16).padStart(2, "0")).join("")}`;
 
 /** The selectors of every rule that starts one of this room's animations. */
 function animated(): string[] {
@@ -44,5 +49,54 @@ describe("the scribble room's stylesheet", () => {
 
   it("declares nothing wider than a phone outside a min-width media query", () => {
     expect(offendingDeclarations(css)).toEqual([]);
+  });
+
+  it("opens a team's well by a selector that actually matches the well the pill tapped", () => {
+    // The three classes have to sit on one element — `.sc-teams.is-open
+    // .sc-teams__wells` (what shipped first) puts is-open on the row around
+    // the wells instead, which `Teams.tsx` never sets, so that selector
+    // matched nothing and no well ever opened on a phone.
+    expect(css).toMatch(/\.sc-teams__wells\s+\.well\.sc-team\.is-open\s*\{/);
+  });
+
+  it("lights fill and eraser when pressed, the only tray controls with no other lit state in the building", () => {
+    expect(css).toMatch(/\.sc-tray \.key\[aria-pressed="true"\]\s*\{[^}]*border-color:/);
+  });
+
+  it("marks the team pill you tapped open, without fighting the drawing pill's own box-shadow", () => {
+    expect(css).toMatch(/\.sc-pill\[aria-expanded="true"\]\s*\{[^}]*outline:/);
+  });
+
+  it("swatches the tray in the exact colours a stroke actually lands in", () => {
+    // A pretty dot that lies about the ink it draws with is worse than none:
+    // nothing but this test ties raster.ts's colours to the ones painted here.
+    for (const [ink, rgb] of Object.entries(INK_RGB)) {
+      if (ink === "paper") {
+        continue;
+      }
+      expect(css, `${ink}`).toMatch(new RegExp(`\\.sc-ink--${ink} span \\{ background: ${hex(rgb)};`));
+    }
+  });
+
+  it("lets the napkin bind on whichever axis the viewport runs out of first", () => {
+    expect(css).toMatch(/\.sc-napkin\s*\{[^}]*aspect-ratio:\s*4 \/ 3;[^}]*\}/);
+    // There's more than one `.sc-napkin { … }` block (the unconditional one,
+    // and the desktop-only one that adds the height-derived cap) — found by
+    // which one actually carries max-height, not by position in the file.
+    const napkinBlocks = [...css.matchAll(/\.sc-napkin\s*\{([^}]*)\}/g)].map((match) => match[1] ?? "");
+    const sized = napkinBlocks.find((block) => block.includes("max-height"));
+    expect(sized, "no .sc-napkin rule sets max-height at all").toBeDefined();
+    expect(sized).toMatch(/max-height:\s*calc\(100svh - \d+px\)/);
+    // The half that actually stops the grid column overflowing — without it,
+    // `width: 100%` on the napkin would still fill the column regardless of
+    // how short the height-derived cap above it is.
+    expect(sized).toMatch(/max-width:\s*calc\(\(100svh - \d+px\) \* 4 \/ 3\)/);
+  });
+
+  it("widens the room's own page rather than the six games that share .play", () => {
+    // `.play--scribble` alone ties `.play` on specificity — a coin flip on
+    // stylesheet order that this room lost the first time. It has to be
+    // chained to `.play` to win outright.
+    expect(css).toMatch(/\.play\.play--scribble\s*\{[^}]*max-width:\s*none;/);
   });
 });

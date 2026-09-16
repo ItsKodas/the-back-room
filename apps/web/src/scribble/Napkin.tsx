@@ -11,7 +11,23 @@ import type { InkHandle, Tool } from "./useInk.js";
  * Painted from the rasteriser's pixels rather than drawn with canvas lines, so
  * the picture here is the picture on every other device at the table.
  */
-export function Napkin({ ink, tool }: { ink: InkHandle; tool: Tool }) {
+export function Napkin({
+  ink,
+  tool,
+  wipe,
+}: {
+  ink: InkHandle;
+  tool: Tool;
+  /**
+   * Counts clears, so a fresh key re-triggers the wipe sweep on every one
+   * rather than only the first. Rendered here rather than beside the napkin
+   * in `Scribble.tsx`: `.sc-napkin` is the thing that is already clipped to
+   * rounded corners, and a sibling covering the whole stage outlived every
+   * clear it ever ran for, parked over whatever sat next to it once its
+   * animation reverted to a base state nobody meant to leave on screen.
+   */
+  wipe?: number;
+}) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const raster = useRef<Raster | null>(null);
   /** The pointer currently drawing, so a second finger down mid-stroke cannot steal or start one. */
@@ -108,6 +124,7 @@ export function Napkin({ ink, tool }: { ink: InkHandle; tool: Tool }) {
       <span className="sc-napkin__print" aria-hidden="true">
         The Back Room
       </span>
+      {wipe !== undefined && wipe > 0 ? <span key={wipe} className="sc-napkin__wipe" aria-hidden="true" /> : null}
     </div>
   );
 }
