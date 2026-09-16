@@ -43,15 +43,24 @@ type Table = TableSocketHook<TableView>;
  * (scribble.css) have to leave to everything else in the column, measured
  * off the real DOM rather than guessed: navbar + page padding + the strip
  * (single line) comes to ~232px; the drawer's own tray, shown below the
- * strip only while they're actually drawing, adds ~164px of its own height
- * plus the row-gap above it (12px) for ~408px. The tray grew a row (~120px
- * to ~164px) when the tool row split off from the size row rather than
- * sharing it with Fill and Eraser — see Tray.tsx. A guesser mid-turn — and
- * every other phase the napkin is visible in, picking and reveal — never
- * gets a tray (see `ink.drawing` below), so charging them for one is dead
- * space this pays back.
+ * strip only while they're actually drawing, adds ~112px of its own height
+ * plus the row-gap above it (12px) for ~356px. Tool, Size, Undo and Clear
+ * share one flex-wrap row (`.sc-tray__row`) rather than Size standing apart
+ * below it — sharing costs nothing at a desk width, where they all still
+ * fit on one line, and only wraps (to Tool+Undo+Clear, then Size) on a
+ * phone, where the tray's total height barely moves either way; keeping
+ * them apart would cost the desktop napkin real width for no layout
+ * necessity. A guesser mid-turn — and every other phase the napkin is
+ * visible in, picking and reveal — never gets a tray (see `ink.drawing`
+ * below), so charging them for one is dead space this pays back.
+ *
+ * Exported so `scribble.css.test.ts` can assert the CSS fallback
+ * (`var(--sc-chrome, …)`, read where this same comment is mirrored) matches
+ * this number exactly rather than merely matching *a* number — a test that
+ * only checks the shape and not the value is what let the fallback go stale
+ * and wrong-signed the last time this constant changed.
  */
-const NAPKIN_CHROME_WITH_TRAY = 408;
+export const NAPKIN_CHROME_WITH_TRAY = 356;
 const NAPKIN_CHROME_NO_TRAY = 232;
 
 export function Felt({ table, state, seatId }: { table: Table; state: TableView; seatId: string | null }) {

@@ -16,6 +16,14 @@ export type Ink = (typeof INKS)[number];
  * place among the first three, so no existing index changes what it means.
  * The tray orders all five by diameter for display — see Tray.tsx — this
  * array only has to keep each index's own meaning stable.
+ *
+ * Cost, measured (`Raster.update` byte-for-byte, a 20,000-point worst case):
+ * stamp count is the wrong metric for radius — a radius-1 disc paints 5
+ * pixels where radius-11 paints ~368, so Hairline (radius 1) is the
+ * *cheapest* size in the building at ~11.9ms per full redraw, against
+ * ~79.7ms at the old radius-11 ceiling. Bold (radius 17) is the real new
+ * cost: ~119ms per full redraw at the point cap, on hardware faster than a
+ * phone — worth knowing before reaching for a sixth size larger than this.
  */
 export const SIZES = [4, 10, 22, 2, 34] as const;
 

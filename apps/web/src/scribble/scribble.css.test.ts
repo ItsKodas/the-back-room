@@ -133,6 +133,22 @@ describe("the scribble room's stylesheet", () => {
     expect(chromeReads).toHaveLength(2);
   });
 
+  it("keeps the fallback in var(--sc-chrome, …) exactly matched to NAPKIN_CHROME_WITH_TRAY, not just any number", () => {
+    // A fallback only a render before Scribble.tsx's inline style lands ever
+    // uses, but it has to be the *larger* of the two figures --sc-chrome is
+    // ever set to (undershooting, not overshooting, is what makes the tray
+    // overlap the napkin) — so a fallback that quietly drifted smaller than
+    // the real constant would be silently wrong-signed. The old version of
+    // this test matched `\d+px` — any number at all — which is exactly the
+    // shape of gap that let the fallback go stale (364) while the constant
+    // moved on (408, then 356) without ever failing here.
+    const match = page.match(/NAPKIN_CHROME_WITH_TRAY\s*=\s*(\d+);/);
+    expect(match, "NAPKIN_CHROME_WITH_TRAY not found in Scribble.tsx").not.toBeNull();
+    const constant = (match as RegExpMatchArray)[1];
+    const chromeReads = [...css.matchAll(/var\(--sc-chrome, (\d+)px\)/g)];
+    expect(chromeReads.map((read) => read[1])).toEqual([constant, constant]);
+  });
+
   it("caps how far a growing side column stretches its own panel, so a roster or a guess box never reads as a mostly-empty pane", () => {
     // The grid track itself keeps growing (that's the chosen behaviour —
     // covered above); this is what stops the *panel* rendered inside it, so

@@ -117,7 +117,7 @@ describe("the scribble felt", () => {
     const drawingState = viewOf({ you: seat("s0", { drawing: true }) });
     const { container: drawerView } = render(<Felt table={stub()} state={drawingState} seatId="s0" />);
     const drawerSc = drawerView.querySelector(".sc") as HTMLElement;
-    expect(drawerSc.style.getPropertyValue("--sc-chrome")).toBe("408px");
+    expect(drawerSc.style.getPropertyValue("--sc-chrome")).toBe("356px");
   });
 
   it("hides the blank napkin for the whole waiting phase, in both modes", () => {

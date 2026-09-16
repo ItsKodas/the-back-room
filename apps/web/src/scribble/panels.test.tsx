@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { TableView } from "@backroom/game-scribble";
+import { SIZES } from "@backroom/game-scribble";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Reveal } from "./Reveal.js";
@@ -7,7 +8,7 @@ import { Strip } from "./Strip.js";
 import { TeamPick } from "./TeamPick.js";
 import { Teams } from "./Teams.js";
 import { seat, viewOf } from "./testView.js";
-import { Tray, TRAY_INKS } from "./Tray.js";
+import { SIZE_NAMES, Tray, TRAY_INKS } from "./Tray.js";
 import { WordPick } from "./WordPick.js";
 
 afterEach(cleanup);
@@ -482,6 +483,19 @@ describe("the tray", () => {
     expect(screen.queryByRole("radiogroup", { name: "Size" })).toBeNull();
   });
 
+  it("shares the tool row with size rather than sitting on its own row below it, so a desk width costs the napkin nothing extra", () => {
+    render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
+    const tools = screen.getByRole("radiogroup", { name: "Tool" });
+    const sizes = screen.getByRole("radiogroup", { name: "Size" });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    // All four share one flex-wrap row (`.sc-tray__row`) rather than Size
+    // being a separate sibling block — that's what lets them still fit one
+    // line at a desk width instead of costing a whole extra row always.
+    expect(tools.parentElement).toHaveClass("sc-tray__row");
+    expect(sizes.parentElement).toBe(tools.parentElement);
+    expect(undo.parentElement).toBe(tools.parentElement);
+  });
+
   it("moves the roving tab stop through the sizes with the arrow keys, and picks the one it lands on", () => {
     const onTool = vi.fn();
     render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
@@ -495,6 +509,54 @@ describe("the tray", () => {
     fireEvent.keyDown(group, { key: "ArrowRight" });
     expect(onTool).toHaveBeenCalledWith({ ink: "black", size: 1, mode: "pen" });
     expect(screen.getByRole("radio", { name: "Medium" })).toHaveFocus();
+  });
+
+  it("moves the roving tab stop through the tools with the arrow keys too, not only through sizes", () => {
+    // The Size test above is the only one that exercised onRadioKeyDown
+    // end-to-end; nothing asserted it was actually wired to the other two
+    // groups, so losing it from one of them would have shipped silently.
+    const onTool = vi.fn();
+    render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    const group = screen.getByRole("radiogroup", { name: "Tool" });
+    const pencil = screen.getByRole("radio", { name: "Pencil" });
+    pencil.focus();
+    fireEvent.keyDown(group, { key: "ArrowRight" });
+    expect(onTool).toHaveBeenCalledWith({ ink: "black", size: 0, mode: "eraser" });
+    expect(screen.getByRole("radio", { name: "Eraser" })).toHaveFocus();
+  });
+
+  it("moves the roving tab stop through the inks with the arrow keys too", () => {
+    const onTool = vi.fn();
+    render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    const group = screen.getByRole("radiogroup", { name: "Ink" });
+    const black = screen.getByRole("radio", { name: "Black" });
+    black.focus();
+    fireEvent.keyDown(group, { key: "ArrowRight" });
+    expect(onTool).toHaveBeenCalledWith({ ink: "red", size: 0, mode: "pen" });
+    expect(screen.getByRole("radio", { name: "Red" })).toHaveFocus();
+  });
+
+  it("keeps focus in the tray when switching to fill unmounts the focused size swatch", () => {
+    // Switching to Fill removes the size row from the DOM. If focus was on
+    // a size swatch and the click that caused the switch didn't itself move
+    // focus (real on every platform for a keyboard/arrow-nav press, but not
+    // guaranteed for a plain mouse click — Safari notably doesn't focus a
+    // <button> on click), the browser drops focus to <body> and a keyboard
+    // user loses their place in the tray entirely.
+    render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
+    const medium = screen.getByRole("radio", { name: "Medium" });
+    medium.focus();
+    expect(medium).toHaveFocus();
+    fireEvent.click(screen.getByRole("radio", { name: "Fill" }));
+    expect(screen.getByRole("radio", { name: "Fill" })).toHaveFocus();
+  });
+
+  it("names every size — SIZE_NAMES has to stay exactly as long as SIZES, or a diameter renders a radio with no accessible name", () => {
+    expect(SIZE_NAMES).toHaveLength(SIZES.length);
+    for (const name of SIZE_NAMES) {
+      expect(typeof name).toBe("string");
+      expect((name as string).length).toBeGreaterThan(0);
+    }
   });
 
   it("never lists paper among the inks you can choose — it's the eraser, not a colour", () => {

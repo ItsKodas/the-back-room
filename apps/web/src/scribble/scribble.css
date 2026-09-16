@@ -58,7 +58,7 @@
      * what it holds and why it lives in Scribble.tsx instead of a second
      * copy of this calc.
      */
-    --sc-napkin-w: min(100%, calc((100svh - var(--sc-chrome, 364px)) * 4 / 3));
+    --sc-napkin-w: min(100%, calc((100svh - var(--sc-chrome, 356px)) * 4 / 3));
     /*
      * The middle column is pinned to the napkin's own size rather than asked
      * to fill whatever is left of the row — a wide window's slack goes to
@@ -309,13 +309,17 @@
      * left a short window in picking or reveal shrinking the napkin to pay
      * for a tray that wasn't on screen. Both figures are real DOM
      * measurements (navbar + page padding + strip ≈ 232px; add the tray's
-     * own ≈120px and the row-gap above it for 364px), not guesses — see
-     * Scribble.tsx for where each applies. The `364px` fallback here only
-     * covers a render where that inline style hasn't landed yet; it is the
-     * safe (larger) figure, since undershooting the reservation is what
-     * makes the tray overlap the napkin.
+     * own ≈112px, at a desk width where Tool, Size, Undo and Clear all share
+     * one row, and the row-gap above it for 356px), not guesses — see
+     * Scribble.tsx for where each applies. The `356px` fallback here only
+     * covers a render where that inline style hasn't landed yet — it must
+     * track `NAPKIN_CHROME_WITH_TRAY` there exactly (a test asserts this),
+     * because it is the *larger* of the two figures `--sc-chrome` is ever
+     * actually set to: undershooting the reservation, not overshooting it,
+     * is what makes the tray overlap the napkin, so a stale fallback smaller
+     * than the true value is the dangerous direction to drift in.
      */
-    max-height: calc(100svh - var(--sc-chrome, 364px));
+    max-height: calc(100svh - var(--sc-chrome, 356px));
     /* The half that actually stops the grid column overflowing: without a
        matching max-width, `width: 100%` would still fill the column and the
        aspect-ratio would stretch the picture rather than shrink it. Read from
@@ -688,18 +692,34 @@
 }
 
 /*
- * Ink and size are grids rather than a fixed column count, and neither
- * overrides `.lamp`'s own 44px floor the way this sheet used to: a fixed
- * `repeat(9, …)` with `min-width: 0` was what let nine inks measure
- * 30.66×40px in play — under both the fittings' 44px baseline and the
- * thumb this row sits under mid-turn. `auto-fit` with a 44px floor instead
- * wraps to as many rows as a narrow screen needs, at whatever width it has,
- * and stretches to fill a wider one instead of leaving a ragged gap.
+ * Ink is a grid rather than a fixed column count, and doesn't override
+ * `.lamp`'s own 44px floor the way this sheet used to: a fixed `repeat(9,
+ * …)` with `min-width: 0` was what let nine inks measure 30.66×40px in
+ * play — under both the fittings' 44px baseline and the thumb this row sits
+ * under mid-turn. `auto-fit` with a 44px floor instead wraps to as many rows
+ * as a narrow screen needs, at whatever width it has, and stretches to fill
+ * a wider one instead of leaving a ragged gap.
  */
-.sc-inks,
-.sc-sizes {
+.sc-inks {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 6px;
+}
+
+/*
+ * Size is a flex row, not a grid: it always renders exactly five buttons —
+ * unlike ink's nine, it never needs `auto-fit` to decide a column count —
+ * and it now lives as a flex *item* inside `.sc-tray__row`. A nested grid
+ * with `repeat(auto-fit, …)` sized against an indefinite (flex-basis: auto)
+ * container resolves to a single column during intrinsic sizing, stacking
+ * all five swatches in one column instead of a row — a real failure this
+ * was caught making, not a hypothetical one. Flex has no such trap: each
+ * `.lamp.sc-size` still grows via `.lamp`'s own `flex: 1 1 0` exactly as the
+ * grid's `1fr` tracks did.
+ */
+.sc-sizes {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 

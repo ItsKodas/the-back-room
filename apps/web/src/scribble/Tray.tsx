@@ -23,8 +23,11 @@ const NAMES: Record<Ink, string> = {
 /*
  * One name per `SIZES` entry, in that array's own (wire) order — see the
  * comment on `SIZES` itself for why the array isn't sorted by diameter.
+ * Exported so a test can assert this stays exactly as long as `SIZES`: a
+ * diameter added with no matching name here renders a radio with
+ * `aria-label={undefined}` — a control with no accessible name at all.
  */
-const SIZE_NAMES = ["Fine", "Medium", "Thick", "Hairline", "Bold"];
+export const SIZE_NAMES = ["Fine", "Medium", "Thick", "Hairline", "Bold"];
 
 /*
  * Displayed smallest to largest regardless of where an index actually sits
@@ -120,7 +123,16 @@ export function Tray({
               aria-label={label}
               tabIndex={tool.mode === mode ? 0 : -1}
               className="lamp sc-tool"
-              onClick={() => onTool({ ...tool, mode })}
+              onClick={(event) => {
+                // Explicit rather than relying on the click itself to focus
+                // the button: a mouse click doesn't move focus to a <button>
+                // on every platform (Safari notably doesn't), and switching
+                // to Fill unmounts the size row below — if focus was on a
+                // size swatch and the click alone didn't move it, it falls
+                // to <body> and a keyboard user loses their place entirely.
+                event.currentTarget.focus();
+                onTool({ ...tool, mode });
+              }}
             >
               {icon}
             </button>
@@ -158,33 +170,39 @@ export function Tray({
             <path d="M9 7V4h6v3" />
           </svg>
         </button>
+        {/*
+         * The size row is the pencil (and the eraser, which draws in the
+         * same strokes) expanding to show its brush sizes — a flood fill has
+         * no size, so offering one there would be a control that does
+         * nothing. Shares this row rather than sitting on its own below it:
+         * apart at a desk width the tool row and size row each stood alone
+         * cost the napkin real width for no layout necessity — this row was
+         * already `flex-wrap: wrap`, so the shared row still fits one line
+         * at a desk and simply wraps (to Tool+Undo+Clear, then Size alone)
+         * on a phone, at the same overall tray height as keeping them apart.
+         */}
+        {tool.mode !== "fill" ? (
+          <div className="sc-sizes" role="radiogroup" aria-label="Size" onKeyDown={onRadioKeyDown}>
+            {SIZE_ORDER.map((size) => {
+              const diameter = SIZES[size] as number;
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  role="radio"
+                  aria-checked={tool.size === size}
+                  aria-label={SIZE_NAMES[size]}
+                  tabIndex={tool.size === size ? 0 : -1}
+                  className="lamp sc-size"
+                  onClick={() => onTool({ ...tool, size })}
+                >
+                  <span style={{ width: Math.max(diameter * 0.8 + 2, 4), height: Math.max(diameter * 0.8 + 2, 4) }} />
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
-      {/*
-       * The size row is the pencil (and the eraser, which draws in the same
-       * strokes) expanding to show its brush sizes — a flood fill has no
-       * size, so offering one there would be a control that does nothing.
-       */}
-      {tool.mode !== "fill" ? (
-        <div className="sc-sizes" role="radiogroup" aria-label="Size" onKeyDown={onRadioKeyDown}>
-          {SIZE_ORDER.map((size) => {
-            const diameter = SIZES[size] as number;
-            return (
-              <button
-                key={size}
-                type="button"
-                role="radio"
-                aria-checked={tool.size === size}
-                aria-label={SIZE_NAMES[size]}
-                tabIndex={tool.size === size ? 0 : -1}
-                className="lamp sc-size"
-                onClick={() => onTool({ ...tool, size })}
-              >
-                <span style={{ width: Math.max(diameter * 0.8 + 2, 4), height: Math.max(diameter * 0.8 + 2, 4) }} />
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
       <div className="sc-inks" role="radiogroup" aria-label="Ink" onKeyDown={onRadioKeyDown}>
         {TRAY_INKS.map((ink) => (
           <button
