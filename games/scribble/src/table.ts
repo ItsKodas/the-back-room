@@ -12,7 +12,11 @@ import { mayJoin, smallestTeam, soloTurn, teamTurn } from "./rotation.js";
 import { drawerPoints, guesserPoints } from "./scoring.js";
 import { drawChoices, poolFor } from "./words/rules.js";
 
-export const COUNTDOWN_MS = 15_000;
+/*
+ * Long enough to gather people and say hello, and beside the point once
+ * everybody has pressed ready — which is the only thing that can shorten it.
+ */
+export const COUNTDOWN_MS = 30_000;
 export const PICK_MS = 15_000;
 export const REVEAL_MS = 5_000;
 export const RESULT_MS = 10_000;
@@ -58,6 +62,8 @@ export interface SeatView {
   score: number;
   drawing: boolean;
   guessed: boolean;
+  /** Said they are in for the next game. Always false once one is under way. */
+  ready: boolean;
 }
 
 export interface TeamView {
@@ -80,6 +86,8 @@ export interface TableView {
   hints: HintLevel;
   minimum: number;
   maxSeats: number;
+  /** How many of the people sitting down have said they are in. */
+  readyCount: number;
   seats: SeatView[];
   teams: TeamView[];
   you: SeatView | null;
@@ -117,6 +125,12 @@ export class ScribbleTable implements PlayTable {
   phase: Phase = "waiting";
   deadline: number | null = null;
   lastEvent: string | null = null;
+  /*
+   * Who has said they are in. It can only ever bring the deal forward: the
+   * countdown runs whatever this holds, because a ready button one idle
+   * player could hold shut is a table that has stopped dealing itself.
+   */
+  private readonly ready = new Set<string>();
   /*
    * Counters, so a pause keyed on one game's countdown or one turn's pick can
    * never be mistaken for the next one's by the room's timer.
@@ -226,6 +240,9 @@ export class ScribbleTable implements PlayTable {
     if (seat !== null) {
       this.lastEvent = `${seat.name} left.`;
     }
+    // Readiness counts against who is still here, or a leaver who pressed it
+    // would hold the table open for people who cannot be waiting any more.
+    this.ready.delete(seatId);
     this.dropDrawer(seatId);
     this.endIfEveryoneHasIt();
     this.settleCountdown();
@@ -282,15 +299,42 @@ export class ScribbleTable implements PlayTable {
    * The table deals itself. Nobody presses start: once enough people are
    * sitting the countdown runs, and the room's timer calls deal() when it ends.
    */
+  /** Everybody sitting down who has said they are in. */
+  private readyHere(): number {
+    return this.seats.filter((seat) => this.ready.has(seat.id)).length;
+  }
+
   private settleCountdown(): void {
     if (this.phase !== "waiting") {
       return;
     }
     if (this.seats.length < this.minimum) {
       this.deadline = null;
-    } else if (this.deadline === null) {
+      return;
+    }
+    /*
+     * Everybody in deals at once; anybody still deciding puts the wait back.
+     * Recomputed from now rather than left where it was, so changing your
+     * mind gives the table its full thirty seconds again rather than however
+     * little was left when the last person pressed.
+     */
+    if (this.readyHere() === this.seats.length) {
+      this.deadline = this.now();
+    } else {
       this.deadline = this.now() + this.timings.countdownMs;
     }
+  }
+
+  setReady(seatId: string, ready: boolean): void {
+    if (this.seats.every((seat) => seat.id !== seatId)) {
+      throw new TableError("You are not at this table.");
+    }
+    if (ready) {
+      this.ready.add(seatId);
+    } else {
+      this.ready.delete(seatId);
+    }
+    this.settleCountdown();
   }
 
   deal(): void {
@@ -299,6 +343,8 @@ export class ScribbleTable implements PlayTable {
     }
     this.game += 1;
     this.round = 1;
+    // A game under way is not something to be ready for; the next one asks again.
+    this.ready.clear();
     this.played.clear();
     this.winners = [];
     this.lastEvent = null;
@@ -679,6 +725,7 @@ export class ScribbleTable implements PlayTable {
         score: player?.score ?? 0,
         drawing: drawing(seat.id),
         guessed: this.guessed.has(seat.id),
+        ready: this.ready.has(seat.id),
       };
     });
     const knows = forSeatId !== null && (drawing(forSeatId) || this.guessed.has(forSeatId));
@@ -695,6 +742,7 @@ export class ScribbleTable implements PlayTable {
       hints: this.options.hints,
       minimum: this.minimum,
       maxSeats: this.maxSeats,
+      readyCount: this.readyHere(),
       seats,
       teams: this.teams.map((members, index) => ({
         index,

@@ -43,6 +43,9 @@ export function scribbleAdapter(options: ScribbleAdapterOptions = {}): GameAdapt
     act(table, seatId, action): ActResult | undefined {
       const move = action as Record<string, unknown>;
       switch (move["type"]) {
+        case "ready":
+          table.setReady(seatId, move["ready"] === true);
+          return undefined;
         case "pickTeam":
           table.pickTeam(seatId, move["team"] as number);
           return undefined;
@@ -86,9 +89,15 @@ export function scribbleAdapter(options: ScribbleAdapterOptions = {}): GameAdapt
       const wait = (until: number | null) => Math.max(0, (until ?? now) - now);
       switch (table.phase) {
         case "waiting":
+          /*
+           * Keyed on the deadline as well as the game: readiness can bring
+           * the deal forward, and the room leaves a pause alone while its key
+           * is unchanged — so a key that named only the game would hold the
+           * original thirty seconds and the early deal would never fire.
+           */
           return table.deadline === null
             ? null
-            : { key: `countdown:${table.game}`, ms: wait(table.deadline), run: () => table.deal() };
+            : { key: `countdown:${table.game}:${table.deadline}`, ms: wait(table.deadline), run: () => table.deal() };
         case "picking":
           return { key: `pick:${table.turnNumber}`, ms: wait(table.deadline), run: () => table.autoPick() };
         case "drawing": {

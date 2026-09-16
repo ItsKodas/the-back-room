@@ -1,4 +1,4 @@
-import type { HintLevel, PackId, TableView } from "@backroom/game-scribble";
+import type { HintLevel, PackId, SeatView, TableView } from "@backroom/game-scribble";
 import {
   DEFAULT_PACKS,
   DRAW_SECONDS,
@@ -99,6 +99,9 @@ export function Felt({ table, state, seatId }: { table: Table; state: TableView;
           <p className="notice">
             {short > 0 ? `Waiting for ${short} more to sit down.` : "Dealing as soon as the clock runs out."}
           </p>
+        ) : null}
+        {state.phase === "waiting" && state.you !== null ? (
+          <Ready state={state} you={state.you} short={short} act={table.act} />
         ) : null}
         {/*
          * No turn exists in "waiting" — the napkin is definitionally blank,
@@ -280,6 +283,61 @@ export function Sit({ table, invited, account }: { table: Table; invited: string
         })
       }
     />
+  );
+}
+
+/**
+ * Saying you are in, and seeing who else is.
+ *
+ * The press is the player's own choice rather than the table's answer, so it
+ * shows at once and the next state replaces it — and it can only ever hurry
+ * the deal along. The clock runs whatever this says, which is why the line
+ * underneath promises the table deals either way.
+ */
+function Ready({
+  state,
+  you,
+  short,
+  act,
+}: {
+  state: TableView;
+  you: SeatView;
+  short: number;
+  act: (action: Record<string, unknown>) => void;
+}) {
+  const [pressed, setPressed] = useState<boolean | null>(null);
+  // Given up on once the table has spoken, so a refused or lost press cannot
+  // leave the button lying about what the table thinks.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the table answering is the trigger, not a value this reads
+  useEffect(() => setPressed(null), [you.ready]);
+  const ready = pressed ?? you.ready;
+  const here = state.seats.length;
+
+  return (
+    <div className="sc-ready">
+      <button
+        type="button"
+        className={`slab${ready ? " is-on" : ""}`}
+        aria-pressed={ready}
+        onClick={() => {
+          setPressed(!ready);
+          act({ type: "ready", ready: !ready });
+        }}
+      >
+        {ready ? "Not ready" : "I'm ready"}
+      </button>
+      {/*
+       * Below the minimum there is no wait to shorten yet, so saying "1 of 1
+       * ready" would promise a deal that cannot come. Say what is actually
+       * being waited for, and keep the button: pressing it early means the
+       * table goes the moment the last person sits down.
+       */}
+      <p className="hint">
+        {short > 0
+          ? `${state.readyCount} of ${here} ready — still ${short} short, so nothing deals yet.`
+          : `${state.readyCount} of ${here} ready — everybody in and it deals at once, otherwise when the clock runs out.`}
+      </p>
+    </div>
   );
 }
 

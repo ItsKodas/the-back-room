@@ -387,8 +387,20 @@
   max-width: 360px;
 }
 
+/*
+ * The fitting's cells are one unwrapping row, which is right for a
+ * five-character table code and wrong for a word: `wordProblem` lets one run
+ * to 24 characters, and that many at `--gr-text-xl` bursts the panel rather
+ * than fitting in it. Scoped here rather than fixed in the fitting, because
+ * the code entry genuinely should never wrap.
+ */
+.sc-reveal .lcd__cells {
+  flex-wrap: wrap;
+  gap: clamp(2px, 1.2vw, 10px);
+}
+
 .sc-reveal__cell {
-  font-size: var(--gr-text-xl);
+  font-size: clamp(var(--gr-text-md), 4.5vw, var(--gr-text-xl));
   animation: sc-letter 320ms var(--gr-settle) backwards;
   animation-delay: calc(var(--at, 0) * 60ms);
 }

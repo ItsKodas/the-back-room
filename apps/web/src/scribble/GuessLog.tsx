@@ -75,6 +75,12 @@ export function GuessLog({
   const seen = useRef<WeakSet<ChatMessage>>(new WeakSet());
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const list = useRef<HTMLUListElement | null>(null);
+  /*
+   * How far from the bottom the reader was *before* the newest line arrived.
+   * Starts at 0 so a log follows along from its first line rather than
+   * waiting for somebody to scroll down and give it permission.
+   */
+  const was = useRef(0);
 
   // A line of yours coming back from the table replaces the guess shown for it.
   useEffect(() => {
@@ -116,10 +122,19 @@ export function GuessLog({
     if (node === null) {
       return;
     }
-    // A reader scrolled up to re-read an earlier line is not yanked back down by the next one.
-    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
-    if (nearBottom) {
+    /*
+     * Measured before this render's line was added, not after. Against the
+     * grown list a burst of lines puts the reader "far from the bottom" on
+     * the strength of content they have not seen yet, and the guard latches:
+     * once it has skipped one scroll it can never catch up, which is how a
+     * log that was following along stops dead a few guesses in. The window is
+     * generous, too — one line is taller than forty pixels.
+     */
+    const gap = was.current;
+    was.current = node.scrollHeight - node.scrollTop - node.clientHeight;
+    if (gap < 120) {
       node.scrollTo?.({ top: node.scrollHeight });
+      was.current = 0;
     }
   }, [log.length, pending.length]);
 

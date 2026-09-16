@@ -378,7 +378,7 @@
  * drawn one, and Firefox, which has no other way, gets these.
  */
 @supports not selector(::-webkit-scrollbar) {
-  :is(.table-scroll, .talk .chat__log, .talk-panel .chat__log) {
+  :is(.table-scroll, .talk .chat__log, .talk-panel .chat__log, .sc-log, .sc-over) {
     scrollbar-width: thin;
     scrollbar-color: var(--gr-color-smoke-lit) transparent;
   }
@@ -389,28 +389,28 @@
   }
 }
 
-:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log, .sc-log, .sc-over)::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-track {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log, .sc-log, .sc-over)::-webkit-scrollbar-track {
   border-radius: 999px;
   background: rgb(0 0 0 / 0.25);
 }
 
-:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log, .sc-log, .sc-over)::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
   background: var(--gr-color-smoke-lit) padding-box;
 }
 
-:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-thumb:hover {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log, .sc-log, .sc-over)::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--gr-color-neon) 55%, var(--gr-color-smoke-lit)) padding-box;
 }
 
 /* No arrows: the thumb and the wheel are how anybody moves these. */
-:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log)::-webkit-scrollbar-button {
+:is(.table-scroll, .talk .chat__log, .talk-panel .chat__log, .sc-log, .sc-over)::-webkit-scrollbar-button {
   display: none;
 }
 
