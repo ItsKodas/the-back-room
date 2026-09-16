@@ -109,6 +109,13 @@ export interface TableSocketHook<TView> {
    */
   onRelay: (listener: (relay: TableRelay) => void) => () => void;
   /**
+   * Listens for every `room:error`, not just the latest — a subscription for
+   * the same reason as `onRelay`: a caller that only wants to react to a
+   * particular refusal (a game's own ink, say) needs each one as it lands,
+   * not the single slot `error` collapses them into.
+   */
+  onError: (listener: (message: string) => void) => () => void;
+  /**
    * Taunts thrown at this table, oldest first, for whatever is animating them.
    *
    * A log rather than "the current one": two can land in the same second and
@@ -165,6 +172,7 @@ export function useTableSocket<TView>(
   const [landed, setLanded] = useState<TauntPlay[]>([]);
   const [stakes, setStakes] = useState<TauntStake[]>([]);
   const relayListeners = useRef(new Set<(relay: TableRelay) => void>());
+  const errorListeners = useRef(new Set<(message: string) => void>());
 
   useEffect(() => {
     // No transports named on purpose: naming one makes it the only one tried,
@@ -217,7 +225,12 @@ export function useTableSocket<TView>(
       codeRef.current = (raw as { code?: string }).code ?? null;
       setState(raw as unknown as TView);
     });
-    socket.on("room:error", (message: string) => setError(message));
+    socket.on("room:error", (message: string) => {
+      setError(message);
+      for (const listener of errorListeners.current) {
+        listener(message);
+      }
+    });
     /*
      * The table was called off. Everything that was on it has already gone
      * back to the account, and the balance arrives on its own through
@@ -341,6 +354,13 @@ export function useTableSocket<TView>(
     };
   }, []);
 
+  const onError = useCallback((listener: (message: string) => void) => {
+    errorListeners.current.add(listener);
+    return () => {
+      errorListeners.current.delete(listener);
+    };
+  }, []);
+
   const retry = useCallback(() => {
     setTaken(null);
     socketRef.current?.connect();
@@ -401,6 +421,7 @@ export function useTableSocket<TView>(
     leave,
     act,
     onRelay,
+    onError,
     say,
   };
 }

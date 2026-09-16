@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { TableView } from "@backroom/game-scribble";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Napkin } from "./Napkin.js";
 import { INK_RGB } from "./raster.js";
@@ -62,6 +62,11 @@ afterEach(() => {
 // without an explicit advance — painting nothing before a test can look.
 const fakeFlushTimers = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
 
+// Shared no-op ends for tests that need an InkTable but don't care about
+// relays or refusals, so each test only spells out the one it does care about.
+const noRelay: InkTable["onRelay"] = () => () => {};
+const noError: InkTable["onError"] = () => () => {};
+
 const pen: Tool = { ink: "red", size: 1, mode: "pen" };
 
 function Harness({ table, state, seatId, tool = pen }: { table: InkTable; state: TableView; seatId: string; tool?: Tool }) {
@@ -81,7 +86,7 @@ describe("the napkin", () => {
   it("puts your line on it the moment you draw, long before the server could answer", () => {
     fakeFlushTimers();
     const act = vi.fn();
-    const table: InkTable = { act, error: null, onRelay: () => () => {} };
+    const table: InkTable = { act, onRelay: noRelay, onError: noError };
     const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
     const canvas = container.querySelector("canvas") as HTMLCanvasElement;
 
@@ -100,7 +105,7 @@ describe("the napkin", () => {
   it("sends the last of a line as soon as the finger lifts", () => {
     fakeFlushTimers();
     const act = vi.fn();
-    const { container } = render(<Harness table={{ act, error: null, onRelay: () => () => {} }} state={drawerView()} seatId="s0" />);
+    const { container } = render(<Harness table={{ act, onRelay: noRelay, onError: noError }} state={drawerView()} seatId="s0" />);
     const canvas = container.querySelector("canvas") as HTMLCanvasElement;
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(canvas, { clientX: 10, clientY: 10, pointerId: 1 });
@@ -109,7 +114,7 @@ describe("the napkin", () => {
 
   it("does nothing under a guesser's finger", () => {
     const act = vi.fn();
-    const { container } = render(<Harness table={{ act, error: null, onRelay: () => () => {} }} state={viewOf()} seatId="s1" />);
+    const { container } = render(<Harness table={{ act, onRelay: noRelay, onError: noError }} state={viewOf()} seatId="s1" />);
     const canvas = container.querySelector("canvas") as HTMLCanvasElement;
     fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
     fireEvent.pointerUp(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
@@ -121,11 +126,11 @@ describe("the napkin", () => {
     let hear: (relay: { seatId: string; payload: unknown }) => void = () => {};
     const table: InkTable = {
       act: vi.fn(),
-      error: null,
       onRelay: (listener) => {
         hear = listener;
         return () => {};
       },
+      onError: noError,
     };
     render(<Harness table={table} state={viewOf()} seatId="s1" />);
     hear({ seatId: "s0", payload: { kind: "stroke", id: "p1", by: "s0", ink: "blue", size: 1, seq: 0, pts: [300, 300, 400, 300] } });
@@ -133,25 +138,206 @@ describe("the napkin", () => {
   });
 
   it("gives your line up when the table refuses it", () => {
-    const table: InkTable = { act: vi.fn(), error: null, onRelay: () => () => {} };
-    const state = drawerView();
-    const { container, rerender } = render(<Harness table={table} state={state} seatId="s0" />);
+    let refuse: (message: string) => void = () => {};
+    const table: InkTable = {
+      act: vi.fn(),
+      onRelay: noRelay,
+      onError: (listener) => {
+        refuse = listener;
+        return () => {};
+      },
+    };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
     const canvas = container.querySelector("canvas") as HTMLCanvasElement;
     fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
     fireEvent.pointerMove(canvas, { clientX: 100, clientY: 50, pointerId: 1 });
     expect(pixel(150, 100)).toEqual([...INK_RGB.red]);
 
-    rerender(<Harness table={{ ...table, error: "The napkin's full." }} state={state} seatId="s0" />);
+    refuse("The napkin's full.");
     expect(pixel(150, 100)).toEqual([...INK_RGB.paper]);
+  });
+
+  it("drops a newly drawn line on a second, identical refusal", () => {
+    let refuse: (message: string) => void = () => {};
+    const table: InkTable = {
+      act: vi.fn(),
+      onRelay: noRelay,
+      onError: (listener) => {
+        refuse = listener;
+        return () => {};
+      },
+    };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 100, clientY: 50, pointerId: 1 });
+    refuse("The napkin's full.");
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 50, pointerId: 1 });
+
+    fireEvent.pointerDown(canvas, { clientX: 250, clientY: 250, pointerId: 1 });
+    expect(pixel(500, 500)).toEqual([...INK_RGB.red]);
+    refuse("The napkin's full.");
+    expect(pixel(500, 500)).toEqual([...INK_RGB.paper]);
+  });
+
+  it("leaves the line alone for a refusal that was never about the drawing", () => {
+    let refuse: (message: string) => void = () => {};
+    const table: InkTable = {
+      act: vi.fn(),
+      onRelay: noRelay,
+      onError: (listener) => {
+        refuse = listener;
+        return () => {};
+      },
+    };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 100, clientY: 50, pointerId: 1 });
+    expect(pixel(150, 100)).toEqual([...INK_RGB.red]);
+
+    refuse("Easy on the chat.");
+    expect(pixel(150, 100)).toEqual([...INK_RGB.red]);
   });
 
   it("floods a fill at once", () => {
     const act = vi.fn();
     const { container } = render(
-      <Harness table={{ act, error: null, onRelay: () => () => {} }} state={drawerView()} seatId="s0" tool={{ ink: "green", size: 1, mode: "fill" }} />,
+      <Harness table={{ act, onRelay: noRelay, onError: noError }} state={drawerView()} seatId="s0" tool={{ ink: "green", size: 1, mode: "fill" }} />,
     );
     fireEvent.pointerDown(container.querySelector("canvas") as HTMLCanvasElement, { clientX: 5, clientY: 5, pointerId: 1 });
     expect(pixel(900, 700)).toEqual([...INK_RGB.green]);
     expect(act).toHaveBeenCalledWith(expect.objectContaining({ type: "fill", ink: "green", x: 10, y: 10 }));
+  });
+
+  it("ignores a second finger while the first is still down", () => {
+    const act = vi.fn();
+    const table: InkTable = { act, onRelay: noRelay, onError: noError };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerDown(canvas, { clientX: 500, clientY: 500, pointerId: 2 });
+    fireEvent.pointerMove(canvas, { clientX: 900, clientY: 700, pointerId: 2 });
+    expect(pixel(900, 700)).toEqual([...INK_RGB.paper]);
+
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 50, pointerId: 1 });
+    expect(act).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends the stroke when the browser takes capture away, same as a cancel", () => {
+    const act = vi.fn();
+    const table: InkTable = { act, onRelay: noRelay, onError: noError };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent(canvas, new PointerEvent("lostpointercapture", { pointerId: 1, bubbles: true }));
+    expect(act).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the book follows the seat", () => {
+  it("rebuilds for the seat that sits down, drawing and undoing as them", () => {
+    const act = vi.fn();
+    const table: InkTable = { act, onRelay: noRelay, onError: noError };
+    const { result, rerender } = renderHook(
+      ({ seatId, state }: { seatId: string | null; state: TableView }) => useInk(table, state, seatId),
+      { initialProps: { seatId: null as string | null, state: viewOf() } },
+    );
+
+    rerender({ seatId: "s0", state: drawerView() });
+    result.current.begin(pen, 100, 100);
+    result.current.extend(200, 100);
+    expect(result.current.book.marks().at(-1)?.by).toBe("s0");
+
+    // Never sent, so the server has nothing to be told to take back.
+    result.current.undo();
+    expect(act).not.toHaveBeenCalledWith(expect.objectContaining({ type: "undo" }));
+
+    result.current.begin(pen, 300, 300);
+    result.current.extend(400, 300);
+    result.current.end();
+    act.mockClear();
+    result.current.undo();
+    expect(act).toHaveBeenCalledWith({ type: "undo" });
+  });
+});
+
+describe("the napkin's frame queue", () => {
+  /*
+   * A queue rather than the file's own run-at-once stub: what this block
+   * checks is how many frames get asked for and what happens to one still
+   * outstanding, and a stub that runs a frame synchronously answers both
+   * questions before the assertions get a chance to look.
+   */
+  let frames: FrameRequestCallback[] = [];
+  let cancelled: number[] = [];
+
+  beforeEach(() => {
+    frames = [];
+    cancelled = [];
+    vi.stubGlobal("requestAnimationFrame", (run: FrameRequestCallback) => {
+      frames.push(run);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      cancelled.push(id);
+    });
+  });
+
+  const runFrames = () => {
+    const due = frames;
+    frames = [];
+    for (const run of due) {
+      run(0);
+    }
+  };
+
+  it("collapses several notifies before a frame runs into a single paint", () => {
+    const table: InkTable = { act: vi.fn(), onRelay: noRelay, onError: noError };
+    const { container } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 100, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 150, clientY: 50, pointerId: 1 });
+    expect(painted).toHaveLength(0);
+
+    runFrames();
+    expect(painted).toHaveLength(1);
+  });
+
+  it("cancels an outstanding frame on unmount", () => {
+    const table: InkTable = { act: vi.fn(), onRelay: noRelay, onError: noError };
+    const { unmount } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    expect(frames).toHaveLength(1);
+
+    unmount();
+    expect(cancelled).toEqual([1]);
+  });
+
+  it("stops flushing and listening for relays once it leaves the table", () => {
+    fakeFlushTimers();
+    const act = vi.fn();
+    let subscribed = 0;
+    const onRelay: InkTable["onRelay"] = () => {
+      subscribed += 1;
+      return () => {
+        subscribed -= 1;
+      };
+    };
+    const table: InkTable = { act, onRelay, onError: noError };
+    const { container, unmount } = render(<Harness table={table} state={drawerView()} seatId="s0" />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 50, pointerId: 1 });
+    expect(subscribed).toBe(1);
+
+    unmount();
+    act.mockClear();
+    vi.advanceTimersByTime(FLUSH_MS * 4);
+    expect(act).not.toHaveBeenCalled();
+    expect(subscribed).toBe(0);
   });
 });

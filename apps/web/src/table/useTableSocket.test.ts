@@ -137,3 +137,26 @@ describe("relays", () => {
     expect(heard).toHaveLength(1);
   });
 });
+
+describe("errors", () => {
+  beforeEach(() => {
+    handlers.clear();
+    made.mockClear();
+    window.sessionStorage.clear();
+    fake.active = true;
+  });
+
+  it("hands every room:error to whoever is listening, and stops once they unsubscribe", () => {
+    const { result } = renderHook(() => useTableSocket("scribble", () => {}));
+    const heard: string[] = [];
+    const stop = result.current.onError((message) => heard.push(message));
+
+    handlers.get("room:error")?.("The napkin's full.");
+    handlers.get("room:error")?.("The napkin's full.");
+    expect(heard).toEqual(["The napkin's full.", "The napkin's full."]);
+
+    stop();
+    handlers.get("room:error")?.("The napkin's full.");
+    expect(heard).toHaveLength(2);
+  });
+});

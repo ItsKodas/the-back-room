@@ -14,7 +14,8 @@ import type { InkHandle, Tool } from "./useInk.js";
 export function Napkin({ ink, tool }: { ink: InkHandle; tool: Tool }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const raster = useRef<Raster | null>(null);
-  const down = useRef(false);
+  /** The pointer currently drawing, so a second finger down mid-stroke cannot steal or start one. */
+  const down = useRef<number | null>(null);
 
   useEffect(() => {
     const context = canvas.current?.getContext("2d") ?? null;
@@ -61,6 +62,13 @@ export function Napkin({ ink, tool }: { ink: InkHandle; tool: Tool }) {
   const at = (event: PointerEvent<HTMLCanvasElement>) =>
     toGrid(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect());
 
+  const release = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (down.current === event.pointerId) {
+      down.current = null;
+      ink.end();
+    }
+  };
+
   return (
     <div className={`sc-napkin${ink.drawing ? " sc-napkin--live" : ""}`}>
       <canvas
@@ -71,7 +79,9 @@ export function Napkin({ ink, tool }: { ink: InkHandle; tool: Tool }) {
         role="img"
         aria-label={ink.drawing ? "The napkin. Draw here." : "The drawing"}
         onPointerDown={(event) => {
-          if (!ink.drawing) {
+          // A pointer already down owns the stroke; a second finger touching
+          // down mid-draw must not steal it or start one of its own.
+          if (!ink.drawing || down.current !== null) {
             return;
           }
           const [x, y] = at(event);
@@ -80,27 +90,20 @@ export function Napkin({ ink, tool }: { ink: InkHandle; tool: Tool }) {
             return;
           }
           event.currentTarget.setPointerCapture?.(event.pointerId);
-          down.current = true;
+          down.current = event.pointerId;
           ink.begin(tool, x, y);
         }}
         onPointerMove={(event) => {
-          if (down.current) {
+          if (down.current === event.pointerId) {
             const [x, y] = at(event);
             ink.extend(x, y);
           }
         }}
-        onPointerUp={() => {
-          if (down.current) {
-            down.current = false;
-            ink.end();
-          }
-        }}
-        onPointerCancel={() => {
-          if (down.current) {
-            down.current = false;
-            ink.end();
-          }
-        }}
+        onPointerUp={release}
+        onPointerCancel={release}
+        // The browser can take capture away on its own — a scroll, another
+        // app grabbing focus — and that ends the stroke exactly like a cancel.
+        onLostPointerCapture={release}
       />
       <span className="sc-napkin__print" aria-hidden="true">
         The Back Room
