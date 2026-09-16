@@ -68,7 +68,19 @@ export type Cue =
    */
   | "headsUp"
   | "tailsUp"
-  | "oddsUp";
+  | "oddsUp"
+  /*
+   * The napkin. A marker scratch at the start of a line and a swipe of paper on
+   * a clear — synthesised until there are recordings of both — and the table's
+   * own tick, chime and sting. The tick fires every second of the last ten, so
+   * it is the quietest thing here.
+   */
+  | "scribbleTick"
+  | "scribbleGot"
+  | "scribbleGotOther"
+  | "scribbleReveal"
+  | "scribbleScratch"
+  | "scribbleSwipe";
 
 interface Manifest {
   dice?: string[];
@@ -1091,6 +1103,28 @@ export function play(
         }
       });
       break;
+
+    case "scribbleTick":
+      tone({ frequency: 1320, duration: 0.03, type: "square", gain: 0.025 });
+      return;
+    case "scribbleGot":
+      tone({ frequency: 784, duration: 0.12, type: "sine", gain: 0.12 });
+      tone({ frequency: 1175, duration: 0.24, type: "sine", gain: 0.1, delay: 0.09 });
+      return;
+    case "scribbleGotOther":
+      tone({ frequency: 988, duration: 0.1, type: "sine", gain: 0.05 });
+      return;
+    case "scribbleReveal":
+      tone({ frequency: 523, duration: 0.14, type: "triangle", gain: 0.08 });
+      tone({ frequency: 659, duration: 0.14, type: "triangle", gain: 0.08, delay: 0.1 });
+      tone({ frequency: 784, duration: 0.3, type: "triangle", gain: 0.08, delay: 0.2 });
+      return;
+    case "scribbleScratch":
+      noise(0.06, 3200, 0.025, 2);
+      return;
+    case "scribbleSwipe":
+      noise(0.28, 1800, 0.07, 0.7);
+      return;
   }
 }
 

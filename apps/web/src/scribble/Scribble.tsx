@@ -29,6 +29,7 @@ import { Teams } from "./Teams.js";
 import { Tray } from "./Tray.js";
 import type { InkHandle, Tool } from "./useInk.js";
 import { useInk } from "./useInk.js";
+import { useScribbleSound } from "./useScribbleSound.js";
 import { WordPick } from "./WordPick.js";
 import "@backroom/game-scribble/theme.css";
 import "./scribble.css";
@@ -37,18 +38,24 @@ type Table = TableSocketHook<TableView>;
 
 export function Felt({ table, state, seatId }: { table: Table; state: TableView; seatId: string | null }) {
   const base = useInk(table, state, seatId);
+  const sound = useScribbleSound({ state, seatId, log: table.chat, onRelay: table.onRelay });
   const [tool, setTool] = useState<Tool>({ ink: "black", size: 1, mode: "pen" });
   // Counts clears, so the wipe runs once for each rather than only the first.
   const [wipes, setWipes] = useState(0);
   const ink = useMemo<InkHandle>(
     () => ({
       ...base,
+      begin: (chosen, x, y) => {
+        sound.scratch();
+        base.begin(chosen, x, y);
+      },
       clear: () => {
+        sound.swipe();
         setWipes((n) => n + 1);
         base.clear();
       },
     }),
-    [base],
+    [base, sound],
   );
   const short = Math.max(0, state.minimum - state.seats.length);
 
