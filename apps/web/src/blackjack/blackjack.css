@@ -435,8 +435,15 @@
   animation: bj-drop 300ms cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
+/*
+ * Shrinkable and self-contained, so a hand long enough to outgrow the row
+ * scrolls within itself rather than pushing the total off the plate — the
+ * felt does not scroll sideways, but a hand may, inside its own box.
+ */
 .bj__seat .bj-hand {
   gap: 0;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .bj__seat--other .bj-hand {

@@ -102,6 +102,15 @@ describe("cards on the felt", () => {
     expect(onCard).toEqual([]);
   });
 
+  it("shrinks and scrolls within itself at any width, so a long hand never pushes the total out of the row", () => {
+    // Phone width has no media query of its own to widen the row, so the hand
+    // itself has to be the thing that gives: shrinkable, and self-contained
+    // rather than spilling into the count beside it.
+    const rule = ruleIn(css, ".bj__seat .bj-hand");
+    expect(rule).toContain("min-width: 0");
+    expect(rule).toContain("overflow-x: auto");
+  });
+
   it("overlap by 28% in a dealt hand and 42% in a split box, and never at the dealer's", () => {
     expect(ruleIn(css, ".bj__seat .bj-hand .bj-card + .bj-card")).toContain(
       "margin-left: calc(var(--bj-card-w) * -0.28)",
