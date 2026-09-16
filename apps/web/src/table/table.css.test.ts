@@ -52,21 +52,49 @@ describe("a table on one screen", () => {
    */
   it("makes the shell exactly the window, with only the page's row flexing", () => {
     const shell = rule(".shell:has(> .play--fit)");
-    expect(shell).toContain("height: 100dvh");
+    // The viewport less the insets #root reserves; see the safe-area test below.
+    expect(shell).toContain("height: calc(100dvh");
     expect(shell).toContain("grid-template-rows: auto minmax(0, 1fr)");
   });
 
   it("lets the page shrink to its row rather than push past it", () => {
-    const page = rule(".play--fit");
+    const page = rule(".play.play--fit");
     expect(page).toContain("display: flex");
     expect(page).toContain("flex-direction: column");
     expect(page).toContain("min-height: 0");
   });
 
   it("is the container the talk drawer asks about, at any table", () => {
-    expect(rule(".play--fit")).toMatch(/container: fit \/ inline-size/);
+    expect(rule(".play.play--fit")).toMatch(/container: fit \/ inline-size/);
     expect(css).toContain("@container fit (min-width: 760px)");
     expect(css).not.toContain("@container gt");
+  });
+
+  /*
+   * main.tsx imports App — every component's sheet, this one included — before
+   * game.css, so `.play`'s own padding is the later rule and wins a tie between
+   * two single classes. It carries 64px at the bottom: a dead band under the
+   * controls of a table that is supposed to be exactly the window.
+   */
+  it("beats .play's padding rather than tying with it", () => {
+    expect(css).toMatch(/^\.play\.play--fit \{/m);
+    expect(css).not.toMatch(/^\.play--fit \{/m);
+    for (const block of css.match(/^\s*\.play\.play--fit \{[^}]*\}/gm) ?? []) {
+      expect(block).toMatch(/padding/);
+    }
+  });
+
+  /*
+   * #root already pads for the notch and the home bar. A shell taking the whole
+   * 100dvh inside that padding is taller than the screen by exactly the insets,
+   * which is a strip of empty room to scroll into at the bottom of a phone.
+   */
+  it("leaves the notch and the home bar out of the window it takes", () => {
+    const shell = rule(".shell:has(> .play--fit)");
+    expect(shell).toContain("env(safe-area-inset-top, 0px)");
+    expect(shell).toContain("env(safe-area-inset-bottom, 0px)");
+    // And the page must not reserve the bottom inset a second time.
+    expect(rule(".play.play--fit")).not.toContain("safe-area-inset-bottom");
   });
 });
 
@@ -80,6 +108,28 @@ describe("scrolling boxes at a table", () => {
     const guarded = block("@supports not selector(::-webkit-scrollbar)");
     expect(guarded).toContain("scrollbar-width: thin");
     expect(css.replace(guarded, "")).not.toMatch(/scrollbar-(width|color):/);
+  });
+
+  /*
+   * The log is the one box that carries no bar. It keeps itself at the newest
+   * line, and it only just overflows, so a bar flashed in and out at the
+   * panel's edge on every event — pulling the eye off the line that arrived.
+   */
+  it("gives the activity log no bar at all, in either kind of browser", () => {
+    expect(rule(".activity::-webkit-scrollbar")).toContain("width: 0");
+    expect(block("@supports not selector(::-webkit-scrollbar)")).toContain("scrollbar-width: none");
+    // And the drawn bar's own rules must not claim the log back.
+    expect(css).not.toMatch(/:is\(\.activity,/);
+  });
+});
+
+describe("the bar over a table", () => {
+  /*
+   * A table is a lit panel with an edge of its own. The bar's hairline landed a
+   * few pixels above it, which read as a line ruled across the table.
+   */
+  it("drops its hairline so no line sits on the felt", () => {
+    expect(rule(".shell__bar:has(+ .play--fit) .nav")).toContain("border-bottom: none");
   });
 });
 
