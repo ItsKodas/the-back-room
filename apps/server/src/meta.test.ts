@@ -7,9 +7,9 @@ import { SLOTS } from "@backroom/game-slots";
 import { TIPS } from "@backroom/game-tips";
 import { describe, expect, it } from "vitest";
 import type { Lookups } from "./meta.js";
-import { headTags, inject, jsonLd, pageFor } from "./meta.js";
+import { door, headTags, inject, jsonLd, pageFor } from "./meta.js";
 
-/** A room with one game and one table in it. */
+/** A room with two games open and one table in it. */
 const room: Lookups = {
   game: (id) =>
     id === "blackjack"
@@ -24,6 +24,26 @@ const room: Lookups = {
       : null,
   table: (code) =>
     code === "6PMKG" ? { game: "Blackjack", host: "Ada", seats: 3, maxSeats: 6 } : null,
+  games: () => [
+    {
+      id: "blackjack",
+      name: "Blackjack",
+      blurb: "Beat the dealer to twenty-one.",
+      minSeats: 1,
+      maxSeats: 6,
+      shape: "table",
+      open: true,
+    },
+    {
+      id: "slots",
+      name: "Slots",
+      blurb: "Five reels, nine lines, one climbing bank.",
+      minSeats: 1,
+      maxSeats: 1,
+      shape: "machine",
+      open: true,
+    },
+  ],
 };
 
 const SITE = "https://back.example";
@@ -89,6 +109,7 @@ describe("what an address says about itself", () => {
             };
       },
       table: () => null,
+      games: () => [],
     };
 
     const images = dealt.map((game) => pageFor(`/${game.id}`, SITE, all).image);
@@ -130,6 +151,7 @@ describe("what an address says about itself", () => {
             }
           : null,
       table: () => null,
+      games: () => [],
     };
 
     // Asserted on the tag rather than the flag: the tag is what a crawler obeys.
@@ -148,6 +170,97 @@ describe("what an address says about itself", () => {
   });
 });
 
+describe("what a crawler reads before any script has run", () => {
+  /**
+   * #root is empty until the bundle lands, so a crawler that runs no script
+   * saw a front door with no heading, no words and no links: a page with
+   * nothing behind it. This is what it reads instead, and React replaces it
+   * the moment it mounts.
+   */
+
+  /** The words a reader would see, with the markup taken out. */
+  const words = (html: string): string[] =>
+    html
+      .replace(/<[^>]*>/g, " ")
+      .split(/\s+/)
+      .filter((word) => /\w/.test(word));
+
+  it("gives the front door a heading, sections, and enough to read", () => {
+    const html = door(pageFor("/", SITE, room));
+
+    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    expect((html.match(/<h2[ >]/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain("<p>");
+    expect(words(html).length).toBeGreaterThanOrEqual(250);
+  });
+
+  it("links the front door to every game that is open, and somewhere outside", () => {
+    const html = door(pageFor("/", SITE, room));
+
+    expect(html).toContain('href="/blackjack"');
+    expect(html).toContain('href="/slots"');
+    expect(html).toMatch(/href="https:\/\//);
+  });
+
+  it("uses every word of the title somewhere in what it says", () => {
+    const page = pageFor("/", SITE, room);
+    const bare = (word: string): string => word.toLowerCase().replace(/\W/g, "");
+    const said = new Set(words(door(page)).map(bare));
+
+    for (const word of words(page.title).map(bare)) {
+      expect(said.has(word), word).toBe(true);
+    }
+  });
+
+  it("gives the front door a title that says what the room is, short enough to be shown whole", () => {
+    const title = pageFor("/", SITE, room).title;
+
+    expect(title).not.toBe("The Back Room");
+    expect(title.startsWith("The Back Room")).toBe(true);
+    expect(title.length).toBeLessThanOrEqual(60);
+  });
+
+  it("gives a game its own heading and a way back to the door", () => {
+    const html = door(pageFor("/blackjack", SITE, room));
+
+    expect(html).toMatch(/<h1[^>]*>Blackjack<\/h1>/);
+    expect(html).toContain('href="/"');
+    expect(html).toContain('href="/slots"');
+    expect(html).not.toContain('href="/blackjack"');
+  });
+
+  it("writes nothing for a page that asked not to be indexed", () => {
+    for (const path of ["/6PMKG", "/me", "/ZZZZZ"]) {
+      expect(door(pageFor(path, SITE, room)), path).toBe("");
+    }
+  });
+
+  it("goes inside the root, where the app will replace it", () => {
+    const shell = `<head><!--meta--><title>Old</title><!--/meta--></head>
+<body><div id="root"><!--door--><!--/door--></div></body>`;
+    const out = inject(shell, pageFor("/", SITE, room));
+    const root = /<div id="root">([\s\S]*)<\/div><\/body>/.exec(out)?.[1] ?? "";
+
+    expect(root).toContain("<h1");
+    expect(out.match(/<h1[ >]/g)).toHaveLength(1);
+  });
+});
+
+describe("the dash", () => {
+  it("is kept out of everything a result or a card shows", () => {
+    /*
+     * An em dash in a description reads as machine-written to the people who
+     * see it in a search result, which is the one place a sentence has to earn
+     * a click. Kept out of what is public, not out of the code.
+     */
+    for (const path of ["/", "/blackjack", "/6PMKG", "/me", "/ZZZZZ"]) {
+      const page = pageFor(path, SITE, room);
+      const shown = [headTags(page), jsonLd(page), door(page)].join("\n");
+      expect(shown, path).not.toContain("—");
+    }
+  });
+});
+
 describe("the head that goes out", () => {
   it("does not let a name become markup", () => {
     /*
@@ -163,6 +276,7 @@ describe("the head that goes out", () => {
         seats: 1,
         maxSeats: 6,
       }),
+      games: () => [],
     };
     const html = headTags(pageFor("/6PMKG", SITE, nasty));
 
@@ -278,6 +392,7 @@ describe("what a crawler is told in so many words", () => {
             }
           : null,
       table: () => null,
+      games: () => [],
     };
 
     expect(node(pageFor("/slots", SITE, machine), "VideoGame")?.["playMode"]).toBe("SinglePlayer");
@@ -322,6 +437,7 @@ describe("what a crawler is told in so many words", () => {
         open: true,
       }),
       table: () => null,
+      games: () => [],
     };
     const html = jsonLd(pageFor("/anything", SITE, nasty));
 
