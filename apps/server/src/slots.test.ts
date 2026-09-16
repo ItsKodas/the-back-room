@@ -1213,8 +1213,7 @@ describe("the server stopping", () => {
       identifyRequest: () => null,
       spinRandom,
     });
-    await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
-    const port = (server.http.address() as AddressInfo).port;
+    const port = await listenForFetch(server.http);
     const clients = await Promise.all(
       players.map(async (as) => {
         const socket: Client = connect(`http://localhost:${port}`, {

@@ -1,4 +1,3 @@
-import type { AddressInfo } from "node:net";
 import { MemoryStore, STARTING_CHIPS } from "@backroom/economy";
 import type { ClientToServer, ServerToClient } from "@backroom/shared";
 import type { Socket } from "socket.io-client";
@@ -6,6 +5,7 @@ import { io as connect } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackRoomServer } from "./server.js";
 import type { BackRoomServer } from "./server.js";
+import { listenForFetch } from "./test-listen.js";
 
 /**
  * What the building does when its store will not answer.
@@ -47,8 +47,7 @@ async function start(store: MemoryStore, http: string | null, sockets: string | 
     identify: () => sockets,
     identifyRequest: () => http,
   });
-  await new Promise<void>((resolve) => server?.http.listen(0, () => resolve()));
-  return (server.http.address() as AddressInfo).port;
+  return listenForFetch(server.http);
 }
 
 /*

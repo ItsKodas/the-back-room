@@ -1,4 +1,7 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { FETCH_BLOCKED_PORTS, listenForFetch } from "./test-listen.js";
 
@@ -41,6 +44,18 @@ describe("listenForFetch", () => {
     const answer = await fetch(`http://127.0.0.1:${port}/`);
     expect(await answer.text()).toBe("reached");
     expect(FETCH_BLOCKED_PORTS.has(port)).toBe(false);
+  });
+
+  // The helper only helps the servers that use it. failures.test.ts kept its
+  // own listen(0) and flaked once in a full suite: the jar acked over the
+  // socket, which does not use fetch, and then its health check hit a blocked
+  // port and reported `fetch failed`. So every server test goes through here.
+  it("is how every server test listens", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const bare = readdirSync(here)
+      .filter((name) => /\.test\.tsx?$/.test(name) && name !== "test-listen.test.ts")
+      .filter((name) => /\.listen\(\s*0\s*[,)]/.test(readFileSync(join(here, name), "utf8")));
+    expect(bare).toEqual([]);
   });
 
   // The list is copied from the standard, so check it against the fetch that
