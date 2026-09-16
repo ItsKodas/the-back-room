@@ -114,7 +114,25 @@
   width: var(--left, 0%);
   background: linear-gradient(90deg, var(--gr-color-neon-dim), var(--gr-color-neon-hi));
   box-shadow: 0 0 10px var(--gr-color-neon);
-  transition: width 250ms linear;
+  /*
+   * `--left` only steps once a second (Strip.tsx gates it so the strip isn't
+   * re-rendered four times for nothing an onlooker can see), so a transition
+   * on `width` would just ease between those steps — a shorter jump dressed
+   * up, not a burn. This keyframe instead reads the fraction and duration
+   * fixed at the top of the turn and animates the whole of it in one pass;
+   * a transition here would fight it for the same property, so there isn't
+   * one.
+   */
+  animation: sc-fuse var(--fuse-ms, 0ms) linear forwards;
+}
+
+@keyframes sc-fuse {
+  from {
+    width: var(--fuse-from, 0%);
+  }
+  to {
+    width: 0%;
+  }
 }
 
 .sc-strip__turn {

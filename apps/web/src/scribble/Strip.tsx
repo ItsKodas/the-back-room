@@ -17,6 +17,22 @@ export const clock = (seconds: number | null) =>
 const speak = (mask: (string | null)[]) =>
   mask.map((one) => (one === null ? "blank" : one === " " ? "space" : one.toUpperCase())).join(", ");
 
+/**
+ * The fuse's shape for a single CSS animation: how much of the bar is still
+ * unburned right now, and how long it has left to burn — both read from the
+ * server's own `now` rather than the browser's clock, so a turn that starts
+ * mid-render (a phone that just woke up, a client that just reconnected)
+ * still gets a burn that lines up with everyone else's, and this is provable
+ * against a fake clock instead of only by eye.
+ */
+function fuseAt(deadline: number | null, now: number, totalMs: number): { from: number; ms: number } {
+  if (deadline === null || totalMs <= 0) {
+    return { from: 0, ms: 0 };
+  }
+  const ms = Math.max(0, deadline - now);
+  return { from: Math.min(1, ms / totalMs), ms };
+}
+
 function Word({ state }: { state: TableView }) {
   if (state.word !== null) {
     return <span className="sc-word sc-word--shown">{state.word.toUpperCase()}</span>;
@@ -59,8 +75,27 @@ export function Strip({ state }: { state: TableView }) {
         ? `${drawers.join(" & ")} ${verb}`
         : "";
   const fuse = left === null ? 0 : Math.min(1, (left * 1000) / total);
+  const { from, ms } = fuseAt(state.deadline, state.now, total);
   return (
-    <div className="sc-strip" style={{ "--left": `${fuse * 100}%` } as CSSProperties}>
+    <div
+      className="sc-strip"
+      /*
+       * Every timed phase (waiting, picking, drawing, reveal, over) hands out
+       * its own `deadline`, so keying on phase and deadline together gives a
+       * fresh key exactly when a new burn should start — a React key change
+       * is what replays a CSS animation, the same trick Napkin.tsx uses for
+       * the wipe. Without it the fuse would keep animating from wherever the
+       * last turn's burn left off.
+       */
+      key={`${state.phase}:${state.deadline ?? "none"}`}
+      style={
+        {
+          "--left": `${fuse * 100}%`,
+          "--fuse-from": `${from * 100}%`,
+          "--fuse-ms": `${ms}ms`,
+        } as CSSProperties
+      }
+    >
       <div className="sc-strip__turn">
         <span>{state.round > 0 ? `Round ${state.round} of ${state.rounds}` : "Waiting"}</span>
         <b>{who}</b>

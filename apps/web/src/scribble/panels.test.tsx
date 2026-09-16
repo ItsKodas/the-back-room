@@ -82,6 +82,61 @@ describe("the strip", () => {
     );
     expect(pair.querySelector(".sc-strip__turn b")?.textContent).toBe("S1 & You draw");
   });
+
+  it("carries the fuse's starting fraction and remaining time as custom properties, off the injected clock", () => {
+    // 40s of an 80s turn remain: half the bar, forty thousand milliseconds —
+    // both read from `now`/`deadline` on the view, never `Date.now()`, so
+    // this is exactly as true on a fake clock as on a real one.
+    const { container } = render(
+      <Strip state={viewOf({ phase: "drawing", drawMs: 80_000, deadline: 2_000_060_000, now: 2_000_020_000 })} />,
+    );
+    const strip = container.querySelector(".sc-strip") as HTMLElement;
+    expect(strip.style.getPropertyValue("--fuse-from")).toBe("50%");
+    expect(strip.style.getPropertyValue("--fuse-ms")).toBe("40000ms");
+  });
+
+  it("replays the burn for a new turn rather than continuing the last one's position", () => {
+    // A CSS animation only restarts if the element carrying it is a fresh
+    // DOM node — hence the key change on a new deadline. Same node, same
+    // animation: it would keep burning from wherever it left off.
+    const first = viewOf({ phase: "drawing", drawMs: 80_000, deadline: 2_000_060_000, now: 2_000_000_000 });
+    const { container, rerender } = render(<Strip state={first} />);
+    const before = container.querySelector(".sc-strip");
+    const second = viewOf({ phase: "drawing", drawMs: 80_000, deadline: 2_000_140_000, now: 2_000_060_000 });
+    rerender(<Strip state={second} />);
+    const after = container.querySelector(".sc-strip");
+    expect(after).not.toBeNull();
+    expect(after).not.toBe(before);
+  });
+
+  it("does not replay the burn for an unrelated re-render within the same turn", () => {
+    // A hint landing, a guess coming in — anything that re-renders the strip
+    // without a new deadline must leave the running animation alone.
+    const state = viewOf({ phase: "drawing", drawMs: 80_000, deadline: 2_000_060_000, now: 2_000_000_000, mask: [null, null] });
+    const { container, rerender } = render(<Strip state={state} />);
+    const before = container.querySelector(".sc-strip");
+    rerender(<Strip state={{ ...state, mask: ["l", null] }} />);
+    const after = container.querySelector(".sc-strip");
+    expect(after).toBe(before);
+  });
+
+  it("keeps --left stepping once a second, the reduced-motion floor", () => {
+    // The keyframe is the enhancement; this per-second step is what still
+    // says how much time is left with motion switched off, so it must keep
+    // doing exactly what it did before the burn was added.
+    vi.useFakeTimers();
+    vi.setSystemTime(2_000_000_000);
+    const { container } = render(
+      <Strip state={viewOf({ phase: "drawing", drawMs: 80_000, deadline: 2_000_010_000, now: 2_000_000_000 })} />,
+    );
+    const strip = () => container.querySelector(".sc-strip") as HTMLElement;
+    expect(strip().style.getPropertyValue("--left")).toBe("12.5%");
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(strip().style.getPropertyValue("--left")).toBe("11.25%");
+    vi.useRealTimers();
+  });
 });
 
 describe("picking the word", () => {

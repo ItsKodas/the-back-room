@@ -120,6 +120,21 @@ describe("the scribble room's stylesheet", () => {
     expect(css).toMatch(/\.sc-teams,\s*\.sc-guesses\s*\{[^}]*max-width:\s*360px;/);
   });
 
+  it("burns the fuse across the whole turn in one linear pass, with nothing left to fight it for width", () => {
+    // The old `transition: width 250ms linear` eased between the once-a-
+    // second steps `--left` takes — a shorter jump dressed up, not a burn.
+    // A transition and this keyframe animating the same property at once is
+    // the bug the brief warned about, so the transition has to be gone.
+    expect(css).toMatch(
+      /\.sc-strip::after\s*\{[^}]*animation:\s*sc-fuse var\(--fuse-ms, 0ms\) linear forwards;[^}]*\}/,
+    );
+    const after = [...css.matchAll(/\.sc-strip::after\s*\{([^}]*)\}/g)][0]?.[1] ?? "";
+    expect(after).not.toMatch(/transition:/);
+    const keyframe = [...css.matchAll(/@keyframes sc-fuse\s*\{([\s\S]*?)\n\}/g)][0]?.[1] ?? "";
+    expect(keyframe).toMatch(/from\s*\{\s*width:\s*var\(--fuse-from, 0%\);/);
+    expect(keyframe).toMatch(/to\s*\{\s*width:\s*0%;/);
+  });
+
   it("widens the room's own page rather than the six games that share .play", () => {
     // `.play--scribble` alone ties `.play` on specificity — a coin flip on
     // stylesheet order that this room lost the first time. It has to be
