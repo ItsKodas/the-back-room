@@ -43,13 +43,15 @@ type Table = TableSocketHook<TableView>;
  * (scribble.css) have to leave to everything else in the column, measured
  * off the real DOM rather than guessed: navbar + page padding + the strip
  * (single line) comes to ~232px; the drawer's own tray, shown below the
- * strip only while they're actually drawing, adds ~120px of its own height
- * plus the row-gap above it (12px) for ~364px. A guesser mid-turn — and
+ * strip only while they're actually drawing, adds ~164px of its own height
+ * plus the row-gap above it (12px) for ~408px. The tray grew a row (~120px
+ * to ~164px) when the tool row split off from the size row rather than
+ * sharing it with Fill and Eraser — see Tray.tsx. A guesser mid-turn — and
  * every other phase the napkin is visible in, picking and reveal — never
  * gets a tray (see `ink.drawing` below), so charging them for one is dead
  * space this pays back.
  */
-const NAPKIN_CHROME_WITH_TRAY = 364;
+const NAPKIN_CHROME_WITH_TRAY = 408;
 const NAPKIN_CHROME_NO_TRAY = 232;
 
 export function Felt({ table, state, seatId }: { table: Table; state: TableView; seatId: string | null }) {

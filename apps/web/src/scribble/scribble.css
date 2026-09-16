@@ -674,24 +674,39 @@
   gap: 8px;
 }
 
-.sc-inks {
+/*
+ * Ink and size are grids rather than a fixed column count, and neither
+ * overrides `.lamp`'s own 44px floor the way this sheet used to: a fixed
+ * `repeat(9, …)` with `min-width: 0` was what let nine inks measure
+ * 30.66×40px in play — under both the fittings' 44px baseline and the
+ * thumb this row sits under mid-turn. `auto-fit` with a 44px floor instead
+ * wraps to as many rows as a narrow screen needs, at whatever width it has,
+ * and stretches to fill a wider one instead of leaving a ragged gap.
+ */
+.sc-inks,
+.sc-sizes {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 6px;
 }
 
 .lamp.sc-ink,
-.lamp.sc-size {
-  flex: none;
+.lamp.sc-size,
+.lamp.sc-tool {
   display: grid;
   place-items: center;
-  min-width: 0;
-  min-height: 40px;
   padding: 0;
 }
 
-.lamp.sc-size {
-  width: 40px;
+/* Tool sits in a flex row beside Undo and Clear, not a grid — `.lamp`'s own flex-grow would otherwise stretch it across the row's whole width. */
+.lamp.sc-tool {
+  flex: none;
+  width: 44px;
+}
+
+.lamp.sc-tool svg {
+  width: 20px;
+  height: 20px;
 }
 
 .lamp.sc-ink span {
@@ -716,36 +731,21 @@
   background: currentColor;
 }
 
-.sc-tray__row,
-.sc-tray__group {
+.sc-tray__row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sc-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .sc-tray__gap {
   flex: 1;
-}
-
-/*
- * Fill and Eraser have no other lit state anywhere in the building — the
- * eraser is an ordinary ink (Amendment 8), not a mode with its own button
- * styling elsewhere, so this is the one control the "selection reads without
- * hover" rule left uncovered. Kept local rather than promoted to the
- * fittings: whether every key in the building should light like this is a
- * decision about every game's controls, not this one's.
- */
-.sc-tray .key[aria-pressed="true"] {
-  border-color: var(--gr-color-neon);
-  color: var(--gr-color-neon-core);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--gr-color-neon) 36%, transparent),
-    color-mix(in srgb, var(--gr-color-neon) 14%, transparent)
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.18),
-    0 0 14px color-mix(in srgb, var(--gr-color-neon) 40%, transparent);
 }
 
 /* On a phone the tray and the guess box stay under the thumb while the napkin scrolls. */

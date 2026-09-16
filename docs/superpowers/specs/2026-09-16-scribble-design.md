@@ -242,8 +242,10 @@ Validated by zod inside the game.
 - **`id`** is a stroke id the drawer's client makes; later batches with the same
   `id` extend that stroke. **`seq`** numbers the batches so a repeat is
   discarded.
-- **`ink`** is one of nine named inks; **`size`** one of three. Nothing
-  free-form.
+- **`ink`** is one of nine named inks; **`size`** one of five. Nothing
+  free-form. The five sizes are not sorted in the wire's own array — see
+  `SIZES` in `ink.ts` — because the array's *index* is what a mark stores; the
+  tray sorts them for display.
 - **`undo`** removes the most recent stroke or fill *by that drawer*, never the
   partner's.
 - **`clear`** empties the napkin for both drawers.
@@ -337,7 +339,7 @@ Scribble routes as follows:
 | `Napkin.tsx` | The canvas. |
 | `useInk.ts` | Local drawing, batching, pending strokes, applying relays. |
 | `fill.ts` | Flood fill on the fixed bitmap. |
-| `Tray.tsx` | Inks, sizes, fill, eraser, undo, clear. |
+| `Tray.tsx` | Tool (pencil, eraser, fill), ink, size, undo, clear. |
 | `GuessLog.tsx` | The log and its input, rendering each `kind`. |
 | `Teams.tsx` | Team wells on desktop, pills and a roster sheet on a phone. |
 | `WordPick.tsx`, `Reveal.tsx`, `TeamPick.tsx` | The three in-between screens. |

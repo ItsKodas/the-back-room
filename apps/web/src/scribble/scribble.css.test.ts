@@ -59,8 +59,14 @@ describe("the scribble room's stylesheet", () => {
     expect(css).toMatch(/\.sc-teams__wells\s+\.well\.sc-team\.is-open\s*\{/);
   });
 
-  it("lights fill and eraser when pressed, the only tray controls with no other lit state in the building", () => {
-    expect(css).toMatch(/\.sc-tray \.key\[aria-pressed="true"\]\s*\{[^}]*border-color:/);
+  it("no longer needs a locally scoped aria-pressed rule for the tray — pencil, eraser and fill are one radiogroup the building's own [aria-checked] rule already lights", () => {
+    // The old rule tied `.sc-tray .key[aria-pressed="true"]` against
+    // `.key:hover:not(:disabled)` at equal specificity (0,3,0 each) — a coin
+    // flip on stylesheet order. Making the three tools a radiogroup of plain
+    // `.lamp` buttons resolves the tie by removing one side of it, rather
+    // than trying to out-specify a rule shared with every other key in the
+    // building.
+    expect(css).not.toMatch(/\.sc-tray \.key\[aria-pressed="true"\]/);
   });
 
   it("marks the team pill you tapped open, without fighting the drawing pill's own box-shadow", () => {

@@ -1,6 +1,6 @@
 import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
-import { INK_REFUSALS, InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill } from "./ink.js";
+import { INK_REFUSALS, InkLog, MAX_BATCH, MAX_POINTS, readBatch, readFill, SIZES } from "./ink.js";
 
 /** Runs `fn`, and hands back the message it threw rather than letting it propagate. */
 const messageOf = (fn: () => void): string => {
@@ -33,7 +33,9 @@ describe("reading a batch off the wire", () => {
       { ...good, seq: -1 },
       { ...good, seq: 1.5 },
       { ...good, ink: "gold" },
-      { ...good, size: 3 },
+      // One past the last real index, wherever SIZES actually ends — not a
+      // literal 3, or this stops proving anything the day a size is added.
+      { ...good, size: SIZES.length },
       { ...good, pts: [] },
       { ...good, pts: [1] },
       { ...good, pts: [1001, 0] },

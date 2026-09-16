@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { TableView } from "@backroom/game-scribble";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Reveal } from "./Reveal.js";
 import { Strip } from "./Strip.js";
@@ -398,29 +398,103 @@ describe("the team scores", () => {
 });
 
 describe("the tray", () => {
-  it("picks an ink and puts the pen back in your hand", () => {
+  it("offers pencil, eraser and fill as one tool choice", () => {
+    render(<Tray tool={{ ink: "black", size: 1, mode: "pen" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
+    const tools = screen.getByRole("radiogroup", { name: "Tool" });
+    expect(within(tools).getAllByRole("radio")).toHaveLength(3);
+    expect(within(tools).getByRole("radio", { name: "Pencil" })).toHaveAttribute("aria-checked", "true");
+    expect(within(tools).getByRole("radio", { name: "Eraser" })).toHaveAttribute("aria-checked", "false");
+    expect(within(tools).getByRole("radio", { name: "Fill" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("switches to fill on a press, and pencil switches back to draw", () => {
     const onTool = vi.fn();
-    render(<Tray tool={{ ink: "black", size: 1, mode: "fill" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    const { rerender } = render(<Tray tool={{ ink: "black", size: 1, mode: "pen" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Fill" }));
+    expect(onTool).toHaveBeenCalledWith({ ink: "black", size: 1, mode: "fill" });
+
+    rerender(<Tray tool={{ ink: "black", size: 1, mode: "fill" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Pencil" }));
+    expect(onTool).toHaveBeenLastCalledWith({ ink: "black", size: 1, mode: "pen" });
+  });
+
+  it("picks an ink and puts the pen back in your hand, but leaves fill's colour alone while filling", () => {
+    const onTool = vi.fn();
+    const { rerender } = render(<Tray tool={{ ink: "black", size: 1, mode: "eraser" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Blue" }));
-    expect(onTool).toHaveBeenCalledWith({ ink: "blue", size: 1, mode: "fill" });
-    fireEvent.click(screen.getByRole("button", { name: "Eraser" }));
-    expect(onTool).toHaveBeenLastCalledWith({ ink: "black", size: 1, mode: "eraser" });
+    expect(onTool).toHaveBeenLastCalledWith({ ink: "blue", size: 1, mode: "pen" });
+
+    rerender(<Tray tool={{ ink: "blue", size: 1, mode: "fill" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Red" }));
+    expect(onTool).toHaveBeenLastCalledWith({ ink: "red", size: 1, mode: "fill" });
+  });
+
+  it("reads the chosen ink as checked even while erasing, so the pen you get back is never a surprise", () => {
+    // Regression: the ink radios used to read `tool.mode !== "eraser" &&
+    // tool.ink === ink`, so every ink went dark the moment you erased and
+    // there was no way to see which one pressing Pencil would hand back.
+    render(<Tray tool={{ ink: "blue", size: 1, mode: "eraser" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
+    expect(screen.getByRole("radio", { name: "Blue" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("names its icon keys, including the one that wipes both drawers' work", () => {
     render(<Tray tool={{ ink: "black", size: 1, mode: "pen" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
-    for (const name of ["Fill", "Eraser", "Undo", "Clear the napkin"]) {
+    for (const name of ["Undo", "Clear the napkin"]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    for (const name of ["Pencil", "Eraser", "Fill"]) {
+      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
     }
   });
 
-  it("offers exactly the three sizes, and picks one on the press", () => {
+  it("keys pencil, eraser and fill to the building's own [aria-checked] lit style, not a locally scoped aria-pressed one", () => {
+    render(<Tray tool={{ ink: "black", size: 1, mode: "pen" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
+    for (const name of ["Pencil", "Eraser", "Fill"]) {
+      const control = screen.getByRole("radio", { name });
+      expect(control).not.toHaveAttribute("aria-pressed");
+      expect(control).toHaveClass("lamp");
+    }
+  });
+
+  it("offers exactly five sizes, ordered smallest to largest, for pencil and for eraser alike", () => {
+    const onTool = vi.fn();
+    const { rerender } = render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    const sizes = screen.getByRole("radiogroup", { name: "Size" });
+    expect(within(sizes).getAllByRole("radio").map((radio) => radio.getAttribute("aria-label"))).toEqual([
+      "Hairline",
+      "Fine",
+      "Medium",
+      "Thick",
+      "Bold",
+    ]);
+    expect(within(sizes).getByRole("radio", { name: "Fine" })).toHaveAttribute("aria-checked", "true");
+    // The size a press sends is the array index, not its position on screen
+    // — Bold is appended at index 4, not sorted in among the original three.
+    fireEvent.click(within(sizes).getByRole("radio", { name: "Bold" }));
+    expect(onTool).toHaveBeenCalledWith({ ink: "black", size: 4, mode: "pen" });
+
+    rerender(<Tray tool={{ ink: "black", size: 0, mode: "eraser" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
+    expect(screen.getByRole("radiogroup", { name: "Size" })).toBeInTheDocument();
+  });
+
+  it("hides the size row for fill — a flood has no size to offer", () => {
+    render(<Tray tool={{ ink: "black", size: 0, mode: "fill" }} onTool={() => {}} onUndo={() => {}} onClear={() => {}} />);
+    expect(screen.queryByRole("radiogroup", { name: "Size" })).toBeNull();
+  });
+
+  it("moves the roving tab stop through the sizes with the arrow keys, and picks the one it lands on", () => {
     const onTool = vi.fn();
     render(<Tray tool={{ ink: "black", size: 0, mode: "pen" }} onTool={onTool} onUndo={() => {}} onClear={() => {}} />);
-    expect(screen.getAllByRole("radio", { name: /^(Fine|Medium|Thick)$/ })).toHaveLength(3);
-    expect(screen.getByRole("radio", { name: "Fine" })).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByRole("radio", { name: "Thick" }));
-    expect(onTool).toHaveBeenCalledWith({ ink: "black", size: 2, mode: "pen" });
+    const group = screen.getByRole("radiogroup", { name: "Size" });
+    const fine = screen.getByRole("radio", { name: "Fine" });
+    const hairline = screen.getByRole("radio", { name: "Hairline" });
+    // Fine (size 0) is checked, so it is the group's one tab stop.
+    expect(fine).toHaveAttribute("tabindex", "0");
+    expect(hairline).toHaveAttribute("tabindex", "-1");
+    fine.focus();
+    fireEvent.keyDown(group, { key: "ArrowRight" });
+    expect(onTool).toHaveBeenCalledWith({ ink: "black", size: 1, mode: "pen" });
+    expect(screen.getByRole("radio", { name: "Medium" })).toHaveFocus();
   });
 
   it("never lists paper among the inks you can choose — it's the eraser, not a colour", () => {

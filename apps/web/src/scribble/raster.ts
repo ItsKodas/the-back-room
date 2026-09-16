@@ -15,7 +15,8 @@ const PAPER_WORD = new Uint32Array(new Uint8ClampedArray([PAPER[0], PAPER[1], PA
  * A disc's row half-widths, keyed by radius: for each `dy` from `-reach` to
  * `reach`, the largest `dx` with `dx² + dy² <= radius²` — the same boundary
  * `stamp` used to test cell by cell, computed once per radius (there are
- * only three, from `SIZES`) rather than for every centre a stroke passes.
+ * only a handful, one per `SIZES` entry) rather than for every centre a
+ * stroke passes.
  */
 const DISC_SPANS = new Map<number, readonly number[]>();
 

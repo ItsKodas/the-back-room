@@ -7,8 +7,17 @@ import { TableError } from "@backroom/core";
 export const INKS = ["black", "red", "orange", "yellow", "green", "blue", "purple", "brown", "white", "paper"] as const;
 export type Ink = (typeof INKS)[number];
 
-/** Diameters in grid units. A mark stores the index, never a free-form width. */
-export const SIZES = [4, 10, 22] as const;
+/*
+ * Diameters in grid units. A mark stores the index, never a free-form width —
+ * which makes this array's own order load-bearing: index 0–2 are the three
+ * sizes this room shipped with, unmoved, because a stroke in flight and every
+ * size-bearing test already means "index 1" by "the medium one". The two
+ * brush sizes added after are appended at 3 and 4 rather than sorted into
+ * place among the first three, so no existing index changes what it means.
+ * The tray orders all five by diameter for display — see Tray.tsx — this
+ * array only has to keep each index's own meaning stable.
+ */
+export const SIZES = [4, 10, 22, 2, 34] as const;
 
 /*
  * A fixed grid rather than pixels, so a point means the same place on a phone

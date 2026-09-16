@@ -46,6 +46,15 @@ describe("segmentSteps", () => {
     // stamp a different disc on another engine. sqrt(35² + 120²) is exact.
     expect(segmentSteps(0, 0, 35, 120, 2)).toBe(125);
   });
+
+  it("floors the step divisor at the new Hairline radius exactly as it already did at the old smallest one", () => {
+    // `Math.max(1, radius / 2)` is the guard: radius 2's own divisor is
+    // already floored to 1 (2/2 = 1), and radius 1's divisor floors to the
+    // same 1 (1/2 = 0.5, floored up) — so adding a radius smaller than any
+    // existing size does not stamp a denser run of discs than the smallest
+    // size already did. Asserted directly rather than assumed, per the brief.
+    expect(segmentSteps(0, 0, 200, 0, 1)).toBe(segmentSteps(0, 0, 200, 0, 2));
+  });
 });
 
 describe("the napkin's rasteriser", () => {
