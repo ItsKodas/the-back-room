@@ -88,6 +88,13 @@ export function TeamPick({
                   if (mine === team.index) {
                     return;
                   }
+                  // Changing your mind before the server has answered is legitimate — unlike
+                  // WordPick's one-shot word, a team switch just replaces the outstanding one,
+                  // so the timer it's replacing has to go with it or its own expiry later
+                  // reverts a pick nobody refused.
+                  if (giveUp.current !== null) {
+                    clearTimeout(giveUp.current);
+                  }
                   setMoved(team.index);
                   giveUp.current = setTimeout(() => {
                     giveUp.current = null;

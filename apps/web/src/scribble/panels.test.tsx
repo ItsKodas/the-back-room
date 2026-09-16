@@ -261,6 +261,45 @@ describe("picking a team", () => {
     expect(screen.getByRole("radio", { name: /orange/i })).toHaveAttribute("aria-checked", "false");
     vi.useRealTimers();
   });
+
+  it("clears the timer it replaces, rather than being clobbered by an earlier press's expiry", () => {
+    // Both teams have to stay open across the switch, or the second press
+    // would be blocked by something other than the bug this test targets.
+    vi.useFakeTimers();
+    const seats = [seat("s0", { team: 0 }), seat("s1", { team: 1 }), seat("s2", { team: null }), seat("s3", { team: null })];
+    const state = viewOf({
+      phase: "waiting",
+      mode: "teams",
+      seats,
+      you: seats[3] ?? null,
+      turn: null,
+      mask: null,
+      teams: [
+        { index: 0, name: "Blue", score: 0, members: ["s0"] },
+        { index: 1, name: "Orange", score: 0, members: ["s1"] },
+      ],
+    });
+    render(<TeamPick state={state} seatId="s3" act={() => {}} error={null} />);
+    fireEvent.click(screen.getByRole("radio", { name: /blue/i }));
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /orange/i }));
+    expect(screen.getByRole("radio", { name: /orange/i })).toHaveAttribute("aria-checked", "true");
+    // Blue's own give-up window (6s from its press) elapses now. It must not
+    // revert a second press that is still outstanding and unanswered.
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByRole("radio", { name: /orange/i })).toHaveAttribute("aria-checked", "true");
+    // Orange's own window (6s from *its* press) elapses with nothing coming
+    // back — the fix has to still give up eventually, not just disable it.
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByRole("radio", { name: /orange/i })).toHaveAttribute("aria-checked", "false");
+    vi.useRealTimers();
+  });
 });
 
 describe("the team scores", () => {
