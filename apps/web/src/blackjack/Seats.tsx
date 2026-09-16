@@ -120,7 +120,10 @@ function Plate({
           {seat.name}
           {mine ? " (you)" : ""}
         </span>
-        {mine && tag !== null ? <TagMark tag={tag} /> : null}
+        {/* A split seat's own state — waiting, gone — has nowhere else to be
+            said: Minis speaks only for the hands, and the play block below is
+            only rendered for a seat that isn't split. */}
+        {(mine || split) && tag !== null ? <TagMark tag={tag} /> : null}
         {bet > 0 ? (
           <span className="bj__bet">{fmt(bet)}</span>
         ) : state.forFun ? (

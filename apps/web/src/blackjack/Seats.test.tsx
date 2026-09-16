@@ -74,6 +74,24 @@ describe("the seats", () => {
     expect(container.querySelector(".bj__seat--other.bj__seat--split")).toBeNull();
   });
 
+  it("say a split seat's own state — waiting or gone — the same as anybody else's", () => {
+    const state = yourTurn();
+    const bo = seat("b", "Bo", {
+      waiting: true,
+      bet: 1_000,
+      hands: [
+        hand({ bet: 500, cards: [card("A"), card("9")], total: 20, fromSplit: true, done: true }),
+        hand({ bet: 500, cards: [card("A", "hearts"), card("6")], total: 17, fromSplit: true }),
+      ],
+    });
+    render(
+      <Seats state={{ ...state, seats: [state.seats[0] ?? seat("a", "Ada"), bo] }} seatId="a" stake={0} arriving={false} />,
+    );
+    const boArticle = screen.getByRole("article", { name: "Bo" });
+    expect(boArticle.classList.contains("bj__seat--out")).toBe(true);
+    expect(boArticle.textContent).toContain("Next hand");
+  });
+
   it("say a payout in gold and glow the seat it went to", () => {
     render(<Seats state={settledHand()} seatId="a" stake={0} arriving={false} />);
     const mine = screen.getByRole("article", { name: "Ada (you)" });
