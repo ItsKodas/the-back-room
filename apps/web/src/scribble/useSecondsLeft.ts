@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
  * Seconds until `deadline`, by the server's clock.
@@ -8,16 +8,31 @@ import { useEffect, useMemo, useState } from "react";
  */
 export function useSecondsLeft(deadline: number | null, serverNow: number): number | null {
   const offset = useMemo(() => serverNow - Date.now(), [serverNow]);
-  const [, setTick] = useState(0);
+  const compute = useCallback(
+    () => (deadline === null ? null : Math.max(0, Math.ceil((deadline - (Date.now() + offset)) / 1000))),
+    [deadline, offset],
+  );
+  const [left, setLeft] = useState(compute);
   useEffect(() => {
+    // A changed deadline (a new turn) or a corrected offset both mean whatever
+    // was showing is stale, so this recomputes at once rather than waiting a tick.
+    setLeft(compute());
     if (deadline === null) {
       return;
     }
-    const timer = setInterval(() => setTick((n) => n + 1), 250);
+    const timer = setInterval(() => {
+      /*
+       * A quarter-second tick is fine granularity for catching the second
+       * boundary, but the displayed number changes at most once a second —
+       * writing state four times for one visible change would re-render the
+       * whole strip for nothing an onlooker can see.
+       */
+      setLeft((previous) => {
+        const next = compute();
+        return next === previous ? previous : next;
+      });
+    }, 250);
     return () => clearInterval(timer);
-  }, [deadline]);
-  if (deadline === null) {
-    return null;
-  }
-  return Math.max(0, Math.ceil((deadline - (Date.now() + offset)) / 1000));
+  }, [deadline, compute]);
+  return left;
 }

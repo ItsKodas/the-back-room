@@ -3,8 +3,19 @@ import { COUNTDOWN_MS, PICK_MS, RESULT_MS, REVEAL_MS, TEAM_NAMES } from "@backro
 import type { CSSProperties } from "react";
 import { useSecondsLeft } from "./useSecondsLeft.js";
 
-const clock = (seconds: number | null) =>
+// Shared with WordPick and TeamPick, so "0:07" is spelled the same way everywhere it's shown.
+export const clock = (seconds: number | null) =>
   seconds === null ? "" : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+/*
+ * What a screen reader says for the mask, in the order the letters sit.
+ * `role="img"` replaces the DOM content with this string, so a hint that
+ * opens has to be spoken here or a blind player never learns which letter
+ * the server just revealed — a letter count alone never changes when a hint
+ * does.
+ */
+const speak = (mask: (string | null)[]) =>
+  mask.map((one) => (one === null ? "blank" : one === " " ? "space" : one.toUpperCase())).join(", ");
 
 function Word({ state }: { state: TableView }) {
   if (state.word !== null) {
@@ -15,8 +26,7 @@ function Word({ state }: { state: TableView }) {
   }
   const letters = state.mask.filter((one) => one === null || /\p{L}/u.test(one)).length;
   return (
-    // A guesser's masked word is a picture of blanks and letters, read out as its count.
-    <span className="sc-word" role="img" aria-label={`${letters} letters`}>
+    <span className="sc-word" role="img" aria-label={`${letters} letters: ${speak(state.mask)}`}>
       {state.mask.map((one, index) =>
         one === " " ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: a letter's place in the word is its identity
@@ -39,12 +49,14 @@ export function Strip({ state }: { state: TableView }) {
     state.phase
   ];
   const drawers = state.seats.filter((one) => one.drawing).map((one) => (one.id === state.you?.id ? "You" : one.name));
+  // Third person singular takes the "-s"; everything else — "you", or two names joined — doesn't.
+  const verb = drawers.length === 1 && drawers[0] !== "You" ? "draws" : "draw";
   const turn = state.turn;
   const who =
     turn !== null && turn.team !== null
       ? `${TEAM_NAMES[turn.team]} draws`
       : drawers.length > 0
-        ? `${drawers.join(" & ")} ${drawers[0] === "You" ? "draw" : "draws"}`
+        ? `${drawers.join(" & ")} ${verb}`
         : "";
   const fuse = left === null ? 0 : Math.min(1, (left * 1000) / total);
   return (
@@ -54,7 +66,8 @@ export function Strip({ state }: { state: TableView }) {
         <b>{who}</b>
       </div>
       <Word state={state} />
-      <span className="sc-clock" role="timer" aria-label={left === null ? undefined : `${left} seconds left`}>
+      {/* A static name, so the region has one even the instant `left` is null; the count itself is its content. */}
+      <span className="sc-clock" role="timer" aria-label="Time left">
         {clock(left)}
       </span>
     </div>

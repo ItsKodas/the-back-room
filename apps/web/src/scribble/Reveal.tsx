@@ -1,5 +1,4 @@
 import type { TableView } from "@backroom/game-scribble";
-import { TEAM_NAMES } from "@backroom/game-scribble";
 import type { CSSProperties } from "react";
 
 export function Reveal({ state, seatId }: { state: TableView; seatId: string | null }) {
@@ -15,9 +14,12 @@ export function Reveal({ state, seatId }: { state: TableView; seatId: string | n
   let result: string | null = null;
   if (state.phase === "over") {
     if (state.mode === "teams") {
-      const top = Math.max(...state.teams.map((team) => team.score));
-      const winners = state.teams.filter((team) => team.score === top).map((team) => team.name);
-      result = winners.length === 1 ? `${winners[0]} win` : `${winners.join(" & ")} tie`;
+      // An empty team list has no top score to spread ties around — Math.max of nothing is -Infinity, not a fact to show.
+      const scores = state.teams.map((team) => team.score);
+      const top = scores.length === 0 ? null : Math.max(...scores);
+      const winners = top === null ? [] : state.teams.filter((team) => team.score === top).map((team) => team.name);
+      result =
+        winners.length === 0 ? null : winners.length === 1 ? `${winners[0]} win` : `${winners.join(" & ")} tie`;
     } else {
       const names = state.winners.map(name);
       result = names.length === 1 ? `${names[0]} ${names[0] === "You" ? "win" : "wins"}` : `${names.join(" & ")} tie`;
@@ -58,7 +60,7 @@ export function Reveal({ state, seatId }: { state: TableView; seatId: string | n
                 return (
                   <div key={team.index} className={`readout sc-team sc-team--${team.index}`}>
                     <span className="readout__note">
-                      {TEAM_NAMES[team.index]} · +{delta}
+                      {team.name} · +{delta}
                     </span>
                     <span className="readout__figure">{team.score.toLocaleString("en-GB")}</span>
                   </div>

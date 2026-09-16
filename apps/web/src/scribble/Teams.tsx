@@ -19,8 +19,8 @@ function Roster({ seats, seatId }: { seats: SeatView[]; seatId: string | null })
 
 /** Scores: wells down the side on a desk, and four pills that open them on a phone. */
 export function Teams({ state, seatId }: { state: TableView; seatId: string | null }) {
-  // Tapped open on a phone. Hover would do nothing under a thumb.
-  const [open, setOpen] = useState(false);
+  // Which team's well is tapped open on a phone — one at a time, and each pill only speaks for itself.
+  const [open, setOpen] = useState<number | null>(null);
 
   if (state.mode === "solo") {
     const ranked = [...state.seats].sort((a, b) => b.score - a.score);
@@ -35,16 +35,16 @@ export function Teams({ state, seatId }: { state: TableView; seatId: string | nu
 
   const drawingTeam = state.turn?.team ?? null;
   return (
-    <aside className={`sc-teams${open ? " is-open" : ""}`} aria-label="Team scores">
+    <aside className="sc-teams" aria-label="Team scores">
       <div className="sc-pills">
         {state.teams.map((team) => (
           <button
             key={team.index}
             type="button"
             className={`sc-pill sc-team sc-team--${team.index}${drawingTeam === team.index ? " sc-team--drawing" : ""}`}
-            aria-expanded={open}
+            aria-expanded={open === team.index}
             aria-label={`${team.name}, ${team.score.toLocaleString("en-GB")}${drawingTeam === team.index ? ", drawing" : ""}`}
-            onClick={() => setOpen((was) => !was)}
+            onClick={() => setOpen((was) => (was === team.index ? null : team.index))}
           >
             {team.score.toLocaleString("en-GB")}
           </button>
@@ -54,7 +54,7 @@ export function Teams({ state, seatId }: { state: TableView; seatId: string | nu
         {state.teams.map((team) => (
           <div
             key={team.index}
-            className={`well sc-team sc-team--${team.index}${drawingTeam === team.index ? " sc-team--drawing" : ""}`}
+            className={`well sc-team sc-team--${team.index}${drawingTeam === team.index ? " sc-team--drawing" : ""}${open === team.index ? " is-open" : ""}`}
           >
             <div className="sc-team__head">
               <span className="sc-team__name">{team.name}</span>
