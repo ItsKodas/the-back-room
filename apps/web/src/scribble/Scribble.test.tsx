@@ -71,6 +71,42 @@ describe("the scribble felt", () => {
     expect(screen.queryByRole("toolbar", { name: "Drawing tools" })).toBeNull();
   });
 
+  it("tells the table you are in, and says so on the press rather than when it answers", () => {
+    const act = vi.fn();
+    const seats = [seat("s0"), seat("s1"), seat("s2")];
+    const state = viewOf({ phase: "waiting", seats, you: seats[0] ?? null, readyCount: 0, mask: null });
+    render(<Felt table={stub({ act })} state={state} seatId="s0" />);
+
+    const button = screen.getByRole("button", { name: "I'm ready" });
+    fireEvent.click(button);
+    expect(act).toHaveBeenCalledWith({ type: "ready", ready: true });
+    // The press is your own choice, so it lands without waiting for a state.
+    expect(screen.getByRole("button", { name: "Not ready" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  /*
+   * Below the minimum the button still shows — pressing it early is how a
+   * table goes the moment the last person sits — but it must not promise a
+   * deal that cannot come.
+   */
+  it("says what is actually being waited for while the table is short", () => {
+    const seats = [seat("s0")];
+    const short = viewOf({ phase: "waiting", seats, you: seats[0] ?? null, readyCount: 1, mask: null });
+    const { unmount } = render(<Felt table={stub()} state={short} seatId="s0" />);
+    expect(screen.getByText(/still 2 short, so nothing deals yet/)).toBeInTheDocument();
+    unmount();
+
+    const enough = viewOf({
+      phase: "waiting",
+      seats: [seat("s0"), seat("s1"), seat("s2")],
+      you: seat("s0"),
+      readyCount: 1,
+      mask: null,
+    });
+    render(<Felt table={stub()} state={enough} seatId="s0" />);
+    expect(screen.getByText(/everybody in and it deals at once/)).toBeInTheDocument();
+  });
+
   it("gives the drawer the tools, and no box to give the word away in", () => {
     const state = viewOf({ you: seat("s0", { drawing: true }), word: "lighthouse", mask: null });
     render(<Felt table={stub()} state={state} seatId="s0" />);
