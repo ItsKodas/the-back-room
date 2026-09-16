@@ -115,9 +115,27 @@ describe("the scribble room's stylesheet", () => {
   it("caps how far a growing side column stretches its own panel, so a roster or a guess box never reads as a mostly-empty pane", () => {
     // The grid track itself keeps growing (that's the chosen behaviour —
     // covered above); this is what stops the *panel* rendered inside it, so
-    // an ultrawide desk gets a sidebar rather than a name on the left edge
-    // and a score a third of the screen away from it.
-    expect(css).toMatch(/\.sc-teams,\s*\.sc-guesses\s*\{[^}]*max-width:\s*360px;/);
+    // a wide-enough desk gets a sidebar rather than a name on the left edge
+    // and a score most of the screen away from it.
+    const rule = [...css.matchAll(/\.sc-teams,\s*\.sc-guesses\s*\{([^}]*)\}/g)][0]?.[1] ?? "";
+    expect(rule).toMatch(/max-width:\s*360px;/);
+    // Without an explicit width, `justify-self` (below) makes the box
+    // shrink to fit its own content instead of filling the area — not
+    // "capped past 360px", but "always as narrow as the roster or the
+    // guess box happens to want", at every width. This is what fills the
+    // area first, so max-width is the thing that actually does the capping.
+    expect(rule).toMatch(/width:\s*100%;/);
+  });
+
+  it("holds a clamped panel against the napkin rather than letting it fall back to its area's own edge", () => {
+    // A stretched grid item that is then clamped narrower than its area
+    // defaults to justify-self: start — which puts the teams column at the
+    // *page's* left edge, reopening a gutter directly beside the napkin
+    // (the guesses column happens to already sit on the napkin's side of
+    // its own area, so only teams was ever visibly wrong, but both are
+    // pinned explicitly rather than leaving one to an accident of position).
+    expect(css).toMatch(/\.sc-teams\s*\{\s*justify-self:\s*end;\s*\}/);
+    expect(css).toMatch(/\.sc-guesses\s*\{\s*justify-self:\s*start;\s*\}/);
   });
 
   it("burns the fuse across the whole turn in one linear pass, with nothing left to fight it for width", () => {

@@ -76,16 +76,40 @@
    * The track keeps growing to absorb the slack — that is the chosen
    * reading, and it is what keeps `.sc`'s own total width matched to the
    * row's, so nothing here reintroduces a stray margin outside the grid.
-   * What stops here is the panel rendered inside it: past 360px a roster or
-   * a guess box is not "more room", it is a name on the left edge and a
-   * score a third of an ultrawide screen away from it. Looked at both ways
-   * before choosing this — at 1850px wide the sides sit under the cap
-   * already and this rule does nothing; at 2200px and up it is the
-   * difference between a sidebar and a mostly-empty pane.
+   * What stops here is the panel rendered inside it: past a width that
+   * depends on the desk's own height (not just how wide it is — an ordinary
+   * 1920x1080 desk clears it), a roster or a guess box is not "more room",
+   * it is a name on the left edge and a score most of a wide screen away
+   * from it.
+   *
+   * `width: 100%` is spelled out rather than left to the grid item's own
+   * default: a `justify-self` other than `stretch` (below) makes an
+   * auto-sized item shrink to fit its own content instead of filling the
+   * area, which is not "capped past 360px", it is "always as narrow as the
+   * roster or the guess box happens to want" — a real regression this was
+   * caught making. Explicit `width: 100%` sizes the box from the area
+   * first, and only then does `max-width` clamp it.
    */
   .sc-teams,
   .sc-guesses {
+    width: 100%;
     max-width: 360px;
+  }
+
+  /*
+   * A clamped panel has to hug the napkin rather than fall back to its grid
+   * area's start edge, or the slack a wide window has past the cap reopens
+   * exactly the gutter this whole block exists to close — on the left of
+   * the teams column, since a stretched item's default alignment is start
+   * and the napkin sits to its right. Harmless below the cap: a box already
+   * filling its area (`width: 100%` above, not yet clamped) has nowhere
+   * left for `justify-self` to move it.
+   */
+  .sc-teams {
+    justify-self: end;
+  }
+  .sc-guesses {
+    justify-self: start;
   }
 }
 
