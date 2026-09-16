@@ -276,8 +276,8 @@
  * Hand.tsx marks any hand of four or more places `bj-hand--tight` for the
  * seats it was built for, where a wide row would spill into the next player's
  * — and the dealer draws to four routinely. The dealer has the whole width of
- * the felt to itself, so that squeeze is not wanted here; three classes beats
- * the shared rule's two regardless of which comes first in the sheet.
+ * the felt to itself, so that squeeze is not wanted here; four classes beats
+ * the shared rule's three regardless of which comes first in the sheet.
  */
 .bj__dealer .bj-hand .bj-card + .bj-card {
   margin-left: 0;
@@ -554,6 +554,10 @@
 /*
  * A split seat keeps one plate and gains a box per hand. The card size is set
  * on the seat, the container, and inherited.
+ *
+ * Same specificity as .bj__seat--mine, so this has to come after it in the
+ * sheet to win --bj-card-w on a split hand of your own — source order here is
+ * load-bearing.
  */
 .bj__seat--split {
   --bj-card-w: clamp(26px, min(12cqi, 15cqh), 52px);
@@ -638,7 +642,13 @@
   flex-wrap: wrap;
 }
 
-/* Tighter in a box: half a seat's width holds the same cards. */
+/*
+ * Tighter in a box: half a seat's width holds the same cards.
+ *
+ * Same specificity as .bj__seat .bj-hand .bj-card + .bj-card, so this has to
+ * come after it in the sheet to win the -42% overlap inside a box — source
+ * order here is load-bearing.
+ */
 .bj__box .bj-hand .bj-card + .bj-card {
   margin-left: calc(var(--bj-card-w) * -0.42);
 }
