@@ -65,6 +65,17 @@ export function Board({
     let last = performance.now();
     let frame = 0;
 
+    // Timers outlive the ball they were set for; a board that unmounts mid-glow
+    // must not go on clearing classes and removing tags on a detached tree.
+    const timers = new Set<ReturnType<typeof window.setTimeout>>();
+    const after = (fn: () => void, ms: number) => {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        fn();
+      }, ms);
+      timers.add(id);
+    };
+
     const tag = (x: number, text: string, colour: string) => {
       const group = tags.current;
       if (group === null) return;
@@ -86,7 +97,7 @@ export function Board({
           )
           .finished.then(() => label.remove(), () => label.remove());
       } else {
-        window.setTimeout(() => label.remove(), 1_200);
+        after(() => label.remove(), 1_200);
       }
     };
 
@@ -108,14 +119,14 @@ export function Board({
         320,
       );
       pocket?.classList.add("pk-bucket--hit");
-      window.setTimeout(() => pocket?.classList.remove("pk-bucket--hit"), 380);
+      after(() => pocket?.classList.remove("pk-bucket--hit"), 380);
       play(ball.mine ? "pocket" : "pocketFar", Math.abs(ball.bucket - ROWS / 2));
       if (still) {
         // No fall to watch, so the path it took shows as a trail of lit pegs.
         for (let row = 0; row < ROWS; row += 1) {
           const peg = pegs.current.get(`${row}:${xOnRow(ball.path, row)}`);
           peg?.classList.add("pk-peg--trail");
-          window.setTimeout(() => peg?.classList.remove("pk-peg--trail"), 700);
+          after(() => peg?.classList.remove("pk-peg--trail"), 700);
         }
       }
       const x = bucketX(ball.bucket);
@@ -130,6 +141,27 @@ export function Board({
     const tick = (now: number) => {
       const group = layer.current;
       for (const ball of balls.current.values()) {
+        // Touches for the whole (last, now] gap fire before the ball is ever
+        // dropped as "gone" — a stall or a backgrounded tab can put the landing
+        // and the settle in the same gap, and a bucket touch skipped there is a
+        // win the balance never counts, not just a missed animation.
+        for (const row of touches({ ...ball, still: still || ball.still }, last, now)) {
+          if (row === ROWS) {
+            land(ball);
+            continue;
+          }
+          const x = ball.path === null ? 0 : xOnRow(ball.path, row);
+          const peg = pegs.current.get(`${row}:${x}`);
+          flash(
+            peg,
+            [
+              { transform: "scale(1.9)", opacity: 1 },
+              { transform: "scale(1)", opacity: 0.6 },
+            ],
+            260,
+          );
+          play(ball.mine ? "peg" : "pegFar", row);
+        }
         const at = where({ ...ball, still: still || ball.still }, now);
         let circle = circles.get(ball.id);
         if (at.phase === "gone") {
@@ -148,23 +180,6 @@ export function Board({
         }
         circle?.setAttribute("cx", at.x.toFixed(3));
         circle?.setAttribute("cy", at.y.toFixed(3));
-        for (const row of touches({ ...ball, still: still || ball.still }, last, now)) {
-          if (row === ROWS) {
-            land(ball);
-            continue;
-          }
-          const x = ball.path === null ? 0 : xOnRow(ball.path, row);
-          const peg = pegs.current.get(`${row}:${x}`);
-          flash(
-            peg,
-            [
-              { transform: "scale(1.9)", opacity: 1 },
-              { transform: "scale(1)", opacity: 0.6 },
-            ],
-            260,
-          );
-          play(ball.mine ? "peg" : "pegFar", row);
-        }
       }
       last = now;
       frame = requestAnimationFrame(tick);
@@ -172,6 +187,7 @@ export function Board({
     frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
+      for (const id of timers) window.clearTimeout(id);
       for (const circle of circles.values()) circle.remove();
     };
   }, [balls, still]);
