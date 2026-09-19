@@ -15,6 +15,7 @@ import {
 } from "@backroom/game-blackjack";
 import { DEATH_ROLL, deathRollAdapter } from "@backroom/game-death-roll";
 import { GREED, greedAdapter, RoomError } from "@backroom/game-greed";
+import { PATHS as PLINKO_PATHS, PLINKO, maxStake as plinkoMaxStake } from "@backroom/game-plinko";
 import { POKER, pokerAdapter } from "@backroom/game-poker";
 import {
   ROULETTE,
@@ -84,6 +85,7 @@ import { EMOTE_UPLOAD_PATH, emoteUrls, mountEmotes } from "./emotes.js";
 import { SOMETHING_WENT_WRONG, acking, handle } from "./handle.js";
 import { mountLeaderboard } from "./leaderboard.js";
 import { mountTransfers } from "./transfers.js";
+import { createPlinko } from "./plinko.js";
 import { wireTips } from "./tips.js";
 import { inject, pageFor } from "./meta.js";
 import type { CardSpec } from "./og.js";
@@ -107,6 +109,7 @@ const CATALOGUE = COMING.reduce(
     .add(GREED)
     .add(BLACKJACK)
     .add(SLOTS)
+    .add(PLINKO)
     .add(POKER)
     .add(TIPS)
     .add(ROULETTE)
@@ -142,6 +145,13 @@ export interface BackRoomServerOptions {
    * cannot be tested against real randomness.
    */
   spinRandom?: () => number;
+  /**
+   * Where a Plinko ball's path comes from: integers in `[0, 4096)`. Injected
+   * so a test can put a ball in the edge bucket on purpose; the default is
+   * `node:crypto`, never Math.random, because every result hands the player
+   * the whole path.
+   */
+  plinkoDraw?: () => number;
   /**
    * Where a death roll duel's number comes from. Injected for the same reason
    * as `roll`: a duel decided by real chance can take anywhere from one turn
@@ -328,6 +338,12 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     identify,
     identifyRequest,
   } = options;
+  /*
+   * Not a destructured default: `randomInt` needs `PLINKO_PATHS`, and reading
+   * the option here rather than in the assignment above keeps this file's one
+   * `node:crypto` call for Plinko in a place that says why it is there.
+   */
+  const plinkoDraw = options.plinkoDraw ?? (() => randomInt(0, PLINKO_PATHS));
 
   /**
    * Open tables, each with the game it is being played under.
@@ -918,6 +934,16 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     finished: (record) => store.recordGame(record),
   };
 
+  const plinko = createPlinko({
+    io,
+    store,
+    take: deps.take,
+    give: deps.give,
+    record: deps.record,
+    draw: plinkoDraw,
+    refusal: () => (shuttingDown ? SHUTTING_DOWN : null),
+  });
+
   /*
    * One bank object per game, named rather than built inline where each
    * adapter is constructed — an admin's empty-banks reset has to queue
@@ -1041,10 +1067,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
    * shuts that out: the empty either runs before the round starts or after
    * it has fully settled, never in the middle.
    *
-   * Slots is the one game whose whole round — cap read, stake, payout —
-   * already runs wholly inside its own `slotsBank.serially`, so queuing the
-   * empty there is sufficient on its own; there is no separate window for a
-   * reset to land in that serialization does not already cover.
+   * Slots and Plinko are the two games whose whole round — cap read, stake,
+   * payout — already runs wholly inside its own bank's `serially`, so
+   * queuing the empty there is sufficient on its own; there is no separate
+   * window for a reset to land in that serialization does not already cover.
    *
    * The tables' banks are emptied down to what their tables still owe rather
    * than to zero. Every stake is in the bank from the moment it lands, and a
@@ -1066,6 +1092,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return emptyAllButOwed(rouletteBank, "roulette");
       case "two-up":
         return emptyAllButOwed(twoUpBank, "two-up");
+      case "plinko":
+        return plinko.empty();
     }
   }
 
@@ -1262,6 +1290,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     }),
   );
 
+  /** What the peg board will cover, for anybody: the same reasoning as the machine's sign. */
+  app.get(
+    "/api/plinko",
+    handle(async (_request, response) => {
+      response.json(await plinko.sign());
+    }),
+  );
+
   /**
    * Which bank a request means, or nothing if it named one that does not exist.
    *
@@ -1301,6 +1337,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
        */
       case "two-up":
         return Math.max(0, Math.floor(Math.max(0, bank) / TWO_UP_DIVISOR));
+      /*
+       * The worst a lone ball can do: the High edge, at 170×. A ball at Low is
+       * capped far more generously, but this route answers "what could the
+       * bank take at all".
+       */
+      case "plinko":
+        return plinkoMaxStake(bank, "high");
     }
   }
 
@@ -2314,6 +2357,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
 
   io.on("connection", (socket) => {
     wireTips(socket, { store, tellChips, refusal: () => (shuttingDown ? SHUTTING_DOWN : null) });
+    plinko.wire(socket);
 
     socket.on("lobby:create", (payload, ack) => {
       if (shuttingDown) {
@@ -3128,6 +3172,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
      * joining, including the rest of a free-spin run.
      */
     await slotsBank.serially(async () => {});
+    // The board's balls run whole inside its own ledger, for the same reason.
+    await plinko.settle();
     for (const handle of pending) {
       clearTimeout(handle);
     }
