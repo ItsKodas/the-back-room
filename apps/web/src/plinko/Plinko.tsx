@@ -24,6 +24,7 @@ import { type Ball, Board } from "./Board.js";
 import { Controls } from "./Controls.js";
 import { Feed } from "./Feed.js";
 import { type DropSign, useDrops } from "./useDrops.js";
+import { whyLine } from "./why.js";
 import "@backroom/game-plinko/theme.css";
 import "../table/table.css";
 import "./plinko.css";
@@ -199,17 +200,7 @@ export default function Plinko() {
   const inAir = forFun ? funInAir : chipsInAir;
   const canDrop = connected && canPlay && stake >= MIN_STAKE && stake <= limit && inAir < MAX_WAITING;
 
-  const why = !canPlay
-    ? "Sign in to play for chips, or play for fun."
-    : cap < MIN_STAKE
-      ? "The bank is empty. Nothing to play for yet."
-      : stake >= cap
-        ? `The bank covers ${exact(cap)} a ball on ${risk} right now.`
-        : balance !== null && stake > balance
-          ? "That is more than you have."
-          : balance !== null && stake >= balance
-            ? "That is everything you have."
-            : notice;
+  const why = whyLine({ canPlay, cap, balance, stake, risk, notice });
 
   const drop = () => {
     if (!canDrop) return;

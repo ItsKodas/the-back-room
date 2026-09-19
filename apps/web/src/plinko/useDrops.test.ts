@@ -160,6 +160,50 @@ describe("useDrops", () => {
     expect(acc.refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes the account if a give-up is still unanswered when the page leaves", () => {
+    // giveUp empties the chips book's own pending map, so idle() alone would
+    // say there is nothing left to worry about — even though a real answer
+    // can still be on the wire, which is exactly what NO_ANSWER promises.
+    const emit = vi.fn(); // never acks, not even late
+    const balls = { current: new Map<string, Ball>() };
+    const acc = account();
+    const { result, unmount } = renderHook(() => useDrops(emit, acc, balls, vi.fn()));
+
+    act(() => {
+      result.current.drop({ fun: false, stake: 100, risk: "medium" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(PATIENCE_MS);
+    });
+    expect(result.current.busy).toBe(false); // the book itself is idle now
+    unmount();
+
+    expect(acc.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("needs no refresh once a give-up's late ack has already landed", () => {
+    let sendAck: ((result: PlinkoResult) => void) | null = null;
+    const emit = vi.fn((_payload: unknown, ack: (result: PlinkoResult) => void) => {
+      sendAck = ack;
+    });
+    const balls = { current: new Map<string, Ball>() };
+    const acc = account();
+    const { result, unmount } = renderHook(() => useDrops(emit, acc, balls, vi.fn()));
+
+    act(() => {
+      result.current.drop({ fun: false, stake: 100, risk: "medium" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(PATIENCE_MS);
+    });
+    act(() => {
+      sendAck?.(ok());
+    });
+    unmount();
+
+    expect(acc.refresh).not.toHaveBeenCalled();
+  });
+
   it("does not refresh the account when nothing was left unanswered", () => {
     const emit = vi.fn((_payload: unknown, ack: (result: PlinkoResult) => void) =>
       ack({ ok: false, error: "no" }),

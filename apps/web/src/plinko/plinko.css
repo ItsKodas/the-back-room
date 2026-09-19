@@ -42,10 +42,10 @@
 
 /*
  * Mobile-first: the mode switch takes its own row, and the two figures share
- * the row below. At 375px, three risk names plus a thumb-sized slider have no
- * room to share a row with a figure that has to hold a seven-digit bank
- * without ellipsising it — the desk breakpoint below is where there is
- * finally room to put all three back on one line.
+ * the row below. At 375px, the "For chips / For fun" switch and its own label
+ * already leave little width in the row, and a figure column still has to
+ * hold a seven-digit bank without ellipsising it — the desk breakpoint below
+ * is where there is finally room to put all three back on one line.
  */
 .readout.pk-sign {
   grid-area: sign;

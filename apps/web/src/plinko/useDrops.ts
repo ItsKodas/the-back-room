@@ -56,6 +56,16 @@ export function useDrops(
   const books = useRef({ chips: new Books(), fun: new Books() });
   const timers = useRef(new Map<string, number>());
   const seq = useRef(0);
+  /**
+   * Chips drops given up on, with no late ack yet.
+   *
+   * `giveUp` empties `pending`, so the chips book can go idle while a real
+   * answer is still somewhere on the wire — idle is not the same question as
+   * "is anything still able to arrive late and change the truth". Only chips
+   * need this: a fun purse has nothing an unmount could strand, since it dies
+   * with the page whether its last drop was answered or not.
+   */
+  const strandedChips = useRef(new Set<string>());
   const [funPurse, setFunPurse] = useState(FUN_PURSE);
   const [notice, setNotice] = useState<string | null>(null);
   // Read at the moment of a press and in the unmount cleanup, so neither has
@@ -81,16 +91,17 @@ export function useDrops(
     return () => {
       for (const timer of timers.current.values()) window.clearTimeout(timer);
       /*
-       * A press this window sent is still waiting on an answer, and the
-       * socket that would have carried it is about to close: the shown
-       * balance already has that stake taken out, or a win held back, and no
-       * ack is ever going to arrive to put it right. Reading the account's
-       * own figure again is the only way to leave without stranding it.
+       * A press this window sent is still waiting on an answer, or gave up
+       * waiting but has not heard back either way, and the socket that would
+       * have carried it is about to close: the shown balance already has
+       * that stake taken out, or a win held back, and no ack is ever going to
+       * arrive to put it right. Reading the account's own figure again is the
+       * only way to leave without stranding it.
        *
        * The fun book needs nothing here — its purse dies with the page
        * regardless, same as it would have if the drop had landed.
        */
-      if (!books.current.chips.idle()) {
+      if (!books.current.chips.idle() || strandedChips.current.size > 0) {
         accountRef.current.refresh();
       }
     };
@@ -137,6 +148,7 @@ export function useDrops(
       const timer = window.setTimeout(() => {
         timers.current.delete(id);
         mine.giveUp(id);
+        if (!fun) strandedChips.current.add(id);
         refuseBall(id);
         setNotice(NO_ANSWER);
         push(fun);
@@ -151,6 +163,9 @@ export function useDrops(
           // page already gave up on and lifted back into the chute. `won` is
           // never held back here — that ball will never call `land`, so
           // anything parked in `unlanded` for it would never come back out.
+          // Either way, the uncertainty a give-up leaves behind is resolved
+          // now, whether the answer was yes or no.
+          if (!fun) strandedChips.current.delete(id);
           if (result.ok) {
             mine.answer(id, result.balance, 0);
             push(fun);
