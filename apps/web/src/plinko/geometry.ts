@@ -11,7 +11,13 @@ export const OTHER_R = 0.17;
 /** Where a ball appears, above the top peg. */
 export const CHUTE_Y = -1.6;
 export const BUCKET_Y = ROWS + 0.45;
-export const VIEW = { x: -7.6, y: -2.3, w: 15.2, h: ROWS + 3.7 };
+/*
+ * Tight around the content rather than a round number: the widest row only
+ * reaches ±6.5, and `.pk-svg`'s `overflow: visible` means trimming this
+ * further never clips a peg or a bucket, it only changes how much of a short,
+ * wide board box goes to the pegs instead of side margin nobody asked for.
+ */
+export const VIEW = { x: -7.0, y: -2.2, w: 14.0, h: ROWS + 3.5 };
 
 /** Row `row` has `row + 3` pegs, centred: three at the top, fourteen at the bottom. */
 export function pegXs(row: number): number[] {

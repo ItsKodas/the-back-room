@@ -35,29 +35,44 @@
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   grid-template-areas: "sign" "feed" "board" "controls";
-  gap: var(--gr-space-2);
+  /* The board is the one row that's supposed to flex; a phone that is short
+     on height gives it every pixel it can, so the gap between the fixed rows
+     is the smallest one the tokens have. */
+  gap: var(--gr-space-1);
 }
 
 /* ------------------------------------------------------------------ sign */
 
 /*
- * Mobile-first: the mode switch takes its own row, and the two figures share
- * the row below. At 375px, the "For chips / For fun" switch and its own label
- * already leave little width in the row, and a figure column still has to
- * hold a seven-digit bank without ellipsising it — the desk breakpoint below
- * is where there is finally room to put all three back on one line.
+ * One row on every size: the board is what needs the height, so the sign
+ * never gets a second row for the mode switch. On a phone that only works if
+ * the switch itself is small — it still has to leave a figure column wide
+ * enough for a seven-digit bank without ellipsising it, so the switch shrinks
+ * (below) rather than claiming a row of its own.
  */
 .readout.pk-sign {
   grid-area: sign;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: var(--gr-space-2) var(--gr-space-3);
-  padding: 8px 12px;
+  gap: var(--gr-space-1) var(--gr-space-2);
+  padding: 6px 10px;
 }
 
 .pk-sign__mode {
-  grid-column: 1 / -1;
+  grid-column: auto;
+}
+
+/* Scoped to this one switch: shrinking the shared .seg globally would also
+   shrink Risk below in Controls, and every other table's Seg besides. */
+.pk-sign__mode .seg {
+  padding: 2px;
+}
+
+.pk-sign__mode .seg__answer {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 
 .pk-bank {
@@ -70,8 +85,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: 9px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--gr-color-ink-faint);
 }
@@ -80,14 +95,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--gr-text-base);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--gr-color-ink-lit);
 }
 
 /* ------------------------------------------------------------------ feed */
 
-.pk-feed {
+/*
+ * A phone gets one row: who is here, then the recent chips running on after
+ * them, the lot clipped to the box rather than wrapping to a second line the
+ * board cannot spare. The desk breakpoint below puts them back on their own
+ * lines and reopens the full list.
+ *
+ * `.pk-feed.well` rather than `.pk-feed` alone: `.well`'s own `display: grid`
+ * and 14px padding are the same specificity as a bare `.pk-feed`, and
+ * whichever rule the bundler happens to place later wins the tie — the
+ * markup is always both classes together, so pairing them here is what
+ * actually beats `.well` rather than losing to it by luck of source order
+ * (the same reason `.readout.pk-sign` above is two classes and not one).
+ */
+.pk-feed.well {
   grid-area: feed;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   padding: 6px 10px;
   overflow: hidden;
@@ -95,9 +128,11 @@
 
 .pk-feed__here {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 4px;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
   font-size: var(--gr-text-sm);
   color: var(--gr-color-ink-dim);
 }
@@ -114,7 +149,10 @@
   background: var(--pk-who);
 }
 
+/* The "N at the board" line already says there is nobody; a phone has no row
+   to spare for saying it again in a longer sentence underneath. */
 .pk-feed__empty {
+  display: none;
   margin: 0;
   font-size: var(--gr-text-sm);
   color: var(--gr-color-ink-faint);
@@ -123,9 +161,11 @@
 /* A phone: one row of multiplier chips, clipped in its own box. */
 .pk-feed__drops {
   display: flex;
+  flex: 1 1 auto;
   gap: 6px;
   margin: 0;
   padding: 0;
+  min-width: 0;
   list-style: none;
   overflow: hidden;
 }
@@ -216,7 +256,7 @@
 }
 
 .pk-bucket text {
-  font-size: 0.34px;
+  font-size: 0.42px;
   font-weight: 700;
   text-anchor: middle;
   fill: var(--gr-color-ink-lit);
@@ -249,7 +289,7 @@
 .pk-controls {
   grid-area: controls;
   display: grid;
-  gap: var(--gr-space-2);
+  gap: var(--gr-space-1);
 }
 
 .pk-controls__stake {
@@ -263,20 +303,26 @@
   min-height: 44px;
 }
 
+/* .readout's own padding (built for a standalone figure panel) made this row
+   taller than the 44px keys either side of it need it to be. */
 .readout.pk-controls__figure {
   display: grid;
   place-items: center;
+  padding: 4px 8px;
   font-variant-numeric: tabular-nums;
 }
 
 .slab.pk-controls__drop {
-  min-height: 52px;
+  min-height: 48px;
 }
 
 .pk-controls__why {
-  min-height: 1.2em;
+  min-height: 18px;
   margin: 0;
   font-size: var(--gr-text-sm);
+  /* The font stack's own line-height overshoots `min-height` on its own;
+     without this the reserved row is 21px+ no matter what min-height says. */
+  line-height: 1.3;
   color: var(--gr-color-ink-dim);
   text-align: center;
 }
@@ -303,18 +349,39 @@
     gap: var(--gr-space-4) var(--gr-space-5);
   }
 
-  /* Room enough to put the mode switch back on the same line as the figures. */
+  /*
+   * The side column is only 320px wide — not enough for the mode switch at
+   * its full default size (measured ~176px) and two bank figures that must
+   * still hold "8,000,000". The switch stays at its phone size here too;
+   * it is a secondary control, and the figures are the numbers people came
+   * to read.
+   */
   .readout.pk-sign {
-    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--gr-space-2) var(--gr-space-2);
+    padding: 8px 12px;
   }
 
-  .pk-sign__mode {
-    grid-column: auto;
+  .pk-label {
+    font-size: 11px;
   }
 
-  .pk-feed {
+  /* The side column has its own height to spend, so the feed goes back to a
+     scrolling list: who was here on its own line, the full list below it.
+     `.pk-feed.well` again, to actually beat `.well`'s own display and padding. */
+  .pk-feed.well {
+    display: block;
     padding: 12px 14px;
     overflow: auto;
+  }
+
+  .pk-feed__here {
+    display: flex;
+    white-space: normal;
+    margin: 0 0 4px;
+  }
+
+  .pk-feed__empty {
+    display: block;
   }
 
   .pk-feed__drops {
