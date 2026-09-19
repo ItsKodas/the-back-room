@@ -140,7 +140,8 @@ dropped on disconnect. Same cap, same multipliers, same draw.
 ### Stats
 
 Per paid drop: `shared: { chipsWon, chipsStaked }`, and under `game: "plinko"`
-`add: { drops, staked }`, `max: { bestMult }`. No game history per drop —
+`add: { drops, staked }`, `max: { bestDrop }` (the largest win, in chips, as
+slots keeps `bestSpin`). No game history per drop —
 it would flood it, and a drop has no players or winners to write.
 
 ## Not a table
