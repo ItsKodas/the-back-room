@@ -13,6 +13,7 @@
   "shortcuts": [
     { "name": "Blackjack", "url": "/blackjack", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
     { "name": "Slots", "url": "/slots", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Plinko", "url": "/plinko", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
     { "name": "Greed", "url": "/greed", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ],
   "icons": [

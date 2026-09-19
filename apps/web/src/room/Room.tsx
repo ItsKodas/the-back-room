@@ -11,6 +11,7 @@ import "@backroom/game-blackjack/theme.css";
 import "@backroom/game-death-roll/theme.css";
 import "@backroom/game-roulette/theme.css";
 import "@backroom/game-slots/theme.css";
+import "@backroom/game-plinko/theme.css";
 import "@backroom/game-tips/theme.css";
 import "@backroom/game-two-up/theme.css";
 import "@backroom/game-scribble/theme.css";
