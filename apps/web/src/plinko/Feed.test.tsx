@@ -18,9 +18,10 @@ const drop = (id: string, mult: number, won: number): PlinkoDrop => ({
 });
 
 describe("the feed", () => {
-  it("names who dropped, the multiplier and what it paid", () => {
+  it("names who dropped, the stake, the multiplier and what it paid", () => {
     const { container } = render(<Feed drops={[drop("a", 1700, 1700)]} here={[]} />);
     expect(container.textContent).toContain("Mia");
+    expect(container.querySelector(".pk-feed__stake")?.textContent).toBe("10");
     expect(container.textContent).toContain("170×");
     expect(container.textContent).toContain("+1,700");
   });

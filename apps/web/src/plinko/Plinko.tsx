@@ -2,7 +2,6 @@ import {
   BIG_HIT,
   FEED_LENGTH,
   FUN_BANK,
-  FUN_PURSE,
   MAX_OTHERS,
   MAX_WAITING,
   MIN_STAKE,
@@ -12,7 +11,7 @@ import {
   multText,
 } from "@backroom/game-plinko";
 import type { PlinkoCaps, PlinkoDrop, PlinkoFloor, PlinkoResult, PlinkoWatcher } from "@backroom/shared";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { play } from "../game/audio.js";
 import { exact } from "../game/money.js";
@@ -22,9 +21,9 @@ import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { windowId } from "../net/windowId.js";
 import { type Ball, Board } from "./Board.js";
-import { Books } from "./books.js";
 import { Controls } from "./Controls.js";
 import { Feed } from "./Feed.js";
+import { type DropSign, useDrops } from "./useDrops.js";
 import "@backroom/game-plinko/theme.css";
 import "../table/table.css";
 import "./plinko.css";
@@ -37,10 +36,9 @@ import "./plinko.css";
  * else's balls fall beside yours.
  */
 
-/** How long a ball waits on the top peg for its answer before giving up. */
-export const PATIENCE_MS = 10_000;
-
-const NO_ANSWER = "No answer from the board. If that ball went through, your balance will catch up.";
+// Re-exported so anything naming this page's own patience does not have to
+// know the press → ball → answer arithmetic moved to useDrops.ts.
+export { PATIENCE_MS } from "./useDrops.js";
 
 type PlinkoSocket = Socket<
   {
@@ -75,6 +73,21 @@ function landedLine(ball: Ball): string {
   return `Landed ${multText(mult)}× — won ${exact(ball.won)}`;
 }
 
+/**
+ * Prepend a drop to the feed, skipping one already there.
+ *
+ * A reconnect replaces the whole feed with the floor's own `recent` while a
+ * ball somebody else dropped a moment ago may still be falling on this page —
+ * its `plinko:dropped` broadcast and the fresh `floor.recent` both name it, and
+ * without this it would print twice.
+ */
+function withDrop(seen: PlinkoDrop[], drop: PlinkoDrop): PlinkoDrop[] {
+  if (seen.some((one) => one.id === drop.id)) {
+    return seen;
+  }
+  return [drop, ...seen].slice(0, FEED_LENGTH);
+}
+
 export default function Plinko() {
   const account = useAccount();
   const [forFun, setForFun] = useState(false);
@@ -82,36 +95,45 @@ export default function Plinko() {
   const [stake, setStake] = useState(MIN_STAKE);
   const [sign, setSign] = useState<Sign | null>(null);
   const [funSign, setFunSign] = useState<Sign>({ bank: FUN_BANK, caps: capsFor(FUN_BANK) });
-  const [funPurse, setFunPurse] = useState(FUN_PURSE);
   const [feed, setFeed] = useState<PlinkoDrop[]>([]);
   const [here, setHere] = useState<PlinkoWatcher[]>([]);
   const [connected, setConnected] = useState(false);
   const [taken, setTaken] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  /** The player's own last landed result, said for a screen reader alone. */
+  /**
+   * The player's own last landed result, said for a screen reader alone.
+   *
+   * `saidKey` forces the line to be announced even when it repeats itself —
+   * the same words twice, from two balls in a row landing on the same
+   * multiplier, are two results and not a live region that has nothing new
+   * to say. Remounting via `key` is what `Refusal.tsx` does for the same
+   * reason.
+   */
   const [said, setSaid] = useState<string | null>(null);
-  /* Books live in refs — they change between frames — and this is how a change is shown. */
-  const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const books = useRef({ chips: new Books(), fun: new Books() });
+  const [saidKey, setSaidKey] = useState(0);
   const balls = useRef(new Map<string, Ball>());
-  const timers = useRef(new Map<string, number>());
   const socketRef = useRef<PlinkoSocket | null>(null);
-  const seq = useRef(0);
 
-  /** Put what the books say on the screen, then let them forget if nothing is in play. */
-  const push = useCallback(
-    (fun: boolean) => {
-      const book = fun ? books.current.fun : books.current.chips;
-      const shown = book.shown();
-      if (shown !== null) {
-        if (fun) setFunPurse(shown);
-        else account.setChips(shown);
-      }
-      book.settle();
-      redraw();
+  const onSign = useCallback((fun: boolean, next: DropSign) => {
+    if (fun) setFunSign(next);
+    else setSign(next);
+  }, []);
+
+  const emitDrop = useCallback(
+    (payload: { stake: number; risk: Risk; forFun?: boolean }, ack: (result: PlinkoResult) => void) => {
+      socketRef.current?.emit("plinko:drop", payload, ack);
     },
-    [account.setChips],
+    [],
   );
+
+  const {
+    funPurse,
+    busy,
+    chipsInAir,
+    funInAir,
+    notice,
+    drop: pressDrop,
+    land,
+  } = useDrops(emitDrop, account, balls, onSign);
 
   useEffect(() => {
     const socket = io("", {
@@ -140,7 +162,7 @@ export default function Plinko() {
       for (const ball of balls.current.values()) if (!ball.mine) others += 1;
       // A busy floor, or a hidden tab, goes straight to the feed: nobody is watching those fall.
       if (others >= MAX_OTHERS || document.hidden) {
-        setFeed((seen) => [drop, ...seen].slice(0, FEED_LENGTH));
+        setFeed((seen) => withDrop(seen, drop));
         return;
       }
       const now = performance.now();
@@ -166,7 +188,6 @@ export default function Plinko() {
       socket.emit("plinko:away");
       socket.close();
       socketRef.current = null;
-      for (const timer of timers.current.values()) window.clearTimeout(timer);
     };
   }, []);
 
@@ -174,111 +195,37 @@ export default function Plinko() {
   const cap = shown?.caps[risk] ?? 0;
   const balance = forFun ? funPurse : (account.profile?.chips ?? null);
   const limit = Math.min(cap, balance ?? 0);
-  const book = forFun ? books.current.fun : books.current.chips;
   const canPlay = forFun || account.profile !== null;
-  const canDrop =
-    connected && canPlay && stake >= MIN_STAKE && stake <= limit && book.inAir() < MAX_WAITING;
-  const busy = !books.current.chips.idle() || !books.current.fun.idle();
+  const inAir = forFun ? funInAir : chipsInAir;
+  const canDrop = connected && canPlay && stake >= MIN_STAKE && stake <= limit && inAir < MAX_WAITING;
 
   const why = !canPlay
     ? "Sign in to play for chips, or play for fun."
     : cap < MIN_STAKE
       ? "The bank is empty. Nothing to play for yet."
-      : stake > cap
+      : stake >= cap
         ? `The bank covers ${exact(cap)} a ball on ${risk} right now.`
         : balance !== null && stake > balance
           ? "That is more than you have."
-          : notice;
-
-  const refuseBall = (id: string) => {
-    const ball = balls.current.get(id);
-    if (ball !== undefined) ball.refusedAt = performance.now();
-  };
+          : balance !== null && stake >= balance
+            ? "That is everything you have."
+            : notice;
 
   const drop = () => {
-    const socket = socketRef.current;
-    if (socket === null || !canDrop || balance === null) return;
-    seq.current += 1;
-    const id = `me-${seq.current}`;
-    const fun = forFun;
-    const mine = fun ? books.current.fun : books.current.chips;
-    setNotice(null);
-    // The stake is the player's own number, so it goes on the press.
-    mine.press(id, stake, balance);
-    push(fun);
-    play("bet");
-    balls.current.set(id, {
-      id,
-      mine: true,
-      colour: 0,
-      name: null,
-      risk,
-      droppedAt: performance.now(),
-      path: null,
-      answeredAt: null,
-      refusedAt: null,
-      bucket: null,
-      mult: null,
-      stake,
-      won: 0,
-      fun,
-    });
-    const timer = window.setTimeout(() => {
-      timers.current.delete(id);
-      mine.giveUp(id);
-      refuseBall(id);
-      setNotice(NO_ANSWER);
-      push(fun);
-    }, PATIENCE_MS);
-    timers.current.set(id, timer);
-
-    socket.emit("plinko:drop", { stake, risk, ...(fun ? { forFun: true } : {}) }, (result) => {
-      const waiting = timers.current.get(id);
-      if (waiting === undefined) {
-        // Too late to animate, not too late to be true.
-        if (result.ok) {
-          mine.answer(id, result.balance, 0);
-          push(fun);
-        }
-        return;
-      }
-      window.clearTimeout(waiting);
-      timers.current.delete(id);
-      if (!result.ok) {
-        mine.refuse(id);
-        refuseBall(id);
-        setNotice(result.error);
-        play("refused");
-        push(fun);
-        return;
-      }
-      mine.answer(id, result.balance, result.won);
-      push(fun);
-      const next = { bank: result.bank, caps: result.caps };
-      if (fun) setFunSign(next);
-      else setSign(next);
-      const ball = balls.current.get(id);
-      if (ball !== undefined) {
-        ball.path = result.path;
-        ball.bucket = result.bucket;
-        ball.mult = result.mult;
-        ball.won = result.won;
-        ball.answeredAt = performance.now();
-      }
-    });
+    if (!canDrop) return;
+    pressDrop({ fun: forFun, stake, risk });
   };
 
   const onLand = useCallback(
     (ball: Ball) => {
       if (!ball.mine) {
         const news = ball.news;
-        if (news !== undefined) setFeed((seen) => [news, ...seen].slice(0, FEED_LENGTH));
+        if (news !== undefined) setFeed((seen) => withDrop(seen, news));
         return;
       }
-      const mine = ball.fun ? books.current.fun : books.current.chips;
-      mine.land(ball.id);
-      push(ball.fun);
+      land(ball.id, ball.fun);
       setSaid(landedLine(ball));
+      setSaidKey((n) => n + 1);
       if ((ball.mult ?? 0) >= BIG_HIT) play("spinWin");
       else if (ball.won > 0) play("payout");
       const profile = account.profile;
@@ -295,10 +242,10 @@ export default function Plinko() {
           bank: sign?.bank ?? 0,
           at: Date.now(),
         };
-        setFeed((seen) => [own, ...seen].slice(0, FEED_LENGTH));
+        setFeed((seen) => withDrop(seen, own));
       }
     },
-    [account.profile, push, sign],
+    [account.profile, land, sign],
   );
 
   useNav({
@@ -330,25 +277,25 @@ export default function Plinko() {
       <div className="pk-page">
         <div className="pk-in">
           <div className="readout pk-sign">
-            <Seg
-              label="What this board plays for"
-              options={[
-                { value: false, text: "For chips" },
-                { value: true, text: "For fun" },
-              ]}
-              value={forFun}
-              onChange={setForFun}
-              disabled={busy}
-            />
+            <div className="pk-sign__mode">
+              <Seg
+                label="What this board plays for"
+                options={[
+                  { value: false, text: "For chips" },
+                  { value: true, text: "For fun" },
+                ]}
+                value={forFun}
+                onChange={setForFun}
+                disabled={busy}
+              />
+            </div>
             <div className="pk-bank">
               <span className="pk-label">{forFun ? "Play bank" : "Bank"}</span>
               <span className="pk-figure">{shown === null ? "—" : exact(shown.bank)}</span>
             </div>
             <div className="pk-bank">
-              <span className="pk-label">{forFun ? "Play chips" : "Up to"}</span>
-              <span className="pk-figure">
-                {forFun ? exact(funPurse) : `${exact(cap)} on ${risk}`}
-              </span>
+              <span className="pk-label">{forFun ? "Play chips" : `Up to · ${risk}`}</span>
+              <span className="pk-figure">{forFun ? exact(funPurse) : exact(cap)}</span>
             </div>
           </div>
           <Feed drops={feed} here={here} />
@@ -370,7 +317,7 @@ export default function Plinko() {
       </div>
       {/* Board's win tags are SVG text inside role="img", which a screen reader
           never sees. This says the same fact in words, for the player's own ball only. */}
-      <p className="pk-said" aria-live="polite">
+      <p className="pk-said" aria-live="polite" key={saidKey}>
         {said}
       </p>
     </main>

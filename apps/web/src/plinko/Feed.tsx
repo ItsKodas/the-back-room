@@ -29,6 +29,7 @@ export function Feed({ drops, here }: { drops: PlinkoDrop[]; here: PlinkoWatcher
               style={{ "--pk-who": `var(--pk-c${drop.by.colour})` } as CSSProperties}
             >
               <span className="pk-feed__who">{drop.by.name}</span>
+              <span className="pk-feed__stake">{exact(drop.stake)}</span>
               <span className="pk-feed__mult">{multText(drop.mult)}×</span>
               <span className="pk-feed__won">{drop.won > 0 ? `+${exact(drop.won)}` : "—"}</span>
             </li>

@@ -40,13 +40,24 @@
 
 /* ------------------------------------------------------------------ sign */
 
+/*
+ * Mobile-first: the mode switch takes its own row, and the two figures share
+ * the row below. At 375px, three risk names plus a thumb-sized slider have no
+ * room to share a row with a figure that has to hold a seven-digit bank
+ * without ellipsising it — the desk breakpoint below is where there is
+ * finally room to put all three back on one line.
+ */
 .readout.pk-sign {
   grid-area: sign;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: var(--gr-space-3);
+  gap: var(--gr-space-2) var(--gr-space-3);
   padding: 8px 12px;
+}
+
+.pk-sign__mode {
+  grid-column: 1 / -1;
 }
 
 .pk-bank {
@@ -56,6 +67,9 @@
 }
 
 .pk-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -128,6 +142,7 @@
 }
 
 .pk-feed__who,
+.pk-feed__stake,
 .pk-feed__won {
   display: none;
 }
@@ -288,6 +303,15 @@
     gap: var(--gr-space-4) var(--gr-space-5);
   }
 
+  /* Room enough to put the mode switch back on the same line as the figures. */
+  .readout.pk-sign {
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .pk-sign__mode {
+    grid-column: auto;
+  }
+
   .pk-feed {
     padding: 12px 14px;
     overflow: auto;
@@ -300,13 +324,14 @@
 
   .pk-feed__drop {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     gap: 10px;
     border-radius: 8px;
     border-width: 0 0 0 3px;
   }
 
   .pk-feed__who,
+  .pk-feed__stake,
   .pk-feed__won {
     display: inline;
     overflow: hidden;
