@@ -26,7 +26,6 @@ export function Controls({
   why,
   canDrop,
   onDrop,
-  busy,
 }: {
   risk: Risk;
   onRisk: (risk: Risk) => void;
@@ -36,7 +35,6 @@ export function Controls({
   why: string | null;
   canDrop: boolean;
   onDrop: () => void;
-  busy: boolean;
 }) {
   return (
     <div className="pk-controls">
@@ -76,7 +74,7 @@ export function Controls({
           2×
         </button>
       </div>
-      <button type="button" className="slab pk-controls__drop" disabled={!canDrop} onClick={onDrop} data-busy={busy}>
+      <button type="button" className="slab pk-controls__drop" disabled={!canDrop} onClick={onDrop}>
         Drop · {exact(stake)}
       </button>
       <p className="pk-controls__why" role="status">

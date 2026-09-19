@@ -305,7 +305,6 @@ export default function Plinko() {
             why={why}
             canDrop={canDrop}
             onDrop={drop}
-            busy={busy}
           />
         </div>
       </div>

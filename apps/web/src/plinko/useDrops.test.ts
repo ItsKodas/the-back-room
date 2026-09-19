@@ -88,6 +88,30 @@ describe("useDrops", () => {
     expect(result.current.notice).toBe("The bank is short.");
   });
 
+  it("does not claim the stake came back on the server's generic failure, and asks the account directly", () => {
+    // `settled: false` is what `acking`'s fallback sends after a throw in
+    // plinko.ts — by then the stake, and maybe a win, may already have moved,
+    // so this is not a plain refusal the client can shrug off.
+    const emit = vi.fn((_payload: unknown, ack: (result: PlinkoResult) => void) => {
+      ack({ ok: false, error: "Something went wrong.", settled: false });
+    });
+    const balls = { current: new Map<string, Ball>() };
+    const acc = account();
+    const { result, unmount } = renderHook(() => useDrops(emit, acc, balls, vi.fn()));
+
+    act(() => {
+      result.current.drop({ fun: false, stake: 100, risk: "medium" });
+    });
+
+    expect(result.current.notice).toBe("Something went wrong.");
+    expect(acc.refresh).toHaveBeenCalledTimes(1);
+
+    // Still stranded: an unmount before that refresh's answer lands must ask
+    // again, exactly as it would for an unanswered give-up.
+    unmount();
+    expect(acc.refresh).toHaveBeenCalledTimes(2);
+  });
+
   it("gives up after 10s of silence, then a late ok ack still lands without double counting", () => {
     let sendAck: ((result: PlinkoResult) => void) | null = null;
     const emit = vi.fn((_payload: unknown, ack: (result: PlinkoResult) => void) => {
@@ -117,6 +141,9 @@ describe("useDrops", () => {
     expect(acc.setChips).toHaveBeenLastCalledWith(1_700);
     expect(acc.setChips).toHaveBeenCalledTimes(3);
     expect(onSign).toHaveBeenCalledWith(false, { bank: 40_000, caps: ok().caps });
+    // The "no answer" notice was a guess about a ball that had not landed yet;
+    // it just did, so the stale warning cannot stand.
+    expect(result.current.notice).toBeNull();
   });
 
   it("does not show the win before the ball lands", () => {

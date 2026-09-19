@@ -163,19 +163,46 @@ export function useDrops(
           // page already gave up on and lifted back into the chute. `won` is
           // never held back here — that ball will never call `land`, so
           // anything parked in `unlanded` for it would never come back out.
-          // Either way, the uncertainty a give-up leaves behind is resolved
-          // now, whether the answer was yes or no.
-          if (!fun) strandedChips.current.delete(id);
           if (result.ok) {
+            // The uncertainty a give-up leaves behind is resolved now: the
+            // stale "no answer" notice would otherwise sit there claiming
+            // silence after the board has just said the opposite.
+            if (!fun) strandedChips.current.delete(id);
             mine.answer(id, result.balance, 0);
+            setNotice(null);
             push(fun);
             onSign(fun, { bank: result.bank, caps: result.caps });
+            return;
           }
+          if (result.settled === false) {
+            // Still not a fact, even on a second try: leave this id stranded
+            // and ask again, rather than call the uncertainty resolved.
+            if (!fun) accountRef.current.refresh();
+            return;
+          }
+          // A definite refusal, arriving late: the give-up's guess was right.
+          if (!fun) strandedChips.current.delete(id);
           return;
         }
         window.clearTimeout(waiting);
         timers.current.delete(id);
         if (!result.ok) {
+          if (result.settled === false) {
+            // The store may already have taken the stake, or paid a win, by
+            // the time this generic failure was sent — never known which.
+            // Guess the stake is back, same as a give-up, but do not call it
+            // settled: strand the id and ask the account directly, so the
+            // guess is replaced by the truth without waiting for a reload.
+            mine.giveUp(id);
+            refuseBall(id);
+            setNotice(result.error);
+            push(fun);
+            if (!fun) {
+              strandedChips.current.add(id);
+              accountRef.current.refresh();
+            }
+            return;
+          }
           mine.refuse(id);
           refuseBall(id);
           setNotice(result.error);

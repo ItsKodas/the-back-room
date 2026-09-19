@@ -428,7 +428,18 @@ export type PlinkoResult =
       /** The player's balance now, win included — the page holds the win back until the ball lands. */
       balance: number;
     }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * False only on the generic answer `acking`'s fallback sends after a
+       * throw. By then the money may already have moved — the throwable calls
+       * in plinko.ts (`bankAdd`, `give`, `record`, `bank`, `get`) all sit after
+       * the stake is taken — so this is not a refusal the client may treat as
+       * "nothing happened": it does not know, and has to ask.
+       */
+      settled?: false;
+    };
 
 /**
  * The jar, as the player standing at it may see it.

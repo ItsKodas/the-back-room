@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 const css = readFileSync(join(here, "plinko.css"), "utf8");
 const page = readFileSync(join(here, "Plinko.tsx"), "utf8");
+const board = readFileSync(join(here, "Board.tsx"), "utf8");
 
 describe("the Plinko page's stylesheet", () => {
   it("is actually loaded", () => {
@@ -34,7 +35,13 @@ describe("the Plinko page's stylesheet", () => {
   });
 
   it("sizes the board from both of its dimensions (L3)", () => {
-    expect(css).toMatch(/\.pk-board\s*\{[^}]*container:\s*pk-board \/ size/);
+    // Not a container query — nothing in this sheet queries cqi/cqh. The real
+    // mechanism: .pk-svg fills .pk-board's box on both axes, and the SVG's own
+    // viewBox + preserveAspectRatio then scales the fixed-aspect board to fit
+    // whichever of those two dimensions is the tighter fit.
+    expect(css).toMatch(/\.pk-svg\s*\{[^}]*width:\s*calc\(100% - 8px\)[^}]*height:\s*calc\(100% - 8px\)/);
+    expect(board).toMatch(/viewBox=\{`\$\{VIEW\.x\} \$\{VIEW\.y\} \$\{VIEW\.w\} \$\{VIEW\.h\}`\}/);
+    expect(board).toContain('preserveAspectRatio="xMidYMid meet"');
   });
 
   it("goes to two columns on the table's width, not the window's (L5)", () => {

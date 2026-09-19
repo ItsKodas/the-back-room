@@ -189,7 +189,10 @@ export function createPlinko(deps: PlinkoDeps): Plinko {
     });
 
     socket.on("plinko:drop", (payload, ack) => {
-      acking("plinko:drop", ack, () => ({ ok: false as const, error: SOMETHING_WENT_WRONG }), async (ack) => {
+      // `settled: false` below: every throwable call inside (`bankAdd`,
+      // `give`, `record`, `bank`, `get`) sits after the stake has already
+      // moved, so a throw here cannot be answered as a plain refusal.
+      acking("plinko:drop", ack, () => ({ ok: false as const, error: SOMETHING_WENT_WRONG, settled: false as const }), async (ack) => {
         const parsed = plinkoDropSchema.safeParse(payload);
         if (!parsed.success) {
           ack({ ok: false, error: "That is not a stake." });

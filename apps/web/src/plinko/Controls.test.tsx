@@ -13,7 +13,6 @@ function controls(overrides: Partial<Parameters<typeof Controls>[0]> = {}) {
     why: null,
     canDrop: true,
     onDrop: vi.fn(),
-    busy: false,
     ...overrides,
   };
   render(<Controls {...props} />);

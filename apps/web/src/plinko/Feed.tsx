@@ -13,8 +13,9 @@ export function Feed({ drops, here }: { drops: PlinkoDrop[]; here: PlinkoWatcher
       <p className="pk-feed__here">
         <span>{here.length === 0 ? "Nobody at the board" : `${here.length} at the board`}</span>
         <span className="pk-feed__dots" aria-hidden="true">
-          {here.map((one) => (
-            <i key={one.name} style={{ "--pk-who": `var(--pk-c${one.colour})` } as CSSProperties} />
+          {here.map((one, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: two accounts can share a display name, so the name alone is not a key
+            <i key={`${one.name}:${index}`} style={{ "--pk-who": `var(--pk-c${one.colour})` } as CSSProperties} />
           ))}
         </span>
       </p>

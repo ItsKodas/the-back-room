@@ -239,7 +239,9 @@ export function Board({
         );
       })}
       <g ref={layer} />
-      <g ref={tags} aria-live="polite" />
+      {/* Inside svg[role="img"], so a screen reader never reaches this group at
+          all — the real announcement is Plinko.tsx's .pk-said. */}
+      <g ref={tags} />
     </svg>
   );
 }

@@ -264,8 +264,14 @@ describe("balls in the air", () => {
     const client = clients[0] as Client;
     const first = Array.from({ length: 10 }, () => drop(client, 10));
     try {
-      // Let the ten reach the server before the eleventh.
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // A malformed stake is refused before the handler ever touches the
+      // store or the ledger, so its ack cannot itself be held by `Held`. On
+      // one connection, socket.io delivers and dispatches every message in
+      // the order it was sent — so this ack landing proves the ten drops
+      // ahead of it on the same socket have already been received and
+      // registered as waiting, without guessing at a wall-clock delay.
+      const marker = await drop(client, 5);
+      expect(marker.ok).toBe(false);
       const eleventh = await drop(client, 10);
       expect(eleventh).toEqual({ ok: false, error: "Too many balls in the air." });
     } finally {

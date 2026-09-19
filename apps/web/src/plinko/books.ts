@@ -26,6 +26,11 @@ export class Books {
   /**
    * The server paid. Its balance is a fact even for a ball this page had given
    * up waiting on: that ball was paid, and the figure has to say so.
+   *
+   * Assumes acks arrive in press order, which only holds because every paid
+   * drop is serialized through one `BankLedger` on the server and socket.io
+   * preserves per-connection message order — not because this class enforces
+   * it itself.
    */
   answer(id: string, balance: number, won: number): void {
     const known = this.pending.delete(id);

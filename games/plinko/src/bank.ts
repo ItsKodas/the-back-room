@@ -19,7 +19,14 @@ export const DIVISOR: Record<Risk, number> = {
   high: edgeOf("high") / 10 - 1,
 };
 
-/** The worst of the three: what the admin bank route asks when it means "any stake at all". */
+/**
+ * The worst of the three: what the admin bank route asks when it means "any stake at all".
+ *
+ * `capOf` in server.ts answers with `maxStake(bank, "high")` instead of this
+ * divided straight into the bank — `maxStake` also rounds down to a ten, which
+ * this figure alone does not. Kept exported anyway: the design spec names it,
+ * and it is still the right constant for a caller that wants the divisor itself.
+ */
 export const STAKE_DIVISOR = Math.max(...RISKS.map((risk) => DIVISOR[risk]));
 
 export function isStake(stake: number): boolean {
