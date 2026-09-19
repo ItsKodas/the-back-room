@@ -46,14 +46,20 @@
 /*
  * One row on every size: the board is what needs the height, so the sign
  * never gets a second row for the mode switch. On a phone that only works if
- * the switch itself is small — it still has to leave a figure column wide
- * enough for a seven-digit bank without ellipsising it, so the switch shrinks
- * (below) rather than claiming a row of its own.
+ * the switch itself is small — it still has to leave room for a bank running
+ * to 999,999,999 and a cap to 99,999,999, neither shortened, so the switch
+ * shrinks (below) rather than claiming a row of its own.
  */
 .readout.pk-sign {
   grid-area: sign;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  /* Content-sized, not a fixed half each: a real bank runs to 11 digits and
+     the cap to 10, and neither is the same length as the other, so a rule
+     that hands them equal tracks ellipsises whichever is longer while the
+     shorter one sits on empty space. `space-between` puts any slack between
+     the columns instead of stretching one of them. */
+  grid-template-columns: auto auto auto;
+  justify-content: space-between;
   align-items: center;
   gap: var(--gr-space-1) var(--gr-space-2);
   padding: 6px 10px;
@@ -351,9 +357,9 @@
   /*
    * The side column is only 320px wide — not enough for the mode switch at
    * its full default size (measured ~176px) and two bank figures that must
-   * still hold "8,000,000". The switch stays at its phone size here too;
-   * it is a secondary control, and the figures are the numbers people came
-   * to read.
+   * still hold "999,999,999" and "99,999,999" in full. The switch stays at
+   * its phone size here too; it is a secondary control, and the figures are
+   * the numbers people came to read.
    */
   .readout.pk-sign {
     gap: var(--gr-space-2) var(--gr-space-2);

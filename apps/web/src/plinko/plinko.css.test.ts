@@ -56,4 +56,13 @@ describe("the Plinko page's stylesheet", () => {
     expect(css).not.toMatch(/(^|[^-\w])\.pk\s*\{/);
     expect(css).not.toMatch(/\.pk__/);
   });
+
+  it("sizes the sign's figure columns to their content, not a fixed half each", () => {
+    // A bank and a cap are rarely the same length; `minmax(0, 1fr)` for both
+    // hands the longer one half the row and ellipsises it while the shorter
+    // one sits on space it never needed. Regression: BANK 49,200,1… beside
+    // UP TO 1,537,500 at the 320px desk side column.
+    expect(css).toMatch(/\.readout\.pk-sign\s*\{[^}]*grid-template-columns:\s*auto auto auto/);
+    expect(css).not.toMatch(/\.readout\.pk-sign\s*\{[^}]*minmax\(0, 1fr\)/);
+  });
 });
