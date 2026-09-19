@@ -1,0 +1,328 @@
+/*
+ * The peg board. One screen on every size (L1–L8 of the table requirements):
+ * `play--fit` makes the page the window, and only the board flexes.
+ *
+ * Classes are named `pk-page`, `pk-in`, `pk-board`, `pk-sign`, `pk-bank`,
+ * `pk-label` and `pk-figure` rather than a bare "pk" root with BEM-style
+ * double-underscore children, because Poker's felt already claims exactly
+ * that pair of shapes in poker.css, and every table's CSS lands in one
+ * bundle — a second rule for the same bare selector would not stay on this
+ * page. This is the same mistake H2 in the table requirements already names
+ * twice over with a shared "lobby" class. Board.tsx's own pieces (its peg,
+ * bucket, ball and chute classes) already use this hyphenated "pk-"
+ * namespace, so this sheet follows it rather than starting a second one.
+ */
+
+.pk-page {
+  container: pk-page / inline-size;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  /* Everybody else's colours. Never the accent: that is always a player's own ball. */
+  --pk-c0: #ff7a6e;
+  --pk-c1: #ffcf7a;
+  --pk-c2: #7fe0a8;
+  --pk-c3: #7ba9ff;
+  --pk-c4: #b39cff;
+  --pk-c5: #ff86d4;
+  --pk-c6: #f2efe9;
+  --pk-c7: #e8c168;
+}
+
+.pk-in {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "sign" "feed" "board" "controls";
+  gap: var(--gr-space-2);
+}
+
+/* ------------------------------------------------------------------ sign */
+
+.readout.pk-sign {
+  grid-area: sign;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gr-space-3);
+  padding: 8px 12px;
+}
+
+.pk-bank {
+  display: grid;
+  min-width: 0;
+  text-align: right;
+}
+
+.pk-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.pk-figure {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink-lit);
+}
+
+/* ------------------------------------------------------------------ feed */
+
+.pk-feed {
+  grid-area: feed;
+  min-width: 0;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+
+.pk-feed__here {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.pk-feed__dots {
+  display: flex;
+  gap: 3px;
+}
+
+.pk-feed__dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pk-who);
+}
+
+.pk-feed__empty {
+  margin: 0;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-faint);
+}
+
+/* A phone: one row of multiplier chips, clipped in its own box. */
+.pk-feed__drops {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.pk-feed__drop {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--pk-who);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-lit);
+  animation: pk-arrive 220ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+.pk-feed__who,
+.pk-feed__won {
+  display: none;
+}
+
+@keyframes pk-arrive {
+  from {
+    transform: translateX(-8px);
+    opacity: 0;
+  }
+}
+
+/* ----------------------------------------------------------------- board */
+
+.pk-board {
+  grid-area: board;
+  container: pk-board / size;
+  position: relative;
+  min-height: 0;
+  border-radius: 18px;
+  background: radial-gradient(120% 90% at 50% 0%, var(--gr-color-felt-lit), var(--gr-color-felt-deep));
+  box-shadow:
+    inset 0 6px 14px rgb(0 0 0 / 0.45),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.pk-svg {
+  position: absolute;
+  inset: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  overflow: visible;
+}
+
+.pk-chute {
+  stroke: var(--gr-color-smoke-lit);
+  stroke-width: 0.08;
+  stroke-linecap: round;
+}
+
+.pk-peg {
+  fill: var(--gr-color-ink-dim);
+  opacity: 0.6;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pk-peg--trail {
+  fill: var(--gr-color-neon-hi);
+  opacity: 1;
+}
+
+.pk-bucket {
+  transform-box: fill-box;
+  --pk-hit: var(--gr-color-neon-hi);
+}
+
+.pk-bucket rect {
+  fill: var(--gr-color-smoke);
+  stroke: var(--gr-color-smoke-lit);
+  stroke-width: 0.03;
+  transition: fill 160ms ease-out;
+}
+
+/* Hotter towards the edges, where the big multipliers are. */
+.pk-bucket[data-tier="4"] rect { fill: var(--gr-color-neon-dim); }
+.pk-bucket[data-tier="5"] rect { fill: var(--gr-color-neon-deep); }
+.pk-bucket[data-tier="6"] rect { fill: var(--gr-color-neon); }
+
+.pk-bucket--hit rect {
+  fill: var(--pk-hit);
+}
+
+.pk-bucket text {
+  font-size: 0.34px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: var(--gr-color-ink-lit);
+  font-variant-numeric: tabular-nums;
+}
+
+.pk-ball {
+  fill: var(--pk-ball, var(--gr-color-ink));
+  opacity: 0.78;
+}
+
+.pk-ball--mine {
+  fill: var(--gr-color-neon-hi);
+  opacity: 1;
+  filter: drop-shadow(0 0 0.15px var(--gr-color-neon));
+}
+
+.pk-tag {
+  font-size: 0.42px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: var(--pk-tag);
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 0.6);
+  stroke-width: 0.08px;
+}
+
+/* -------------------------------------------------------------- controls */
+
+.pk-controls {
+  grid-area: controls;
+  display: grid;
+  gap: var(--gr-space-2);
+}
+
+.pk-controls__stake {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+
+.pk-controls__stake .key {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.readout.pk-controls__figure {
+  display: grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.slab.pk-controls__drop {
+  min-height: 52px;
+}
+
+.pk-controls__why {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- said */
+
+/* Said in full for anybody not looking at the board. A bucket alone is not a payout. */
+.pk-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ desk */
+
+@container pk-page (min-width: 760px) {
+  .pk-in {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "board sign" "board feed" "board controls";
+    gap: var(--gr-space-4) var(--gr-space-5);
+  }
+
+  .pk-feed {
+    padding: 12px 14px;
+    overflow: auto;
+  }
+
+  .pk-feed__drops {
+    display: grid;
+    gap: 4px;
+  }
+
+  .pk-feed__drop {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    border-radius: 8px;
+    border-width: 0 0 0 3px;
+  }
+
+  .pk-feed__who,
+  .pk-feed__won {
+    display: inline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* --------------------------------------------------------------- stillness */
+
+@media (prefers-reduced-motion: reduce) {
+  .pk-feed__drop {
+    animation: none;
+  }
+
+  .pk-bucket rect {
+    transition: none;
+  }
+}
