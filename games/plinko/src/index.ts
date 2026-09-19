@@ -9,3 +9,18 @@ export { BUCKETS, PATHS, ROWS, bucketOf, drawPath, pathOf, waysInto } from "./bo
 export { MULTS, RISKS, edgeOf, multOf, multText } from "./risk.js";
 export type { Risk } from "./risk.js";
 export { RTP_DENOMINATOR, RTP_NUMERATOR, returnOf } from "./rtp.js";
+export {
+  DIVISOR,
+  FUN_BANK,
+  FUN_PURSE,
+  MIN_STAKE,
+  STAKE_DIVISOR,
+  STAKE_STEP,
+  capsFor,
+  isStake,
+  maxStake,
+  payout,
+  worstCase,
+} from "./bank.js";
+export { BIG_HIT, COLOURS, FEED_LENGTH, MAX_OTHERS, MAX_WAITING, colourOf } from "./floor.js";
+export { PLINKO } from "./listing.js";
