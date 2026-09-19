@@ -20,6 +20,7 @@ import type {
   ClientToServer,
   PlinkoCaps,
   PlinkoDrop,
+  PlinkoFloor,
   PlinkoResult,
   PlinkoWatcher,
   ServerToClient,
@@ -151,17 +152,27 @@ export function createPlinko(deps: PlinkoDeps): Plinko {
 
   function wire(socket: PlinkoSocket): void {
     socket.on("plinko:watch", (_payload, ack) => {
-      void socket.join(ROOM);
-      const userId = socket.data.identity?.userId ?? null;
-      if (userId !== null) {
-        watchers.set(socket.id, { userId, name: socket.data.name ?? "Someone", colour: colourOf(userId) });
+      // A client is free to emit with no ack at all; calling one that does not
+      // exist would throw inside `acking`'s own handling, and that throw would
+      // land as an unhandled rejection nobody sent it to. Nothing to answer,
+      // so nothing to do.
+      if (typeof ack !== "function") {
+        return;
       }
-      void sign().then(
-        ({ bank, caps }) => {
+      acking(
+        "plinko:watch",
+        ack,
+        (): PlinkoFloor => ({ recent: recent.slice(0, FEED_LENGTH), here: here(), bank: 0, caps: capsFor(0) }),
+        async (ack) => {
+          void socket.join(ROOM);
+          const userId = socket.data.identity?.userId ?? null;
+          if (userId !== null) {
+            watchers.set(socket.id, { userId, name: socket.data.name ?? "Someone", colour: colourOf(userId) });
+          }
+          const { bank, caps } = await sign();
           ack({ recent: recent.slice(0, FEED_LENGTH), here: here(), bank, caps });
           tellHere();
         },
-        (error: unknown) => console.error("plinko:watch failed", error),
       );
     });
 
@@ -257,7 +268,7 @@ export function createPlinko(deps: PlinkoDeps): Plinko {
             const bank = await store.bank("plinko");
             dropSeq += 1;
             const news: PlinkoDrop = {
-              id: `${socket.id}-${Date.now()}-${dropSeq}`,
+              id: `plinko-${Date.now()}-${dropSeq}`,
               by: { name: socket.data.name ?? "Someone", colour: colourOf(userId) },
               risk,
               path,

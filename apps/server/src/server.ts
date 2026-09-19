@@ -318,6 +318,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
   const {
     roll = defaultRoll,
     spinRandom = secureRandom,
+    plinkoDraw = () => randomInt(0, PLINKO_PATHS),
     deathRollRoll,
     scribble,
     farklePauseMs = 2200,
@@ -338,12 +339,6 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     identify,
     identifyRequest,
   } = options;
-  /*
-   * Not a destructured default: `randomInt` needs `PLINKO_PATHS`, and reading
-   * the option here rather than in the assignment above keeps this file's one
-   * `node:crypto` call for Plinko in a place that says why it is there.
-   */
-  const plinkoDraw = options.plinkoDraw ?? (() => randomInt(0, PLINKO_PATHS));
 
   /**
    * Open tables, each with the game it is being played under.

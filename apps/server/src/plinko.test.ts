@@ -215,6 +215,28 @@ describe("a ball", () => {
     expect(stats?.["staked"]).toBe(30);
     expect(stats?.["bestDrop"]).toBe(3400);
   });
+
+  it("refunds the stake, untouched, when the bank refuses the payout", async () => {
+    /*
+     * The cap makes this unreachable through honest play — it exists so a
+     * bank that somehow comes up short is refused loudly rather than paying
+     * out past zero. Forcing `bankTake` to refuse is the only way to reach it.
+     */
+    class Stingy extends MemoryStore {
+      override async bankTake(which: Parameters<MemoryStore["bankTake"]>[0], amount: number): Promise<boolean> {
+        if (which === "plinko") return false;
+        return super.bankTake(which, amount);
+      }
+    }
+    const store = new Stingy();
+    const { ids, clients } = await openBoard({ store, bank: 1_000_000, chips: 10_000, draws: [into(0)] });
+    const result = await drop(clients[0] as Client, 50, "high");
+    expect(result).toEqual({ ok: false, error: "The bank is short. Nothing was staked." });
+    expect(await store.bank("plinko")).toBe(1_000_000);
+    expect((await store.get(ids[0] as string))?.chips).toBe(10_000);
+    const stats = (await store.get(ids[0] as string))?.byGame["plinko"];
+    expect(stats?.["drops"]).toBeUndefined();
+  });
 });
 
 describe("balls in the air", () => {
@@ -241,14 +263,22 @@ describe("balls in the air", () => {
     store.held = true;
     const client = clients[0] as Client;
     const first = Array.from({ length: 10 }, () => drop(client, 10));
-    // Let the ten reach the server before the eleventh.
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const eleventh = await drop(client, 10);
-    expect(eleventh).toEqual({ ok: false, error: "Too many balls in the air." });
-    store.held = false;
-    release();
+    try {
+      // Let the ten reach the server before the eleventh.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const eleventh = await drop(client, 10);
+      expect(eleventh).toEqual({ ok: false, error: "Too many balls in the air." });
+    } finally {
+      // However the assertions above land, the gate must open — held shut, it
+      // would hang afterEach's server.close() waiting on the ledger forever.
+      store.held = false;
+      release();
+    }
     const results = await Promise.all(first);
     expect(results.every((result) => result.ok)).toBe(true);
+    // The waiting count drained behind them: a ball dropped now is not the eleventh.
+    const twelfth = await drop(client, 10);
+    expect(twelfth.ok).toBe(true);
   });
 
   it("settles two players dropping at once, both paid, bank never below zero", async () => {
@@ -289,8 +319,10 @@ describe("the floor", () => {
     const heard: PlinkoDrop[] = [];
     watcher.on("plinko:dropped", (news) => heard.push(news));
     const result = await drop(dropper, 100, "low", true);
-    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(result.ok).toBe(true);
+    // A round trip on the watcher's own connection: anything the server had
+    // already queued to it would arrive before this reply does.
+    await watch(watcher);
     expect(heard).toHaveLength(0);
     expect(await store.bank("plinko")).toBe(1_000_000);
     expect((await store.get(ids[0] as string))?.chips).toBe(10_000);
@@ -307,16 +339,43 @@ describe("the floor", () => {
     expect(floor.caps).toEqual(capsFor(floor.bank));
   });
 
+  it("survives a watch sent with no ack, and still answers the next one", async () => {
+    const { clients } = await openBoard({ bank: 1_000_000, players: 1 });
+    const client = clients[0] as Client;
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onRejection);
+    try {
+      // No ack function at all — a client is free to send this, and answering
+      // it must never be the thing that throws.
+      client.emit("plinko:watch", {});
+      const floor = await watch(client);
+      expect(floor.bank).toBe(1_000_000);
+    } finally {
+      process.off("unhandledRejection", onRejection);
+    }
+    expect(rejections).toEqual([]);
+  });
+
   it("tells the floor when somebody leaves", async () => {
     const { clients } = await openBoard({ bank: 1_000, players: 2 });
     const [stays, goes] = clients as [Client, Client];
+    // Registered before either watch, and gated on having seen both players
+    // here first — otherwise `stays`'s own arrival (a length-1 list, before
+    // `goes` has even watched) would satisfy this on its own and prove nothing
+    // about `goes` leaving.
+    let sawBoth = false;
+    const seen = new Promise<string[]>((resolve) => {
+      stays.on("plinko:here", (here) => {
+        if (here.length === 2) {
+          sawBoth = true;
+        } else if (here.length === 1 && sawBoth) {
+          resolve(here.map((one) => one.name));
+        }
+      });
+    });
     await watch(stays);
     await watch(goes);
-    const seen = new Promise<string[]>((resolve) =>
-      stays.on("plinko:here", (here) => {
-        if (here.length === 1) resolve(here.map((one) => one.name));
-      }),
-    );
     goes.close();
     expect(await seen).toEqual(["P0"]);
   });
