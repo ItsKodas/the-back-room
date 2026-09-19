@@ -1,0 +1,419 @@
+/*
+ * The peg board. One screen on every size (L1–L8 of the table requirements):
+ * `play--fit` makes the page the window, and only the board flexes.
+ *
+ * Classes are named `pk-page`, `pk-in`, `pk-board`, `pk-sign`, `pk-bank`,
+ * `pk-label` and `pk-figure` rather than a bare "pk" root with BEM-style
+ * double-underscore children, because Poker's felt already claims exactly
+ * that pair of shapes in poker.css, and every table's CSS lands in one
+ * bundle — a second rule for the same bare selector would not stay on this
+ * page. This is the same mistake H2 in the table requirements already names
+ * twice over with a shared "lobby" class. Board.tsx's own pieces (its peg,
+ * bucket, ball and chute classes) already use this hyphenated "pk-"
+ * namespace, so this sheet follows it rather than starting a second one.
+ */
+
+.pk-page {
+  container: pk-page / inline-size;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  /* Everybody else's colours. Never the accent: that is always a player's own ball. */
+  --pk-c0: #ff7a6e;
+  --pk-c1: #ffcf7a;
+  --pk-c2: #7fe0a8;
+  --pk-c3: #7ba9ff;
+  --pk-c4: #b39cff;
+  --pk-c5: #ff86d4;
+  --pk-c6: #f2efe9;
+  --pk-c7: #e8c168;
+}
+
+.pk-in {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "sign" "feed" "board" "controls";
+  /* The board is the one row that's supposed to flex; a phone that is short
+     on height gives it every pixel it can, so the gap between the fixed rows
+     is the smallest one the tokens have. */
+  gap: var(--gr-space-1);
+}
+
+/* ------------------------------------------------------------------ sign */
+
+/*
+ * One row on every size: the board is what needs the height, so the sign
+ * never gets a second row for the mode switch. On a phone that only works if
+ * the switch itself is small — it still has to leave a figure column wide
+ * enough for a seven-digit bank without ellipsising it, so the switch shrinks
+ * (below) rather than claiming a row of its own.
+ */
+.readout.pk-sign {
+  grid-area: sign;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gr-space-1) var(--gr-space-2);
+  padding: 6px 10px;
+}
+
+.pk-sign__mode {
+  grid-column: auto;
+}
+
+/* Scoped to this one switch: shrinking the shared .seg globally would also
+   shrink Risk below in Controls, and every other table's Seg besides. */
+.pk-sign__mode .seg {
+  padding: 2px;
+}
+
+.pk-sign__mode .seg__answer {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.pk-bank {
+  display: grid;
+  min-width: 0;
+  text-align: right;
+}
+
+.pk-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.pk-figure {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink-lit);
+}
+
+/* ------------------------------------------------------------------ feed */
+
+/*
+ * A phone gets one row: who is here, then the recent chips running on after
+ * them, the lot clipped to the box rather than wrapping to a second line the
+ * board cannot spare. The desk breakpoint below puts them back on their own
+ * lines and reopens the full list.
+ *
+ * `.pk-feed.well` rather than `.pk-feed` alone: `.well`'s own `display: grid`
+ * and 14px padding are the same specificity as a bare `.pk-feed`, and
+ * whichever rule the bundler happens to place later wins the tie — the
+ * markup is always both classes together, so pairing them here is what
+ * actually beats `.well` rather than losing to it by luck of source order
+ * (the same reason `.readout.pk-sign` above is two classes and not one).
+ */
+.pk-feed.well {
+  grid-area: feed;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+
+.pk-feed__here {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+.pk-feed__dots {
+  display: flex;
+  gap: 3px;
+}
+
+.pk-feed__dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pk-who);
+}
+
+/* The "N at the board" line already says there is nobody; a phone has no row
+   to spare for saying it again in a longer sentence underneath. */
+.pk-feed__empty {
+  display: none;
+  margin: 0;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-faint);
+}
+
+/* A phone: one row of multiplier chips, clipped in its own box. */
+.pk-feed__drops {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.pk-feed__drop {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--pk-who);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-lit);
+  animation: pk-arrive 220ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+.pk-feed__who,
+.pk-feed__stake,
+.pk-feed__won {
+  display: none;
+}
+
+@keyframes pk-arrive {
+  from {
+    transform: translateX(-8px);
+    opacity: 0;
+  }
+}
+
+/* ----------------------------------------------------------------- board */
+
+.pk-board {
+  grid-area: board;
+  position: relative;
+  min-height: 0;
+  border-radius: 18px;
+  background: radial-gradient(120% 90% at 50% 0%, var(--gr-color-felt-lit), var(--gr-color-felt-deep));
+  box-shadow:
+    inset 0 6px 14px rgb(0 0 0 / 0.45),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.pk-svg {
+  position: absolute;
+  inset: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  overflow: visible;
+}
+
+.pk-chute {
+  stroke: var(--gr-color-smoke-lit);
+  stroke-width: 0.08;
+  stroke-linecap: round;
+}
+
+.pk-peg {
+  fill: var(--gr-color-ink-dim);
+  opacity: 0.6;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pk-peg--trail {
+  fill: var(--gr-color-neon-hi);
+  opacity: 1;
+}
+
+.pk-bucket {
+  transform-box: fill-box;
+  --pk-hit: var(--gr-color-neon-hi);
+}
+
+.pk-bucket rect {
+  fill: var(--gr-color-smoke);
+  stroke: var(--gr-color-smoke-lit);
+  stroke-width: 0.03;
+  transition: fill 160ms ease-out;
+}
+
+/* Hotter towards the edges, where the big multipliers are. */
+.pk-bucket[data-tier="4"] rect { fill: var(--gr-color-neon-dim); }
+.pk-bucket[data-tier="5"] rect { fill: var(--gr-color-neon-deep); }
+.pk-bucket[data-tier="6"] rect { fill: var(--gr-color-neon); }
+
+.pk-bucket--hit rect {
+  fill: var(--pk-hit);
+}
+
+.pk-bucket text {
+  font-size: 0.42px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: var(--gr-color-ink-lit);
+  font-variant-numeric: tabular-nums;
+}
+
+.pk-ball {
+  fill: var(--pk-ball, var(--gr-color-ink));
+  opacity: 0.78;
+}
+
+.pk-ball--mine {
+  fill: var(--gr-color-neon-hi);
+  opacity: 1;
+  filter: drop-shadow(0 0 0.15px var(--gr-color-neon));
+}
+
+.pk-tag {
+  font-size: 0.42px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: var(--pk-tag);
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 0.6);
+  stroke-width: 0.08px;
+}
+
+/* -------------------------------------------------------------- controls */
+
+.pk-controls {
+  grid-area: controls;
+  display: grid;
+  gap: var(--gr-space-1);
+}
+
+.pk-controls__stake {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+
+.pk-controls__stake .key {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* .readout's own padding (built for a standalone figure panel) made this row
+   taller than the 44px keys either side of it need it to be. */
+.readout.pk-controls__figure {
+  display: grid;
+  place-items: center;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.slab.pk-controls__drop {
+  min-height: 48px;
+}
+
+.pk-controls__why {
+  min-height: 18px;
+  margin: 0;
+  font-size: var(--gr-text-sm);
+  /* The font stack's own line-height overshoots `min-height` on its own;
+     without this the reserved row is 21px+ no matter what min-height says. */
+  line-height: 1.3;
+  color: var(--gr-color-ink-dim);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- said */
+
+/* Said in full for anybody not looking at the board. A bucket alone is not a payout. */
+.pk-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ desk */
+
+@container pk-page (min-width: 760px) {
+  .pk-in {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "board sign" "board feed" "board controls";
+    gap: var(--gr-space-4) var(--gr-space-5);
+  }
+
+  /*
+   * The side column is only 320px wide — not enough for the mode switch at
+   * its full default size (measured ~176px) and two bank figures that must
+   * still hold "8,000,000". The switch stays at its phone size here too;
+   * it is a secondary control, and the figures are the numbers people came
+   * to read.
+   */
+  .readout.pk-sign {
+    gap: var(--gr-space-2) var(--gr-space-2);
+    padding: 8px 12px;
+  }
+
+  .pk-label {
+    font-size: 11px;
+  }
+
+  /* The side column has its own height to spend, so the feed goes back to a
+     scrolling list: who was here on its own line, the full list below it.
+     `.pk-feed.well` again, to actually beat `.well`'s own display and padding. */
+  .pk-feed.well {
+    display: block;
+    padding: 12px 14px;
+    overflow: auto;
+  }
+
+  .pk-feed__here {
+    display: flex;
+    white-space: normal;
+    margin: 0 0 4px;
+  }
+
+  .pk-feed__empty {
+    display: block;
+  }
+
+  .pk-feed__drops {
+    display: grid;
+    gap: 4px;
+  }
+
+  .pk-feed__drop {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    gap: 10px;
+    border-radius: 8px;
+    border-width: 0 0 0 3px;
+  }
+
+  .pk-feed__who,
+  .pk-feed__stake,
+  .pk-feed__won {
+    display: inline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* --------------------------------------------------------------- stillness */
+
+@media (prefers-reduced-motion: reduce) {
+  .pk-feed__drop {
+    animation: none;
+  }
+
+  .pk-bucket rect {
+    transition: none;
+  }
+}

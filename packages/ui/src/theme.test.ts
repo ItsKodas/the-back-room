@@ -24,7 +24,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const GAMES = ["greed", "blackjack", "slots"] as const;
+const GAMES = ["greed", "blackjack", "slots", "plinko"] as const;
 
 function theme(game: string): string {
   return readFileSync(join(here, `../../../games/${game}/src/theme.css`), "utf8");

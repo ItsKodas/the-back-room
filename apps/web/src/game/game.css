@@ -2428,6 +2428,42 @@
   }
 }
 
+/*
+ * Plinko's ball, dropped a short way into the board.
+ *
+ * Decoration only, so a phone with no hover to give it never has to see it:
+ * the tile is legible with the ball sitting at the top peg. The class is its
+ * own rather than the wheel's `art__ball` — see the comment on `PegsArt`.
+ */
+.art__plinko-ball {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.tile:hover .art__plinko-ball,
+.tile:focus-visible .art__plinko-ball {
+  animation: tile-plinko-drop 520ms cubic-bezier(0.3, 0.5, 0.5, 1) both;
+}
+
+@keyframes tile-plinko-drop {
+  0% {
+    transform: translateY(0);
+  }
+  70% {
+    transform: translateY(64px);
+  }
+  100% {
+    transform: translateY(58px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile:hover .art__plinko-ball,
+  .tile:focus-visible .art__plinko-ball {
+    animation: none;
+  }
+}
+
 .tile__foot {
   display: flex;
   align-items: center;

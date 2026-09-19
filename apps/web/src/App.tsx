@@ -7,6 +7,7 @@ import { AccountProvider } from "./game/useAccount.js";
 import { Leaderboard } from "./leaderboard/Leaderboard.js";
 import { Shell } from "./nav/Shell.js";
 import { Poker } from "./poker/Poker.js";
+import Plinko from "./plinko/Plinko.js";
 import { Roulette } from "./roulette/Roulette.js";
 import { Scribble } from "./scribble/Scribble.js";
 import Slots from "./slots/Slots.js";
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/death-roll/:code" element={<DeathRoll />} />
           <Route path="/poker" element={<Poker />} />
           <Route path="/poker/:code" element={<Poker />} />
+          <Route path="/plinko" element={<Plinko />} />
           <Route path="/roulette" element={<Roulette />} />
           <Route path="/roulette/:code" element={<Roulette />} />
           <Route path="/scribble" element={<Scribble />} />

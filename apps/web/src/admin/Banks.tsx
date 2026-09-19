@@ -20,6 +20,7 @@ export const BANKS = [
   { game: "blackjack", label: "Blackjack", per: "a hand" },
   { game: "roulette", label: "Roulette", per: "straight up" },
   { game: "two-up", label: "Two-up", per: "a five-odds chip" },
+  { game: "plinko", label: "Plinko", per: "a High ball" },
 ] as const;
 
 interface Held {

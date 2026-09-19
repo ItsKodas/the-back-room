@@ -361,6 +361,28 @@ function jar(): string {
 }
 
 /**
+ * The board's pegs, and the ball a few rows into them.
+ *
+ * Six rows rather than the tile's five: the card is wide rather than square,
+ * and five pegs read as sparse across it. Same idea as the tile's corner — a
+ * triangle above a ball still on its way down — in the card's own coordinates.
+ */
+function pegs(): string {
+  const dots: string[] = [];
+  for (let row = 0; row < 6; row += 1) {
+    for (let index = 0; index < row + 3; index += 1) {
+      const x = 1028 + (index - (row + 2) / 2) * 34;
+      const y = 236 + row * 34;
+      dots.push(`<circle cx="${x}" cy="${y}" r="5" fill="#92a8ab"/>`);
+    }
+  }
+  return `<g>
+    ${dots.join("")}
+    <circle cx="1045" cy="286" r="12" fill="#7cecf5"/>
+  </g>`;
+}
+
+/**
  * The furniture each game keeps, by which game it is.
  *
  * A record rather than a run of ifs, so the set can be counted. A game that is
@@ -404,6 +426,7 @@ export const MOTIFS: Record<string, () => string> = {
   roulette: () => wheel(1028, 318, 128),
   slots: cabinet,
   tips: jar,
+  plinko: pegs,
 };
 
 /**

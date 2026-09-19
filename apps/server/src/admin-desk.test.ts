@@ -14,14 +14,14 @@ import { createBackRoomServer } from "./server.js";
 import { listenForFetch } from "./test-listen.js";
 
 /**
- * A store that can hold a slot pull open mid-round, so a test can prove a
+ * A store that can hold one game's round open mid-play, so a test can prove a
  * concurrent admin reset queues behind it rather than landing inside it.
  *
- * Gates `bank("slots")` specifically, and only its first call after `hold()`
- * arms it: the spin handler reads the cap with it at the very start of its
- * round and reads it again for the ack it sends back at the very end, and
- * only the first of those is the moment worth holding open — gating the
- * second would just hang every spin forever.
+ * Gates `bank(game)` specifically, and only its first call after `hold()`
+ * arms it: a round reads the cap with it at the very start and some games
+ * read it again for the ack they send back at the very end, and only the
+ * first of those is the moment worth holding open — gating the second would
+ * just hang every round forever.
  */
 class GatedStore extends MemoryStore {
   readonly log: string[] = [];
@@ -29,10 +29,14 @@ class GatedStore extends MemoryStore {
   private release: (() => void) | null = null;
   private gate: Promise<void> | null = null;
   private waitingResolve: (() => void) | null = null;
-  /** Resolves once a spin has actually reached the gate and is paused there. */
+  /** Resolves once a round has actually reached the gate and is paused there. */
   readonly waiting: Promise<void> = new Promise((resolve) => {
     this.waitingResolve = resolve;
   });
+
+  constructor(private readonly game: BankName) {
+    super();
+  }
 
   hold(): void {
     this.armed = true;
@@ -46,19 +50,19 @@ class GatedStore extends MemoryStore {
   }
 
   override async bank(which: BankName): Promise<number> {
-    if (which === "slots" && this.armed) {
+    if (which === this.game && this.armed) {
       this.armed = false;
-      this.log.push("spin:holding");
+      this.log.push("holding");
       this.waitingResolve?.();
       await this.gate;
-      this.log.push("spin:resumed");
+      this.log.push("resumed");
     }
     return super.bank(which);
   }
 
   override async bankEmpty(which: BankName): Promise<number> {
-    if (which === "slots") {
-      this.log.push("empty:slots");
+    if (which === this.game) {
+      this.log.push(`empty:${which}`);
     }
     return super.bankEmpty(which);
   }
@@ -391,7 +395,7 @@ describe("through the real server", () => {
    * dependency the fix actually lives behind.
    */
   it("queues an empty-banks reset behind an in-flight slot pull instead of landing inside it", async () => {
-    const store = new GatedStore();
+    const store = new GatedStore("slots");
     const admin = await player(store, "d-admin", "Koda");
     const gambler = await player(store, "d1", "Ada");
     await store.bankAdd("slots", 1_000_000);
@@ -438,7 +442,66 @@ describe("through the real server", () => {
 
     expect(spinResult.ok).toBe(true);
     expect(resetResult.status).toBe(200);
-    expect(store.log).toEqual(["spin:holding", "spin:resumed", "empty:slots"]);
+    expect(store.log).toEqual(["holding", "resumed", "empty:slots"]);
+
+    client.close();
+  });
+
+  /*
+   * Plinko's own ball, not the machine's pull: it queues through the same
+   * kind of per-bank `BankLedger` (`plinko.empty()` in server.ts), so an
+   * admin's empty landing between a ball's stake and its payout is the same
+   * bug this file already proved fixed for slots, on a different bank.
+   */
+  it("queues an empty-banks reset behind an in-flight plinko ball instead of landing inside it", async () => {
+    const store = new GatedStore("plinko");
+    const admin = await player(store, "d-admin", "Koda");
+    const gambler = await player(store, "d1", "Ada");
+    await store.bankAdd("plinko", 1_000_000);
+    process.env["ADMIN_DISCORD_IDS"] = "d-admin";
+
+    server = createBackRoomServer({
+      store,
+      auth: null,
+      serveClient: false,
+      identify: () => gambler.id,
+      identifyRequest: () => admin.id,
+    });
+    await listenForFetch(server.http);
+    const base = `http://localhost:${(server.http.address() as AddressInfo).port}`;
+
+    const client: Socket<ServerToClient, ClientToServer> = connectSocket(base, {
+      transports: ["websocket"],
+      forceNew: true,
+    });
+    await new Promise<void>((resolve) => client.on("connect", () => resolve()));
+
+    store.hold();
+    const dropAck = new Promise<{ ok: boolean }>((resolve) => {
+      client.emit("plinko:drop", { stake: 100, risk: "medium" }, resolve as (result: unknown) => void);
+    });
+    // Waits for the real hold point, not a timer: the ball has reached the
+    // ledger's queue and is paused inside it, exactly where a reset would
+    // otherwise be free to land.
+    await store.waiting;
+
+    const resetPromise = post(`${base}/api/admin/reset`, {
+      target: { all: true },
+      parts: ["balance"],
+      emptyBanks: true,
+    });
+    // However long this waits, the empty cannot have run yet: it is queued
+    // behind the still-open ball in the same `BankLedger`, not racing it, so
+    // this holds regardless of how generous the wait is.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(store.log).not.toContain("empty:plinko");
+
+    store.open();
+    const [dropResult, resetResult] = await Promise.all([dropAck, resetPromise]);
+
+    expect(dropResult.ok).toBe(true);
+    expect(resetResult.status).toBe(200);
+    expect(store.log).toEqual(["holding", "resumed", "empty:plinko"]);
 
     client.close();
   });

@@ -1,0 +1,36 @@
+/*
+ * The Plinko board's corner.
+ *
+ * Teal over deep ink: the one colour still going spare. Greed burns brass,
+ * Blackjack and Roulette are lit green and red, Slots is magenta, and the
+ * building's own tube is blue.
+ *
+ * Left alone deliberately: chip, good and bad, which mean the same thing in
+ * every room.
+ */
+:root[data-game="plinko"],
+[data-game="plinko"] {
+  --gr-color-night: #0c1519;
+  --gr-color-slate: #16262c;
+  --gr-color-shadow: #070d10;
+  --gr-color-smoke: #1f3339;
+  --gr-color-smoke-lit: #29424a;
+
+  --gr-color-felt: #12262d;
+  --gr-color-felt-lit: #19323a;
+  --gr-color-felt-deep: #0b1a1f;
+
+  --gr-color-neon-core: #e6fdff;
+  --gr-color-neon-hi: #7cecf5;
+  --gr-color-neon: #22b8c8;
+  --gr-color-neon-dim: #17707a;
+  --gr-color-neon-deep: #0f8a98;
+
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  --gr-color-ink: #d3e4e6;
+  --gr-color-ink-lit: #eef8f9;
+  --gr-color-ink-dim: #92a8ab;
+  --gr-color-ink-faint: #6a7d80;
+}

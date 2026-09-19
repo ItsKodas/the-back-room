@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CODE_ALPHABET, CODE_LENGTH } from "./protocol.js";
+import { CODE_ALPHABET, CODE_LENGTH, PLINKO_RISKS } from "./protocol.js";
 
 /**
  * Every inbound socket payload, validated before it reaches a handler.
@@ -232,6 +232,22 @@ export const spinSchema = z.object({
 });
 
 export type SpinPayload = z.infer<typeof spinSchema>;
+
+/**
+ * One Plinko ball.
+ *
+ * Tens only: every multiplier is in tenths, so a stake in tens pays a whole
+ * number of chips at every bucket. The upper bound is a sanity limit; what the
+ * bank can actually cover is the cap's to say at drop time.
+ */
+export const plinkoDropSchema = z.object({
+  stake: z.number().int().min(10).max(1_000_000).multipleOf(10),
+  risk: z.enum(PLINKO_RISKS),
+  /** Play money. Absent means chips, so nothing plays for free by accident. */
+  forFun: z.boolean().optional(),
+});
+
+export type PlinkoDropPayload = z.infer<typeof plinkoDropSchema>;
 
 /**
  * What a window says about itself as it connects.

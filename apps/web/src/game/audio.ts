@@ -72,6 +72,16 @@ export type Cue =
   | "tailsUp"
   | "oddsUp"
   /*
+   * The peg board. A tick per peg, which fires a dozen times a ball and
+   * several balls a second, so it is synthesised and almost not there; and the
+   * pocket, pitched by how far from the centre the ball landed, so a 0.2×
+   * thuds and a 170× rings. The Far versions are everybody else's balls.
+   */
+  | "peg"
+  | "pegFar"
+  | "pocket"
+  | "pocketFar"
+  /*
    * The napkin. A marker scratch at the start of a line and a swipe of paper on
    * a clear — synthesised until there are recordings of both — and the table's
    * own tick, chime and sting. The tick fires every second of the last ten, so
@@ -703,9 +713,9 @@ export function play(
   /**
    * How far up the run this one is, for the cues that climb.
    *
-   * Only "bonusAppear" reads it. Passed as a plain count rather than a pitch
-   * so the caller says what happened — "this is the third one" — and the
-   * interval it turns into stays a decision this file makes.
+   * "bonusAppear" reads it; "peg*" and "pocket*" read it too. Passed as a plain
+   * count rather than a pitch so the caller says what happened — "this is the
+   * third one" — and the interval it turns into stays a decision this file makes.
    */
   step = 0,
 ): void {
@@ -883,6 +893,24 @@ export function play(
       tone({ frequency: 600, duration: 0.08, type: "triangle", gain: 0.1, delay: 0.1 });
       tone({ frequency: 600, duration: 0.16, type: "triangle", gain: 0.1, delay: 0.2 });
       return;
+
+    case "peg":
+    case "pegFar": {
+      // Falling in pitch as the ball goes down the board.
+      const frequency = 1500 - step * 55;
+      tone({ frequency, duration: 0.035, type: "triangle", gain: cue === "peg" ? 0.02 : 0.006 });
+      break;
+    }
+    case "pocket":
+    case "pocketFar": {
+      const gain = cue === "pocket" ? 0.08 : 0.02;
+      const frequency = 180 * 2 ** (step / 3);
+      tone({ frequency, duration: 0.16 + step * 0.03, type: "sine", gain });
+      if (step >= 5) {
+        tone({ frequency: frequency * 2, duration: 0.3, type: "triangle", gain: gain * 0.6, delay: 0.05 });
+      }
+      break;
+    }
 
     case "sayCheck":
       /*

@@ -252,6 +252,16 @@ export interface ClientToServer {
     ack: (result: SpinResult) => void,
   ) => void;
   /**
+   * Stand at the Plinko board. The backlog, who is here and the bank come back
+   * with the ack, so a board somebody has just walked up to is never blank.
+   */
+  "plinko:watch": (payload: Record<string, never>, ack: (floor: PlinkoFloor) => void) => void;
+  "plinko:away": () => void;
+  "plinko:drop": (
+    payload: { stake: number; risk: PlinkoRisk; forFun?: boolean },
+    ack: (result: PlinkoResult) => void,
+  ) => void;
+  /**
    * Stand at the jar and be told what is in it.
    *
    * Its own events rather than game:action, for the same reason the machine
@@ -353,6 +363,85 @@ export type SpinResult =
   | { ok: false; error: string };
 
 /**
+ * How hard a Plinko ball is played, chosen per ball.
+ *
+ * Here rather than in games/plinko because the socket schema has to name them
+ * and shared sits beneath the games. games/plinko reads the list from here, so
+ * there is one list and nothing to keep in step.
+ */
+export const PLINKO_RISKS = ["low", "medium", "high"] as const;
+
+export type PlinkoRisk = (typeof PLINKO_RISKS)[number];
+
+/** The largest stake the bank can certainly cover, at each risk. */
+export type PlinkoCaps = Record<PlinkoRisk, number>;
+
+/**
+ * One paid ball, as everybody on the floor sees it.
+ *
+ * Only chips drops. A for-fun purse was never anybody's, so putting its balls
+ * on the shared board would advertise a floor busier than it is.
+ */
+export interface PlinkoDrop {
+  id: string;
+  by: { name: string; colour: number };
+  risk: PlinkoRisk;
+  /** Row by row from the top, true for right. */
+  path: boolean[];
+  bucket: number;
+  /** In tenths: 170× is 1700. */
+  mult: number;
+  stake: number;
+  won: number;
+  /** The bank after this drop, so every sign on the floor can follow it. */
+  bank: number;
+  at: number;
+}
+
+/** Somebody standing at the board. Signed-in players only: a guest has no name to show. */
+export interface PlinkoWatcher {
+  name: string;
+  colour: number;
+}
+
+/** What walking up to the board tells you, in one answer so it is never briefly empty. */
+export interface PlinkoFloor {
+  recent: PlinkoDrop[];
+  here: PlinkoWatcher[];
+  bank: number;
+  caps: PlinkoCaps;
+}
+
+/** What the board did with one ball. */
+export type PlinkoResult =
+  | {
+      ok: true;
+      path: boolean[];
+      bucket: number;
+      mult: number;
+      stake: number;
+      risk: PlinkoRisk;
+      won: number;
+      /** What the bank holds now, and so what it will cover next. */
+      bank: number;
+      caps: PlinkoCaps;
+      /** The player's balance now, win included — the page holds the win back until the ball lands. */
+      balance: number;
+    }
+  | {
+      ok: false;
+      error: string;
+      /**
+       * False only on the generic answer `acking`'s fallback sends after a
+       * throw. By then the money may already have moved — the throwable calls
+       * in plinko.ts (`bankAdd`, `give`, `record`, `bank`, `get`) all sit after
+       * the stake is taken — so this is not a refusal the client may treat as
+       * "nothing happened": it does not know, and has to ask.
+       */
+      settled?: false;
+    };
+
+/**
  * The jar, as the player standing at it may see it.
  *
  * `level`, `at` and `trickle` travel together rather than a bare level so the
@@ -399,6 +488,9 @@ export interface TableClosed {
 export interface ServerToClient {
   /** Somebody at the machine just pulled the lever. */
   "slots:spun": (news: SpinNews) => void;
+  /** Somebody else's paid ball. Never the dropper's own: they are already watching it fall. */
+  "plinko:dropped": (drop: PlinkoDrop) => void;
+  "plinko:here": (here: PlinkoWatcher[]) => void;
   /**
    * The table, as this seat may see it.
    *

@@ -468,6 +468,45 @@ export function CoinsArt() {
 }
 
 /**
+ * A triangle of pegs and one ball on its way down.
+ *
+ * The ball keeps its own class rather than the wheel's `art__ball` — that name
+ * is already spoken for by the roulette rim's own rest position and fall, and
+ * both drawings would answer to it at once: a plinko ball with no motion of
+ * its own would sit hoisted up by the wheel's `translateY(-51px)`, then fall
+ * along the wheel's track on hover instead of down its own board.
+ */
+export function PegsArt() {
+  const pegs: Array<{ x: number; y: number }> = [];
+  for (let row = 0; row < 5; row += 1) {
+    for (let index = 0; index < row + 3; index += 1) {
+      pegs.push({ x: 100 + (index - (row + 2) / 2) * 22, y: 38 + row * 22 });
+    }
+  }
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      {pegs.map((peg) => (
+        <circle key={`${peg.x}:${peg.y}`} cx={peg.x} cy={peg.y} r="3.2" fill="#92a8ab" />
+      ))}
+      <g className="art__plinko-ball">
+        <circle cx="111" cy="62" r="7" fill="#7cecf5" />
+      </g>
+      {[0, 1, 2, 3, 4, 5, 6].map((bucket) => (
+        <rect
+          key={bucket}
+          x={100 + (bucket - 3) * 22 - 9}
+          y="140"
+          width="18"
+          height="10"
+          rx="3"
+          fill={bucket === 0 || bucket === 6 ? "#22b8c8" : "#1f3339"}
+        />
+      ))}
+    </svg>
+  );
+}
+
+/**
  * A napkin with a lighthouse half drawn on it.
  *
  * Still, rather than moved on hover like the others: nothing on it is a thing
@@ -509,6 +548,9 @@ export function TileArt({ game }: { game: string }) {
   }
   if (game === "scribble") {
     return <ScribbleArt />;
+  }
+  if (game === "plinko") {
+    return <PegsArt />;
   }
   return <ChipsArt />;
 }
