@@ -285,7 +285,10 @@ export default function Plinko() {
               <span className="pk-figure">{shown === null ? "—" : exact(shown.bank)}</span>
             </div>
             <div className="pk-bank">
-              <span className="pk-label">{forFun ? "Play chips" : `Up to · ${risk}`}</span>
+              {/* Not "Up to · {risk}": that truncated in the 320px desk side column, and
+                  the risk is already named by the Low/Medium/High Seg right below, and
+                  by the why line when a stake is refused for being over this cap. */}
+              <span className="pk-label">{forFun ? "Play chips" : "Up to"}</span>
               <span className="pk-figure">{forFun ? exact(funPurse) : exact(cap)}</span>
             </div>
           </div>
