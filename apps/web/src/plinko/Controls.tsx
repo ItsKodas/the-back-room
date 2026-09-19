@@ -74,7 +74,14 @@ export function Controls({
           2×
         </button>
       </div>
-      <button type="button" className="slab pk-controls__drop" disabled={!canDrop} onClick={onDrop}>
+      {/* Its own click, so the building's press sound does not land under it. */}
+      <button
+        type="button"
+        className="slab pk-controls__drop"
+        data-quiet
+        disabled={!canDrop}
+        onClick={onDrop}
+      >
         Drop · {exact(stake)}
       </button>
       <p className="pk-controls__why" role="status">

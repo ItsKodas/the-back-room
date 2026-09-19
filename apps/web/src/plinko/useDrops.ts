@@ -128,7 +128,12 @@ export function useDrops(
       // The stake is the player's own number, so it goes on the press.
       mine.press(id, stake, balance);
       push(fun);
-      play("bet");
+      /*
+       * A click, not a handful of chips. The stake here is one ball rather than
+       * a stack pushed onto felt, and the sampled chip clatter played over the
+       * building's own press sound, which is two sounds where the press is one.
+       */
+      play("drop");
       balls.current.set(id, {
         id,
         mine: true,
