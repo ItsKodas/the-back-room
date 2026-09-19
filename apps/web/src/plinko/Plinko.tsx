@@ -272,8 +272,8 @@ export default function Plinko() {
               <Seg
                 label="What this board plays for"
                 options={[
-                  { value: false, text: "For chips" },
-                  { value: true, text: "For fun" },
+                  { value: false, text: "Chips" },
+                  { value: true, text: "Fun" },
                 ]}
                 value={forFun}
                 onChange={setForFun}
