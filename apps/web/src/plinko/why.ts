@@ -1,4 +1,4 @@
-import { MIN_STAKE, type Risk } from "@backroom/game-plinko";
+import { MAX_WAITING, MIN_STAKE, type Risk } from "@backroom/game-plinko";
 import { exact } from "../game/money.js";
 
 /**
@@ -15,16 +15,27 @@ export interface WhyArgs {
   balance: number | null;
   stake: number;
   risk: Risk;
+  /** The player's own balls still falling, which the board caps. */
+  inAir: number;
   /** A refusal's own words, shown only once neither limit explains the silence. */
   notice: string | null;
 }
 
-export function whyLine({ canPlay, cap, balance, stake, risk, notice }: WhyArgs): string | null {
+export function whyLine({ canPlay, cap, balance, stake, risk, inAir, notice }: WhyArgs): string | null {
   if (!canPlay) {
     return "Sign in to play for chips, or play for fun.";
   }
   if (cap < MIN_STAKE) {
     return "The bank is empty. Nothing to play for yet.";
+  }
+  /*
+   * Before the stake lines, because this is the one that is true right now and
+   * clears itself: holding the key fills the board in a couple of seconds, and
+   * a grey key with no words for it is the "silently does nothing" this whole
+   * file exists to prevent.
+   */
+  if (inAir >= MAX_WAITING) {
+    return "That is every ball the board will hold. The next goes as one lands.";
   }
   if (stake >= cap) {
     return `The bank covers ${exact(cap)} a ball on ${risk} right now.`;

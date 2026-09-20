@@ -319,6 +319,13 @@
 
 .slab.pk-controls__drop {
   min-height: 48px;
+  /* This key gets held, and a held key on a phone is a long press: without
+     these a thumb resting on it selects the label, raises the iOS callout
+     menu over the board, and spends the press on a double-tap zoom. */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .pk-controls__why {
