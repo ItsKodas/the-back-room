@@ -200,7 +200,7 @@ export default function Plinko() {
   const inAir = forFun ? funInAir : chipsInAir;
   const canDrop = connected && canPlay && stake >= MIN_STAKE && stake <= limit && inAir < MAX_WAITING;
 
-  const why = whyLine({ canPlay, cap, balance, stake, risk, notice });
+  const why = whyLine({ canPlay, cap, balance, stake, risk, inAir, notice });
 
   const drop = () => {
     if (!canDrop) return;

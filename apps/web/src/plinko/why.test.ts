@@ -1,3 +1,4 @@
+import { MAX_WAITING } from "@backroom/game-plinko";
 import { describe, expect, it } from "vitest";
 import { whyLine } from "./why.js";
 
@@ -16,6 +17,7 @@ function args(overrides: Partial<Parameters<typeof whyLine>[0]> = {}): Parameter
     balance: 1_000,
     stake: 100,
     risk: "medium",
+    inAir: 0,
     notice: null,
     ...overrides,
   };
@@ -24,6 +26,14 @@ function args(overrides: Partial<Parameters<typeof whyLine>[0]> = {}): Parameter
 describe("whyLine", () => {
   it("asks to sign in when nobody can play", () => {
     expect(whyLine(args({ canPlay: false }))).toBe("Sign in to play for chips, or play for fun.");
+  });
+
+  it("says to wait when every ball the board allows is already falling", () => {
+    // Holding the key makes this the ordinary way to reach the ceiling rather
+    // than a rare one, and a key that greys out without a word reads as broken.
+    expect(whyLine(args({ inAir: MAX_WAITING }))).toBe(
+      "That is every ball the board will hold. The next goes as one lands.",
+    );
   });
 
   it("says the bank is empty when the cap is below the smallest stake", () => {

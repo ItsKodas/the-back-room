@@ -2,6 +2,7 @@ import type { Risk } from "@backroom/game-plinko";
 import { exact } from "../game/money.js";
 import { Seg } from "../fittings/Seg.js";
 import { double, fit, halve, nudge } from "./stake.js";
+import { useHold } from "./useHold.js";
 
 const RISK_OPTIONS = [
   { value: "low", text: "Low" },
@@ -36,6 +37,11 @@ export function Controls({
   canDrop: boolean;
   onDrop: () => void;
 }) {
+  // Held down, the key keeps dropping. `onDrop` is the page's own gate, so a
+  // repeat that arrives with the board full or the balance short simply does
+  // nothing and the next one picks up where it left off.
+  const hold = useHold(onDrop);
+
   return (
     <div className="pk-controls">
       <Seg label="Risk" options={RISK_OPTIONS} value={risk} onChange={onRisk} />
@@ -80,7 +86,25 @@ export function Controls({
         className="slab pk-controls__drop"
         data-quiet
         disabled={!canDrop}
-        onClick={onDrop}
+        onPointerDown={(event) => {
+          // A right-click is not a press, and neither is the middle button.
+          if (event.button !== 0) return;
+          hold.start();
+        }}
+        onPointerUp={hold.stop}
+        onPointerCancel={hold.stop}
+        // Sliding a thumb off the key is how you get out of a hold without
+        // lifting it. Pointer capture would take that away.
+        onPointerLeave={hold.stop}
+        /*
+         * A pointer press already dropped on the way down; the click the
+         * browser sends afterwards would drop a second ball for the same
+         * press. `detail: 0` is a click with no pointer behind it — Space or
+         * Enter on a focused key — which is the only one left to act on.
+         */
+        onClick={(event) => {
+          if (event.detail === 0) onDrop();
+        }}
       >
         Drop · {exact(stake)}
       </button>
