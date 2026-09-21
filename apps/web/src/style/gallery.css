@@ -147,7 +147,7 @@
   flex-wrap: wrap;
   gap: var(--gr-space-3);
   margin: var(--gr-space-3) 0 var(--gr-space-5);
-  --bj-card-w: 150px;
+  --card-w: 150px;
 }
 
 /*

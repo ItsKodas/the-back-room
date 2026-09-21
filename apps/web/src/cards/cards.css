@@ -1,0 +1,225 @@
+/*
+ * The deck, wherever it is dealt.
+ *
+ * A card is the same object in every room in the building, so it is drawn once
+ * here rather than in each game that happens to use one. What a game owns is
+ * where its cards sit and how big they are — `--card-w` is set by the felt and
+ * read here — and nothing in this file knows which game is reading it.
+ */
+
+/*
+ * A card's width is a length by the time anything inherits it. Written in the
+ * felt's container units and left as text, it would be measured again against
+ * whatever container the card sits in — and a hand is one, so it can fit its
+ * row.
+ */
+@property --card-w {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 47px;
+}
+
+/*
+ * One card, at the size its container asks for. Width only: the drawing
+ * carries its own 2.5×3.5 proportion, and every number inside it scales with
+ * the box.
+ */
+.card {
+  width: var(--card-w, 47px);
+  height: auto;
+  flex: none;
+  display: block;
+  border-radius: var(--gr-radius-md);
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+  /* The ink. Everything drawn on the face inherits it, which is the whole of
+     the red/black distinction — there is no second set of shapes. */
+  color: #1b1b1b;
+}
+
+.card--red {
+  color: #b0202a;
+}
+
+/* Paper, and the only white thing in the room besides the burning middle of
+   the sign — which is why a dealt hand pulls the eye without being lit. */
+.card__face {
+  fill: #fdfbf6;
+  stroke: rgb(0 0 0 / 0.32);
+  stroke-width: 1;
+}
+
+.card__rank {
+  font-family: var(--gr-font-display);
+  /* A sixth of the card's height, which is where a real deck puts it. */
+  font-size: 23px;
+  fill: currentColor;
+  /* Snapped-to-pixel hinting makes small type jump a pixel at a time as a card turns. */
+  text-rendering: geometricPrecision;
+}
+
+/* The court's panel: the suit's own colour, at the weight of a wash. */
+.card__panel {
+  fill: color-mix(in srgb, currentColor 8%, transparent);
+  stroke: color-mix(in srgb, currentColor 45%, transparent);
+  stroke-width: 1.2;
+}
+
+.card__rule {
+  stroke: color-mix(in srgb, currentColor 32%, transparent);
+  stroke-width: 1.2;
+  fill: none;
+}
+
+/*
+ * The weave, in whatever colours the game being played is dressed in. A
+ * table's theme sets these three and gets a deck of its own without a second
+ * drawing of one.
+ */
+.card--down {
+  --bj-back: var(--gr-color-neon-deep, #0b3fd4);
+  --bj-back-weft: #12203c;
+  --bj-back-warp: #1f3a70;
+}
+
+.card__back {
+  fill: #0d1220;
+  stroke: var(--bj-back);
+  stroke-width: 1;
+}
+
+.card__weft {
+  fill: var(--bj-back-weft);
+}
+
+.card__warp {
+  fill: var(--bj-back-warp);
+}
+
+/* The one gold line on the back, which is what ties it to the chips. */
+.card__edge {
+  fill: none;
+  stroke: var(--gr-color-chip);
+  stroke-width: 1.1;
+  opacity: 0.75;
+}
+
+/*
+ * A card leans toward the pointer and lifts off the felt. The angles come from
+ * the pointer, on the element, in Cards.tsx — this only says what to do with
+ * them. The transition is for coming back to rest, not for following the
+ * pointer, which is what made the corner type shiver.
+ */
+.card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  position: relative;
+  transition:
+    transform 220ms ease-out,
+    filter 150ms ease-out;
+}
+
+.card:hover {
+  /* Following the pointer directly; interpolating between sixty updates a second was not smooth. */
+  transition: filter 150ms ease-out;
+  will-change: transform;
+  backface-visibility: hidden;
+  /* Above its neighbours, which in an overlapped hand is the whole point. */
+  z-index: 6;
+  transform: perspective(620px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(1.05);
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
+}
+
+/* ============================================================ the motion */
+
+/* Out of the shoe — up and to the right of the felt — turning as it comes. */
+@keyframes card-deal {
+  0% {
+    opacity: 0;
+    transform: translate(90px, -120px) rotate(16deg) scale(0.86);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(0, 3px) rotate(-2.5deg) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+}
+
+/* The hole card, turned over: squashed through the middle rather than rotated in 3D. */
+@keyframes card-turn {
+  0% {
+    transform: scaleX(0.06) rotate(-3deg);
+    filter: brightness(1.5);
+  }
+  55% {
+    transform: scaleX(1.06) rotate(1deg);
+    filter: brightness(1.12);
+  }
+  100% {
+    transform: scaleX(1) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
+/*
+ * A card turned over where it lies, in two halves: the back folds away and the
+ * face opens out in its place. The fold holds its end state, or the back snaps
+ * back to full width for the frame between the two and flashes.
+ */
+@keyframes card-fold {
+  0% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0.05);
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes card-unfold {
+  0% {
+    transform: scaleX(0.05);
+    filter: brightness(1.35);
+  }
+  100% {
+    transform: scaleX(1);
+    filter: brightness(1);
+  }
+}
+
+.card--deal {
+  animation: card-deal 380ms cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+
+.card--turn {
+  animation: card-turn 320ms cubic-bezier(0.3, 0.8, 0.3, 1) backwards;
+}
+
+.card--fold {
+  animation: card-fold 120ms ease-in forwards;
+}
+
+.card--unfold {
+  animation: card-unfold 120ms ease-out backwards;
+}
+
+/* ------------------------------------------------------------ off switch */
+
+/* Every keyframe above, switched off by name. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card:hover,
+  .card--deal,
+  .card--turn,
+  .card--fold,
+  .card--unfold {
+    animation: none;
+    transition: none;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+}

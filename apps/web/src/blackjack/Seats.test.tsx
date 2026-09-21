@@ -44,8 +44,8 @@ describe("the seats", () => {
   it("put a card on its way face down on your hand while a hit is in the air", () => {
     render(<Seats state={yourTurn()} seatId="a" stake={0} arriving />);
     const mine = screen.getByRole("article", { name: "Ada (you)" });
-    expect(mine.querySelectorAll(".bj-card")).toHaveLength(3);
-    expect(mine.querySelector(".bj-card--down")).not.toBeNull();
+    expect(mine.querySelectorAll(".card")).toHaveLength(3);
+    expect(mine.querySelector(".card--down")).not.toBeNull();
   });
 
   it("grow a box per hand on your split seat, lighting the one being played", () => {

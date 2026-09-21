@@ -1,6 +1,6 @@
-import type { Card as CardData, Rank, Suit } from "@backroom/game-blackjack";
 import type { CSSProperties, PointerEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import type { Card as CardData, Rank, Suit } from "./deck.js";
 import {
   CARD_H,
   CARD_R,
@@ -14,6 +14,7 @@ import {
   pipsFor,
   SUIT_PATH,
 } from "./deck.js";
+import "./cards.css";
 
 /**
  * The deck.
@@ -62,7 +63,7 @@ function Index({ rank, suit }: { rank: Rank; suit: Suit }) {
       {/* Centred on the index column rather than left-aligned, so a "10" and
           an "A" sit over the same axis instead of drifting apart. */}
       <text
-        className="bj-card__rank"
+        className="card__rank"
         x={INDEX.x}
         y={INDEX.rankBase}
         textAnchor="middle"
@@ -119,7 +120,7 @@ export function Card({
 
   return (
     <svg
-      className={`bj-card${red ? " bj-card--red" : ""} bj-card--${enter}`}
+      className={`card${red ? " card--red" : ""} card--${enter}`}
       viewBox={`0 0 ${CARD_W} ${CARD_H}`}
       role="img"
       aria-label={`${card.rank} of ${card.suit}`}
@@ -130,14 +131,14 @@ export function Card({
       style={deal > 0 ? { animationDelay: `${deal * 90}ms` } : undefined}
     >
       <rect
-        className="bj-card__face"
+        className="card__face"
         x="0.5"
         y="0.5"
         width={CARD_W - 1}
         height={CARD_H - 1}
         rx={CARD_R}
       />
-      <g className="bj-card__ink" fill="currentColor">
+      <g className="card__ink" fill="currentColor">
         <Index rank={card.rank} suit={card.suit} />
         {/* The second index is the first one turned about the middle of the
             card — which is what makes it land in the opposite corner at the
@@ -149,7 +150,7 @@ export function Card({
         {court && emblem !== undefined ? (
           <>
             <rect
-              className="bj-card__panel"
+              className="card__panel"
               x={COURT_PANEL.x}
               y={COURT_PANEL.y}
               width={COURT_PANEL.w}
@@ -160,7 +161,7 @@ export function Card({
                 a real court card is: one figure, and the same figure upside
                 down, so the card reads the same whichever way it is held. */}
             <path
-              className="bj-card__rule"
+              className="card__rule"
               d={`M${COURT_PANEL.x} ${COURT_PANEL.mid} H${COURT_PANEL.x + COURT_PANEL.w}`}
             />
             <path d={emblem} transform={`translate(50 ${COURT_PANEL.emblemY})`} />
@@ -208,7 +209,7 @@ export function FaceDown({
 
   return (
     <svg
-      className={`bj-card bj-card--down bj-card--${folding ? "fold" : "deal"}`}
+      className={`card card--down card--${folding ? "fold" : "deal"}`}
       viewBox={`0 0 ${CARD_W} ${CARD_H}`}
       role="img"
       aria-label="face down"
@@ -226,12 +227,12 @@ export function FaceDown({
           patternUnits="userSpaceOnUse"
           patternTransform="rotate(45)"
         >
-          <rect width="8" height="8" className="bj-card__weft" />
-          <rect width="3.7" height="8" className="bj-card__warp" />
+          <rect width="8" height="8" className="card__weft" />
+          <rect width="3.7" height="8" className="card__warp" />
         </pattern>
       </defs>
       <rect
-        className="bj-card__back"
+        className="card__back"
         x="0.5"
         y="0.5"
         width={CARD_W - 1}
@@ -242,7 +243,7 @@ export function FaceDown({
           does — a pattern running to the edge reads as a swatch, not a card. */}
       <rect x="6" y="6" width={CARD_W - 12} height={CARD_H - 12} rx="4" fill={`url(#${weave})`} />
       <rect
-        className="bj-card__edge"
+        className="card__edge"
         x="6"
         y="6"
         width={CARD_W - 12}

@@ -10,26 +10,15 @@
  * table the same markup puts the felt on the left and a side column of readout,
  * rules, activity and controls on the right.
  *
- * Imported by Blackjack.tsx and the style gallery's Deck.tsx. Poker deals the
- * same cards, so the card, hand and chip-pile rules near the end are the
- * building's and stay unscoped; everything about this table is a .bj class.
- * This sheet loads before fittings.css, so a rule that has to beat a fitting
- * uses two classes. What every table shares is in table/table.css.
+ * Imported by Blackjack.tsx and the style gallery's Deck.tsx. The card itself
+ * is drawn once for the building in cards/cards.css, which Cards.tsx loads
+ * wherever it is used; the hand and chip-pile rules near the end are this
+ * building's too and stay unscoped, while everything about this table is a
+ * .bj class. This sheet loads before fittings.css, so a rule that has to beat
+ * a fitting uses two classes. What every table shares is in table/table.css.
  */
 
 /* ------------------------------------------------------------- the table */
-
-/*
- * A card's width is a length by the time anything inherits it. Written in the
- * felt's container units and left as text, it would be measured again against
- * whatever container the card sits in — and a hand is one, so it can fit its
- * row.
- */
-@property --bj-card-w {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 47px;
-}
 
 .bj {
   container: bj / inline-size;
@@ -201,7 +190,7 @@
  * made of letters. Talk sits outside this, where selecting text is the point.
  */
 .bj__felt,
-.bj-card {
+.card {
   user-select: none;
   -webkit-user-select: none;
 }
@@ -247,7 +236,7 @@
   gap: 4px;
   /* Clear of the corner keys on both sides. */
   padding: 4px 48px 6px;
-  --bj-card-w: var(--bj-card-dealer);
+  --card-w: var(--bj-card-dealer);
 }
 
 .bj__dealer-who {
@@ -296,14 +285,14 @@
  * the felt to itself, so that squeeze is not wanted here; four classes beats
  * the shared rule's three regardless of which comes first in the sheet.
  */
-.bj__dealer .bj-hand .bj-card + .bj-card {
+.bj__dealer .bj-hand .card + .card {
   margin-left: 0;
 }
 
 /* Where a card will go, so a hand between deals keeps its height. */
 .bj__slot {
   flex: none;
-  width: var(--bj-card-w, 47px);
+  width: var(--card-w, 47px);
   aspect-ratio: 5 / 7;
   border-radius: 4px;
   background: rgb(0 0 0 / 0.12);
@@ -338,14 +327,14 @@
 
 /* Yours, marked the way the leaderboard marks your row. */
 .bj__seat--mine {
-  --bj-card-w: var(--bj-card-mine);
+  --card-w: var(--bj-card-mine);
   outline: 1px solid var(--gr-color-chip-dim);
   outline-offset: -1px;
 }
 
 /* A compact plate: a line of small cards and what they come to. */
 .bj__seat--other {
-  --bj-card-w: var(--bj-card-other);
+  --card-w: var(--bj-card-other);
   gap: 4px;
   padding: 6px 8px;
 }
@@ -466,14 +455,14 @@
  */
 .bj__seat .bj-hand {
   container-type: inline-size;
-  flex: 0 1 calc(var(--bj-card-w) * (1 + (var(--bj-places, 1) - 1) * var(--bj-show)));
+  flex: 0 1 calc(var(--card-w) * (1 + (var(--bj-places, 1) - 1) * var(--bj-show)));
   gap: 0;
   min-width: 0;
   --bj-show: 0.72;
 }
 
-.bj__seat .bj-hand .bj-card + .bj-card {
-  margin-left: clamp(var(--bj-card-w) * -0.82, (100cqi - var(--bj-card-w)) / (var(--bj-places, 2) - 1) - var(--bj-card-w), var(--bj-card-w) * (var(--bj-show) - 1));
+.bj__seat .bj-hand .card + .card {
+  margin-left: clamp(var(--card-w) * -0.82, (100cqi - var(--card-w)) / (var(--bj-places, 2) - 1) - var(--card-w), var(--card-w) * (var(--bj-show) - 1));
 }
 
 .bj__seat--other .seat__avatar {
@@ -574,16 +563,16 @@
  * on the seat, the container, and inherited.
  *
  * Same specificity as .bj__seat--mine, so this has to come after it in the
- * sheet to win --bj-card-w on a split hand of your own — source order here is
+ * sheet to win --card-w on a split hand of your own — source order here is
  * load-bearing.
  */
 .bj__seat--split {
-  --bj-card-w: clamp(26px, min(12cqi, 15cqh), 52px);
+  --card-w: clamp(26px, min(12cqi, 15cqh), 52px);
 }
 
 /* Not a rule the table plays today; the layout holds it anyway. */
 .bj__seat--split.bj__seat--four {
-  --bj-card-w: clamp(18px, min(8.5cqi, 10cqh), 32px);
+  --card-w: clamp(18px, min(8.5cqi, 10cqh), 32px);
 }
 
 .bj__boxes {
@@ -1204,7 +1193,7 @@
   }
 
   .bj__seat--other > * {
-    --bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px);
+    --card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px);
   }
 
   /* Somebody else's hand is glanced at, not read, so it sits deeper on itself. */
@@ -1227,7 +1216,7 @@
   }
 
   .bj__felt:has(.bj__seat--other:nth-child(6)) .bj__seat--other > * {
-    --bj-card-w: clamp(26px, min(100cqi / 2.5, 8cqh), 100px);
+    --card-w: clamp(26px, min(100cqi / 2.5, 8cqh), 100px);
   }
 
   .bj__seat {
@@ -1283,13 +1272,13 @@
   }
 }
 
-/* ============================================ the cards (shared with poker) */
+/* ===================================================== the hand (a card's own layout) */
 
 /*
- * Prefixed, unlike most card-game names. `.card` and `.hand` were already
- * taken — Greed's scorecard is a `.card` — and every page loads every game's
- * stylesheet, so the collision once dressed Greed's points table as a playing
- * card.
+ * Prefixed, unlike most card-game names. `.hand` was already taken — Greed's
+ * scorecard sits under `.card`, drawn by the shared deck in cards.css — and
+ * every page loads every game's stylesheet, so the collision once dressed
+ * Greed's points table as a playing card.
  */
 .bj-hand {
   display: flex;
@@ -1302,118 +1291,8 @@
  * A hand that has outgrown its row, overlapped rather than spread. The index
  * lives in the corner of every card, so an overlapped one still says what it is.
  */
-.bj-hand--tight .bj-card + .bj-card {
+.bj-hand--tight .card + .card {
   margin-left: -26px;
-}
-
-/*
- * One card, at the size its container asks for. Width only: the drawing
- * carries its own 2.5×3.5 proportion, and every number inside it scales with
- * the box.
- */
-.bj-card {
-  width: var(--bj-card-w, 47px);
-  height: auto;
-  flex: none;
-  display: block;
-  border-radius: var(--gr-radius-md);
-  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
-  /* The ink. Everything drawn on the face inherits it, which is the whole of
-     the red/black distinction — there is no second set of shapes. */
-  color: #1b1b1b;
-}
-
-.bj-card--red {
-  color: #b0202a;
-}
-
-/* Paper, and the only white thing in the room besides the burning middle of
-   the sign — which is why a dealt hand pulls the eye without being lit. */
-.bj-card__face {
-  fill: #fdfbf6;
-  stroke: rgb(0 0 0 / 0.32);
-  stroke-width: 1;
-}
-
-.bj-card__rank {
-  font-family: var(--gr-font-display);
-  /* A sixth of the card's height, which is where a real deck puts it. */
-  font-size: 23px;
-  fill: currentColor;
-  /* Snapped-to-pixel hinting makes small type jump a pixel at a time as a card turns. */
-  text-rendering: geometricPrecision;
-}
-
-/* The court's panel: the suit's own colour, at the weight of a wash. */
-.bj-card__panel {
-  fill: color-mix(in srgb, currentColor 8%, transparent);
-  stroke: color-mix(in srgb, currentColor 45%, transparent);
-  stroke-width: 1.2;
-}
-
-.bj-card__rule {
-  stroke: color-mix(in srgb, currentColor 32%, transparent);
-  stroke-width: 1.2;
-  fill: none;
-}
-
-/*
- * The weave, in whatever colours the game being played is dressed in. A
- * table's theme sets these three and gets a deck of its own without a second
- * drawing of one.
- */
-.bj-card--down {
-  --bj-back: var(--gr-color-neon-deep, #0b3fd4);
-  --bj-back-weft: #12203c;
-  --bj-back-warp: #1f3a70;
-}
-
-.bj-card__back {
-  fill: #0d1220;
-  stroke: var(--bj-back);
-  stroke-width: 1;
-}
-
-.bj-card__weft {
-  fill: var(--bj-back-weft);
-}
-
-.bj-card__warp {
-  fill: var(--bj-back-warp);
-}
-
-/* The one gold line on the back, which is what ties it to the chips. */
-.bj-card__edge {
-  fill: none;
-  stroke: var(--gr-color-chip);
-  stroke-width: 1.1;
-  opacity: 0.75;
-}
-
-/*
- * A card leans toward the pointer and lifts off the felt. The angles come from
- * the pointer, on the element, in Cards.tsx — this only says what to do with
- * them. The transition is for coming back to rest, not for following the
- * pointer, which is what made the corner type shiver.
- */
-.bj-card {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
-  position: relative;
-  transition:
-    transform 220ms ease-out,
-    filter 150ms ease-out;
-}
-
-.bj-card:hover {
-  /* Following the pointer directly; interpolating between sixty updates a second was not smooth. */
-  transition: filter 150ms ease-out;
-  will-change: transform;
-  backface-visibility: hidden;
-  /* Above its neighbours, which in an overlapped hand is the whole point. */
-  z-index: 6;
-  transform: perspective(620px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(1.05);
-  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
 }
 
 /* ----------------------------------------------- a stake as a pile of chips */
@@ -1453,80 +1332,6 @@
     opacity: 1;
     transform: translateY(0) scale(1);
   }
-}
-
-/* Out of the shoe — up and to the right of the felt — turning as it comes. */
-@keyframes bj-deal {
-  0% {
-    opacity: 0;
-    transform: translate(90px, -120px) rotate(16deg) scale(0.86);
-  }
-  70% {
-    opacity: 1;
-    transform: translate(0, 3px) rotate(-2.5deg) scale(1.02);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(0, 0) rotate(0deg) scale(1);
-  }
-}
-
-/* The hole card, turned over: squashed through the middle rather than rotated in 3D. */
-@keyframes bj-turn {
-  0% {
-    transform: scaleX(0.06) rotate(-3deg);
-    filter: brightness(1.5);
-  }
-  55% {
-    transform: scaleX(1.06) rotate(1deg);
-    filter: brightness(1.12);
-  }
-  100% {
-    transform: scaleX(1) rotate(0deg);
-    filter: brightness(1);
-  }
-}
-
-/*
- * A card turned over where it lies, in two halves: the back folds away and the
- * face opens out in its place. The fold holds its end state, or the back snaps
- * back to full width for the frame between the two and flashes.
- */
-@keyframes bj-fold {
-  0% {
-    transform: scaleX(1);
-  }
-  100% {
-    transform: scaleX(0.05);
-    filter: brightness(1.35);
-  }
-}
-
-@keyframes bj-unfold {
-  0% {
-    transform: scaleX(0.05);
-    filter: brightness(1.35);
-  }
-  100% {
-    transform: scaleX(1);
-    filter: brightness(1);
-  }
-}
-
-.bj-card--deal {
-  animation: bj-deal 380ms cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
-}
-
-.bj-card--turn {
-  animation: bj-turn 320ms cubic-bezier(0.3, 0.8, 0.3, 1) backwards;
-}
-
-.bj-card--fold {
-  animation: bj-fold 120ms ease-in forwards;
-}
-
-.bj-card--unfold {
-  animation: bj-unfold 120ms ease-out backwards;
 }
 
 /* Dropped onto the felt from the hand that placed it. */
@@ -1667,20 +1472,13 @@
   .bj__chip,
   .bj__chip:hover:not(:disabled),
   .bj__chip:active:not(:disabled),
-  .bj-card,
-  .bj-card:hover,
-  .stack__chip,
-  .bj-card--deal,
-  .bj-card--turn,
-  .bj-card--fold,
-  .bj-card--unfold {
+  .stack__chip {
     animation: none;
     transition: none;
   }
 
   .bj__chip:hover:not(:disabled),
-  .bj__chip:active:not(:disabled),
-  .bj-card:hover {
+  .bj__chip:active:not(:disabled) {
     transform: none;
   }
 }
