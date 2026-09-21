@@ -22,7 +22,7 @@ structural here.
 | Boards on a phone (open question 3) | History stays a thin strip at both sizes (A3). Winners folds into the activity tab on a phone, and keeps its own panel at a desk. |
 | Talk key (open question 5) | The column beside the cloth, with `?` opposite — the same dead space the wheel's medallion sits in. |
 | Keys (open question 1) | `R` same again, `U` undo, `C` clear. **No Space binding.** |
-| The lit slab | **None while betting.** K1, K2 and F2 are deliberately not met; see below. |
+| The lit slab | **None at all.** K1, K2 and F2 are deliberately not met; see below. |
 | Custom bet | A typed figure, latched like Slots'. No protocol change — the server already takes it. |
 | Placing a chip | Preview on press, act on lift. Hold past 500ms to take back. |
 
@@ -38,8 +38,13 @@ money back on the cloth. `Roulette.tsx` already says why that is not lit:
 
 That stands. Same again, Undo and Clear stay three equal-weight `.key`s, and
 the PR records K1, K2 and F2 as deliberately unmet with this reason — which
-section 14 explicitly allows. A `.slab` appears only in states whose main
-action is free: **Take a seat** while watching.
+section 14 explicitly allows.
+
+**There is no `.slab` anywhere on this table.** The obvious candidate would be
+"Take a seat" while watching, whose main action costs nothing — but there is no
+sit-down action on the wire. A seat is taken on the way in, for both Roulette
+and Blackjack, so a watcher has nothing to press and the felt says so in words
+instead.
 
 ---
 
@@ -225,7 +230,7 @@ is silent today)"*. The chips-slide sample on a take-back. Both already exist in
 - `.rl__act` → `.key` (three of them, equal weight — see *Why there is no lit
   slab*).
 - Setup's `.stakes__pick` betting-window picker → `Seg`.
-- `.slab` only for **Take a seat**.
+- No `.slab` at all — see *Why there is no lit slab*.
 - F3 holds: gold on figures (the stake down, the purse), the room's neon on
   what is happening now (the open window, the aimed spot), good and bad only on
   outcomes (a seat's `+`/`−`, a refusal's edge) — never the accent.
@@ -257,7 +262,7 @@ of figures. A sheet that can disagree with the payouts is worse than no sheet;
 the cloth already learned this once, when `dressOf` tested for `"2 to 1"` for a
 while after the cloth had started saying `"2:1"` and quietly styled nothing.
 
-### The one server-side change: `eventSeq`
+### The server-side changes: `eventSeq`, and who a taunt can reach
 
 Roulette's `TableView` has `lastEvent` but no counter. That is A4 exactly: *"A
 game whose view has no roll-counter equivalent needs one … or repeated
@@ -273,7 +278,12 @@ So, in `games/roulette/src/table.ts`:
    number. Two sentences is too thin for a log. It should also carry a seat
    arriving, a seat leaving, and what a spin paid.
 
-Purely additive to the view; nothing existing changes meaning.
+And one more, for K5. `TauntPicker` only offers seats a taunt's chips can
+actually reach — not a bot, and not a guest — so it needs `signedIn` on each
+seat. Blackjack's `SeatView` carries it (`signedIn: seat.userId !== null`);
+Roulette's carries `isBot` but not `signedIn`, so it gains it the same way.
+
+Both are purely additive to the view; nothing existing changes meaning.
 
 ## 6. Keys (K1–K5)
 
