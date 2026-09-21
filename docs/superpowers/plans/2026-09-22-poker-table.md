@@ -94,16 +94,14 @@ describe("eventSeq", () => {
     expect(after).toBe(before + 1);
   });
 
-  it("moves on again when the same words are said twice", () => {
+  it("moves on again for a second action of the same kind", () => {
     const table = seated(3);
-    const first = table.view().toAct ?? "";
-    table.act(first, { type: "check" });
-    const said = table.view().lastEvent;
+    table.act(table.view().toAct ?? "", { type: "check" });
     const between = table.view().eventSeq;
-    const second = table.view().toAct ?? "";
-    table.act(second, { type: "check" });
-    // The same sentence, and the counter is the only thing telling them apart.
-    expect(table.view().lastEvent).toBe(said?.replace(/^\S+/, table.view().lastEvent?.split(" ")[0] ?? ""));
+    table.act(table.view().toAct ?? "", { type: "check" });
+    // Two checks in a row are two events. The counter is the only thing that
+    // can say so — the sentences differ only by a name, and may not differ at
+    // all once two players share one.
     expect(table.view().eventSeq).toBe(between + 1);
   });
 
@@ -482,7 +480,26 @@ In `Poker.tsx`, the table branch renders `<main className="play play--fit play--
 In `poker.css`:
 
 - Delete `--spare`, the `@media (min-width: 561px)` `max-width` block and the `@container (min-width: 561px)` `max-height` block — all three exist to ration a height nobody is measuring any more.
-- `.pk` becomes the grid: `display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0;` — readout, felt, controls.
+- `.pk` becomes the grid, with its areas **named**, following `.bj__in` in `blackjack.css`:
+
+```css
+.pk {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "read" "felt" "controls";
+  min-height: 0;
+  gap: var(--gr-space-2);
+}
+```
+
+  The names are load-bearing, not decoration: the readout (Task 8), the rules
+  and activity panels (Task 12) and the side column (Task 7) all place
+  themselves by area, and an area that is not named at this width means an item
+  placed into it is auto-placed instead — silently, and only on a phone.
+  `.pk__table` takes `grid-area: felt`, the controls `grid-area: controls`.
+  The rules and activity panels have no area at this width because they are
+  behind keys here; they take theirs in Task 7's desk block.
 - `.pk__table` gains `container: pk / size` and keeps `position: relative`. Its `aspect-ratio` moves into the arrangement rules in Task 7.
 - Card, face and plate sizes change from `Ncqw` to `min(Ncqi, Mcqh)` inside their existing `clamp()`s. Set them on `.pk__table` as custom properties and let the pieces inherit — never re-declare the same property on the piece itself (`L4`).
 
@@ -630,10 +647,18 @@ function seatAt(index: number, of: number): React.CSSProperties {
 @container fit (min-width: 1200px) {
   .pk {
     grid-template-columns: minmax(0, 1fr) 330px;
+    /* Four areas need four rows: a template with more area rows than track
+       rows is invalid and the whole declaration is dropped. */
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     grid-template-areas: "felt read" "felt rules" "felt activity" "felt controls";
   }
 }
 ```
+
+Place this block **after** the base `.pk` rule in the file. `poker.css.test.ts`
+reads the first rule matching a selector, so a `.pk` rule sitting above the base
+one would be the rule Task 6's tests examine, and they would fail against
+correct CSS.
 
 The two queries key off different containers on purpose: the **arrangement of
 seats** is the felt's own business and asks `pk`, which the seats are inside;
@@ -1033,6 +1058,10 @@ it("says which seats are somebody with an account", () => {
 });
 ```
 
+Use whatever the suite already uses to seat a signed-in player and a guest; if
+it has no guest helper, seat one with a null `userId` the way the escrow tests
+do. Do not add a second seating helper beside the one that exists.
+
 - [ ] **Step 2: Run to verify it fails** — FAIL: `signedIn` is `undefined`.
 
 - [ ] **Step 3: Add it**
@@ -1040,6 +1069,12 @@ it("says which seats are somebody with an account", () => {
 `signedIn: seat.userId !== null` in `view()`, `signedIn: boolean` on `SeatView`, mirroring `games/blackjack/src/table.ts:1087`.
 
 - [ ] **Step 4: Hang the picker in the controls**
+
+`Actions` is `({ table, state, me, intent })` as Task 4 left it and has no
+account to spend from. Thread `account: Account` in as a fifth prop from
+`Poker.tsx`, which already holds it — do not call `useAccount()` a second time
+inside the controls, or the corner balance and the picker's balance become two
+numbers that can disagree.
 
 In the "somebody else is deciding" branch, on the right:
 
