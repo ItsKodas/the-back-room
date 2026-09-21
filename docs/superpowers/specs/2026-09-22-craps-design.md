@@ -207,11 +207,21 @@ roulette's headroom documents: a clamp hands the arithmetic a richer bank than
 exists while the chips on the cloth go on counting in full. Only the result is
 floored, so an overdrawn bank offers nothing, which is the honest answer.
 
-The figure used for `bank` is forward-looking rather than this roll's: it is
-what the bank holds, less what the cloth's **standing** bets could still be
-asked for — one more hit apiece for the repeating ones. That is a courtesy
-rather than the guarantee. It is what keeps the rule below from ever firing in
-an ordinary evening.
+`mult` is what one chip **hands over** on that outcome, which for a bet that
+stays up is its winnings alone and not its stake. A place six paying 7:6 hands
+over seven chips for every six and keeps the six on the cloth, so `mult` is
+7/6 and not 13/6. That is what makes the inequality above true rather than
+merely conservative, and it has a consequence worth writing down: a place bet
+of `x` needs only `x/6` of bank behind it, because its own stake is already in
+there. Each hit walks the bank down by `x/6` rather than by the whole payout.
+Six hits at the cap and the bank is flat — which is the rule below, arriving
+exactly when the arithmetic says it should.
+
+This cap is **exact for the roll in front of it and makes no promise about the
+next one**. It cannot: a place bet's liability is a geometric tail, and a cap
+that tried to cover every future roll would either be infinite or a guess
+dressed up as arithmetic. The guarantee lives in the rule below instead, which
+is checked before every roll and so is never stale.
 
 ### The guarantee: bets that cannot be covered go off
 
@@ -273,13 +283,28 @@ Two clocks, and they are not the same thing.
 **The hand** is `comeOut` or `point: N`. It lasts until the point is made or a
 seven comes, which may be one roll or thirty.
 
-**The round** is three timed phases going round, exactly as roulette's are:
+**The round** is four phases going round — roulette's three, and one more:
 
 ```
 betting  — the window, 15 / 30 / 60s, the host's choice
+sealed   — no more bets; the bank is asked what it can carry
 rolling  — the dice in the air, ~2.4s
 settling — what the roll did, on screen, ~4s
 ```
+
+`sealed` has no clock and is over in a round trip to the store, but it has to
+exist. The off rule below is the table's whole guarantee and it has to be
+checked **inside the bank's own queue**, where nothing else can move the bank
+between reading it and the dice deciding. Joining that queue is asynchronous;
+the hook a game gets for a timed phase (`pause().run`) is not. So `betting`
+ends by sealing the cloth, and the adapter's `payOut` — which runs on every
+broadcast, is asynchronous, and can ask for a re-broadcast when it changes
+something — reads the bank, decides what is working, rolls, and starts the
+dice. Death roll takes its antes the same way and for the same reason.
+
+The alternative was checking against the last figure the adapter happened to
+cache, which is a guarantee made against a number that may be stale. A stale
+guarantee is not one.
 
 `lastCall` is `min(5s, window / 3)` — a ceiling rather than a flat figure, or a
 fifteen-second window opens already shut, which is the bug roulette's
