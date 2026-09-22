@@ -33,3 +33,5 @@ export {
 } from "./listing.js";
 export type { Call, Resolution, RevealedHand } from "./round.js";
 export { Round } from "./round.js";
+export type { BoardRow } from "./game.js";
+export { Game } from "./game.js";
