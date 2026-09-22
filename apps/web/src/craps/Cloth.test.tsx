@@ -87,6 +87,19 @@ describe("the cloth", () => {
     expect(screen.getByRole("button", { name: /place 6/i })).toHaveAttribute("data-point", "true");
   });
 
+  it("lights nothing until the dice have stopped", () => {
+    /*
+     * The felt is handed the dice during the throw so they can settle onto the
+     * real faces. Lighting the winning boxes from them would be the answer,
+     * several seconds early — so the light comes from landedOn, which is null
+     * until the dice are at rest, and from nothing else.
+     */
+    const { rerender } = render(<Cloth {...base} onPlace={() => {}} />);
+    expect(screen.getByRole("button", { name: /place 6/i })).not.toHaveAttribute("data-lit");
+    rerender(<Cloth {...base} landedOn={["place:6"]} onPlace={() => {}} />);
+    expect(screen.getByRole("button", { name: /place 6/i })).toHaveAttribute("data-lit", "true");
+  });
+
   it("outlines only what can take odds when odds are being laid", () => {
     render(
       <Cloth

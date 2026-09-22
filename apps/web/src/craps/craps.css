@@ -55,7 +55,18 @@
   border-radius: 2px;
   color: var(--gr-color-ink);
   cursor: pointer;
-  overflow: hidden;
+  /*
+   * Visible rather than hidden. A box's own height, as a share of the
+   * cloth's width, runs from about a tenth — the wide arrangement's
+   * don't-pass — up past half — the tall arrangement's place boxes — because
+   * `boxFor` sends odds and travelled bets into the same handful of number
+   * and line boxes whatever the arrangement, and those boxes are not all the
+   * same height. `z-index` already orders the stacks above the felt beneath
+   * them, so a stack that runs a few pixels past its own box's edge just
+   * reads as a tall pile; clipped chips would read as chips that were never
+   * staked.
+   */
+  overflow: visible;
   transition: background 120ms ease;
 }
 
@@ -75,9 +86,9 @@
 
 /*
  * The one-roll middle and the field read as their own busy district on a real
- * table, printed rather than plain. Kept to the two boxes that are genuinely
- * one shot each — the field is even money on five numbers and a real payout
- * table would be its own task, so it stays undressed until it has one.
+ * table, printed rather than plain. Kept to those two kinds rather than
+ * dressing every box on the cloth — the middle's eight one-roll bets and the
+ * field.
  */
 .cr__box[data-kind="prop"] {
   background: color-mix(in srgb, var(--gr-color-neon-deep) 22%, var(--gr-color-felt-lit));

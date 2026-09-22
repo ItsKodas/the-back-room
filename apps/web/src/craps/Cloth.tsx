@@ -46,7 +46,8 @@ export function Cloth({
   /** Whether a press lays odds behind rather than on. */
   odds: boolean;
   /**
-   * The numbers this roll lit, once the dice have stopped.
+   * The boxes this roll lit, once the dice have stopped — box ids, as
+   * `boxFor` returns them, not the spot ids a bet is placed with.
    *
    * Named for the thing that has happened rather than for the value, because
    * the value exists long before it: the server decides the dice the moment
@@ -105,9 +106,7 @@ export function Cloth({
 
   return (
     <div
-      className={`cr__cloth${sideways ? " cr__cloth--portrait" : ""}${
-        disabled ? " cr__cloth--shut" : ""
-      }`}
+      className={`cr__cloth${disabled ? " cr__cloth--shut" : ""}`}
       role="group"
       aria-label="The betting cloth"
       ref={box}
@@ -196,6 +195,9 @@ function ClothBox({
       onContextMenu={(event) => {
         // The browser's own menu is never what somebody wants over a chip.
         event.preventDefault();
+        if (disabled) {
+          return;
+        }
         onTake?.(box.id);
       }}
     >
@@ -207,7 +209,15 @@ function ClothBox({
           data-slot={slot(one.spotId)}
           data-mine={one.seatId === mine || undefined}
         >
-          <ChipStack amount={one.chips} width={22} most={5} tallest={3} />
+          {/*
+           * `tallest={5}` keeps every pile in this box to one column, so the
+           * viewBox `ChipStack` draws stays the same width whatever the
+           * stake is — see roulette's identical note on its own `.stack`
+           * rule. `tallest={3}` here split a four-chip bet into two columns
+           * and the fixed-width clamp below then drew it at half the size of
+           * a three-chip one: the money got smaller the more of it there was.
+           */}
+          <ChipStack amount={one.chips} width={22} most={5} tallest={5} />
           {/*
            * A colour that merely changes is one somebody has to already know
            * the meaning of. This says the word.
