@@ -12,6 +12,7 @@
     "@backroom/core": "*",
     "@backroom/economy": "*",
     "@backroom/game-baccarat": "*",
+    "@backroom/game-craps": "*",
     "@backroom/game-greed": "*",
     "@backroom/game-poker": "*",
     "@backroom/game-scribble": "*",

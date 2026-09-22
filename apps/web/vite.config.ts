@@ -42,6 +42,7 @@ export default defineConfig({
       "@backroom/economy",
       "@backroom/game-baccarat",
       "@backroom/game-blackjack",
+      "@backroom/game-craps",
       "@backroom/game-greed",
       "@backroom/game-plinko",
       "@backroom/game-poker",

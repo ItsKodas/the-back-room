@@ -167,7 +167,7 @@ describe("a chip and the Space bar", () => {
   it("hands Space to Ready after a chip is clicked", () => {
     const calls = table(view());
     focusVisibleEverywhere();
-    const chip = screen.getByRole("button", { name: "Add 100" });
+    const chip = screen.getByRole("radio", { name: "Bet 100" });
     fireEvent.pointerDown(chip);
     chip.focus();
     expect(fireEvent.keyDown(chip, space)).toBe(false);
@@ -178,7 +178,7 @@ describe("a chip and the Space bar", () => {
   it("keeps Space for a chip reached by keyboard", () => {
     const calls = table(view());
     focusVisibleEverywhere();
-    const chip = screen.getByRole("button", { name: "Add 100" });
+    const chip = screen.getByRole("radio", { name: "Bet 100" });
     chip.focus();
     expect(fireEvent.keyDown(chip, space)).toBe(true);
     expect(calls.onReady).not.toHaveBeenCalled();
@@ -186,7 +186,7 @@ describe("a chip and the Space bar", () => {
 
   it("forgets the click once focus goes somewhere else", () => {
     const calls = table(view());
-    const chip = screen.getByRole("button", { name: "Add 100" });
+    const chip = screen.getByRole("radio", { name: "Bet 100" });
     fireEvent.pointerDown(chip);
     screen.getByRole("button", { name: "Somebody else's key" }).focus();
     chip.focus();

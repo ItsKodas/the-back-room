@@ -3,6 +3,7 @@ import { Admin } from "./admin/Admin.js";
 import { Haze } from "./atmosphere/Haze.js";
 import { Baccarat } from "./baccarat/Baccarat.js";
 import { Blackjack } from "./blackjack/Blackjack.js";
+import { Craps } from "./craps/Craps.js";
 import { DeathRoll } from "./deathroll/DeathRoll.js";
 import { AccountProvider } from "./game/useAccount.js";
 import { Leaderboard } from "./leaderboard/Leaderboard.js";
@@ -51,6 +52,8 @@ export default function App() {
           <Route path="/greed/:code" element={<Play />} />
           <Route path="/blackjack" element={<Blackjack />} />
           <Route path="/blackjack/:code" element={<Blackjack />} />
+          <Route path="/craps" element={<Craps />} />
+          <Route path="/craps/:code" element={<Craps />} />
           <Route path="/death-roll" element={<DeathRoll />} />
           <Route path="/death-roll/:code" element={<DeathRoll />} />
           <Route path="/poker" element={<Poker />} />

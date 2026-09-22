@@ -220,15 +220,21 @@
  */
 .pk__mark {
   position: absolute;
-  top: -6px;
-  right: 14px;
-  min-width: 20px;
-  height: 20px;
+  /*
+   * Over the corner of the cards rather than above them, and small. It is
+   * `absolute`, so nothing measuring the seat counts it, and every pixel it
+   * reached upward was a pixel taken out of the seat above it on the ring —
+   * see "what an opponent's seat is allowed to be as tall as", below.
+   */
+  top: -1px;
+  right: 4px;
+  min-width: 17px;
+  height: 17px;
   padding: 0 4px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   background: #f2f0ea;
   color: #1b2028;
@@ -492,7 +498,17 @@
  */
 .pk__bubble {
   position: absolute;
-  bottom: calc(100% + 4px);
+  /*
+   * Over the seat rather than above it, and never wider than one. Like the
+   * mark, it is `absolute` and so uncounted by anything measuring a seat, and
+   * it was reaching a whole bubble's height into the seat above — see "what an
+   * opponent's seat is allowed to be as tall as", below. Its text still reads
+   * sat over a name.
+   */
+  bottom: 58%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   left: 50%;
   z-index: 4;
   padding: 3px 9px;
@@ -1747,6 +1763,83 @@
 .pk__seat--you .pk__name,
 .pk__seat--you .pk__stack {
   font-size: var(--gr-text-md);
+}
+
+/*
+ * What an opponent's seat is allowed to be as tall as.
+ *
+ * The ring's vertical radius is `--down` per cent of the *table's* height, and
+ * the table's height is capped against the window's (`--spare`, above). A
+ * seat's own height is `cqw` — the container's *width*. Nothing ties those two
+ * together, so on a short wide window the ring flattens while the seats go on
+ * growing, and the two seats stacked down each side (162 and 198 degrees, and
+ * their mirror) run into each other. They are 0.198 of the table's height
+ * apart; at 1080p that is 95px, and a seat with two cards, a name and a stack
+ * was 113px before anything was said. Every screen in `felt.test.ts` had
+ * opponents overlapping, in the quietest state the table has.
+ *
+ * It looks like a bug about the spoken bubble, because the pairs that catch
+ * the eye only touch once a bubble adds its reach. The two that bind need
+ * nothing added at all, which is why removing the bubbles made it look fixed.
+ *
+ * Widening the ring cannot pay for this — a ten-seat ellipse with somebody at
+ * the bottom always has two pairs separated by height alone, and a radius big
+ * enough to part them puts the top seat off the table. So the seat gives up
+ * the room instead, and what it gives up is the part nobody reads.
+ */
+
+/*
+ * Nine face-down rectangles, at the size that costs the ring everything it
+ * needs. What a player wants off another seat is who it is, what they have
+ * left and whether they are still in — the back of a card says none of that.
+ * The phone layout worked this out first; this is the same decision at a desk,
+ * for the same reason, and without its two exceptions — see below for why
+ * those do not hold up once they are measured rather than reasoned about.
+ */
+.pk__seat:not(.pk__seat--you) .pk__cards {
+  display: none;
+}
+
+/*
+ * No exception for the acting seat or the winner, and that is deliberate.
+ *
+ * The phone layout has one — `.pk__seat--acting .pk__cards` below — and it was
+ * the obvious thing to copy here. It does not survive being measured. A seat
+ * that keeps its cards is a seat of the old height sitting in a ring sized for
+ * the new one, and there is no window tall enough to make that safe: a pot
+ * that splits between neighbours makes two of them tall at once, side by side,
+ * and at 1080p those two overlap by 22px. A height at which it did work would
+ * have to be taller than the screens most people play on, which is a rule that
+ * reads as working and is off everywhere it matters.
+ *
+ * The rule above is heavier than the phone's own exception, so this settles it
+ * for that layout too — where the same overlap is there today, on any acting
+ * seat and on any split pot, and was not introduced here.
+ *
+ * What is lost: the acting seat's two rectangles, face down, which said
+ * nothing — it is marked by its ring and its clock, which are what anybody
+ * reads. And a winner's hand at their seat, which the middle of the table and
+ * the seat's own caption both already say in words.
+ */
+
+/*
+ * The showdown caption, over the seat rather than under it.
+ *
+ * It arrives exactly when the felt is at its most crowded — every seat still
+ * carrying whatever it last said, because `spoke` is only cleared once the
+ * hand is finished — so a line of extra height here is the one the ring can
+ * least afford. Yours keeps its place in the flow: your seat has the room.
+ */
+.pk__seat:not(.pk__seat--you) .pk__says {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*

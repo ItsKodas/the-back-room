@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { GameListing } from "@backroom/core";
 import { COMING } from "@backroom/core";
 import { BLACKJACK } from "@backroom/game-blackjack";
+import { CRAPS } from "@backroom/game-craps";
 import { GREED } from "@backroom/game-greed";
 import { POKER } from "@backroom/game-poker";
 import { POCKETS, ROULETTE } from "@backroom/game-roulette";
@@ -10,7 +11,7 @@ import { SLOTS } from "@backroom/game-slots";
 import { TIPS } from "@backroom/game-tips";
 import { describe, expect, it } from "vitest";
 import type { CardSpec } from "./og.js";
-import { Avatars, Cards, cardSvg, fit, MOTIFS } from "./og.js";
+import { Avatars, Cards, cardSvg, fit, Kept, MOTIFS } from "./og.js";
 
 const FONTS = join(dirname(fileURLToPath(import.meta.url)), "../assets/fonts");
 
@@ -69,6 +70,22 @@ describe("the card a link unfurls into", () => {
     expect(svg).toMatch(/…<\/text>/);
   });
 
+  it("lights the sign from one set of words rather than five", () => {
+    /*
+     * Not a style note. The rasterizer shapes and outlines every `<text>` it
+     * is handed and reads a font file for each one, which is most of what it
+     * costs to draw a card — and the glow used to be five stacked copies of
+     * the same two words, so the sign alone was paying that five times over
+     * for a picture feMerge makes from one.
+     */
+    const svg = cardSvg(table);
+
+    expect((svg.match(/Back Room/g) ?? []).length).toBe(1);
+    // The same wash, stacked where stacking is free.
+    expect((svg.match(/<feMergeNode/g) ?? []).length).toBe(5);
+    expect(svg).toContain('flood-color="#2e7bff"');
+  });
+
   it("gives each game its own furniture", () => {
     // The picture should say which game before anybody reads a word of it.
     expect(cardSvg(table)).toContain("IBM Plex Sans");
@@ -92,7 +109,7 @@ describe("the card a link unfurls into", () => {
  * four of the six were doing exactly that — a card still rendered, and still
  * had the right words on it.
  */
-const DEALT: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS];
+const DEALT: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS, CRAPS];
 
 /** One card for a whole game, which is the shape a link to /roulette unfurls into. */
 const banner = (game: GameListing): string =>
@@ -194,7 +211,74 @@ describe("fitting a line", () => {
   });
 });
 
-describe("drawing it for real", () => {
+describe("keeping a few of something", () => {
+  /*
+   * The bound the two caches share, asked about directly. It used to be
+   * proved through `Cards`, which meant a rasterized card per entry — half a
+   * second of native rendering on an idle machine and several times that on a
+   * busy one, against a five-second budget. The property is a Map's, so it is
+   * tested where it lives and answers instantly.
+   */
+  it("holds everything up to the number it was given room for", () => {
+    const kept = new Kept<string>(4);
+    for (const key of ["a", "b", "c", "d"]) {
+      kept.set(key, key);
+    }
+
+    expect(["a", "b", "c", "d"].map((key) => kept.get(key))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("pushes out the one that went in first", () => {
+    const kept = new Kept<string>(3);
+    for (const key of ["a", "b", "c", "d"]) {
+      kept.set(key, key);
+    }
+
+    expect(kept.get("a")).toBeUndefined();
+    expect(["b", "c", "d"].map((key) => kept.get(key))).toEqual(["b", "c", "d"]);
+  });
+
+  it("does not let a read keep something's place", () => {
+    // Oldest out rather than least recently used, on purpose: asking for `a`
+    // is not what saves it.
+    const kept = new Kept<string>(2);
+    kept.set("a", "one");
+    kept.set("b", "two");
+    expect(kept.get("a")).toBe("one");
+
+    kept.set("c", "three");
+
+    expect(kept.get("a")).toBeUndefined();
+  });
+
+  it("does not drop a stranger to overwrite something it already holds", () => {
+    const kept = new Kept<string>(2);
+    kept.set("a", "one");
+    kept.set("b", "two");
+
+    kept.set("b", "again");
+
+    // Writing `b` a second time takes `b`'s place, not the room's last seat.
+    // Neither caller here writes a key it already holds, but a bound that
+    // quietly shrinks under a plain overwrite is a trap for the one that does.
+    expect(kept.get("a")).toBe("one");
+    expect(kept.get("b")).toBe("again");
+  });
+});
+
+/*
+ * The only tests in here that go through the rasterizer, and they are budgeted
+ * for it. Nearly all of a card's time is resvg turning `<text>` into outlines:
+ * it reads a font file for every text element rather than once per document,
+ * so a card costs about ten file opens a line of type — tens of milliseconds
+ * of native, event-loop-blocking work on an idle machine, and several times
+ * that when the machine is cold, busy with the rest of the suite, or scanning
+ * every read. Under the five-second default that vitest gives a unit test,
+ * drawing a handful of cards was close enough to the ceiling to go over it
+ * perhaps one run in four. Nothing here is asserted any less firmly; the clock
+ * just matches the work.
+ */
+describe("drawing it for real", { timeout: 30_000 }, () => {
   it("renders a PNG with the fonts that ship beside it", () => {
     /*
      * The one test that goes all the way through the rasterizer. It is here
@@ -219,13 +303,14 @@ describe("drawing it for real", () => {
   });
 
   it("does not grow without limit", () => {
-    const cards = new Cards(FONTS, 4);
+    // Room for one, so the bound is proved with three drawn cards rather than
+    // seven. What eviction does in general is settled above, where asking
+    // costs nothing.
+    const cards = new Cards(FONTS, 1);
     const first = cards.png(table);
-    for (let seats = 0; seats <= 5; seats += 1) {
-      cards.png({ ...table, players: Array.from({ length: seats }, () => null) });
-    }
+    cards.png({ ...table, players: [null, null] });
 
-    // Pushed out by the ones after it, and drawn again rather than kept.
+    // Pushed out by the one after it, and drawn again rather than kept.
     expect(cards.png(table)).not.toBe(first);
   });
 });
@@ -284,5 +369,58 @@ describe("fetching a face", () => {
       globalThis.fetch = real;
     }
     expect(asked).toBe(0);
+  });
+
+  it("fetches one picture once when two seats are wearing it", async () => {
+    /*
+     * Two seats at a table share a face more often than not — the same
+     * person's link unfurled twice, a table they are sitting at in two
+     * clients. The cache only helps if the second one waits on the first
+     * request rather than starting a second: a cache written after the answer
+     * lands is empty for exactly as long as the burst it exists for.
+     */
+    const avatars = new Avatars();
+    const url = "https://cdn.discordapp.com/avatars/1/abc.png";
+    let asked = 0;
+    let land: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      asked += 1;
+      await held;
+      return new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]), {
+        headers: { "content-type": "image/png" },
+      });
+    }) as typeof fetch;
+    try {
+      const both = avatars.all([url, url]);
+      land();
+      const [one, two] = await both;
+      expect(one).not.toBeNull();
+      expect(two).toBe(one);
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(asked).toBe(1);
+  });
+
+  it("remembers a picture that did not come, rather than asking for it again", async () => {
+    const avatars = new Avatars();
+    const url = "https://cdn.discordapp.com/avatars/2/gone.png";
+    let asked = 0;
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      asked += 1;
+      throw new Error("refused");
+    }) as typeof fetch;
+    try {
+      expect(await avatars.data(url)).toBeNull();
+      expect(await avatars.data(url)).toBeNull();
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(asked).toBe(1);
   });
 });

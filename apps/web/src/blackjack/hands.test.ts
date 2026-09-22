@@ -3,12 +3,14 @@ import { card, hand, seat, settledHand, theirTurn, view, yourTurn } from "./fixt
 import type { SeatView } from "./hands.js";
 import {
   availableTo,
-  chipRefusal,
+  betRefusal,
   clockText,
   doubleOffer,
   handTag,
   nextSeatId,
   paidOut,
+  reachOf,
+  readBet,
   seatTag,
   splitOffer,
 } from "./hands.js";
@@ -69,12 +71,42 @@ describe("doubling and splitting", () => {
   });
 });
 
-describe("a chip that cannot be added", () => {
-  it("says last call first, then the limit, then the balance", () => {
-    expect(chipRefusal(100, 0, 10_000, 12_400, true)).toBe("Last call: chips can only come off now");
-    expect(chipRefusal(1_000, 9_500, 10_000, 12_400, false)).toBe("1,000 more is past the 10,000 limit");
-    expect(chipRefusal(500, 0, 10_000, 300, false)).toBe("You do not have 500 more to bet");
-    expect(chipRefusal(500, 9_500, 10_000, 12_400, false)).toBeNull();
+describe("a stake that cannot be set", () => {
+  it("says last call first, then the floor, then the bank, then the balance", () => {
+    expect(betRefusal(5_000, 1_000, 100, 50_000, 12_400, true)).toBe("Last call: 5,000 cannot go on now");
+    expect(betRefusal(50, 0, 100, 50_000, 12_400, false)).toBe("Bets start at 100");
+    expect(betRefusal(5_000, 0, 100, 1_000, 12_400, false)).toBe("5,000 is past what the bank covers (1,000)");
+    expect(betRefusal(5_000, 0, 100, 50_000, 300, false)).toBe("You do not have 5,000 to bet");
+    expect(betRefusal(5_000, 0, 100, 50_000, 12_400, false)).toBeNull();
+  });
+
+  it("lets a stake come off at last call, which is the one thing it is for", () => {
+    expect(betRefusal(500, 1_000, 100, 50_000, 12_400, true)).toBeNull();
+  });
+});
+
+describe("what a stake can be set to", () => {
+  it("counts what is already on the felt as still the player's own", () => {
+    const table = view({ seats: [seat("a", "Ada", { bet: 1_000 }), seat("b", "Bo")] });
+    expect(reachOf(table, table.seats[0] as SeatView, 12_400)).toBe(13_400);
+  });
+
+  it("is the purse at a for-fun table, where there is no account to ask", () => {
+    const table = view({ forFun: true, seats: [seat("a", "Ada", { bet: 500, purse: 4_500 }), seat("b", "Bo")] });
+    expect(reachOf(table, table.seats[0] as SeatView, null)).toBe(5_000);
+  });
+
+  it("is unknown for a guest, who has no balance to go on", () => {
+    const table = view();
+    expect(reachOf(table, table.seats[0] as SeatView, null)).toBeNull();
+  });
+});
+
+describe("a figure typed into the box", () => {
+  it("takes commas the way a felt writes them, and nothing else", () => {
+    expect(readBet("3,200")).toBe(3_200);
+    expect(readBet("")).toBeNull();
+    expect(readBet("  ")).toBeNull();
   });
 });
 

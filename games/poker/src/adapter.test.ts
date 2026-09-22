@@ -1,4 +1,5 @@
 import type { GameDeps } from "@backroom/core";
+import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { pokerAdapter } from "./adapter.js";
 import type { Table } from "./table.js";
@@ -60,6 +61,29 @@ async function midHandThree() {
 /** Every chip an account could claim: stacks in front of seats plus the pot, ghosts included. */
 const onTable = (table: Table) =>
   table.seats.reduce((total, seat) => total + seat.stack, 0) + table.pot;
+
+describe("what a client is refused", () => {
+  it("refuses a raise to a number that is not one", async () => {
+    /*
+     * The socket envelope validates the action's `type` and nothing else, so
+     * `amount` arrives as whatever the client sent and `Number("x")` is
+     * `NaN`. Every bound `raise` checks is a comparison, and a comparison
+     * against `NaN` is false — so it walked past "more than a call", past
+     * "you cannot cover that" and past the minimum, and `put` subtracted it
+     * from the stack. Every chip on the table stopped being a number.
+     */
+    const { adapter, table, deps } = await midHand();
+    const seatId = table.toAct as string;
+    const before = onTable(table);
+
+    await expect(
+      adapter.act(table, seatId, { type: "raise", amount: "x" }, deps),
+    ).rejects.toThrow(TableError);
+
+    expect(onTable(table)).toBe(before);
+    expect(table.seats.every((seat) => Number.isInteger(seat.stack))).toBe(true);
+  });
+});
 
 describe("a poker table called off mid-hand", () => {
   it("hands every account back its stack and what it had bet", async () => {

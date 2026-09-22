@@ -297,7 +297,7 @@
  */
 
 .tu {
-  container-type: inline-size;
+  container: tu-table / inline-size;
   display: grid;
   gap: var(--gr-space-4);
   width: 100%;
@@ -350,8 +350,10 @@
   position: relative;
   display: grid;
   justify-items: center;
-  gap: var(--gr-space-4);
-  padding: var(--gr-space-5) var(--gr-space-3);
+  gap: var(--gr-space-3);
+  /* Narrow gutters: at 375px every pixel spent here comes off the sides
+     somebody is trying to hit. Widened again on a table with room for it. */
+  padding: var(--gr-space-4) var(--gr-space-2);
   background: var(--gr-color-felt);
   border-radius: var(--gr-radius-md);
   box-shadow: var(--gr-well);
@@ -478,19 +480,75 @@
 
 /* -------------------------------------------------------------- the spots */
 
+/*
+ * Two and one, at every width.
+ *
+ * Heads and tails are the even-money pair and five odds is the long shot, so
+ * the felt says so: the pair side by side, the long shot spanning underneath
+ * and shorter. Three equal boxes in a wrapping flex row drew the same game
+ * differently depending on the phone — at 375px they needed 312px inside a
+ * 307px felt, so five odds fell onto its own line and read as the main event.
+ *
+ * The ring draws the same shape, so a table does not change silhouette when
+ * it is opened under the other ruleset.
+ */
 .tu__spots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gr-space-3);
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gr-space-2);
   width: 100%;
 }
 
-.tu__spot,
+.tu__spot {
+  min-height: 72px;
+  padding: var(--gr-space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    transform 120ms ease;
+  /*
+   * A long press on a side is a gesture here, not a selection and not a
+   * callout. Without these three a held thumb picks out the word "Heads" and
+   * iOS offers to look it up, both of which happen instead of taking the
+   * chip back off.
+   */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The long shot: full width, because a half-width third box is what made it
+   wrap — but shorter than the pair, because it is not the main event. */
+.tu__spot--fiveOdds,
+.tu__spot--wide {
+  grid-column: 1 / -1;
+}
+
+.tu__spot--fiveOdds,
+.tu__spot--wide {
+  min-height: 56px;
+}
+
+/* A box that only reports: the centre, and what has been covered of it. */
+.tu__spot--flat {
+  cursor: default;
+  background: rgb(0 0 0 / 0.22);
+}
+
 .tu__act {
-  min-height: 52px;
-  min-width: 96px;
-  padding: var(--gr-space-2) var(--gr-space-3);
+  min-height: 44px;
+  min-width: 0;
+  padding: var(--gr-space-1) var(--gr-space-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -504,9 +562,13 @@
   transition: background 120ms ease;
 }
 
-.tu__spot:hover:not(:disabled),
+.tu__spot:hover:not(:disabled):not(.tu__spot--flat),
 .tu__act:hover:not(:disabled) {
   background: rgb(255 255 255 / 0.11);
+}
+
+.tu__spot:active:not(:disabled):not(.tu__spot--flat) {
+  transform: translateY(1px);
 }
 
 .tu__spot:disabled,
@@ -527,6 +589,16 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--gr-color-ink-faint);
+  text-align: center;
+}
+
+/* What you have on, drawn as chips as well as a figure — a side with a pile
+   on it should look like one from across the room. */
+.tu__spot-stack {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
 }
 
 .tu__spot-mine {
@@ -535,23 +607,15 @@
   font-weight: 600;
 }
 
-.tu__centre {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gr-space-1);
-}
+@container tu-table (min-width: 460px) {
+  .tu__spot {
+    min-height: 88px;
+  }
 
-.tu__centre-label {
-  font-size: var(--gr-text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--gr-color-ink-faint);
-}
-
-.tu__centre-empty {
-  font-size: var(--gr-text-sm);
-  color: var(--gr-color-ink-dim);
+  .tu__spot--fiveOdds,
+  .tu__spot--wide {
+    min-height: 64px;
+  }
 }
 
 /* ---------------------------------------------------------------- the board */
@@ -595,41 +659,84 @@
 /* ----------------------------------------------------------------- the rail */
 
 /*
- * Sticky to the bottom of the viewport rather than the page: the rail is
- * what a thumb reaches for mid-round, and a phone that has to scroll down to
- * find it first is a phone that misses the window.
+ * Sticky to the bottom of the viewport rather than the page: the rail is what
+ * a thumb reaches for mid-round, and a phone that has to scroll down to find
+ * it first is a phone that misses the window.
+ *
+ * Which makes its height a design constraint and not a detail. It was 246px
+ * at 375px wide — thirty per cent of the screen, before a single thing was
+ * drawn on the felt above it — because the two acts wrapped onto two rows and
+ * the note ran to two lines. Three rows now, and the third is one line:
+ *
+ *   the seven chips, and a key for a figure of your own
+ *   same again · undo · clear
+ *   what is on the cloth, or how to take it back off
+ *
+ * The box for typing a figure is the one thing not drawn until it is asked
+ * for. Everything else is always on screen — nothing here is behind a hover,
+ * and the key that opens the box carries the figure it is holding, so
+ * shutting it costs the player sight of nothing.
  */
 .tu__rail {
   position: sticky;
   bottom: calc(0px + env(safe-area-inset-bottom, 0px));
   z-index: 1;
+  container: tu-rail / inline-size;
   display: grid;
-  gap: var(--gr-space-3);
-  justify-items: center;
-  padding: var(--gr-space-3) var(--gr-space-2) var(--gr-space-4);
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-2) var(--gr-space-2) var(--gr-space-3);
   background: color-mix(in srgb, var(--gr-color-night) 92%, transparent);
   border-top: var(--gr-edge-soft);
   backdrop-filter: blur(6px);
 }
 
-.tu__tray {
-  display: flex;
+.tu__amounts {
+  display: grid;
   gap: var(--gr-space-2);
-  flex-wrap: wrap;
+}
+
+.tu__tray-row {
+  display: flex;
+  gap: var(--gr-space-1);
   align-items: center;
-  justify-content: center;
+}
+
+/*
+ * Seven equal cells, so the row is one row at any width it is given.
+ *
+ * A grid rather than a wrapping flex, because wrapping is the thing being
+ * fixed: four chips over three is another 52px of a screen that has none to
+ * spare. At 375px that leaves each chip about 36px across inside a 44px-tall
+ * key — narrower than the guidance likes, and the trade was made deliberately.
+ * Picking the wrong denomination is visible in the tray and undone by one
+ * more tap; the presses that cost money are the sides above, and those are
+ * now 72px tall and half the felt wide.
+ */
+.tu__tray {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  /* Takes the row and shares it out where the row is tight; sized by its own
+     chips once there is more of it than the chips need (below). */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .tu__chip {
   background: none;
   border: none;
-  width: clamp(38px, 5cqw, 62px);
+  /* The key is thumb-height even where the disc it draws is not. */
+  min-height: 44px;
   padding: 2px;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
   cursor: pointer;
   line-height: 0;
   opacity: 0.55;
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
 
 .tu__chip:hover:not(:disabled) {
@@ -638,6 +745,7 @@
 
 .tu__chip svg {
   width: 100%;
+  max-width: 44px;
   height: auto;
   display: block;
 }
@@ -645,7 +753,14 @@
 .tu__chip--picked {
   opacity: 1;
   transform: translateY(-3px);
-  box-shadow: 0 0 0 2px var(--gr-color-chip);
+}
+
+/* The ring goes on the disc rather than the key, so it reads as a chip
+   picked out of the tray and not as a square lit up behind one. */
+.tu__chip--picked svg {
+  border-radius: 50%;
+  outline: 2px solid var(--gr-color-chip);
+  outline-offset: -1px;
 }
 
 .tu__chip:disabled {
@@ -653,17 +768,154 @@
   cursor: default;
 }
 
-.tu__acts {
-  display: flex;
+/* ------------------------------------------- an amount nobody minted a chip for */
+
+/*
+ * The eighth key, and the readout for what it is holding.
+ *
+ * The seven denominations are the room's own alphabet and they stay — but
+ * they cannot name 1,375, and this table has always taken any whole number
+ * from twenty-five up. Shut, this key shows whatever figure of their own the
+ * player is holding; open, it is a box and a latch.
+ */
+.tu__own-key {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--gr-space-2);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink-dim);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.tu__own-key:hover {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.tu__own-key[aria-expanded="true"] {
+  border-color: var(--gr-color-neon);
+  color: var(--gr-color-ink-lit);
+}
+
+/* Held: lit the way a picked chip is lit, because it is the picked chip. */
+.tu__own-key--held {
+  border-color: var(--gr-color-chip);
+  color: var(--gr-color-chip);
+  font-weight: 600;
+}
+
+.tu__own-face {
+  font-size: var(--gr-text-sm);
+  letter-spacing: 0.04em;
+}
+
+.tu__own {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--gr-space-2);
-  flex-wrap: wrap;
-  justify-content: center;
+}
+
+.tu__field {
+  display: block;
+  min-width: 0;
+}
+
+.tu__field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--gr-space-3);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.3);
+  color: var(--gr-color-ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.tu__field input:focus-visible {
+  outline: 2px solid var(--gr-color-neon);
+  outline-offset: 1px;
+}
+
+.tu__hold {
+  min-height: 44px;
+  padding: 0 var(--gr-space-4);
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.tu__hold:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.tu__hold:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------ the acts */
+
+/*
+ * Three equal cells rather than a flex row that wrapped two buttons onto two
+ * lines at 375px. Their sub-labels go on a narrow rail: each button's
+ * `aria-label` carries the whole sentence either way, so nothing is lost to
+ * anybody who is not looking at the felt.
+ */
+.tu__acts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gr-space-1);
+}
+
+.tu__act-note {
+  display: none;
+}
+
+@container tu-rail (min-width: 420px) {
+  .tu__act {
+    min-height: 52px;
+  }
+
+  .tu__act-note {
+    display: block;
+  }
+}
+
+/*
+ * A rack, not a row of chips scattered across a desk.
+ *
+ * Stretched to fill a wide rail the seven sat a hundred pixels apart, which
+ * reads as seven separate controls rather than one tray to pick out of. Past
+ * the width they actually need, they stop growing and stay together.
+ */
+@container tu-rail (min-width: 420px) {
+  .tu__tray {
+    grid-template-columns: repeat(7, 48px);
+    gap: var(--gr-space-2);
+    flex: 0 0 auto;
+  }
+
+  /* Once the rack stops filling the row it has to be put somewhere, and
+     everything else on this page — the standing line, the seats, the note —
+     is down the middle. */
+  .tu__tray-row {
+    justify-content: center;
+  }
 }
 
 .tu__note {
   margin: 0;
   text-align: center;
-  font-size: var(--gr-text-sm);
+  font-size: var(--gr-text-xs);
   color: var(--gr-color-ink-dim);
 }
 
@@ -817,6 +1069,33 @@
    * reason given at the top of this block.
    */
   .tu__felt--away .tu__ring {
+    transform: none;
+  }
+
+  /*
+   * The tray and the sides, which both answer a press by moving: a chip lifts
+   * out of the rack when it is picked, a side sinks under the thumb. Neither
+   * starts with `animation: tu-` so the grep above cannot find them, and
+   * CLAUDE.md's rule is about motion rather than about one property name.
+   *
+   * Only the movement goes. Everything the movement was saying is said
+   * another way and stays — the picked chip keeps its ring and its full
+   * opacity, the pressed side keeps its lighter background — which is the
+   * other half of the rule: the page still says everything it needs to.
+   *
+   * Exact selectors again, for the specificity reason at the top of this
+   * block.
+   */
+  .tu__spot,
+  .tu__chip {
+    transition: none;
+  }
+
+  .tu__chip--picked {
+    transform: none;
+  }
+
+  .tu__spot:active:not(:disabled):not(.tu__spot--flat) {
     transform: none;
   }
 }

@@ -1,18 +1,21 @@
 import type { TableView } from "@backroom/game-blackjack";
 import { LAST_CALL_MS } from "@backroom/game-blackjack";
 import type { ReactNode } from "react";
-import { Chip, MINTED } from "../chips/Chip.js";
+import { useId, useState } from "react";
+import { Chip, LADDER } from "../chips/Chip.js";
 import type { Offer, SeatView } from "./hands.js";
-import { availableTo, chipRefusal, clockText, doubleOffer, fmt, splitOffer } from "./hands.js";
+import { availableTo, betRefusal, clockText, doubleOffer, fmt, readBet, reachOf, splitOffer } from "./hands.js";
 import { DealIcon, UndoIcon } from "./Icons.js";
 import type { Move } from "./useIntent.js";
 
 /*
- * Denominations you can stack, smallest first because the tray reads left to
- * right. Taken from MINTED rather than listed again, so what a player may bet
- * with cannot drift from the chips that exist.
+ * The keys, smallest first because the tray reads left to right. Taken from
+ * the ladder rather than listed again, so what a player may press cannot drift
+ * from the chips that exist — the whole ladder now, twenty-five thousand
+ * included, because the ceiling that used to make that plate unpressable was a
+ * flat ten thousand and the bank has taken its place.
  */
-const CHIPS = [...MINTED].reverse();
+const KEYS = [...LADDER].reverse();
 
 export interface ControlsProps {
   state: TableView;
@@ -66,19 +69,25 @@ export function Controls(props: ControlsProps) {
 }
 
 /**
- * Stacking a stake.
+ * Putting a stake down.
  *
- * Chips add rather than replace, the way they do on a real felt, and the whole
- * stack comes back off in one go: a stake you cannot take back before the cards
- * are out would make a misclick cost a hand.
+ * A key is the stake rather than another chip on it, and a box beside them
+ * takes a figure no key carries. Chips used to stack the way they do on a real
+ * felt, which is a lovely gesture and a poor control: three thousand was three
+ * presses, and the ladder simply had no press for three thousand two hundred.
+ *
+ * The whole stake still comes off in one go, because a stake you cannot take
+ * back before the cards are out would make a misclick cost a hand.
  */
 function Betting({ state, me, mine, ready, chips, left, isHost, onStake, onReady, onDeal }: Seated) {
   /*
-   * One clock with two jobs: it is what the slab says and what locks the chips.
-   * Read once, so a chip never refuses itself a tick before the words say so.
+   * One clock with two jobs: it is what the slab says and what locks the keys.
+   * Read once, so a key never refuses itself a tick before the words say so.
    */
   const lastCall = left !== null && left <= LAST_CALL_MS / 1000;
-  const available = availableTo(state, me, chips, mine);
+  const reach = reachOf(state, me, chips);
+  /* The largest figure this seat could actually put down, whichever binds. */
+  const most = reach === null ? state.maxBet : Math.min(state.maxBet, reach);
   const short = mine > 0 && mine < state.minBet;
   const under = ready
     ? "for the others"
@@ -87,27 +96,92 @@ function Betting({ state, me, mine, ready, chips, left, isHost, onStake, onReady
       : left === null
         ? ""
         : `${lastCall ? "last call" : "cards out"} ${clockText(left)}`;
+  const id = useId();
+  /*
+   * What has been typed, which is not a bet until it is put on. Kept in here
+   * because nothing outside the box has any use for half a number.
+   */
+  const [draft, setDraft] = useState(() => (mine > 0 && !KEYS.includes(mine) ? fmt(mine) : ""));
+  const typed = readBet(draft);
+  /* The stake is a figure of the player's own, which no key carries. */
+  const ownHeld = mine > 0 && !KEYS.includes(mine);
+  /* And it is the figure in the box, rather than one typed over it since. */
+  const holding = ownHeld && typed === mine;
+  const ownRefused = typed === null ? null : betRefusal(typed, mine, state.minBet, state.maxBet, reach, lastCall);
+
+  const betOwn = () => {
+    if (typed === null || ownRefused !== null) {
+      return;
+    }
+    setDraft(fmt(typed));
+    onStake(typed);
+  };
 
   return (
     <div className="bj__controls bj__controls--bet">
-      <div className="well bj__tray" role="group" aria-label="Add chips">
-        {CHIPS.map((amount) => {
-          const refused = chipRefusal(amount, mine, state.maxBet, available, lastCall);
-          const said = refused ?? `Add ${fmt(amount)}`;
+      <div className="well bj__tray" role="radiogroup" aria-label="Bet">
+        {KEYS.map((amount) => {
+          const refused = betRefusal(amount, mine, state.minBet, state.maxBet, reach, lastCall);
+          const said = refused ?? `Bet ${fmt(amount)}`;
           return (
             <button
               key={amount}
               type="button"
+              role="radio"
+              aria-checked={mine === amount}
               className="bj__chip"
               disabled={refused !== null}
               aria-label={said}
               title={said}
-              onClick={() => onStake(mine + amount)}
+              // A key is the stake, not another chip on it: pressing a
+              // thousand after a five hundred bets a thousand. Stacking made a
+              // three thousand bet three presses, and there was no press at all
+              // for a figure the ladder does not carry — which is what the box
+              // below is for.
+              onClick={() => onStake(amount)}
             >
               <Chip amount={amount} />
             </button>
           );
         })}
+      </div>
+      <div className="bj__own" data-held={ownHeld || undefined}>
+        <label className="bj__ownLabel" htmlFor={`${id}-own`}>
+          Custom bet
+        </label>
+        <span className="bj__ownField">
+          <input
+            id={`${id}-own`}
+            type="text"
+            inputMode="numeric"
+            enterKeyHint="done"
+            autoComplete="off"
+            placeholder={most >= state.minBet ? `${fmt(state.minBet)} – ${fmt(most)}` : "The bank cannot cover a hand yet"}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value.replace(/[^\d,]/g, ""))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                betOwn();
+              }
+            }}
+            onBlur={() => setDraft(typed === null ? "" : fmt(typed))}
+          />
+        </span>
+        {/*
+         * Latches like a key, because it is one: the box holds a figure, and
+         * this is what puts it on. Nothing is bet on a keystroke — typing a
+         * thousand goes through a one and a ten on the way.
+         */}
+        <button
+          type="button"
+          className="key bj__ownSet"
+          aria-pressed={holding}
+          disabled={!holding && (typed === null || ownRefused !== null)}
+          title={holding ? "Held" : (ownRefused ?? "Bet it")}
+          onClick={holding ? undefined : betOwn}
+        >
+          {holding ? "Held" : "Bet it"}
+        </button>
       </div>
       <div className={`bj__row${isHost ? " bj__row--host" : ""}`}>
         <button

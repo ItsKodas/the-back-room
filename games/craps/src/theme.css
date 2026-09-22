@@ -1,0 +1,45 @@
+/*
+ * The craps table.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. So this repaints the surfaces and touches nothing that
+ * carries meaning — chip stays gold, good and bad stay what they are
+ * everywhere else.
+ *
+ * Brass over a dice-pit brown, the way Greed burns brass over walnut — but
+ * this floor is stick and rail rather than a bar, so the wood runs darker and
+ * the felt is the flat green-less brown a dice table actually is, not baize.
+ * The same four values are what listing.ts hands the room's link cards, since
+ * the cards are drawn on the server where there is no stylesheet to read.
+ */
+:root[data-game="craps"],
+[data-game="craps"] {
+  --gr-color-night: #1a1610;
+  --gr-color-slate: #241d13;
+  --gr-color-shadow: #100d08;
+  --gr-color-smoke: #2f2518;
+  --gr-color-smoke-lit: #3c301f;
+
+  --gr-color-felt: #33280f;
+  --gr-color-felt-lit: #453419;
+  --gr-color-felt-deep: #241b0a;
+
+  --gr-color-neon-core: #fff6e0;
+  --gr-color-neon-hi: #ffd166;
+  --gr-color-neon: #c08a1e;
+  --gr-color-neon-dim: #7a5a14;
+  --gr-color-neon-deep: #a8690f;
+
+  /*
+   * The air over the table is lit by its own sign rather than the building's
+   * blue, the way every relit room's is. A reference and not a copy, so a
+   * repaint of the sign moves its own glow with it.
+   */
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  --gr-color-ink: #f0e6d2;
+  --gr-color-ink-lit: #fbf6ea;
+  --gr-color-ink-dim: #a89878;
+  --gr-color-ink-faint: #756a52;
+}

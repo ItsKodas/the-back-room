@@ -129,7 +129,7 @@ function refusal(socket: Client, ms = 2000): Promise<string> {
  * reconnect, not a new seat.
  */
 async function openTable(
-  options: { bank?: number; ruleset?: string } = {},
+  options: { bank?: number; ruleset?: string; forFun?: boolean } = {},
 ): Promise<{ store: MemoryStore; port: number; userId: string; host: Client }> {
   const store = new MemoryStore();
   const player = await store.upsertDiscordUser({
@@ -166,7 +166,7 @@ async function openTable(
       {
         name: "Ada",
         game: "two-up",
-        forFun: false,
+        forFun: options.forFun === true,
         ...(options.ruleset === undefined ? {} : { ruleset: options.ruleset }),
       },
       () => resolve(),
@@ -259,4 +259,35 @@ describe("what an admin can see of the bank behind the coins", () => {
     expect(body.bank).toBe(90_000);
     expect(body.maxStake).toBe(Math.floor(90_000 / STAKE_DIVISOR));
   });
+});
+
+describe("the bots the lobby offers", () => {
+  /*
+   * The felt has always advertised bots at a for-fun table, and the button had
+   * nothing behind it: the server refuses `lobby:addBot` outright for a table
+   * whose class has no `addBot`, so every press came back "This game has no
+   * bots." Proven from here because that refusal lives here, not in the game —
+   * and for both schools, because both of them play with bots.
+   */
+  for (const ruleset of ["casino", "school"] as const) {
+    it(`seats one at a ${ruleset} table playing for nothing`, async () => {
+      const { host } = await openTable({ ruleset, forFun: true });
+      await stateWhere(host, (state) => state.seats.length === 1);
+
+      host.emit("lobby:addBot", { skill: "normal" });
+
+      const seated = await stateWhere(host, (state) => state.seats.length === 2);
+      expect(seated.seats.some((seat) => seat.isBot)).toBe(true);
+    });
+
+    it(`refuses one at a ${ruleset} table playing for chips`, async () => {
+      const { host } = await openTable({ ruleset });
+      await stateWhere(host, (state) => state.seats.length === 1);
+      const refused = refusal(host);
+
+      host.emit("lobby:addBot", { skill: "normal" });
+
+      expect(await refused).toMatch(/playing for fun/i);
+    });
+  }
 });

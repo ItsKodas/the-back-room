@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { CRAPS } from "@backroom/game-craps";
 import { OPENING } from "@backroom/game-death-roll";
 import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import { FACES } from "@backroom/game-slots";
@@ -498,6 +499,41 @@ describe("the pennies in two-up's corner", () => {
     for (const part of ["art__coin-toss", "art__coin-flip", "art__coin-tails"]) {
       expect(always).toContain(`.tile:hover .${part}`);
       expect(stilled.some((block) => block.includes(`.tile:hover .${part}`))).toBe(true);
+    }
+  });
+});
+
+/*
+ * The dice in craps' corner.
+ *
+ * Two of them and not one — a single die is greed's tile, and the whole of
+ * craps is what the pair adds up to. They already have the throw the pieces
+ * in every other corner get, from the generic .art__piece rules, so what is
+ * worth pinning here is what makes this pair *craps'*: two dice, and pips lit
+ * in this table's own gold rather than greed's black.
+ */
+describe("the dice in craps' corner", () => {
+  it("throws two dice, not one", () => {
+    const { container } = render(<TileArt game="craps" />);
+    expect(container.querySelectorAll(".art__piece")).toHaveLength(2);
+  });
+
+  it("colours every pip in the table's own accent, not another game's ink", () => {
+    const { container } = render(<TileArt game="craps" />);
+    const pips = container.querySelectorAll("circle");
+    expect(pips.length).toBeGreaterThan(0);
+    for (const pip of pips) {
+      expect(pip.getAttribute("fill")).toBe(CRAPS.theme.accent);
+    }
+  });
+
+  it("never puts a transform attribute on a piece the stylesheet moves", () => {
+    // The same trap the reels and the coins fell into: a CSS transform
+    // replaces an element's transform rather than composing with it, so the
+    // throw has to land on a wrapper and never on the piece it moves.
+    const { container } = render(<TileArt game="craps" />);
+    for (const piece of container.querySelectorAll(".art__piece")) {
+      expect(piece.getAttribute("transform")).toBeNull();
     }
   });
 });

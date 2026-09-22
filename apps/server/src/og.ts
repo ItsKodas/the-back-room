@@ -1,3 +1,4 @@
+import { CRAPS } from "@backroom/game-craps";
 import { WHEEL, colourOf } from "@backroom/game-roulette";
 import { Resvg } from "@resvg/resvg-js";
 
@@ -133,37 +134,56 @@ function chip(cx: number, cy: number, r: number, taken: boolean): string {
  * The glow is the tube, drawn the way the page draws it: the same words
  * underneath in blue and blurred, twice, with the burning white core on top. A
  * filter rather than a text-shadow, because that is what an SVG has.
+ *
+ * Written as one set of words and one filter rather than as five copies of the
+ * words, because the rasterizer shapes and outlines every `<text>` it is given
+ * separately and pays a font lookup for each — five copies of the sign is five
+ * times that work for one picture. `tube()` stacks the same washes inside the
+ * filter instead, which is what feMerge is for.
  */
-function sign(x: number, y: number, scale: number, accent: string, accentHi: string): string {
+function sign(x: number, y: number, scale: number): string {
   /*
    * "The" hangs where the stylesheet hangs it. The page sets it at 0.44 of the
    * sign's size and indents it 1.9 of its own ems, which comes to 0.836 of the
    * big text — measured out here rather than guessed at, because a sign that
    * differs between the wall and the card is two signs.
    */
-  const words = (fill: string, filter: string) => `
-    <g fill="${fill}"${filter}>
-      <text x="${x + 53.5 * scale}" y="${y - 30 * scale}" font-family="Dancing Script" font-weight="700" font-size="${28.2 * scale}">The</text>
-      <text x="${x}" y="${y}" font-family="Dancing Script" font-weight="700" font-size="${64 * scale}">Back Room</text>
-    </g>`;
-
-  /*
-   * The wide wash twice over. One pass of it is a halo you have to look for;
-   * a tube on a dark wall throws more light than that, and a blur spreads
-   * whatever it is given thinly enough that stacking is how you get it back.
-   */
-  /*
-   * Lit in whatever colour the room is lit. Greed has burned brass since its
-   * first screen and a blue sign over a brass room is the building's sign in
-   * somebody else's doorway.
-   */
-  return `<g transform="rotate(-2.4 ${x} ${y})">
-    ${words(accent, ' filter="url(#tube-wide)"')}
-    ${words(accent, ' filter="url(#tube-wide)"')}
-    ${words(accentHi, ' filter="url(#tube-near)"')}
-    ${words(accentHi, ' filter="url(#tube-near)"')}
-    ${words("#ffffff", "")}
+  return `<g transform="rotate(-2.4 ${x} ${y})" fill="#ffffff" filter="url(#tube)">
+    <text x="${x + 53.5 * scale}" y="${y - 30 * scale}" font-family="Dancing Script" font-weight="700" font-size="${28.2 * scale}">The</text>
+    <text x="${x}" y="${y}" font-family="Dancing Script" font-weight="700" font-size="${64 * scale}">Back Room</text>
   </g>`;
+}
+
+/**
+ * The light the tube throws, as one filter.
+ *
+ * The word's own alpha blurred wide and flooded with the room's colour, then
+ * blurred close and flooded with the brighter one, each laid down twice under
+ * the burning white core. The wide wash twice over because one pass of it is a
+ * halo you have to look for — a tube on a dark wall throws more light than
+ * that, and a blur spreads whatever it is given thinly enough that stacking is
+ * how you get it back.
+ *
+ * Lit in whatever colour the room is lit. Greed has burned brass since its
+ * first screen and a blue sign over a brass room is the building's sign in
+ * somebody else's doorway.
+ */
+function tube(accent: string, accentHi: string): string {
+  const wash = (id: string, spread: number, ink: string) =>
+    `<feGaussianBlur in="SourceAlpha" stdDeviation="${spread}" result="${id}-shape"/>
+      <feFlood flood-color="${ink}"/>
+      <feComposite in2="${id}-shape" operator="in" result="${id}"/>`;
+  return `<filter id="tube" x="-60%" y="-60%" width="220%" height="220%">
+      ${wash("wide", 9 * SIGN_SCALE, accent)}
+      ${wash("near", 3 * SIGN_SCALE, accentHi)}
+      <feMerge>
+        <feMergeNode in="wide"/>
+        <feMergeNode in="wide"/>
+        <feMergeNode in="near"/>
+        <feMergeNode in="near"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`;
 }
 
 /**
@@ -383,6 +403,45 @@ function pegs(): string {
 }
 
 /**
+ * Two dice, turned against each other, sitting dark in the table's own gold.
+ *
+ * Filled rather than the tile's ivory — flat, the way `pegs` fills its pegs
+ * and its ball and `wheel` fills every pocket, not the outline this drew
+ * before, which read as a diagram of a die rather than a die. The body is
+ * the table's own felt, not a fifth colour invented for this: a dark square
+ * lit only at its rim and its pips is the room craps is in, the same one
+ * lit by its own sign and nothing else.
+ */
+function dice(cx: number, cy: number, size: number): string {
+  const accent = CRAPS.theme.accent;
+  const body = CRAPS.theme.felt;
+  const half = size / 2;
+  const corner = size * 0.16;
+  const dot = size * 0.07;
+  const spread = size * 0.24;
+
+  const one = (dx: number, dy: number, turn: number, spots: ReadonlyArray<[number, number]>): string =>
+    `<g transform="translate(${cx + dx} ${cy + dy}) rotate(${turn})">
+      <rect x="${-half}" y="${-half}" width="${size}" height="${size}" rx="${corner}" fill="${body}" stroke="${accent}" stroke-width="4"/>
+      ${spots.map(([sx, sy]) => `<circle cx="${sx}" cy="${sy}" r="${dot}" fill="${accent}"/>`).join("")}
+    </g>`;
+
+  return `<g>
+    ${one(-size * 0.42, -size * 0.26, -9, [
+      [-spread, -spread],
+      [spread, -spread],
+      [-spread, spread],
+      [spread, spread],
+    ])}
+    ${one(size * 0.4, size * 0.24, 13, [
+      [-spread, -spread],
+      [0, 0],
+      [spread, spread],
+    ])}
+  </g>`;
+}
+
+/**
  * The furniture each game keeps, by which game it is.
  *
  * A record rather than a run of ifs, so the set can be counted. A game that is
@@ -445,6 +504,7 @@ export const MOTIFS: Record<string, () => string> = {
       ${board(934, 322, -3, "4", false)}
       ${board(1122, 308, 10, "9", false)}
       ${board(1088, 322, 3, "2", true)}`,
+  craps: () => dice(1028, 318, 120),
 };
 
 /**
@@ -531,12 +591,7 @@ export function cardSvg(spec: CardSpec): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}" viewBox="0 0 ${OG_WIDTH} ${OG_HEIGHT}">
   <defs>
     <!-- The wash a tube throws on the wall, and the light inside the glass. -->
-    <filter id="tube-wide" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="${9 * SIGN_SCALE}"/>
-    </filter>
-    <filter id="tube-near" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="${3 * SIGN_SCALE}"/>
-    </filter>
+    ${tube(room.accent, room.accentHi)}
     <radialGradient id="sign" cx="18%" cy="6%" r="78%">
       <stop offset="0%" stop-color="${room.accent}" stop-opacity="0.34"/>
       <stop offset="100%" stop-color="${room.accent}" stop-opacity="0"/>
@@ -566,8 +621,8 @@ export function cardSvg(spec: CardSpec): string {
      * face was the building introducing itself twice.
      */
     spec.game === null
-      ? sign(76, 300, 1.5, room.accent, room.accentHi)
-      : `${sign(74, 110, SIGN_SCALE, room.accent, room.accentHi)}
+      ? sign(76, 300, 1.5)
+      : `${sign(74, 110, SIGN_SCALE)}
   ${name(fit(title, 88, 780, 0.62), spec.game?.mark?.accentAt, room.accent)}`
   }
   ${
@@ -619,6 +674,50 @@ export function fontPaths(root: string): string[] {
 }
 
 /**
+ * A few of something, the one that went in first out when the room runs out.
+ *
+ * Both caches below want exactly this and neither wants a dependency for it.
+ * A Map keeps insertion order, which is the whole trick.
+ *
+ * Deliberately oldest-out rather than least-recently-used. These hold a burst
+ * — a link pasted in a busy channel, a table whose seats are filling — and
+ * over a burst the entry that went in first is the one least likely to be
+ * wanted again. Keeping a hit's place would cost a delete and a set on the
+ * path that every hit takes, which is the path worth protecting.
+ *
+ * Pulled out of the two classes that had it so the bound can be checked
+ * without drawing anything. Proving eviction through `Cards` meant rasterizing
+ * a card per entry, and a test that spends a second of native rendering to
+ * assert a property of a Map is a test that fails when the machine is busy.
+ */
+export class Kept<T> {
+  private readonly held = new Map<string, T>();
+  /** Small on purpose: this is a cache for a burst, not a store. */
+  private readonly most: number;
+
+  constructor(most: number) {
+    this.most = most;
+  }
+
+  get(key: string): T | undefined {
+    return this.held.get(key);
+  }
+
+  set(key: string, value: T): void {
+    // Only a new key can push one out. Setting a key already held keeps its
+    // place, so counting it against the bound would drop a good entry and
+    // leave this holding fewer than it was given room for.
+    if (!this.held.has(key) && this.held.size >= this.most) {
+      const oldest = this.held.keys().next();
+      if (!oldest.done) {
+        this.held.delete(oldest.value);
+      }
+    }
+    this.held.set(key, value);
+  }
+}
+
+/**
  * One drawn card, kept for a moment.
  *
  * An unfurler is not one request. A link pasted in a busy Discord fans out to
@@ -628,14 +727,12 @@ export function fontPaths(root: string): string[] {
  * does.
  */
 export class Cards {
-  private readonly drawn = new Map<string, Buffer>();
+  private readonly drawn: Kept<Buffer>;
   private readonly fonts: string[];
-  /** Small on purpose: this is a cache for a burst, not a store. */
-  private readonly most: number;
 
   constructor(fontRoot: string, most = 64) {
     this.fonts = fontPaths(fontRoot);
-    this.most = most;
+    this.drawn = new Kept(most);
   }
 
   png(spec: CardSpec): Buffer {
@@ -659,13 +756,6 @@ export class Cards {
         .render()
         .asPng(),
     );
-    // Oldest out first. A Map keeps insertion order, which is the whole trick.
-    if (this.drawn.size >= this.most) {
-      const oldest = this.drawn.keys().next();
-      if (!oldest.done) {
-        this.drawn.delete(oldest.value);
-      }
-    }
     this.drawn.set(key, made);
     return made;
   }
@@ -689,11 +779,19 @@ const PICTURE_HOST = "https://cdn.discordapp.com/";
 const MOST_BYTES = 512 * 1024;
 
 export class Avatars {
-  private readonly held = new Map<string, string | null>();
-  private readonly most: number;
+  /**
+   * The request rather than its answer.
+   *
+   * A cache written only once the bytes land is empty for the whole of the
+   * burst it exists for: a table with one person's face in two seats asked
+   * twice, and two links to that table unfurled at once asked twice again.
+   * Holding the fetch itself means the second caller waits on the first one's
+   * request instead of starting its own.
+   */
+  private readonly held: Kept<Promise<string | null>>;
 
   constructor(most = 256) {
-    this.most = most;
+    this.held = new Kept(most);
   }
 
   /** One picture as a data URI, or null if there isn't one to be had. */
@@ -706,30 +804,34 @@ export class Avatars {
       return had;
     }
 
-    let picture: string | null = null;
+    // Started and remembered in the same breath, before anything is awaited,
+    // so nothing can slip between the miss and the entry.
+    const coming = this.fetched(url);
+    this.held.set(url, coming);
+    return coming;
+  }
+
+  /**
+   * The request itself, which never rejects.
+   *
+   * A failure resolves to null and is remembered as null, so a picture that
+   * is not coming is not asked for again on every unfurl of every link to
+   * that table.
+   */
+  private async fetched(url: string): Promise<string | null> {
     try {
       const answer = await fetch(url, { signal: AbortSignal.timeout(2500) });
       const type = answer.headers.get("content-type") ?? "";
       if (answer.ok && type.startsWith("image/")) {
         const bytes = Buffer.from(await answer.arrayBuffer());
         if (bytes.byteLength <= MOST_BYTES) {
-          picture = `data:${type};base64,${bytes.toString("base64")}`;
+          return `data:${type};base64,${bytes.toString("base64")}`;
         }
       }
     } catch {
       // Slow, refused, or gone. The seat gets a chip.
     }
-
-    // Remembered either way, so a picture that is not coming is not asked for
-    // again on every unfurl of every link to that table.
-    if (this.held.size >= this.most) {
-      const oldest = this.held.keys().next();
-      if (!oldest.done) {
-        this.held.delete(oldest.value);
-      }
-    }
-    this.held.set(url, picture);
-    return picture;
+    return null;
   }
 
   /** Every seat's picture, in order, fetched together. */
