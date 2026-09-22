@@ -305,7 +305,17 @@ describe("a spin", () => {
   });
 
   it("keeps a count of what the player has done at it", async () => {
-    const { client, store, userId } = await openMachine({ bank: 500_000, chips: 100_000 });
+    /*
+     * Reels that cannot scatter, because this counts what was *paid* for. Left
+     * to the machine's own source, about one run in a hundred and forty had
+     * the first spin award a bonus and the second one cost nothing — two
+     * spins, one stake, and a test that failed for the machine working.
+     */
+    const { client, store, userId } = await openMachine({
+      bank: 500_000,
+      chips: 100_000,
+      spinRandom: losing(),
+    });
     await spin(client, 5);
     await spin(client, 5);
     const profile = await store.get(userId);
