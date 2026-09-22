@@ -124,21 +124,6 @@ const CRAPS_NUMBERS: ReadonlySet<number> = new Set([2, 3, 12]);
 const MAX_TAKEN: Readonly<Record<number, number>> = { 4: 3, 10: 3, 5: 4, 9: 4, 6: 5, 8: 5 };
 
 /**
- * What a lay wins per chip laid, which is what caps it.
- *
- * The bare fraction rather than the ratio above, because this one is divided
- * by rather than multiplied out — and a cap is a comparison, not money.
- */
-const LAY_WINS: Readonly<Record<number, number>> = {
-  4: 1 / 2,
-  10: 1 / 2,
-  5: 2 / 3,
-  9: 2 / 3,
-  6: 5 / 6,
-  8: 5 / 6,
-};
-
-/**
  * What one chip on this spot hands over on this roll.
  *
  * Nothing for a bet that lost, and nothing for a bet that was simply not this
@@ -308,7 +293,17 @@ export function maxOdds(point: number, line: number, dark: boolean): number {
   if (!dark) {
     return (MAX_TAKEN[point] as number) * line;
   }
-  return Math.floor((6 * line) / (LAY_WINS[point] as number));
+  /*
+   * The largest lay whose winnings still fit under six times the line.
+   *
+   * From the same ratio table the payout comes from, and in integers. A lay
+   * of x at [num, den] wins x * (num - den) / den, so the ceiling is
+   * 6 * line * den / (num - den). Dividing by a float here instead gave the
+   * right six answers by luck of rounding — 5/6 as a double is a shade over
+   * five sixths — and luck is not a thing to cap somebody's bet with.
+   */
+  const [num, den] = LAY_ODDS[point] as Ratio;
+  return Math.floor((6 * line * den) / (num - den));
 }
 
 /**

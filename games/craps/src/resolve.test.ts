@@ -119,25 +119,21 @@ describe("odds pay true, which is the whole point of them", () => {
     // every point, so the table's exposure does not lurch about with the dice.
     for (const point of POINTS) {
       const odds = maxOdds(point, 100, false);
-      // toBeCloseTo, not toBe: this multiplies a ratioOf() result by chips to
-      // check the six-times-the-line property, and 11/5 and 5/3 are not exact
-      // in IEEE754 — the same reason the package never does this for money.
-      expect(odds * (ratioOf(multiplier(at("odds:pass"), rollOf(point), on(point))) - 1)).toBeCloseTo(
-        600,
-      );
+      // Through back(), not ratioOf() times chips. The claim being made here
+      // is that the cap pays exactly six times the line, and the float route
+      // gives 600.0000000000001 on the six — which a loosened assertion would
+      // accept along with prices that are actually wrong.
+      expect(back(odds, multiplier(at("odds:pass"), rollOf(point), on(point))) - odds).toBe(600);
     }
   });
 
   it("caps a lay at whatever would win the same", () => {
     for (const point of POINTS) {
       const lay = maxOdds(point, 100, true);
-      const win = lay * (ratioOf(multiplier(at("odds:dontpass"), rollOf(7), on(point))) - 1);
-      // A hair of IEEE754 slack (5/3 and 11/6 are not exact in binary) on top
-      // of the real ceiling — the same float-vs-ratio gap `back` exists to
-      // avoid for money, harmless here because this is a comparison only.
-      expect(win).toBeLessThanOrEqual(600 + 1e-9);
-      // And not meanly under it: one more chip laid would break the ceiling.
-      expect(win).toBeGreaterThan(600 - 1);
+      const win = back(lay, multiplier(at("odds:dontpass"), rollOf(7), on(point))) - lay;
+      expect(win).toBeLessThanOrEqual(600);
+      // And not meanly under it: the cap is the largest lay that fits.
+      expect(win).toBeGreaterThan(599);
     }
   });
 });
