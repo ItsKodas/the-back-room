@@ -664,7 +664,7 @@ describe("the table's furniture", () => {
     expect(document.querySelector(".rl__pays")).not.toBeNull();
   });
 
-  it("switches the table off under an open sheet, both sheets (N7)", () => {
+  it("switches the table off under an open sheet, both sheets", () => {
     /*
      * The one that bites is the cloth. Its 157 bets are reachable buttons
      * parked off-screen until the keyboard's ring lands on one, and that ring
@@ -689,6 +689,7 @@ describe("the table's furniture", () => {
     fireEvent.click(key);
     expect(reachable()).not.toBeNull();
     expect(acts()).not.toBeNull();
+    expect(document.querySelector(".rl__corner")?.closest("[inert]")).not.toBeNull();
     expect(document.querySelector(".rl__pays")?.closest("[inert]")).toBeNull();
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -697,6 +698,7 @@ describe("the table's furniture", () => {
     fireEvent.click(corner().getByRole("button", { name: /^Table talk/ }));
     expect(reachable()).not.toBeNull();
     expect(acts()).not.toBeNull();
+    expect(document.querySelector(".rl__corner")?.closest("[inert]")).not.toBeNull();
     expect(document.querySelector(".talk")?.closest("[inert]")).toBeNull();
   });
 
