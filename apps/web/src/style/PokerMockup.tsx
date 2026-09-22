@@ -58,28 +58,18 @@ interface MockSeat {
 }
 
 /**
- * Where a seat sits, as a percentage of the felt.
+ * Which seat this is, and how many there are — the mockup's own copy of
+ * `seatAt` from `Felt.tsx`, kept in step because it shares `poker.css` with
+ * the real table (see the import above) and the stylesheet now expects this
+ * shape rather than a `--cos`/`--sin` pair.
  *
- * Counted from the bottom middle and going clockwise, so seat one is always
- * you and the rest fill round the table in the order a dealer would deal them.
- * An ellipse rather than a circle: a felt is wider than it is tall, and seats
- * evenly spaced round a circle would bunch at the ends of it.
+ * Only which seat, and how many. The angle — and with it, the arrangement —
+ * is the stylesheet's to work out: seat one is always you, and CSS is what
+ * decides whether "the rest fill round the table" means an oval or a
+ * horseshoe opened at the bottom.
  */
 function seatAt(index: number, of: number): React.CSSProperties {
-  const angle = Math.PI / 2 + (index / of) * Math.PI * 2;
-  /*
-   * Where round the ring, and nothing about how big the ring is.
-   *
-   * The radius lives in the stylesheet so a container query can pull the seats
-   * in on a narrow felt — a seat is placed by its middle, and a ring that
-   * reaches too far across hangs half a seat off each side, which at 375px
-   * scrolled the whole page sideways rather than merely looking wrong. React
-   * cannot see the container's width; CSS can.
-   */
-  return {
-    "--cos": Math.cos(angle).toFixed(4),
-    "--sin": Math.sin(angle).toFixed(4),
-  } as React.CSSProperties;
+  return { "--seat": String(index), "--of": String(of) } as React.CSSProperties;
 }
 
 /** The felt at a given size, in a given moment of a hand. */

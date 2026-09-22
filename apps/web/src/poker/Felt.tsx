@@ -295,7 +295,10 @@ export function Felt({
               }
               return (
                 <span
-                  className="pk__gather"
+                  /* Marked the same way `.pk__bet` is: on a phone your own
+                     seat is pinned to the bottom rather than spread with the
+                     rest, and this stake has to gather from wherever that is. */
+                  className={`pk__gather${one.seatId === seatId ? " pk__gather--yours" : ""}`}
                   key={`${state.sweptAt}:${one.seatId}`}
                   style={seatAt(at, seats.length)}
                   aria-hidden="true"
@@ -316,7 +319,7 @@ export function Felt({
           * The pot going where it went.
           *
           * One heap per winner, starting in the middle and travelling out to
-          * their seat — the same `--cos`/`--sin` the seat itself is placed
+          * their seat — the same `--seat`/`--of` the seat itself is placed
           * with, so it lands on them rather than near them. Split pots send
           * one to each, which is the clearest way to say a pot was split.
           *
@@ -332,7 +335,10 @@ export function Felt({
               }
               return (
                 <span
-                  className="pk__sweep"
+                  /* Same reason `.pk__gather` is marked: the winner's own
+                     seat is pinned rather than spread on a phone, and the pot
+                     has to arrive where that seat actually is. */
+                  className={`pk__sweep${one.seatId === seatId ? " pk__sweep--yours" : ""}`}
                   key={`${state.paidAt}:${one.pot}:${one.seatId}`}
                   style={seatAt(at, seats.length)}
                   aria-hidden="true"
@@ -485,19 +491,14 @@ export function Felt({
 }
 
 /**
- * Where a seat sits, as a fraction of the felt.
+ * Which seat this is, and how many there are.
  *
- * Counted from the bottom middle and going round, so seat one is always you.
- * Only which way round — how far is in the stylesheet, so a container query
- * can pull the ring in on a narrow felt without React having to measure
- * anything.
+ * Only that. The angle is the stylesheet's to work out, which is what lets a
+ * container query change the arrangement — a phone opens the ring into a
+ * horseshoe — without React having to measure anything or know it happened.
  */
 export function seatAt(index: number, of: number): React.CSSProperties {
-  const angle = Math.PI / 2 + (index / of) * Math.PI * 2;
-  return {
-    "--cos": Math.cos(angle).toFixed(4),
-    "--sin": Math.sin(angle).toFixed(4),
-  } as React.CSSProperties;
+  return { "--seat": String(index), "--of": String(of) } as React.CSSProperties;
 }
 
 /**
@@ -508,6 +509,12 @@ export function seatAt(index: number, of: number): React.CSSProperties {
  * seat, pulled in it lands on the pot. So it steps sideways instead, which is
  * where the room actually is. Only the ones near the top: everybody else is
  * far enough round the ellipse to be clear already.
+ *
+ * Still worked out in JavaScript rather than carried over to `--seat`/`--of`
+ * in CSS: this only ever reaches the cloth's oval arrangement (`.pk__bet` is
+ * hidden outright on the phone's horseshoe), which this task leaves
+ * unchanged, and the threshold this steers by has no equivalent without a
+ * CSS conditional the platform does not have yet.
  */
 export function dodge(index: number, of: number): React.CSSProperties {
   const angle = Math.PI / 2 + (index / of) * Math.PI * 2;

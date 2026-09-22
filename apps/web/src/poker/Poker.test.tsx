@@ -89,7 +89,7 @@ describe("when the pot is won", () => {
     const sweeps = [...container.querySelectorAll(".pk__sweep")];
     expect(sweeps).toHaveLength(2);
     // Each is aimed somewhere different, which is what makes it a split.
-    const aims = sweeps.map((one) => (one as HTMLElement).style.getPropertyValue("--sin"));
+    const aims = sweeps.map((one) => (one as HTMLElement).style.getPropertyValue("--seat"));
     expect(new Set(aims).size).toBe(2);
   });
 

@@ -41,7 +41,10 @@ function block(text: string, prelude: string): string {
 }
 
 const css = sheet("src/poker/poker.css");
-const narrow = block(css, "@container (max-width: 560px)");
+// Named explicitly now (the seat ring is `pk`'s own business, not `fit`'s) —
+// see "the three arrangements" below for why the two container queries key
+// off different containers.
+const narrow = block(css, "@container pk (max-width: 560px)");
 
 describe("one screen", () => {
   it("has exactly one flexing row", () => {
@@ -125,5 +128,37 @@ describe("size variables inherit rather than being redeclared (L4)", () => {
       ),
     ];
     expect(declaring).toEqual([".pk__table"]);
+  });
+});
+
+describe("the three arrangements", () => {
+  it("places a seat from its index, in CSS", () => {
+    const seat = ruleIn(css, ".pk__seat");
+    expect(seat).toMatch(/--angle:\s*calc\(90deg \+ \(var\(--seat\) \/ var\(--of\)\) \* 360deg\)/);
+    expect(seat).toMatch(/cos\(var\(--angle\)\)/);
+    expect(seat).toMatch(/sin\(var\(--angle\)\)/);
+  });
+
+  it("opens the ring into a horseshoe on a phone", () => {
+    const phone = block(css, "@container pk (max-width: 560px)");
+    expect(phone).toMatch(/150deg \+ \(\(var\(--seat\) - 0\.5\) \/ \(var\(--of\) - 1\)\) \* 240deg/);
+    // Your own seat is pinned to the bottom rather than spread with the rest.
+    expect(phone).toMatch(/\.pk__seat--you\s*\{[^}]*--angle:\s*90deg/);
+  });
+
+  it("keeps everybody's cards, face and stake on a phone", () => {
+    // They were deleted to buy room the felt did not have. It has it now.
+    const phone = block(css, "@container pk (max-width: 560px)");
+    expect(phone).not.toMatch(/\.pk__seat \.pk__cards\s*\{[^}]*display:\s*none/);
+    expect(phone).not.toMatch(/\.pk__face\s*\{[^}]*display:\s*none/);
+  });
+
+  it("gives the felt a side column only once it can pay for one", () => {
+    /*
+     * Asked of the page's container, not the felt's. A container query can only
+     * style what is inside the container it asks, and `.pk` is the felt's
+     * ancestor — keyed on `pk` this rule would simply never apply.
+     */
+    expect(block(css, "@container fit (min-width: 1200px)")).toMatch(/grid-template-areas/);
   });
 });
