@@ -36,7 +36,15 @@ export function Reveal({ state }: { state: TableView }) {
             key={seat.id}
           >
             <span className="ld__shown-name">{seat.name}</span>
-            <Hand dice={seat.hand} matched={shown.bid.face} label={`${seat.name}'s dice`} />
+            <Hand
+              dice={seat.hand}
+              matched={shown.bid.face}
+              // The hand shown here is the one the call judged, one die longer
+              // than `seat.dice` already is for a loser — so the die about to
+              // come off is the one `Hand` marks dying: the last of this array.
+              dying={shown.losers.includes(seat.id)}
+              label={`${seat.name}'s dice`}
+            />
             {shown.losers.includes(seat.id) ? (
               <span className="tag ld__lost">−1 die</span>
             ) : null}

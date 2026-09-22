@@ -62,6 +62,14 @@ describe("the reveal", () => {
     expect(losing?.textContent).toContain("Bram");
   });
 
+  it("sends the die a loser just lost sliding out, and nobody else's", () => {
+    render(<Reveal state={revealed()} />);
+    const ada = screen.getByLabelText("Ada's dice");
+    const bram = screen.getByLabelText("Bram's dice");
+    expect(ada.querySelectorAll(".ld-die--dying")).toHaveLength(0);
+    expect(bram.querySelectorAll(".ld-die--dying")).toHaveLength(1);
+  });
+
   it("still shows a seat this very call knocked out, whole hand and all", () => {
     // Bram entered this round with three dice, was judged on all three, and
     // this call took his last one — dice is 0, but the hand that put him
