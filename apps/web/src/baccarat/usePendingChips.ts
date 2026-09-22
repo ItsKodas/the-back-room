@@ -20,6 +20,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * harmless even when it happens: showing this player's own number and
  * showing the table's agree once the table has caught up, so which one wins
  * a given render no longer matters.
+ *
+ * That substitution only ever *stands in* for the table, so it has to be
+ * given up the moment the table speaks — including when what the table says
+ * is that a chip came off. A pressed figure is a claim that this seat's total
+ * on a spot is about to rise to it, and a take-back, an Undo or a Clear is
+ * this player withdrawing that claim; left standing, it put the chip the
+ * player had just taken back straight onto the cloth again for the rest of
+ * the patience window. Hence `retire`, called on the same press as the
+ * message, rather than waiting for a timer to notice.
  */
 
 /** How long an unanswered chip is trusted before it is taken back off. */
@@ -35,6 +44,14 @@ export interface PendingChips {
   pending: Readonly<Record<string, number>>;
   /** Records a chip as sent. Call it as the message goes, not after. */
   add: (spotId: SpotId, chips: number) => void;
+  /**
+   * Gives up on a spot's pending figure — or on every spot, given nothing.
+   *
+   * For a chip coming back off. Call it as the message goes, the same as
+   * `add`: a take-back is this player answering their own press, and what
+   * was shown early has nothing left to stand in for.
+   */
+  retire: (spotId?: SpotId) => void;
 }
 
 export function usePendingChips(
@@ -123,5 +140,25 @@ export function usePendingChips(
     [confirmed],
   );
 
-  return { pending, add };
+  const retire = useCallback((spotId?: SpotId) => {
+    for (const [id, timer] of Object.entries(timers.current)) {
+      if (spotId === undefined || id === spotId) {
+        window.clearTimeout(timer);
+        delete timers.current[id];
+      }
+    }
+    setPressed((prev) => {
+      if (spotId === undefined) {
+        return Object.keys(prev).length === 0 ? prev : {};
+      }
+      if (!(spotId in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[spotId];
+      return next;
+    });
+  }, []);
+
+  return { pending, add, retire };
 }

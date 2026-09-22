@@ -2,6 +2,7 @@
 import type { Placed } from "@backroom/game-baccarat";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { PendingChips } from "./usePendingChips.js";
 import { usePendingChips } from "./usePendingChips.js";
 
 /**
@@ -91,6 +92,68 @@ describe("a chip, before the table has agreed to it", () => {
     act(() => result.current.add("player", 100));
 
     expect(result.current.pending["player"]).toBe(125);
+  });
+
+  /*
+   * A take-back is the table speaking too.
+   *
+   * `pending` stands in for the table's own figure only while the table has
+   * not reached it. A press that came off — by right-click, by Undo, by
+   * Clear — was answered by this seat's confirmed total *falling*, and a
+   * pending figure left standing over that put the chip straight back on the
+   * cloth for the rest of the 1600ms window.
+   */
+  it.each([
+    { how: "a take-back", retire: (chips: PendingChips) => chips.retire("player") },
+    { how: "clear", retire: (chips: PendingChips) => chips.retire() },
+  ])("leaves a chip off the cloth when $how takes it back", ({ retire }) => {
+    vi.useFakeTimers();
+    try {
+      const { result, rerender } = renderHook(
+        ({ placed }: { placed: readonly Placed[] }) => usePendingChips(placed, "s1", null),
+        { initialProps: { placed: [] as readonly Placed[] } },
+      );
+      act(() => result.current.add("player", 25));
+      rerender({ placed: [{ seatId: "s1", spotId: "player", chips: 25 }] });
+
+      // Well inside the patience window, which is where this hid.
+      act(() => vi.advanceTimersByTime(400));
+      act(() => retire(result.current));
+      rerender({ placed: [] });
+
+      expect(result.current.pending["player"]).toBeUndefined();
+
+      // And it stays off, rather than reappearing until the timer fires.
+      act(() => vi.advanceTimersByTime(2_000));
+      expect(result.current.pending["player"]).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /*
+   * The press that has not been answered yet comes off with it. Otherwise a
+   * take-back aimed at a chip still in flight would be the one case where the
+   * cloth kept showing a chip the player has now asked for twice to be rid of.
+   */
+  it("retires a press the table has not answered at all", () => {
+    const { result } = renderHook(() => usePendingChips([], "s1", null));
+    act(() => result.current.add("player", 25));
+
+    act(() => result.current.retire("player"));
+
+    expect(result.current.pending["player"]).toBeUndefined();
+  });
+
+  it("leaves the other spots alone when one spot's chip comes back off", () => {
+    const { result } = renderHook(() => usePendingChips([], "s1", null));
+    act(() => result.current.add("player", 25));
+    act(() => result.current.add("tie", 100));
+
+    act(() => result.current.retire("player"));
+
+    expect(result.current.pending["player"]).toBeUndefined();
+    expect(result.current.pending["tie"]).toBe(100);
   });
 
   it("gives up on an unanswered chip once it has waited long enough", () => {

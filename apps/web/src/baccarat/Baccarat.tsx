@@ -165,7 +165,12 @@ export function Felt({
    * the same chip is never counted under both this player's own press and
    * the table's own word for the same spot at once.
    */
-  const { pending, add: addPending } = usePendingChips(state.placed, seatId, table.error, table.errorKey);
+  const { pending, add: addPending, retire: retirePending } = usePendingChips(
+    state.placed,
+    seatId,
+    table.error,
+    table.errorKey,
+  );
   const displayPlaced = useMemo(() => {
     if (seatId === null || Object.keys(pending).length === 0) {
       return state.placed;
@@ -253,6 +258,9 @@ export function Felt({
           onPlace={place}
           onTake={(spotId) => {
             if (canBet) {
+              // The press this cancels stops standing in for the table, or
+              // the chip just taken off goes back on until the timer fires.
+              retirePending(spotId);
               table.act({ type: "take", spotId, chips: chip });
             }
           }}
@@ -269,7 +277,13 @@ export function Felt({
       {mine === null ? (
         <p className="bc__watching">{state.watching} watching. Take a seat to play.</p>
       ) : (
-        <Controls table={table} state={state} chip={chip} onChip={setChip} />
+        <Controls
+          table={table}
+          state={state}
+          chip={chip}
+          onChip={setChip}
+          onTakeBack={retirePending}
+        />
       )}
 
       <Seats state={state} seatId={seatId} />
@@ -363,11 +377,18 @@ function Controls({
   state,
   chip,
   onChip,
+  onTakeBack,
 }: {
   table: Table;
   state: TableView;
   chip: number;
   onChip: (value: number) => void;
+  /**
+   * Both of these take chips off, and neither says which spot: Undo is
+   * whatever the table put down last, and Clear is the lot. So they give up
+   * every pending figure this seat is holding rather than one spot's.
+   */
+  onTakeBack: () => void;
 }) {
   const open = state.phase === "betting" && !state.lastCall;
   const down = state.you?.staked ?? 0;
@@ -415,7 +436,10 @@ function Controls({
           className="bc__act"
           aria-label="Undo the last chip you put down"
           disabled={!open || down === 0 || table.busy}
-          onClick={() => table.act({ type: "undo" })}
+          onClick={() => {
+            onTakeBack();
+            table.act({ type: "undo" });
+          }}
         >
           <span className="bc__act-name">Undo</span>
           <span className="bc__act-note">The last chip down</span>
@@ -425,7 +449,10 @@ function Controls({
           className="bc__act"
           aria-label="Take back everything you have on the cloth"
           disabled={!open || down === 0 || table.busy}
-          onClick={() => table.act({ type: "clear" })}
+          onClick={() => {
+            onTakeBack();
+            table.act({ type: "clear" });
+          }}
         >
           <span className="bc__act-name">Clear</span>
           <span className="bc__act-note">Everything you have on</span>
