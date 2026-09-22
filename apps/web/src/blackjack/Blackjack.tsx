@@ -10,6 +10,7 @@ import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { ActivityLog, useActivity } from "../table/Activity.js";
 import { Refusal } from "../table/Refusal.js";
+import { Sheet } from "../table/Sheet.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
@@ -23,7 +24,6 @@ import { DiscordIcon, TableIcon } from "./Icons.js";
 import { Moments } from "./Moments.js";
 import { Readout, readoutFor } from "./Readout.js";
 import { Dealer, Seats } from "./Seats.js";
-import { Sheet } from "./Sheet.js";
 import { TABLE_SHEET_ID, TableSheet } from "./TableSheet.js";
 import { useBlackjackKeys } from "./useBlackjackKeys.js";
 import { useCardSound } from "./useCardSound.js";
@@ -224,7 +224,7 @@ function BlackjackTable({
             label="How it pays"
             open={sheet === "pays"}
             onClose={closeSheet}
-            className="bj__sheet--felt"
+            className="sheet--felt"
           >
             <HowItPays pays={pays} />
           </Sheet>

@@ -1,7 +1,7 @@
 import { WINDOWS } from "@backroom/game-blackjack";
 import type { BotSkill } from "@backroom/shared";
 import { Seg } from "../fittings/Seg.js";
-import { Sheet } from "./Sheet.js";
+import { Sheet } from "../table/Sheet.js";
 
 export const TABLE_SHEET_ID = "bj-table";
 
@@ -51,7 +51,7 @@ export function TableSheet({
       heading={`Table ${code}`}
       open={open}
       onClose={onClose}
-      className="bj__sheet--page"
+      className="sheet--page"
     >
       <div className="bj__field">
         <p className="label">Time to bet</p>

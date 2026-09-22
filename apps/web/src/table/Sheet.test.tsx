@@ -12,7 +12,7 @@ function Harness() {
         Open
       </button>
       {/* A fresh function every render, as a careless owner would pass. */}
-      <Sheet id="test-sheet" label="How it pays" open={open} onClose={() => setOpen(false)} className="bj__sheet--felt">
+      <Sheet id="test-sheet" label="How it pays" open={open} onClose={() => setOpen(false)} className="sheet--felt">
         <p>Inside</p>
       </Sheet>
     </div>
@@ -45,7 +45,7 @@ describe("a sheet at the table", () => {
   it("closes from its scrim", () => {
     const { container } = render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
-    const scrim = container.querySelector(".bj__scrim");
+    const scrim = container.querySelector(".sheet__scrim");
     if (scrim !== null) {
       fireEvent.click(scrim);
     }
