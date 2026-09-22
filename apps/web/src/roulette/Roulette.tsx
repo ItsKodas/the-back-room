@@ -1,7 +1,7 @@
 import type { TableView } from "@backroom/game-roulette";
 import { CHIPS, headroom, SPIN_MS, spotAt, toBets, WINDOWS } from "@backroom/game-roulette";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Avatar } from "../game/Avatar.js";
 import { play } from "../game/audio.js";
@@ -12,6 +12,7 @@ import { useCountdown } from "../game/useCountdown.js";
 import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { TableSetup } from "../table/TableSetup.js";
+import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Cloth } from "./Cloth.js";
@@ -21,6 +22,9 @@ import { ANCHORS } from "./layout.js";
 import { Wheel } from "./Wheel.js";
 import { Winners } from "./Winners.js";
 import "@backroom/game-roulette/theme.css";
+// What every table in the building shares, `play--fit` — the page that is
+// exactly the window — included. Nothing else on this page pulls it in.
+import "../table/table.css";
 import "./roulette.css";
 
 /**
@@ -81,10 +85,11 @@ export function Roulette() {
     return <p className="not-found">No table with that code.</p>;
   }
 
-  return (
-    // Wider only at the cloth: the screen before it is the building's width.
-    <main className={state === null ? "play" : "play play--wheel"}>
+  // The felt is the window; setup and join are pages and scroll like them.
+  const atTable = table.taken === null && state !== null;
 
+  return (
+    <main className={`play${atTable ? " play--fit" : ""}`}>
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
 
       {/*
@@ -108,6 +113,17 @@ export function Roulette() {
 
 /* -------------------------------------------------------------- the felt */
 
+/*
+ * The three keys that press the three acts, by the letters those buttons
+ * already declare in their aria-keyshortcuts.
+ *
+ * A module constant rather than a literal in the call: useTableKeys holds this
+ * in an effect's dependencies by identity, and an object written inline is a
+ * new object every render — which would tear the listeners down and build them
+ * again on every tick of the countdown.
+ */
+const SHORTCUTS = { r: "R", u: "U", c: "C" } as const;
+
 export function Felt({
   table,
   state,
@@ -118,6 +134,14 @@ export function Felt({
   seatId: string | null;
 }) {
   const [chip, setChip] = useState<number>(CHIPS[CHIPS.length - 1]);
+
+  /*
+   * The keys press the buttons on screen rather than calling what they call,
+   * so a key can never do what the button would refuse. Bound to the felt, so
+   * a letter typed into the talk box is a letter.
+   */
+  const root = useRef<HTMLElement | null>(null);
+  useTableKeys(root, SHORTCUTS);
 
   /*
    * The pocket, but only once the ball is in it.
@@ -193,60 +217,95 @@ export function Felt({
     table.act({ type: "place", spotId, chips: chip });
   };
 
+  /*
+   * Which of the two has the stage.
+   *
+   * A phone has not the height for both a wheel and a cloth whose squares you
+   * can hit, so whichever of them matters now takes the room: the cloth is
+   * shut while the ball is rolling, and the wheel is decoration while it is
+   * not. It comes back to the cloth at "settled" rather than at the next
+   * window — settling is when the cloth is worth looking at, with the winning
+   * square lit and the payouts landing on the seats. A desk has the room for
+   * both and swaps nothing; see the stylesheet.
+   */
+  const onStage = turning ? "wheel" : "cloth";
+
   return (
-    <section className="rl" data-game="roulette">
-      <Standing state={state} />
+    <section className="rl" data-game="roulette" ref={root}>
+      <div className="rl__in" data-on={onStage}>
+        <Standing state={state} />
 
-      <div className="rl__table">
-        <div className="rl__wheel-holds">
-          <Wheel
-            pocket={state.pocket}
-            spinning={turning}
-            spinMs={SPIN_MS}
-            covered={covered}
-          />
+        <div className="rl__stage">
+          {/* The column the talk and ? keys stand in; both are still to come. */}
+          <div className="rl__corner" />
+          <div className="rl__cloth-holds table-scroll">
+            <Cloth
+              placed={state.placed}
+              mine={seatId}
+              landed={landed}
+              disabled={!canBet}
+              onPlace={place}
+              onTake={(spotId) => {
+                if (canBet) {
+                  table.act({ type: "take", spotId, chips: chip });
+                }
+              }}
+            />
+          </div>
         </div>
-        <Cloth
-          placed={state.placed}
-          mine={seatId}
-          landed={landed}
-          disabled={!canBet}
-          onPlace={place}
-          onTake={(spotId) => {
-            if (canBet) {
-              table.act({ type: "take", spotId, chips: chip });
-            }
-          }}
-        />
+
+        {/*
+          The wheel and the two boards: what the wheel is doing, what it has
+          been doing, and what that has been worth to the people sitting at it.
+
+          One element around all three, and it is invisible on a phone — see
+          `.rl__side` in the stylesheet. A desk stands them in a column down
+          the side; a phone deals the wheel out among the rows above, because
+          it has to be able to take the stage on its own. Two wheels would be
+          two answers to where the ball is.
+        */}
+        <div className="rl__side">
+          <div className="rl__wheel-holds">
+            <Wheel pocket={state.pocket} spinning={turning} spinMs={SPIN_MS} covered={covered} />
+            {/*
+              What the medallion says instead of drawing 37 pockets nobody can
+              read at that size. Never the result while the ball is in the air:
+              the view carries the pocket all through the spin so the wheel can
+              roll to it, and a caption that named it would give the answer
+              away several seconds early.
+            */}
+            <span className="rl__covered">
+              {landed === null ? `${covered.size} of 37 covered` : `${landed}`}
+            </span>
+          </div>
+
+          <div className="rl__boards">
+            <History pockets={state.history} />
+            <Winners winners={state.winners} />
+          </div>
+        </div>
+
+        {mine === null ? (
+          <p className="rl__watching">{state.watching} watching. Take a seat to play.</p>
+        ) : (
+          <Controls
+            chip={chip}
+            onChip={setChip}
+            reach={reach}
+            refused={refused}
+            open={canBet}
+            betting={state.phase === "betting"}
+            down={mine.staked}
+            canRepeat={state.canRepeat}
+            busy={table.busy}
+            onRepeat={() => table.act({ type: "repeat" })}
+            onUndo={() => table.act({ type: "undo" })}
+            onClear={() => table.act({ type: "clear" })}
+          />
+        )}
+
+        <Seats state={state} seatId={seatId} />
       </div>
-
-      {/* The two boards, together: what the wheel has been doing, and what it
-          has been worth to the people sitting at it. */}
-      <div className="rl__boards">
-        <History pockets={state.history} />
-        <Winners winners={state.winners} />
-      </div>
-
-      {mine === null ? (
-        <p className="rl__watching">{state.watching} watching. Take a seat to play.</p>
-      ) : (
-        <Controls
-          chip={chip}
-          onChip={setChip}
-          reach={reach}
-          refused={refused}
-          open={canBet}
-          betting={state.phase === "betting"}
-          down={mine?.staked ?? 0}
-          canRepeat={state.canRepeat}
-          busy={table.busy}
-          onRepeat={() => table.act({ type: "repeat" })}
-          onUndo={() => table.act({ type: "undo" })}
-          onClear={() => table.act({ type: "clear" })}
-        />
-      )}
-
-      <Seats state={state} seatId={seatId} />
     </section>
   );
 }

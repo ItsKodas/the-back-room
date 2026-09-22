@@ -177,6 +177,73 @@ describe("the roulette felt", () => {
     expect(settled.container.querySelector(".rl__square--won")).toBeTruthy();
   });
 
+  it("says nothing about the pocket while the ball is still in the air (T4)", () => {
+    /*
+     * The medallion's caption is the easiest place in the building to give a
+     * result away: it is a line of text under a wheel too small to read, and
+     * the view has carried the pocket since the moment betting closed so the
+     * wheel could roll the ball to it. What it says while the ball is
+     * travelling is how much of the wheel your own chips are on — a fact about
+     * your bets, which is a different fact from where the ball went.
+     */
+    const spinning = render(
+      <Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" />,
+    );
+    const caption = spinning.container.querySelector(".rl__covered");
+    expect(caption, "the medallion has no caption at all").not.toBeNull();
+    expect(caption?.textContent).not.toContain("17");
+    expect(spinning.container.querySelector(".rl__square--won")).toBeNull();
+    cleanup();
+
+    const settled = render(
+      <Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" />,
+    );
+    expect(settled.container.querySelector(".rl__covered")?.textContent).toBe("17");
+  });
+
+  it("gives the stage to the wheel while the ball rolls, and hands it back at settled", () => {
+    /*
+     * A phone has not the height for both a wheel and a cloth whose squares
+     * you can hit. Which of them has the room is one attribute, read by the
+     * stylesheet — back at "settled" rather than at the next window, because
+     * settling is when the cloth is worth looking at.
+     */
+    const on = () => document.querySelector(".rl__in")?.getAttribute("data-on") ?? null;
+
+    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    expect(on()).toBe("cloth");
+    cleanup();
+
+    render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" />);
+    expect(on()).toBe("wheel");
+    cleanup();
+
+    render(<Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" />);
+    expect(on()).toBe("cloth");
+  });
+
+  it("works the acts from the keyboard by pressing the buttons themselves", () => {
+    /*
+     * Through the button rather than past it, so a key can never do what the
+     * button would refuse: with nothing on the cloth there is nothing to undo,
+     * and U is as dead as the control it presses.
+     */
+    const { table, act } = stub();
+    const down = view({
+      you: seat({ id: "s1", name: "Ada", staked: 150 }),
+      placed: [{ seatId: "s1", spotId: RED, chips: 150 }],
+    });
+    render(<Felt table={table} state={down} seatId="s1" />);
+    fireEvent.keyDown(window, { key: "c" });
+    expect(act).toHaveBeenCalledWith({ type: "clear" });
+    cleanup();
+
+    const { table: empty, act: never } = stub();
+    render(<Felt table={empty} state={view()} seatId="s1" />);
+    fireEvent.keyDown(window, { key: "u" });
+    expect(never).not.toHaveBeenCalled();
+  });
+
   it("refuses a chip the bank could not pay out on, and says so", () => {
     /*
      * The refusal is the server's either way. What this is about is the

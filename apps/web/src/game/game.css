@@ -160,15 +160,12 @@
 
 /*
  * A felt that widens once you are sitting at it takes the bar with it, so
- * the way out stays over the table's own edge. The widths are the tables'
- * own, from poker.css and roulette.css.
+ * the way out stays over the table's own edge. The width is poker's own, from
+ * poker.css. The wheel had one here too, until it became a window and took the
+ * building's width like every other table.
  */
 .shell__bar:has(+ .play--poker) {
   max-width: 1600px;
-}
-
-.shell__bar:has(+ .play--wheel) {
-  max-width: min(1560px, 96vw);
 }
 
 .nav__mark {

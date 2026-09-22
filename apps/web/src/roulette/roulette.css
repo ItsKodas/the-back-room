@@ -9,29 +9,20 @@
  */
 
 /*
- * Roulette wants the width, where a card game does not.
+ * The width this room takes is the building's, which it did not used to be.
  *
- * Every game in the building is laid out inside a thousand pixels, which is
- * right for a felt you read cards off — a hand is a few objects and making
- * them enormous only moves your eye further. A roulette cloth is fourteen
- * squares across carrying thirty-seven numbers, and it is the thing you aim
- * at; every pixel of width is a bigger target. So this room takes the screen
- * it is given, up to the point where the cloth stops being a table and starts
- * being a wall.
+ * A roulette cloth is fourteen squares across carrying thirty-seven numbers
+ * and it is the thing you aim at, so every pixel of width was a bigger target
+ * — and this page spread to 1560 to get them. That argument was about a page
+ * that scrolled. The table is the window now (`play--fit`, in table/table.css),
+ * and what decides how big a square is at a desk is how the stage divides its
+ * room up, not how wide the document was allowed to grow. So the page is the
+ * thousand pixels every other table in the building gets, and the cloth is
+ * handed about two thirds of it — see the desk's container query at the end.
  */
-/*
- * Both classes, not one. `.play` sets its own max-width in game.css and a
- * single class here only ties with it — which then loses on whichever
- * stylesheet the bundler happened to put last, silently, with the page simply
- * staying the width it always was. This stylesheet's ancestors have lost that
- * argument twice.
- */
-.play.play--wheel {
-  max-width: min(1560px, 96vw);
-}
-
 .rl {
-  container-type: inline-size;
+  /* Named, so a query about the table cannot be answered by the stage. */
+  container: rl / inline-size;
   display: grid;
   gap: var(--gr-space-3);
   width: 100%;
@@ -1175,8 +1166,243 @@
 /* ------------------------------------------------------------- the layout */
 
 /*
- * Phone first: the wheel over the cloth, and the cloth on its side so its
- * squares are big enough to read and aim at. See the note in Cloth.tsx.
+ * One screen, and one flexing row on it.
+ *
+ * Nothing here may grow the document. The stage takes whatever height is left
+ * once the line at the top, the boards, the keys and the seats have had
+ * theirs, and it shrinks rather than pushing anything below the fold — which
+ * on a short phone means a smaller cloth, never a Clear button you have to
+ * scroll to find.
+ *
+ * Scoped to the page rather than written on `.rl`, because the style gallery's
+ * section wears `gallery__section rl` and this app bundles every table's CSS
+ * into one sheet: a bare `flex: 1` here would restyle the mockup. That is the
+ * way `.lobby` has bled twice already.
+ */
+.play--fit .rl {
+  /* A block, not the grid the gallery's section needs: .rl__in is the layout. */
+  display: block;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * A grid of its own inside the container, because a container cannot ask a
+ * container query about itself.
+ *
+ * Phone first: the line, the stage, the boards, the keys and the seats, with
+ * what the wheel has to say tucked into the corner beside the line, where it
+ * costs no row of its own. That corner is a width rather than `auto` so that
+ * the line beside it does not jump sideways when the wheel leaves for the
+ * stage, and it is wide enough to hold the caption on one line.
+ */
+.rl__in {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(84px, 24cqw, 112px);
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    "standing wheel"
+    "stage    stage"
+    "boards   boards"
+    "controls controls"
+    "seats    seats";
+  /* The stage is the one row that is meant to flex, so a phone short on height
+     gives it every pixel it can: the smallest gap the tokens have between the
+     rows, and the ordinary one across, where height costs nothing. */
+  gap: var(--gr-space-1) var(--gr-space-2);
+}
+
+/*
+ * Every area is claimed from inside the grid that declares it.
+ *
+ * `.rl__wheel-holds` and `.rl__boards` are the gallery's too, sitting straight
+ * inside its `.rl` with no such grid around them, and a bare `grid-area` is an
+ * invented area wherever else a class turns up. The rest are the felt's alone
+ * and are written the same way so the whole set reads as one decision.
+ */
+.rl__in > .rl__standing {
+  grid-area: standing;
+  align-self: center;
+}
+
+.rl__in > .rl__stage {
+  grid-area: stage;
+}
+
+.rl__in > .rl__controls,
+.rl__in > .rl__watching {
+  grid-area: controls;
+}
+
+.rl__in > .rl__seats {
+  grid-area: seats;
+}
+
+/*
+ * Descendants rather than children: `.rl__side` is `display: contents` at this
+ * size, so these two are grid items of `.rl__in` while being nobody's child in
+ * the markup.
+ */
+.rl__in .rl__wheel-holds {
+  grid-area: wheel;
+  width: 100%;
+  align-content: center;
+}
+
+.rl__in .rl__boards {
+  grid-area: boards;
+}
+
+/*
+ * On a phone the wheel is on the stage or it is nowhere.
+ *
+ * Eighty pixels of wheel is not a wheel, it is a token: nobody reads
+ * thirty-seven pockets at that size, which is the whole reason the caption
+ * under it exists. Drawn in a row of its own it cost a tenth of a 375x667
+ * screen and paid for it out of the cloth's height — and the cloth is the thing
+ * you are aiming at while there is betting to do. So the corner keeps the one
+ * line of it worth reading, and the wheel itself arrives when the ball does and
+ * takes the stage. A desk has the room for both at once and keeps it drawn
+ * throughout.
+ */
+.rl__in[data-on="cloth"] .rl__wheel {
+  display: none;
+}
+
+/*
+ * The wrapper that is only there at a desk.
+ *
+ * One `<Wheel>` has to be a grid item of the table on a phone, where it takes
+ * the stage on its own, and a neighbour of the boards in a side column at a
+ * desk. `display: contents` is what lets one element be both: the box goes
+ * away and its children place themselves in the table's own grid. Two wheels
+ * would be two answers to where the ball is.
+ */
+.rl__side {
+  display: contents;
+}
+
+/*
+ * The stage, which is the cloth's while there is betting to do and the wheel's
+ * while the ball is in the air.
+ *
+ * Its own size container, so what is on it is bounded by the room it actually
+ * has rather than by the viewport. That is the whole of L3: a short phone
+ * shrinks the cloth instead of pushing the keys off the bottom of the screen.
+ */
+.rl__stage {
+  container: rl-stage / size;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "corner cloth";
+  align-items: center;
+  gap: var(--gr-space-2);
+}
+
+/* The column the ? and the talk keys stand in, beside the cloth rather than
+   over it: a key floating on the felt is a key in the way of a bet. */
+.rl__corner {
+  grid-area: corner;
+  display: grid;
+  gap: var(--gr-space-2);
+  align-content: start;
+}
+
+/*
+ * The cloth's box, and the one thing on this page allowed to scroll.
+ *
+ * Turned on its side a cloth is five squares across by fourteen down, so
+ * squares big enough for a thumb need more height than a 375x560 phone has.
+ * The page still does not scroll; this box does, which is what L6 allows in as
+ * many words, and `.table-scroll` gives it the room's own bar rather than the
+ * system's.
+ */
+.rl__cloth-holds {
+  grid-area: cloth;
+  max-height: 100cqh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  justify-content: center;
+  transition: filter 380ms ease;
+}
+
+/*
+ * What the medallion says instead of drawing thirty-seven pockets nobody can
+ * read at that size: how much of the wheel your own chips are on, and then the
+ * number once the ball is in one.
+ */
+.rl__covered {
+  font-size: var(--gr-text-xs);
+  line-height: 1.2;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--gr-color-ink-dim);
+}
+
+.rl__wheel-holds {
+  display: grid;
+  justify-items: center;
+  gap: var(--gr-space-1);
+}
+
+/* --------------------------------------------------------------- the swap */
+
+/*
+ * The medallion grows out of its corner and takes the stage, with the cloth
+ * dimmed behind it: one element arriving from where it already was, rather
+ * than two crossfading over each other. Coming back needs no motion of its own
+ * — the cloth lifts back out of the blur under it, and by then the cloth with
+ * its winning square lit is the thing worth looking at.
+ */
+.rl__in[data-on="wheel"] .rl__wheel-holds {
+  grid-area: stage;
+  z-index: 2;
+  width: auto;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  transform-origin: top right;
+  animation: rl-to-stage 380ms var(--gr-settle) both;
+}
+
+/*
+ * Sized by the height it has been given and not by the width, which is what
+ * makes a short phone shrink the wheel rather than run it off the stage. The
+ * square comes out of `aspect-ratio`; `max-width` catches the one case where
+ * the stage is wider than it is tall.
+ */
+.rl__in[data-on="wheel"] .rl__wheel {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+}
+
+.rl__in[data-on="wheel"] .rl__cloth-holds {
+  filter: blur(2px) brightness(0.5);
+  overflow: hidden;
+}
+
+@keyframes rl-to-stage {
+  from {
+    transform: scale(0.22);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------- the mockup's own table */
+
+/*
+ * The /style gallery stands the wheel over the cloth, and the two side by side
+ * past 900px — the shape this table had before it became a window. It keeps
+ * its own layout because its section is an `.rl` with no `.rl__in` inside it,
+ * and one bundle carries both.
  */
 .rl__table {
   display: grid;
@@ -1184,34 +1410,119 @@
   justify-items: center;
 }
 
-.rl__wheel-holds {
+.rl__table .rl__wheel-holds {
   width: min(58cqw, 260px);
 }
 
+/* ---------------------------------------------------------------- a desk */
+
 /*
- * Wide enough for a real table: the wheel beside the cloth, which is how one
- * is actually built — you stand at the cloth and the wheel is at the end of it.
+ * The cloth takes the width, and the wheel and the boards stand in a column
+ * down the side.
  *
- * Nine hundred rather than the seven-twenty this was first written at, and the
- * number is not free. Standing the wheel beside the cloth leaves the cloth
- * about seven tenths of the room, so a container of 720 handed it barely 520 —
- * under the width at which the cloth decides to lie down (see TURNS_AT in
- * Cloth.tsx). The two thresholds disagreed and a desktop got a portrait cloth
- * with a squashed wheel next to it. This one is derived from that one.
+ * Nine hundred, and the number is not free. The cloth lies down below 560px of
+ * its own width (TURNS_AT, in Cloth.tsx). The side column takes 26% of the
+ * table and the corner about 44 with its keys in it, so the cloth is handed
+ * roughly `0.74C - 52` — 614px at this threshold and more above it, which
+ * clears TURNS_AT with room to spare. A lower threshold hands the cloth less
+ * than that and stands a portrait cloth on a desk, which is exactly the
+ * disagreement the layout before this one shipped with.
  */
-@container (min-width: 900px) {
-  .rl__table {
-    grid-template-columns: minmax(200px, 1fr) 2.4fr;
-    align-items: center;
-    justify-items: stretch;
+@container rl (min-width: 900px) {
+  .rl__in {
+    grid-template-columns: minmax(0, 1fr) clamp(200px, 26cqw, 300px);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "standing side"
+      "stage    side"
+      "controls side"
+      "seats    side";
   }
-  .rl__wheel-holds {
+
+  /* The wrapper stops being invisible and becomes the column itself. */
+  .rl__side {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gr-space-3);
+    min-height: 0;
+  }
+
+  /* A desk has room for both at once, so nothing swaps, nothing dims, and the
+     wheel is drawn the whole way through a round rather than only while the
+     ball is on it. */
+  .rl__in[data-on="cloth"] .rl__wheel {
+    display: block;
+  }
+
+  .rl__in[data-on="wheel"] .rl__wheel-holds {
+    grid-area: wheel;
     width: 100%;
+    height: auto;
+    z-index: auto;
+    animation: none;
   }
+
+  .rl__in[data-on="wheel"] .rl__wheel {
+    width: 100%;
+    height: auto;
+  }
+
+  .rl__in[data-on="wheel"] .rl__cloth-holds {
+    filter: none;
+  }
+
   /* The cloth is about seven tenths of the container here rather than all of
      it, so the same half-a-square works out to a smaller share of the query.
      See the rule this overrides. */
   .rl__pile .stack {
     width: clamp(22px, 2.5cqw, 40px);
   }
+
+  /* The gallery's table, at the same width, unchanged. */
+  .rl__table {
+    grid-template-columns: minmax(200px, 1fr) 2.4fr;
+    align-items: center;
+    justify-items: stretch;
+  }
+
+  .rl__table .rl__wheel-holds {
+    width: 100%;
+  }
+}
+
+/*
+ * The off switch. Everything the swap says is still said without it: the wheel
+ * is on the stage and the cloth is dimmed behind it, they simply arrive that
+ * way rather than travel.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .rl__in[data-on="wheel"] .rl__wheel-holds {
+    animation: none;
+  }
+
+  .rl__cloth-holds {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------- table talk */
+
+/*
+ * The inline panel, until table talk moves into a sheet of its own.
+ *
+ * It keeps to a strip at the foot of the window rather than taking the stage's
+ * height with it: a page that is exactly the window has no spare height to
+ * give a log nobody has opened. It goes entirely when the sheet arrives, and
+ * these two rules go with it.
+ */
+.play--fit > .chat {
+  flex: none;
+  margin-top: 0;
+  padding: var(--gr-space-2);
+}
+
+.play--fit > .chat .chat__log {
+  max-height: 48px;
+  margin-bottom: var(--gr-space-2);
 }
