@@ -2,10 +2,27 @@
 import type { SeatView, TableView } from "@backroom/game-roulette";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { play } from "../game/audio.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Felt } from "./Roulette.js";
 
-afterEach(cleanup);
+/*
+ * Sound is stubbed rather than let through, because letting it through costs
+ * real time: play() goes and finds a sample, so every simulated chip below
+ * loaded one. That fits inside a test's budget on an idle machine and stops
+ * fitting once the rest of the suite is running beside it — a flake waiting
+ * for a busy afternoon rather than anything true about the felt. Stubbed, the
+ * cue is also something this file can ask about, which is how it is pinned.
+ */
+vi.mock("../game/audio.js", async (original) => ({
+  ...(await original<typeof import("../game/audio.js")>()),
+  play: vi.fn(),
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.mocked(play).mockClear();
+});
 
 /**
  * The felt, given a table.
@@ -76,6 +93,9 @@ describe("the roulette felt", () => {
     render(<Felt table={table} state={view()} seatId="s1" />);
     fireEvent.click(screen.getByRole("button", { name: /^17, pays 35 to 1/ }));
     expect(act).toHaveBeenCalledWith(expect.objectContaining({ type: "place", spotId: "straight:17" }));
+    // A chip landing makes a sound, and the sound is the press being answered
+    // before the table can answer it — so it goes with the chip, not the ack.
+    expect(vi.mocked(play)).toHaveBeenCalledWith("bet");
   });
 
   it("takes nothing once the wheel is turning", () => {
@@ -125,6 +145,14 @@ describe("the roulette felt", () => {
     // deciding, not once you have tried and been ignored.
     render(<Felt table={stub().table} state={view({ bank: 0 })} seatId="s1" />);
     expect(said()).toMatch(/nothing to play for yet/i);
+  });
+
+  it("tells a watcher the bank is empty too, since they never open Controls", () => {
+    // A watcher's own next press is sitting down, and they should not do
+    // that blind. said() only reaches a seated player, so this is the one
+    // place left that can tell somebody who hasn't sat down yet.
+    render(<Felt table={stub().table} state={view({ bank: 0, you: null })} seatId={null} />);
+    expect(screen.getByRole("status").textContent).toMatch(/nothing to play for yet/i);
   });
 
   it("names the cap when the bank can cover something but not this", () => {

@@ -57,6 +57,15 @@ describe("the chip keys", () => {
     expect(screen.getByRole("radio", { name: "Bet with 5,000" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Bet with 100" })).not.toBeDisabled();
   });
+
+  it("never darkens the chip held, even when the purse can no longer cover it", () => {
+    // A chip picked at 500, with a purse that has since fallen under it: the
+    // exemption is pointless to test with a chip the purse could afford on
+    // its own, which is what the assertion above never actually held.
+    render(<Harness chip={500} reach={{ most: 10_000, purse: 300, bank: 2_000_000 }} />);
+    expect(screen.getByRole("radio", { name: "Bet with 500" })).not.toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Bet with 1,000" })).toBeDisabled();
+  });
 });
 
 describe("the custom bet", () => {
@@ -96,6 +105,26 @@ describe("the custom bet", () => {
     fireEvent.change(box, { target: { value: "1250" } });
     fireEvent.blur(box);
     expect(box.value).toBe("1,250");
+  });
+
+  it("releases a held custom figure the cap has moved under, and says why", () => {
+    // Mirrors Slots' BetKeys, which resets and explains an uncoverable held
+    // stake rather than leaving it lit over a lever that will not move.
+    // 1,250 rather than a minted denomination — a figure already on the tray
+    // would never register as "held" by the custom box in the first place.
+    const { rerender } = render(<Harness reach={{ most: 10_000, purse: 50_000, bank: 2_000_000 }} />);
+    const box = screen.getByLabelText("Custom chip");
+    fireEvent.change(box, { target: { value: "1250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bet it" }));
+    expect(screen.getByRole("button", { name: "Held" })).toBeDefined();
+
+    // The bank shrinks under the held figure without a press of the player's.
+    rerender(<Harness reach={{ most: 1_000, purse: 50_000, bank: 2_000_000 }} />);
+
+    expect(screen.queryByRole("button", { name: "Held" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Bet it" })).toBeDefined();
+    expect(said()).toMatch(/released/i);
+    expect(said()).toContain("1,250");
   });
 });
 

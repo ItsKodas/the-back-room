@@ -1,6 +1,6 @@
 import { CHIPS, MIN_CHIP } from "@backroom/game-roulette";
 import type { ReactNode } from "react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Chip } from "../chips/Chip.js";
 import { exact } from "../game/money.js";
 import type { Reach } from "./said.js";
@@ -17,6 +17,14 @@ function covers(chip: number, reach: Reach): boolean {
   return (
     chip >= MIN_CHIP && chip <= reach.most && (reach.purse === null || chip <= reach.purse)
   );
+}
+
+/** Why a held custom figure was let go — the same shape Slots' betSaid gives it. */
+function releasedSaid(chip: number, reach: Reach): string {
+  if (reach.purse !== null && chip > reach.purse) {
+    return `Your ${exact(chip)} chip was released: more than your ${exact(reach.purse)}.`;
+  }
+  return `Your ${exact(chip)} chip was released: the bank covers ${exact(reach.most)} on the best spot now.`;
 }
 
 /**
@@ -68,10 +76,34 @@ export function Controls({
   /* And it is the figure in the box, rather than one typed over it since. */
   const holding = ownHeld && typed === chip;
 
+  /* A figure the box let go of, and why — kept only until another is held. */
+  const [released, setReleased] = useState<number | null>(null);
+
+  /*
+   * A held custom figure that can no longer be covered is let go, rather than
+   * left lit over a cloth that will refuse it — the same call Slots' BetKeys
+   * makes about an uncoverable held stake.
+   *
+   * Not the tray: a picked denomination stays picked deliberately (see its
+   * own comment below). Only the custom box has a figure specific enough to
+   * explain, so only it is released — and released to whichever minted chip
+   * the bank can still cover, so betting is never left pointed at a number
+   * the player was just told about.
+   */
+  useEffect(() => {
+    if (!holding || covers(chip, reach)) {
+      return;
+    }
+    setReleased(chip);
+    setDraft("");
+    onChip(CHIPS.find((value) => covers(value, reach)) ?? MIN_CHIP);
+  }, [holding, chip, reach, onChip]);
+
   const betOwn = () => {
     if (busy || typed === null || !covers(typed, reach)) {
       return;
     }
+    setReleased(null);
     setDraft(exact(typed));
     onChip(typed);
   };
@@ -90,7 +122,10 @@ export function Controls({
             /* The chip held never goes dark: it is already on, and a cap that
                moved under it is not the same as being unable to cover it. */
             disabled={chip !== value && reach.purse !== null && value > reach.purse}
-            onClick={() => onChip(value)}
+            onClick={() => {
+              setReleased(null);
+              onChip(value);
+            }}
           >
             <Chip amount={value} />
           </button>
@@ -192,11 +227,13 @@ export function Controls({
         aria-live rather than role="status": Standing in Roulette.tsx already
         carries the page's one role="status", and a second status region would
         make the one that actually announces something impossible to ask for
-        by role alone. The same call plinko/Controls.tsx makes about its own
-        figure, for the same reason.
+        by role alone. The same call Slots.tsx's .bet__said already makes,
+        for the same reason.
       */}
       <p className="rl__said" aria-live="polite">
-        {said({ reach, chip, typed, holding, refused, betting })}
+        {released === null
+          ? said({ reach, chip, typed, holding, refused, betting })
+          : releasedSaid(released, reach)}
       </p>
     </div>
   );

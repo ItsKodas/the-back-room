@@ -274,6 +274,21 @@ function coveredBy(state: TableView, seatId: string | null): Set<number> {
 function Standing({ state }: { state: TableView }) {
   const left = useCountdown(state.deadline);
 
+  /*
+   * A watcher never opens Controls — said() lives there, and there is
+   * nothing under them to render it — so this is the only place left that
+   * can tell them the bank has nothing in it before their next press, which
+   * is sitting down. A seated player gets the same fact from said(), with
+   * its own precedence over a refusal; this branch stays out of their way.
+   */
+  if (state.you === null && state.phase === "betting" && state.bank <= 0) {
+    return (
+      <p className="rl__standing rl__standing--last" role="status">
+        The bank is empty — nothing to play for yet.
+      </p>
+    );
+  }
+
   if (state.phase === "spinning") {
     return <p className="rl__standing rl__standing--shut">No more bets.</p>;
   }

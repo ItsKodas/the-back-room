@@ -952,11 +952,19 @@
 /* ------------------------------------------------------------- the controls */
 
 /*
- * The tray and the three buttons, side by side where there is room.
+ * The tray and the three buttons, side by side where there is room; the
+ * custom box, the figures, and the said line each get a row of their own
+ * underneath, full width, whatever order they happen to sit in the markup.
  *
  * They are one thing — what you are betting with, and what you can do about
  * what you have already bet — and stacking them put a column of controls under
  * a table that was mostly empty either side.
+ *
+ * Named areas rather than relying on source order: `.rl__own` sits between
+ * the tray and the acts in the markup, and auto-placement would have put it
+ * in the acts' column and pushed the acts to a row of their own — this pins
+ * tray and acts to row one regardless of what else the markup grows between
+ * them.
  */
 .rl__controls {
   display: grid;
@@ -967,13 +975,29 @@
 @container (min-width: 720px) {
   .rl__controls {
     grid-template-columns: auto auto;
+    grid-template-areas:
+      "tray acts"
+      "own own"
+      "note note"
+      "said said";
     justify-content: center;
     align-items: center;
     gap: var(--gr-space-5);
   }
-  .rl__note,
+  .rl__tray {
+    grid-area: tray;
+  }
+  .rl__acts {
+    grid-area: acts;
+  }
+  .rl__own {
+    grid-area: own;
+  }
+  .rl__note {
+    grid-area: note;
+  }
   .rl__said {
-    grid-column: 1 / -1;
+    grid-area: said;
   }
 }
 
