@@ -1,0 +1,500 @@
+import type { TableView } from "@backroom/game-poker";
+import { useEffect, useMemo, useState } from "react";
+import { Card } from "../blackjack/Cards.js";
+import { ChipStack } from "../chips/ChipStack.js";
+import type { TableSocketHook } from "../table/useTableSocket.js";
+import { Actions } from "./Controls.js";
+import { Rankings } from "./Rankings.js";
+import { Seat } from "./Seat.js";
+import { useIntent } from "./useIntent.js";
+
+export type Table = TableSocketHook<TableView>;
+
+export const fmt = (n: number) => n.toLocaleString("en-US");
+
+/** The five places a board card goes, in the order they are dealt. */
+export const SLOTS = ["flop1", "flop2", "flop3", "turn", "river"];
+
+/**
+ * How long each pot's announcement holds before the next one.
+ *
+ * Paired with the table's own showdown wait, which grows by the same step for
+ * every side pot — if these two disagree the felt clears in the middle of a
+ * sentence.
+ */
+export const MOMENT_MS = 2_400;
+
+/**
+ * The pots of a finished hand, in the order they should be announced.
+ *
+ * Grouped rather than listed, because a side pot is a separate thing won by
+ * separate people and saying them all at once gives the main pot's winner and
+ * a short stack's consolation the same breath.
+ */
+export function potsOf(paid: TableView["paid"]): TableView["paid"][] {
+  const byPot = new Map<number, TableView["paid"]>();
+  for (const one of paid) {
+    const already = byPot.get(one.pot);
+    if (already === undefined) {
+      byPot.set(one.pot, [one]);
+    } else {
+      already.push(one);
+    }
+  }
+  return [...byPot.entries()].sort(([a], [b]) => a - b).map(([, winners]) => winners);
+}
+
+/**
+ * Which pot is being announced right now.
+ *
+ * Walks forward on its own clock and stops at the last one, so the final
+ * announcement stays up for the rest of the showdown rather than vanishing.
+ * Restarted by the moment the hand paid, which is the one thing that makes
+ * this a different hand's sequence rather than the same one continuing.
+ */
+export function useMoment(paidAt: number | null, count: number): number {
+  const [at, setAt] = useState(0);
+
+  useEffect(() => {
+    setAt(0);
+    if (paidAt === null || count <= 1) {
+      return;
+    }
+    const timers: number[] = [];
+    for (let step = 1; step < count; step += 1) {
+      timers.push(window.setTimeout(() => setAt(step), step * MOMENT_MS));
+    }
+    return () => {
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [paidAt, count]);
+
+  return Math.min(at, Math.max(0, count - 1));
+}
+
+/** Nobody else's hand is pointed at, and one empty set does for all of them. */
+export const EMPTY: Set<string> = new Set();
+
+/** How a card is named when asking whether it is one of your five. */
+export const nameOf = (card: { rank: string; suit: string }) => `${card.rank}${card.suit}`;
+
+/**
+ * Whether to light this card, dim it, or leave it alone.
+ *
+ * The third case is the one worth naming. With nothing to point at — before
+ * the flop, or once you have folded — every card would take the "not in your
+ * hand" class and the whole table would go grey, which reads as the felt
+ * having gone out rather than as nothing being highlighted.
+ */
+export function pointing(using: Set<string>, card: { rank: string; suit: string }): string | undefined {
+  if (using.size === 0) {
+    return undefined;
+  }
+  return using.has(nameOf(card)) ? "pk__using" : "pk__spare";
+}
+
+/**
+ * What a poker table counts in.
+ *
+ * Down to the small blind, which the betting tray's plates do not reach: this
+ * game's numbers are multiples of ten, and counted in hundreds every bet on
+ * the felt would come out as one odd chip standing for the remainder. With
+ * tens and twenties in the ladder every amount here lands on real plates.
+ */
+export const TABLE_CHIPS = [1000, 500, 250, 100, 50, 20, 10];
+
+/* -------------------------------------------------------------- the felt */
+
+export function Felt({
+  table,
+  state,
+  seatId,
+}: {
+  table: Table;
+  state: TableView;
+  seatId: string | null;
+}) {
+  const intent = useIntent(state, seatId, table.error, table.errorKey);
+  const me = state.seats.find((seat) => seat.id === seatId) ?? null;
+
+  /*
+   * Your seat at the bottom, everybody else round from it in dealing order.
+   *
+   * Rotated rather than sorted: the order seats come in is the order the table
+   * plays in, and losing it would put the player to your left somewhere other
+   * than on your left. Somebody watching has no seat to rotate to, so they get
+   * the table as it is.
+   */
+  const seats = useMemo(() => {
+    const mine = state.seats.findIndex((seat) => seat.id === seatId);
+    return mine < 0
+      ? state.seats
+      : [...state.seats.slice(mine), ...state.seats.slice(0, mine)];
+  }, [state.seats, seatId]);
+
+  /*
+   * What each seat took overall, for the mark on the seat itself. Summed here
+   * because the payouts are per pot now, and somebody who won two of them won
+   * the total rather than whichever happened to be last in the list.
+   */
+  const won = useMemo(() => {
+    const totals = new Map<string, { chips: number; said: string | null }>();
+    for (const one of state.paid) {
+      const already = totals.get(one.seatId);
+      totals.set(one.seatId, {
+        chips: (already?.chips ?? 0) + one.chips,
+        said: one.said ?? already?.said ?? null,
+      });
+    }
+    return totals;
+  }, [state.paid]);
+
+  /* The pots, in the order they are announced, and which one is up now. */
+  const moments = useMemo(() => potsOf(state.paid), [state.paid]);
+  const moment = useMoment(state.paidAt, moments.length);
+  const showing = moments[moment] ?? [];
+  const spotlit = useMemo(() => new Set(showing.map((one) => one.seatId)), [showing]);
+
+  /*
+   * Which cards on the table are in your hand, held by name rather than by
+   * position: a card is a rank and a suit, and the same card is in your hand
+   * whether it came out of the deck third or fifth.
+   */
+  const using = useMemo(() => {
+    /*
+     * Nothing is pointed at once you have folded. The table still knows what
+     * your two cards would have made — it keeps them until the hand is cleared
+     * — but a hand you are no longer in is not a hand, and lighting up the
+     * board for it says you are still playing.
+     */
+    const folded = state.seats.find((seat) => seat.id === seatId)?.folded ?? false;
+    const cards = folded ? [] : (state.you?.hand?.using ?? []);
+    return new Set(cards.map(nameOf));
+  }, [state.you, state.seats, seatId]);
+
+  const [helping, setHelping] = useState(false);
+
+  return (
+    <div className="pk">
+      <div className="pk__table">
+        <div className="pk__felt" />
+
+        {/* Above the felt rather than in the room's own bar: what beats what is
+            a fact about this game, and the bar belongs to the building. */}
+        <button
+          type="button"
+          className="pk__helpbtn"
+          data-quiet
+          aria-label="What beats what"
+          title="What beats what"
+          onClick={() => setHelping(true)}
+        >
+          ?
+        </button>
+
+        <div className="pk__middle">
+          <p className="pk__pot">
+            <span className="pk__pot-label">Pot</span>
+            <strong>{fmt(state.pot)}</strong>
+            {state.pot > 0 ? (
+              <span className="pk__pot-chips">
+                {/*
+                  * Shorter stacks than anywhere else, so the pot reads as a
+                  * heap rather than as one tall column. It is the biggest pile
+                  * on the table and the only one nobody owns — a spread of
+                  * stacks is what that looks like, and what a dealer would
+                  * actually have left in the middle.
+                  */}
+                <ChipStack
+                  amount={state.pot}
+                  width={19}
+                  ladder={TABLE_CHIPS}
+                  most={18}
+                  tallest={3}
+                />
+              </span>
+            ) : null}
+          </p>
+          <div className="pk__board">
+            {state.board.map((one, at) => (
+              <span
+                key={`${one.rank}${one.suit}`}
+                /* A wrapper that takes no room of its own — the card stays a
+                   flex item of the board, and this is only somewhere to hang
+                   the fact that it is one of your five. */
+                className={pointing(using, one)}
+              >
+                <Card card={one} deal={at} />
+              </span>
+            ))}
+            {/* The streets still to come, so the board keeps its width and
+                nothing shuffles sideways when a card lands. */}
+            {SLOTS.slice(state.board.length).map((slot) => (
+              <span className="pk__gap" key={slot} />
+            ))}
+          </div>
+          {/*
+            * Who took it, said in the middle where the pot was.
+            *
+            * The seat says "won 1,240" too, but a seat is small and there are
+            * ten of them; this is the one line somebody who looked away for a
+            * moment can come back to and read.
+            */}
+          {state.street === "waiting" ? (
+            <p className="pk__waiting">
+              {state.seats.filter((seat) => seat.stack > 0).length < 2
+                ? "Waiting for another player."
+                : "Next hand shortly."}
+            </p>
+          ) : null}
+        </div>
+
+        {seats.map((seat, at) => (
+          <Seat
+            key={seat.id}
+            seat={seat}
+            at={at}
+            of={seats.length}
+            state={state}
+            mine={seat.id === seatId}
+            won={won.get(seat.id)?.chips ?? null}
+            said={won.get(seat.id)?.said ?? null}
+            /* Whose moment it is right now, which is not the same as who won:
+               at a hand with side pots several seats won and they are announced
+               one at a time. */
+            spotlit={spotlit.has(seat.id)}
+            /* What this player asked for, until the table answers. */
+            pending={seat.id === seatId ? intent : null}
+            /* Only your own hand is pointed at: it is the only one you know. */
+            using={seat.id === seatId ? using : EMPTY}
+          />
+        ))}
+
+        {/*
+          * The street's stakes going into the middle.
+          *
+          * A betting round ends by sweeping every stake in, which is a thing
+          * that happens rather than a state anything is left in — a moment
+          * later every seat reads zero. So the table records what it swept and
+          * the felt draws it going, from each seat's own place on the chip ring
+          * to the pot, which is the way the chips actually travel.
+          */}
+        {state.sweptAt != null
+          ? state.swept.map((one) => {
+              const at = seats.findIndex((seat) => seat.id === one.seatId);
+              if (at < 0) {
+                return null;
+              }
+              return (
+                <span
+                  className="pk__gather"
+                  key={`${state.sweptAt}:${one.seatId}`}
+                  style={seatAt(at, seats.length)}
+                  aria-hidden="true"
+                >
+                  <ChipStack
+                    amount={one.chips}
+                    width={16}
+                    ladder={TABLE_CHIPS}
+                    most={12}
+                    tallest={4}
+                  />
+                </span>
+              );
+            })
+          : null}
+
+        {/*
+          * The pot going where it went.
+          *
+          * One heap per winner, starting in the middle and travelling out to
+          * their seat — the same `--cos`/`--sin` the seat itself is placed
+          * with, so it lands on them rather than near them. Split pots send
+          * one to each, which is the clearest way to say a pot was split.
+          *
+          * Keyed on the moment the hand paid, so it runs once per hand and is
+          * allowed to finish: two identical hands in a row would otherwise be
+          * one element that never moves.
+          */}
+        {state.paidAt != null
+          ? showing.map((one) => {
+              const at = seats.findIndex((seat) => seat.id === one.seatId);
+              if (at < 0) {
+                return null;
+              }
+              return (
+                <span
+                  className="pk__sweep"
+                  key={`${state.paidAt}:${one.pot}:${one.seatId}`}
+                  style={seatAt(at, seats.length)}
+                  aria-hidden="true"
+                >
+                  <ChipStack
+                    amount={one.chips}
+                    width={19}
+                    ladder={TABLE_CHIPS}
+                    most={18}
+                    tallest={3}
+                  />
+                </span>
+              );
+            })
+          : null}
+
+        {seats.map((seat, at) => {
+          const chips =
+            seat.id === seatId && intent.committed !== null ? intent.committed : seat.committed;
+          return chips > 0 ? (
+            <span
+              /*
+               * Your own is marked, because it is the one that has to dodge
+               * something: your cards are drawn several times the size of
+               * anybody else's, and on a wide felt they grow into the space
+               * this ring passes through.
+               */
+              className={`pk__bet${seat.id === seatId ? " pk__bet--yours" : ""}`}
+              /*
+               * Keyed on the amount as well as the seat, so a stake that grows
+               * is a new element that slides out again rather than a number
+               * quietly changing in place. Putting chips in is the commonest
+               * thing that happens at a table; it should look like something.
+               */
+              key={`bet-${seat.id}:${chips}`}
+              style={{ ...seatAt(at, seats.length), ...dodge(at, seats.length) }}
+            >
+              {/*
+                * Chips and the figure, not one or the other. The pile is what
+                * is read across a table — two chips against nine says who is
+                * in for what before either number has been — and the figure is
+                * what settles it once you care about the exact amount.
+                */}
+              <ChipStack amount={chips} width={16} ladder={TABLE_CHIPS} most={12} tallest={4} />
+              <span className="pk__bet-figure">{fmt(chips)}</span>
+            </span>
+          ) : null;
+        })}
+      </div>
+
+      {/*
+        * What you are holding, said plainly and kept on screen for as long as
+        * you hold it. Reading your own hand off five cards is the one thing
+        * that stands between somebody new and the game, and it is a thing the
+        * table already knows the answer to.
+        */}
+      {/*
+        * Who took the pot, in the same place the hand you are holding is
+        * announced — one headline slot under the table rather than two.
+        *
+        * Outside the felt on purpose. Every part of the cloth is spoken for at
+        * a showdown: the board is what everybody is reading, the middle is
+        * where the pot was, and below it is your own hand. A banner anywhere on
+        * it covers something somebody is looking at, and this is the moment
+        * they are looking hardest.
+        */}
+      {state.paid.length > 0 && state.paidAt != null ? (
+        <p
+            className="pk__won"
+            /* Keyed on the pot as well as the hand, so each announcement is a
+               new element that lands rather than text swapping in place. */
+            key={`${state.paidAt}:${moment}`}
+            /*
+             * A live region, which is both what this is and what lets it carry
+             * a label: a plain paragraph has no role to be named, and a win is
+             * exactly the kind of thing somebody not watching the felt should
+             * be told about when it happens.
+             */
+            role="status"
+            aria-live="polite"
+            /*
+             * Said once, as a sentence. The spans below are laid out with a
+             * gap rather than separated by spaces, so read straight off the
+             * markup this comes out as "Pocketswins 520kings and 3s".
+             */
+            aria-label={showing
+              .map(
+                (one) =>
+                  `${one.name} wins ${fmt(one.chips)}${one.said === null ? "" : ` with ${one.said}`}`,
+              )
+              .join(", and ")}
+          >
+            {showing.map((one, index) => (
+              <span className="pk__won-one" key={one.seatId}>
+                {index > 0 ? <span className="pk__won-and">and</span> : null}
+                <strong>{one.name}</strong>
+                <span className="pk__won-chips">wins {fmt(one.chips)}</span>
+                {one.said === null ? null : <span className="pk__won-with">{one.said}</span>}
+              </span>
+            ))}
+          </p>
+      ) : state.you?.hand != null && me !== null && !me.folded ? (
+        <p
+          /* Keyed on what it says, so a hand that becomes a different hand is
+             a different element — which is what makes it land rather than
+             quietly changing its own text. */
+          key={state.you.hand.title + state.you.hand.said}
+          className="pk__reading"
+        >
+          <strong>{state.you.hand.title}</strong>
+          <span>{state.you.hand.said}</span>
+        </p>
+      ) : null}
+
+      <Actions table={table} state={state} me={me} intent={intent} />
+      <Rankings open={helping} onClose={() => setHelping(false)} />
+      {/*
+        * Only at a table playing for nothing, and only for whoever opened it.
+        * The server refuses it anywhere else whatever the browser shows —
+        * hiding a control is a courtesy, refusing the message is the rule.
+        */}
+      {state.forFun && state.hostId === seatId ? (
+        <div className="pk__bots">
+          <span className="pk__bots-label">Deal somebody in</span>
+          {(["easy", "normal", "hard"] as const).map((skill) => (
+            <button
+              key={skill}
+              type="button"
+              className="pk__bot"
+              disabled={table.busy || state.seats.length >= 10}
+              onClick={() => table.addBot(skill)}
+            >
+              {skill}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Where a seat sits, as a fraction of the felt.
+ *
+ * Counted from the bottom middle and going round, so seat one is always you.
+ * Only which way round — how far is in the stylesheet, so a container query
+ * can pull the ring in on a narrow felt without React having to measure
+ * anything.
+ */
+export function seatAt(index: number, of: number): React.CSSProperties {
+  const angle = Math.PI / 2 + (index / of) * Math.PI * 2;
+  return {
+    "--cos": Math.cos(angle).toFixed(4),
+    "--sin": Math.sin(angle).toFixed(4),
+  } as React.CSSProperties;
+}
+
+/**
+ * How far a seat's chips step aside from the middle column.
+ *
+ * A seat straight above the middle puts its stake in the same column as the
+ * pot, and there is no radius that fixes that — pushed out it lands on the
+ * seat, pulled in it lands on the pot. So it steps sideways instead, which is
+ * where the room actually is. Only the ones near the top: everybody else is
+ * far enough round the ellipse to be clear already.
+ */
+export function dodge(index: number, of: number): React.CSSProperties {
+  const angle = Math.PI / 2 + (index / of) * Math.PI * 2;
+  const upright = Math.sin(angle) < -0.6 ? 1 - Math.abs(Math.cos(angle)) / 0.8 : 0;
+  return { "--dodge": `${Math.max(0, upright) * 90}px` } as React.CSSProperties;
+}

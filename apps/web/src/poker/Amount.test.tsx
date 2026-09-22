@@ -1,0 +1,85 @@
+// @vitest-environment jsdom
+import type { SeatView, TableView } from "@backroom/game-poker";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { Actions } from "./Controls.js";
+import { seat, stub, view } from "./fixtures.js";
+
+describe("what you are offered", () => {
+  const acting = (own: TableView["you"], me: Partial<SeatView> = {}) => {
+    const table = stub();
+    const mine = seat({ id: "s1", name: "Ada", ...me });
+    render(
+      <Actions
+        table={table}
+        state={view({ toAct: "s1", you: own, seats: [mine, seat({ id: "s2", name: "Bram" })] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+      />,
+    );
+    return table;
+  };
+
+  it("offers a check when nothing is owed, and a call when something is", () => {
+    acting({ toCall: 0, minRaiseTo: 40, maxRaiseTo: 2_000, canRaise: true });
+    expect(screen.getByRole("button", { name: "Check" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Call/ })).toBeNull();
+  });
+
+  it("says what a call costs rather than what it comes to", () => {
+    // The number a player needs is what leaves their stack, not the total they
+    // will have put in — those differ every time they have already bet.
+    acting({ toCall: 80, minRaiseTo: 200, maxRaiseTo: 2_000, canRaise: true }, { committed: 20 });
+    expect(screen.getByRole("button", { name: "Call 80" })).toBeTruthy();
+  });
+
+  it("takes the slider's ends from the table rather than working them out", () => {
+    /*
+     * The smallest legal raise depends on the size of the last one, which is
+     * nowhere in the view. A felt that guessed it would spend half the slider
+     * on amounts the table refuses.
+     */
+    acting({ toCall: 100, minRaiseTo: 400, maxRaiseTo: 2_000, canRaise: true });
+    const slider = screen.getByRole("slider") as HTMLInputElement;
+    expect(slider.min).toBe("400");
+    expect(slider.max).toBe("2000");
+  });
+
+  it("offers no raise to somebody who cannot cover one", () => {
+    acting({ toCall: 100, minRaiseTo: 400, maxRaiseTo: 2_000, canRaise: false });
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Raise/ })).toBeNull();
+  });
+
+  it("calls all in rather than for more than is there", () => {
+    // Owing more than you have is not a call, and sending one would be
+    // refused. The button says what pressing it actually does.
+    acting({ toCall: 900, minRaiseTo: 1_000, maxRaiseTo: 500, canRaise: false }, { stack: 500 });
+    expect(screen.getByRole("button", { name: "All in 500" })).toBeTruthy();
+  });
+
+  it("reads the two-line buttons as words with spaces in them", () => {
+    /*
+     * The figure sits under the word, and two spans with nothing between them
+     * give an accessible name of "Call80" — which is what a screen reader says
+     * out loud. The label is written once rather than left to how the markup
+     * happens to sit, so what it looks like and what it reads as cannot drift.
+     */
+    acting({ toCall: 80, minRaiseTo: 200, maxRaiseTo: 2_000, canRaise: true }, { committed: 20 });
+    expect(screen.getByRole("button", { name: "Call 80" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Raise to 200" })).toBeTruthy();
+  });
+
+  it("does not dress the raise up as the button to press", () => {
+    /*
+     * A lit raise beside a plain call is the felt lobbying. The eye goes to
+     * the bright control and the press follows it, which is a table talking
+     * somebody into more money than they came to put in. Both are the
+     * player's decision and both look like one.
+     */
+    acting({ toCall: 80, minRaiseTo: 200, maxRaiseTo: 2_000, canRaise: true }, { committed: 20 });
+    const call = screen.getByRole("button", { name: "Call 80" });
+    const raise = screen.getByRole("button", { name: "Raise to 200" });
+    expect(raise.className).toBe(call.className);
+  });
+});
