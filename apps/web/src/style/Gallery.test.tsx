@@ -37,16 +37,18 @@ describe("Gallery", () => {
     }
   });
 
-  it("gives each texture tile a real background-image", () => {
+  it("gives each texture tile a real surface", () => {
     render(<Gallery />);
     const tile = screen.getByTestId("texture-plaster");
-    expect(tile.style.backgroundImage).toContain("gradient(");
+    expect(tile.style.getPropertyValue("--tile-surface")).toContain("gradient(");
   });
 
   it("varies the seed across tiles of the same surface", () => {
     render(<Gallery />);
-    const first = screen.getByTestId("texture-plaster").style.backgroundImage;
-    const second = screen.getByTestId("texture-plaster-alt").style.backgroundImage;
+    const first = screen.getByTestId("texture-plaster").style.getPropertyValue("--tile-surface");
+    const second = screen
+      .getByTestId("texture-plaster-alt")
+      .style.getPropertyValue("--tile-surface");
     expect(first).not.toBe(second);
   });
 
