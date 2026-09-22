@@ -5,6 +5,18 @@
  * table and its bot. It borrows seating, the ready button and the shape of a
  * table from @backroom/core and brings everything that makes it this game.
  */
+export type { Bid, Face } from "./bid.js";
+export {
+  beats,
+  countOf,
+  countWords,
+  FACES,
+  isFace,
+  key,
+  leastCount,
+  minRaise,
+  says,
+} from "./bid.js";
 export {
   ANTE,
   COUNTDOWN_MS,
