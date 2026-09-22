@@ -384,17 +384,18 @@ function pegs(): string {
 }
 
 /**
- * Two dice, turned against each other, in the table's own gold.
+ * Two dice, turned against each other, sitting dark in the table's own gold.
  *
- * Outline rather than the tile's filled ivory: this sits behind the type
- * rather than beside it, and a pair of bright white squares this size would
- * be a second headline instead of furniture. One colour draws the lot — the
- * square and its pips both in the accent the table is lit by — the same
- * colour `theme.css` paints the felt's own glow, read off `CRAPS.theme`
- * rather than written out again here.
+ * Filled rather than the tile's ivory — flat, the way `pegs` fills its pegs
+ * and its ball and `wheel` fills every pocket, not the outline this drew
+ * before, which read as a diagram of a die rather than a die. The body is
+ * the table's own felt, not a fifth colour invented for this: a dark square
+ * lit only at its rim and its pips is the room craps is in, the same one
+ * lit by its own sign and nothing else.
  */
 function dice(cx: number, cy: number, size: number): string {
   const accent = CRAPS.theme.accent;
+  const body = CRAPS.theme.felt;
   const half = size / 2;
   const corner = size * 0.16;
   const dot = size * 0.07;
@@ -402,7 +403,7 @@ function dice(cx: number, cy: number, size: number): string {
 
   const one = (dx: number, dy: number, turn: number, spots: ReadonlyArray<[number, number]>): string =>
     `<g transform="translate(${cx + dx} ${cy + dy}) rotate(${turn})">
-      <rect x="${-half}" y="${-half}" width="${size}" height="${size}" rx="${corner}" fill="none" stroke="${accent}" stroke-width="4"/>
+      <rect x="${-half}" y="${-half}" width="${size}" height="${size}" rx="${corner}" fill="${body}" stroke="${accent}" stroke-width="4"/>
       ${spots.map(([sx, sy]) => `<circle cx="${sx}" cy="${sy}" r="${dot}" fill="${accent}"/>`).join("")}
     </g>`;
 
