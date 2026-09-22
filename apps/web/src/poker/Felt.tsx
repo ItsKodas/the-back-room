@@ -556,7 +556,20 @@ export function Felt({
  * horseshoe — without React having to measure anything or know it happened.
  */
 export function seatAt(index: number, of: number): React.CSSProperties {
-  return { "--seat": String(index), "--of": String(of) } as React.CSSProperties;
+  return {
+    "--seat": String(index),
+    "--of": String(of),
+    /*
+     * Which of the two rings this seat is on — every other one sits further
+     * out. Nine plates wide enough to hold a name want about 594px of arc
+     * and a phone's ring has about 505px, so on a single radius they can
+     * only fit by shrinking until a name is two letters and an ellipsis.
+     * Two radii let neighbours share an angle without sharing the screen.
+     * Which ring is a fact about the index; how much further out is a
+     * distance, and distances are the stylesheet's.
+     */
+    "--out": String(index % 2),
+  } as React.CSSProperties;
 }
 
 /**

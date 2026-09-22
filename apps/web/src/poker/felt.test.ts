@@ -6,7 +6,20 @@ import { seatAt } from "./Felt.js";
 describe("where a seat sits", () => {
   it("says which seat it is and how many there are, and nothing about angles", () => {
     // The arrangement is the stylesheet's decision, so React must not fix it here.
-    expect(seatAt(3, 10)).toEqual({ "--seat": "3", "--of": "10" });
+    expect(seatAt(3, 10)).toEqual({ "--seat": "3", "--of": "10", "--out": "1" });
+  });
+
+  it("marks every other seat as the one pushed further out", () => {
+    /*
+     * Nine plates wide enough to hold a name need about 594px of arc and a
+     * phone's ring gives about 505px, so on one radius they cannot all fit —
+     * which is why they were 48px and showing two letters of a name. Pushing
+     * alternate seats out gives neighbours a different radius, so they may
+     * overlap in angle without overlapping on screen. Which tier a seat is on
+     * is a fact about its index, so React says it; how far out is the
+     * stylesheet's, like every other distance here.
+     */
+    expect([0, 1, 2, 3].map((seat) => seatAt(seat, 10)["--out"])).toEqual(["0", "1", "0", "1"]);
   });
 });
 
@@ -62,47 +75,43 @@ function pct(text: string, name: string): number {
 }
 
 const css = sheet("src/poker/poker.css");
-const phoneRadius = block(css, "@container fit (max-width: 560px)");
+const phoneTable = block(css, "@container fit (max-width: 560px)");
 const phoneSeat = block(css, "@container pk (max-width: 560px)");
 
-const ACROSS = pct(phoneRadius, "--across");
-const DOWN = pct(phoneRadius, "--down");
+const ACROSS = pct(phoneTable, "--across");
+const DOWN = pct(phoneTable, "--down");
 const SEAT_W = Number(phoneSeat.match(/\.pk__seat\s*\{[^}]*width:\s*(\d+)px/)?.[1]);
+const STAGGER = Number(phoneSeat.match(/--stagger:\s*([\d.]+)/)?.[1]);
+const FROM = Number(phoneSeat.match(/--from:\s*(\d+)deg/)?.[1]);
+const SPAN = Number(phoneSeat.match(/--span:\s*(\d+)deg/)?.[1]);
+
 /*
- * How tall an opponent's seat actually gets, measured on the real table.
- *
- * This number was twice wrong before, and both times the test stayed green
- * while the felt overlapped:
- *
- *  - it was taken from `/style`'s mockup rather than a dealt table, and the
- *    mockup's seat carries no wager line. A seat with `bet 540` under its
- *    stack is a row taller than one without, and mid-hand nearly every seat
- *    has one.
- *  - the felt it was measured against was the mockup's, which is a different
- *    shape from the real one.
- *
- * So both are measured off a live ten-handed table now, at the shortest size
- * this is checked at, and the browser numbers are written down beside them:
- * an opponent's box is its cards, its name-and-stack block and its wager
- * line, and nothing else — the mark and the bubble are `position: absolute`
- * and contribute nothing to the box the browser lays out.
+ * How tall an opponent's plate is, measured on a live ten-handed table: its
+ * name-and-stack block and, mid-hand, a wager line. Not the mark or the
+ * bubble — both are `position: absolute` and contribute nothing to the box
+ * the browser lays out. Taking this from `/style`'s mockup instead of a
+ * dealt table is how this test once passed while the real felt overlapped.
  */
-const SEAT_H = 48;
+const SEAT_H = 38;
 
 const OF = 10;
-// The real felt at 375×560, measured: `.pk__table`'s own border box.
+/* The real table box at 375×560, measured, and the band it keeps for your hand. */
 const TABLE_W = 351;
-const TABLE_H = 275;
+const TABLE_H = 319;
+const UNDER = 84;
+/* A plate may sit on the rail — that is what a rail is for — but never off
+   the phone, and `.pk__table` is inset this far inside the page's 375. */
+const OFF_TABLE = 12;
 
-/** Radians, matching `calc(150deg + ((var(--seat) - 0.5) / (var(--of) - 1)) * 240deg)`. */
-function horseshoeAngle(seat: number, of: number): number {
-  return ((150 + ((seat - 0.5) / (of - 1)) * 240) * Math.PI) / 180;
-}
-
-function seatBox(seat: number, of: number) {
-  const angle = horseshoeAngle(seat, of);
-  const cx = TABLE_W / 2 + Math.cos(angle) * ACROSS * TABLE_W;
-  const cy = TABLE_H / 2 + Math.sin(angle) * DOWN * TABLE_H;
+/** Exactly what the stylesheet computes, resolution rules and all. */
+function seatBox(seat: number) {
+  const angle = ((FROM + ((seat - 0.5) / (OF - 1)) * SPAN) * Math.PI) / 180;
+  // Every other seat is pushed out; `--out` is `seat % 2`, from `seatAt`.
+  const reach = 1 + (seat % 2) * (STAGGER - 1);
+  // Percentages resolve against the table box; the ring's centre is lifted
+  // by half the band kept underneath it.
+  const cx = TABLE_W / 2 + Math.cos(angle) * ACROSS * TABLE_W * reach;
+  const cy = (TABLE_H - UNDER) / 2 + Math.sin(angle) * DOWN * TABLE_H * reach;
   return { left: cx - SEAT_W / 2, right: cx + SEAT_W / 2, top: cy - SEAT_H / 2, bottom: cy + SEAT_H / 2 };
 }
 
@@ -110,12 +119,16 @@ function overlaps(a: ReturnType<typeof seatBox>, b: ReturnType<typeof seatBox>):
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
-describe("the horseshoe actually fits, at ten seats (fix round 1, finding 4)", () => {
-  // Seat 0 is you, pinned to the bottom and excluded here — a mark and a
-  // spoken bubble are what the other nine can carry, not you.
-  const opponents = Array.from({ length: OF - 1 }, (_, index) => seatBox(index + 1, OF));
+describe("the staggered ring fits nine readable plates", () => {
+  // Seat zero is you, and you are not on the ring at this width at all.
+  const opponents = Array.from({ length: OF - 1 }, (_, index) => seatBox(index + 1));
 
-  it("keeps every opponent's box clear of its neighbours'", () => {
+  it("uses plates wide enough to hold a name", () => {
+    // 48px is the width at which a name became two letters and an ellipsis.
+    expect(SEAT_W).toBeGreaterThanOrEqual(60);
+  });
+
+  it("keeps every opponent's plate clear of its neighbours'", () => {
     for (let i = 0; i < opponents.length; i += 1) {
       for (let j = i + 1; j < opponents.length; j += 1) {
         expect(overlaps(opponents[i], opponents[j]), `seat ${i + 1} vs seat ${j + 1}`).toBe(false);
@@ -123,22 +136,19 @@ describe("the horseshoe actually fits, at ten seats (fix round 1, finding 4)", (
     }
   });
 
-  it("keeps every opponent's box on the table", () => {
-    /*
-     * The table, not the green cloth inside it: a plate is allowed to overlap
-     * the timber, which is what the rail is for — it is leaving the table
-     * altogether that this guards against. The margin is the worst case the
-     * shipped radii actually produce, to one decimal place rather than a
-     * round number, so that widening it later is a decision somebody makes
-     * on purpose rather than a regression that slips under a generous cap.
-     */
-    const MARGIN = 5;
+  it("keeps every opponent's plate on the phone", () => {
     for (let index = 0; index < opponents.length; index += 1) {
       const box = opponents[index];
-      expect(box.left, `seat ${index + 1} left`).toBeGreaterThanOrEqual(-MARGIN);
-      expect(box.top, `seat ${index + 1} top`).toBeGreaterThanOrEqual(-MARGIN);
-      expect(box.right, `seat ${index + 1} right`).toBeLessThanOrEqual(TABLE_W + MARGIN);
-      expect(box.bottom, `seat ${index + 1} bottom`).toBeLessThanOrEqual(TABLE_H + MARGIN);
+      expect(box.left, `seat ${index + 1} left`).toBeGreaterThanOrEqual(-OFF_TABLE);
+      expect(box.right, `seat ${index + 1} right`).toBeLessThanOrEqual(TABLE_W + OFF_TABLE);
+      expect(box.top, `seat ${index + 1} top`).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("keeps the ring out of the band your own hand has", () => {
+    // The whole point of lifting the ring: the strip under the cloth is yours.
+    for (let index = 0; index < opponents.length; index += 1) {
+      expect(opponents[index].bottom, `seat ${index + 1} bottom`).toBeLessThanOrEqual(TABLE_H - UNDER);
     }
   });
 });

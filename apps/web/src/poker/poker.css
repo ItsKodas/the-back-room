@@ -394,13 +394,24 @@
 .pk__bet,
 .pk__gather,
 .pk__sweep {
-  --angle: calc(90deg + (var(--seat) / var(--of)) * 360deg);
+  /*
+   * The whole ring at a desk: seat zero at the bottom and round from there.
+   * `--from` and `--span` are what a container query rewrites to open it
+   * into an arc, and `--out` is which of the two staggered rings the seat is
+   * on — nought at a desk, where one ring has room for everybody.
+   */
+  --from: 90deg;
+  --span: 360deg;
+  --out: 0;
+  --stagger: 1;
+  --angle: calc(var(--from) + (var(--seat) / var(--of)) * var(--span));
+  --reach: calc(1 + var(--out) * (var(--stagger) - 1));
 }
 
 .pk__bet {
   position: absolute;
   left: calc(50% + cos(var(--angle)) * var(--bet-across));
-  top: calc(50% + sin(var(--angle)) * var(--bet-down));
+  top: calc(var(--ring-y, 50%) + sin(var(--angle)) * var(--bet-down));
   /* `--dodge` steps a seat above the middle out of the pot's column; it is
      zero for every seat that is already clear of it. */
   transform: translate(calc(-50% + var(--dodge, 0px)), -50%);
@@ -732,7 +743,7 @@
 .pk__gather {
   position: absolute;
   left: calc(50% + cos(var(--angle)) * var(--bet-across));
-  top: calc(50% + sin(var(--angle)) * var(--bet-down));
+  top: calc(var(--ring-y, 50%) + sin(var(--angle)) * var(--bet-down));
   z-index: 5;
   pointer-events: none;
   animation: pk-gather 620ms cubic-bezier(0.4, 0, 0.3, 1) forwards;
@@ -1604,6 +1615,21 @@
   --pile: clamp(11px, min(1.9cqi, 1.5cqh), 32px);
   --bet-chip: clamp(16px, min(2.6cqi, 2.1cqh), 44px);
   --pot-chip: clamp(19px, min(3.2cqi, 2.6cqh), 54px);
+  /*
+   * How much of the table box the table itself takes.
+   *
+   * Nothing, at a desk: the timber fills the box and every seat is on the
+   * ring. On a phone the cloth stops short and the band underneath is where
+   * your own hand goes — so the timber has to stop with it, which is why it
+   * is drawn by a pseudo-element rather than by this box's own background.
+   */
+  --under: 0px;
+}
+
+.pk__table::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 var(--under) 0;
   border-radius: 46% / 48%;
   background:
     radial-gradient(120% 90% at 50% -10%, rgb(255 214 160 / 0.22) 0%, transparent 55%),
@@ -1628,7 +1654,7 @@
    * every percent of it taken back is a percent of cloth — which is where the
    * cards, the chips and the seats all have to fit.
    */
-  inset: 3.4% 2.6% 4%;
+  inset: 3.4% 2.6% calc(4% + var(--under));
   border-radius: 46% / 48%;
   background: radial-gradient(70% 70% at 50% 38%, #21523c 0%, #17392c 58%, #0d2119 100%);
   box-shadow:
@@ -1743,8 +1769,8 @@
    * declaration — opening the ring into a horseshoe on a phone — without
    * anything upstream having to measure the felt or know it happened.
    */
-  left: calc(50% + cos(var(--angle)) * var(--across));
-  top: calc(50% + sin(var(--angle)) * var(--down));
+  left: calc(50% + cos(var(--angle)) * var(--across) * var(--reach));
+  top: calc(var(--ring-y, 50%) + sin(var(--angle)) * var(--down) * var(--reach));
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
@@ -1813,10 +1839,81 @@
    * correctly as seats empty: at two seats the one opponent lands at the top,
    * where an opponent belongs.
    */
+  /*
+   * Nine plates on two rings, and the arithmetic is why.
+   *
+   * A plate wide enough to hold a name is 66px; nine of them want about
+   * 594px of arc and a phone's ring has about 505px. On one radius the only
+   * way they fit is to shrink until a name is two letters and an ellipsis,
+   * which is what this used to do. Pushed alternately out by a quarter, two
+   * neighbours can share an angle without sharing the screen — searched
+   * across radius, arc and stagger, 39% / 32% / 1.25 over 260° is the
+   * shallowest ring with no pair overlapping and nothing off the phone, on
+   * the 351×230 cloth a 375px phone gives.
+   *
+   * `--seat` counts from you at zero, so the opponents are one to nine and
+   * the arc is walked by `(seat - 0.5) / (of - 1)` — centred in it, so it
+   * degrades properly as seats empty.
+   */
   .pk__seat {
-    --angle: calc(150deg + ((var(--seat) - 0.5) / (var(--of) - 1)) * 240deg);
-    width: 48px;
+    --from: 130deg;
+    --span: 280deg;
+    --stagger: 1.1;
+    --angle: calc(var(--from) + ((var(--seat) - 0.5) / (var(--of) - 1)) * var(--span));
+    width: 66px;
     gap: 1px;
+  }
+
+  /*
+   * Two lines, not three: the name, then the stack and the stake beside it.
+   *
+   * A third line is 14px, and 14px is the difference between nine plates
+   * fitting the cloth's band and not. `bet` says which number is which, so
+   * the two can share a line without either being mistaken for the other.
+   */
+  .pk__seat:not(.pk__seat--you) .pk__who {
+    flex-flow: row wrap;
+    justify-content: center;
+    gap: 0 4px;
+  }
+
+  .pk__seat:not(.pk__seat--you) .pk__name {
+    flex: 1 0 100%;
+  }
+
+  /*
+   * Two things that were sitting on top of the name at this size.
+   *
+   * The "bot" tag rides on the name's own line, so at 66px it pushed the
+   * name out from under itself and then clipped. Who is a bot is worth
+   * knowing but not worth the name — it goes, and the seat says it to a
+   * screen reader as it always did.
+   */
+  .pk__seat:not(.pk__seat--you) .pk__bot-mark {
+    display: none;
+  }
+
+  /*
+   * And the blind mark was pinned 14px in from the plate's right edge, which
+   * on a 108px seat is clear of the name and on a 66px one is straight
+   * through it. Out at the corner it belongs to the plate rather than to any
+   * word in it.
+   */
+  .pk__seat:not(.pk__seat--you) .pk__mark {
+    top: -7px;
+    right: -6px;
+    min-width: 17px;
+    height: 17px;
+    font-size: 9px;
+  }
+
+  /* The stake and the chips in flight keep to the seat they belong to. */
+  .pk__bet,
+  .pk__gather,
+  .pk__sweep {
+    --from: 130deg;
+    --span: 280deg;
+    --angle: calc(var(--from) + ((var(--seat) - 0.5) / (var(--of) - 1)) * var(--span));
   }
 
   /*
@@ -1833,9 +1930,45 @@
     font-size: 9px;
   }
 
-  /* The bottom of the cloth is yours: your cards, your stack, what you hold. */
+  /*
+   * You come off the ring altogether.
+   *
+   * On the ring you were a tenth of it — the same 66px plate as everybody
+   * else, marooned in the empty bottom of an oval, with the one hand you
+   * actually have to read drawn at the size of a hand you do not. Under the
+   * cloth you get the whole width: cards at a size worth looking at, your
+   * stack beside them, and what you are holding under that.
+   */
   .pk__seat--you {
-    --angle: 90deg;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    height: var(--under);
+    transform: none;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--gr-space-3);
+    padding: 0 var(--gr-space-2);
+    text-align: left;
+  }
+
+  .pk__seat--you .pk__who {
+    align-items: flex-start;
+    max-width: none;
+  }
+
+  .pk__seat--you .pk__wholine {
+    justify-content: flex-start;
+  }
+
+  /* Off the ring, so the ring's marks and bubbles have no seat to hang on. */
+  .pk__seat--you .pk__mark,
+  .pk__seat--you .pk__bubble {
+    position: static;
+    align-self: center;
   }
 
   /* The chip animations follow the seats they are aimed at, or they would
@@ -1994,10 +2127,20 @@
  */
 @container fit (max-width: 560px) {
   .pk__table {
-    --across: 42%;
-    --down: 43%;
-    --bet-across: 29%;
-    --bet-down: 25%;
+    /*
+     * The cloth stops, and the band under it is your hand's.
+     *
+     * Capped rather than a fraction, so a tall phone spends its extra height
+     * on the cloth and your cards instead of on a taller and taller empty
+     * strip — the ring is centred in whatever the cloth ends up being, and
+     * `--under` is what is left for you.
+     */
+    --under: clamp(84px, 26cqh, 104px);
+    --ring-y: calc((100% - var(--under)) / 2);
+    --across: 41.5%;
+    --down: 21.5%;
+    --bet-across: 28%;
+    --bet-down: 14%;
   }
 }
 

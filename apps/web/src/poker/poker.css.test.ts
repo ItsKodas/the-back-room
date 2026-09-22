@@ -150,7 +150,13 @@ describe("the three arrangements", () => {
      * animations) — fix for review finding 5, which found it hand-copied into
      * four separate rules with nothing keeping them in agreement.
      */
-    expect(css).toMatch(/--angle:\s*calc\(90deg \+ \(var\(--seat\) \/ var\(--of\)\) \* 360deg\)/);
+    // The arc is variables now, so a container query can open the ring
+    // rather than only move it; the desk's own arc is the full circle.
+    expect(css).toMatch(
+      /--angle:\s*calc\(var\(--from\) \+ \(var\(--seat\) \/ var\(--of\)\) \* var\(--span\)\)/,
+    );
+    expect(css).toMatch(/--from:\s*90deg/);
+    expect(css).toMatch(/--span:\s*360deg/);
     const seat = ruleIn(css, ".pk__seat");
     expect(seat).toMatch(/cos\(var\(--angle\)\)/);
     expect(seat).toMatch(/sin\(var\(--angle\)\)/);
@@ -158,9 +164,16 @@ describe("the three arrangements", () => {
 
   it("opens the ring into a horseshoe on a phone", () => {
     const phone = block(css, "@container pk (max-width: 560px)");
-    expect(phone).toMatch(/150deg \+ \(\(var\(--seat\) - 0\.5\) \/ \(var\(--of\) - 1\)\) \* 240deg/);
+    expect(phone).toMatch(/--angle:\s*calc\(var\(--from\) \+ \(\(var\(--seat\) - 0\.5\) \/ \(var\(--of\) - 1\)\) \* var\(--span\)\)/);
+    // Two rings, because one cannot hold nine plates wide enough to name.
+    expect(phone).toMatch(/--stagger:\s*1\.1/);
     // Your own seat is pinned to the bottom rather than spread with the rest.
-    expect(phone).toMatch(/\.pk__seat--you\s*\{[^}]*--angle:\s*90deg/);
+    /*
+     * You are not on the ring at this width at all — the band under the
+     * cloth is yours, which is what lets your cards be worth reading.
+     */
+    expect(phone).toMatch(/\.pk__seat--you\s*\{[^}]*bottom:\s*0/);
+    expect(phone).toMatch(/\.pk__seat--you\s*\{[^}]*transform:\s*none/);
   });
 
   it("keeps everybody's cards, face and stake on a phone", () => {
