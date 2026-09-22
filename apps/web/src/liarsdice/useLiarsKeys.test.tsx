@@ -7,11 +7,13 @@ import { useLiarsKeys } from "./useLiarsKeys.js";
 function Harness({
   onBid,
   onLiar,
+  onExact,
   busy = false,
   disabled = false,
 }: {
   onBid: () => void;
   onLiar: () => void;
+  onExact?: () => void;
   busy?: boolean;
   disabled?: boolean;
 }) {
@@ -35,6 +37,9 @@ function Harness({
       </button>
       <button type="button" aria-keyshortcuts="L" onClick={onLiar}>
         Liar
+      </button>
+      <button type="button" aria-keyshortcuts="E" onClick={onExact}>
+        Exact
       </button>
       <input aria-label="Say something" />
       <div role="dialog">
@@ -64,6 +69,14 @@ describe("the keys", () => {
     press("L");
     press("l");
     expect(onLiar).toHaveBeenCalledTimes(2);
+  });
+
+  it("presses the button E stands for, whatever the case", () => {
+    const onExact = vi.fn();
+    render(<Harness onBid={vi.fn()} onLiar={vi.fn()} onExact={onExact} />);
+    press("E");
+    press("e");
+    expect(onExact).toHaveBeenCalledTimes(2);
   });
 
   it("stops the page scrolling on Space", () => {
