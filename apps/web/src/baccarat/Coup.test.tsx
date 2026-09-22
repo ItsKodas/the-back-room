@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import type { Card as CardData, Rank, Suit } from "@backroom/game-baccarat";
+import { coupFrom, schedule } from "@backroom/game-baccarat";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Coup } from "./Coup.js";
 import type { Shown } from "./reveal.js";
+import { shownAt } from "./reveal.js";
 
 const card = (rank: Rank, suit: Suit = "spades"): CardData => ({ rank, suit });
+
+/** A coup where both sides draw a third card: six places, six moments. */
+const BOTH = coupFrom((["2", "2", "3", "2", "6", "5"] as Rank[]).map((rank) => card(rank)));
 
 const shown = (over: Partial<Shown> = {}): Shown => ({
   player: [],
@@ -16,6 +21,38 @@ const shown = (over: Partial<Shown> = {}): Shown => ({
 });
 
 describe("a coup on the felt", () => {
+  /*
+   * The deal itself, on the clock rather than by eye.
+   *
+   * A place `shownAt` has not dealt yet used to render as a full face-down
+   * card, which is indistinguishable on screen from a card that is out — so
+   * every place the coup would ever hold stood on the felt from the first
+   * frame, the schedule's stagger was never seen, and the four shoe sounds
+   * fired over cards that were already there. Worse, a hand that goes on to
+   * draw a third card stood three backs deep before either pair had turned,
+   * which announces a two-card total of five or less seconds before the table
+   * says so.
+   */
+  it("brings each card out at its own moment, not the whole coup at once", () => {
+    const outs = schedule(BOTH).cards.map((one) => one.outAt);
+    expect(outs).toHaveLength(6);
+
+    const { container, rerender } = render(
+      <Coup shown={shownAt(BOTH, outs[0] ?? 0)} outcome={null} />,
+    );
+    expect(container.querySelectorAll(".card")).toHaveLength(1);
+
+    for (const [index, at] of outs.slice(1).entries()) {
+      // A frame short of its moment the card is not on the felt at all —
+      // which, for the last two, is the coup not saying a third is coming.
+      rerender(<Coup shown={shownAt(BOTH, at - 1)} outcome={null} />);
+      expect(container.querySelectorAll(".card")).toHaveLength(index + 1);
+
+      rerender(<Coup shown={shownAt(BOTH, at)} outcome={null} />);
+      expect(container.querySelectorAll(".card")).toHaveLength(index + 2);
+    }
+  });
+
   it("shows a card that is out but not turned as a face-down back", () => {
     const { container } = render(
       <Coup shown={shown({ player: [{ card: card("7"), turned: false }] })} outcome={null} />,

@@ -69,7 +69,7 @@ function Hand({
         {slots.map((slot, index) => (
           // A hand only ever grows at its end, so position is a stable identity.
           // biome-ignore lint/suspicious/noArrayIndexKey: a hand is append-only
-          <Place key={index} slot={slot} deal={index} />
+          <Place key={index} slot={slot} />
         ))}
       </span>
       {total === null ? null : (
@@ -80,7 +80,7 @@ function Hand({
 }
 
 /**
- * One place in a hand.
+ * One place in a hand, once the shoe has actually dealt it.
  *
  * A slot arrives face down and, when the table turns it, plays through
  * exactly the two motions the deck's own back-then-face pair is built from:
@@ -89,8 +89,19 @@ function Hand({
  * flips, is what keeps it one motion across a change of identity instead of a
  * face popping in over a back that never moved — the crux CLAUDE.md calls
  * out by name.
+ *
+ * Nothing at all before then. A place a card has not reached yet drawn as a
+ * back is the same picture as a card that is out, so the whole deal would
+ * arrive in one frame and the schedule's stagger would never be seen — and a
+ * hand that goes on to draw a third card would stand three deep from the
+ * start, which says its pair totals five or less well before the table does.
+ *
+ * No `deal` stagger either: `Cards.tsx` offsets a card by its position in the
+ * hand because a blackjack hand arrives all at once, and here the schedule is
+ * the stagger. Delaying a card past its own `outAt` would put it behind the
+ * shoe sound that `useCoupSound` fires at that same moment.
  */
-function Place({ slot, deal }: { slot: Shown["player"][number]; deal: number }): JSX.Element {
+function Place({ slot }: { slot: Shown["player"][number] }): JSX.Element | null {
   const [folding, setFolding] = useState(false);
   // Once true, stays true: a slot that has been shown as a face never goes
   // back to being a mystery, even if the coup this belongs to is stale by the
@@ -129,10 +140,10 @@ function Place({ slot, deal }: { slot: Shown["player"][number]; deal: number }):
   }, [turned, rank, suit, open]);
 
   if (slot === null) {
-    return <FaceDown deal={deal} />;
+    return null;
   }
   if (!open) {
-    return <FaceDown deal={deal} folding={folding} />;
+    return <FaceDown folding={folding} />;
   }
-  return <Card card={slot.card} deal={deal} enter="unfold" />;
+  return <Card card={slot.card} enter="unfold" />;
 }
