@@ -393,11 +393,7 @@ describe("offByBank", () => {
   it("names only what the bank turned off", () => {
     // The felt uses offByBank to explain a refusal. Listing a bet its owner
     // put to sleep would tell somebody the bank is broke when they switched
-    // it off themselves. A bank this tight also forces `working` to actually
-    // decide something, rather than the bottomless bank the sleep test above
-    // uses — which is what proves sleeps() ran first: if the bet's own sleep
-    // flag had not already been applied before `working` saw it, a bank this
-    // tight could not tell "asleep" from "turned off" apart at all.
+    // it off themselves.
     const table = tableWith([[3, 3]]);
     const seat = table.join("s1", "Ada", null);
     table.place(seat.id, "place:5", MIN_CHIP * 5); // asleep on the come-out — not the bank's doing
@@ -405,6 +401,41 @@ describe("offByBank", () => {
     table.seal();
     table.release(0);
     expect(table.offByBank).toEqual(["horn"]);
+  });
+});
+
+describe("sleeps before the bank is asked", () => {
+  it("puts the sleeping bets to bed before the bank is asked", () => {
+    /*
+     * Order, not outcome. `working` never turns a bet back on, so a bet its
+     * owner slept through the come-out has to already be marked off when it
+     * gets there — and `owed` must not count it, or the bank is asked to cover
+     * a bet that cannot be asked for anything and turns off something else to
+     * pay for it.
+     *
+     * A bottomless bank cannot show this: `working` never fires and the two
+     * orders agree. The bank here is tight enough that it has to choose — and
+     * OFF_ORDER puts a prop ahead of a place bet, so if the place bet's own
+     * sleep flag had not already been applied, `working` would reach for the
+     * horn first, find that alone enough, and leave the place bet marked on.
+     * offByBank cannot see that failure — it only lists what got turned off,
+     * and this bug's symptom is a bet that wrongly stayed on — so the
+     * assertion that matters is on the place bet itself.
+     */
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "place:5", MIN_CHIP * 5); // asleep on the come-out
+    table.place(seat.id, "horn", HORN_STEP); // awake, and alone too rich for this bank
+    table.seal();
+    table.release(0);
+
+    const place = table.placed.find((one) => one.spotId === "place:5");
+    const horn = table.placed.find((one) => one.spotId === "horn");
+    // The bank did have to decide something...
+    expect(table.offByBank.length).toBeGreaterThan(0);
+    // ...and it was the horn, never the place bet — which stays asleep either way.
+    expect(horn?.off).toBe(true);
+    expect(place?.off).toBe(true);
   });
 });
 
