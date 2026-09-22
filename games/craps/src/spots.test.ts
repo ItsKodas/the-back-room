@@ -58,4 +58,39 @@ describe("the cloth", () => {
     for (const one of pressable) expect(one.id.startsWith("come:")).toBe(false);
     expect(all().filter((one) => one.derived)).toHaveLength(12);
   });
+
+  it("is the whole cloth, and only the whole cloth", () => {
+    /*
+     * The set, not a count and not a sample. A count catches a spot dropped and
+     * misses one renamed; a handful of sampled ids catches neither. This is the
+     * promise the game makes — every bet a craps table takes — and it is the
+     * only assertion here that would notice if one went missing.
+     */
+    const expected = [
+      "pass",
+      "dontpass",
+      "come",
+      "dontcome",
+      ...POINTS.map((n) => `come:${n}`),
+      ...POINTS.map((n) => `dontcome:${n}`),
+      "odds:pass",
+      "odds:dontpass",
+      ...POINTS.map((n) => `odds:come:${n}`),
+      ...POINTS.map((n) => `odds:dontcome:${n}`),
+      ...POINTS.map((n) => `place:${n}`),
+      "big:6",
+      "big:8",
+      "field",
+      ...[4, 6, 8, 10].map((n) => `hard:${n}`),
+      "any7",
+      "anycraps",
+      "two",
+      "three",
+      "eleven",
+      "twelve",
+      "horn",
+      "ce",
+    ];
+    expect([...SPOTS.keys()].sort()).toEqual([...expected].sort());
+  });
 });
