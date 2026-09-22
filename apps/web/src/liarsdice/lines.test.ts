@@ -24,6 +24,15 @@ describe("what the table is waiting for", () => {
     expect(whoseTurn(state, "s0")).toBe("Say you are in and the table will deal.");
   });
 
+  it("counts how many are in, once somebody has readied and the table is still waiting", () => {
+    const state = view([seat(), seat({ id: "s1", name: "Bram" }), seat({ id: "s2", name: "Cleo" })], {
+      phase: "waiting",
+      toAct: null,
+      readyCount: 1,
+    });
+    expect(whoseTurn(state, "s0")).toBe("1 of 3 are in.");
+  });
+
   it("says cups up, once a round is resolved", () => {
     const state = view([seat(), seat({ id: "s1", name: "Bram" })], {
       bid: { count: 4, face: 5 },
