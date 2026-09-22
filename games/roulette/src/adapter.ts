@@ -342,7 +342,16 @@ export function rouletteAdapter(
     },
 
     async act(table, seatId, action, deps) {
-      const move = action as { type?: string; spotId?: string; chips?: number };
+      const move = action as { type?: string; spotId?: string; chips?: unknown };
+      /*
+       * A number off the wire is not a number until it has been asked. The
+       * socket envelope validates the action's `type` and passes every other
+       * field through as the client sent it, so this is where a chip count
+       * becomes one. Anything else is nothing: a `NaN` here lands on the pile,
+       * and from there every `staked`, `owed` and `headroom` figure on the
+       * cloth, the bank's own total, and the store.
+       */
+      const chipsOf = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) ? n : 0);
       const seat = table.seats.find((one) => one.id === seatId);
       if (seat === undefined) {
         throw new TableError("You are not at this table.");
@@ -355,7 +364,7 @@ export function rouletteAdapter(
             if (spot === null) {
               throw new TableError("There is no such bet on this table.");
             }
-            const chips = move.chips ?? 0;
+            const chips = chipsOf(move.chips);
 
             /*
              * What this spot can still take, worked out across the whole cloth.
@@ -412,7 +421,7 @@ export function rouletteAdapter(
             if (spot === null) {
               throw new TableError("There is no such bet on this table.");
             }
-            await giveBack(table, seat, () => table.take(seatId, spot.id, move.chips ?? 0), deps);
+            await giveBack(table, seat, () => table.take(seatId, spot.id, chipsOf(move.chips)), deps);
             return;
           }
 

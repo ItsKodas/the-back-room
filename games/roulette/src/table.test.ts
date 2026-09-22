@@ -107,6 +107,19 @@ describe("a roulette table", () => {
     expect(one.onSpot("s2", RED)).toBe(500);
   });
 
+  it("gives nothing back for an amount that is not a number", () => {
+    /*
+     * The second lock on the same door. The adapter asks the question before
+     * anything reaches here, but `Math.floor` of a non-number is `NaN` and
+     * `NaN` survives both the `Math.min` and the zero check below it, so the
+     * pile would quietly stop being a number — for whatever calls this next.
+     */
+    const { one } = table();
+    one.place("s1", "straight:17", 50);
+    expect(one.take("s1", "straight:17", Number.NaN)).toBe(0);
+    expect(one.onSpot("s1", "straight:17")).toBe(50);
+  });
+
   it("gives nothing back off a spot with nothing on it", () => {
     const { one } = table();
     expect(one.take("s1", "straight:17", 100)).toBe(0);

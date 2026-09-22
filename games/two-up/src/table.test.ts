@@ -125,6 +125,19 @@ describe("the casino window", () => {
     table.place("s0", "heads", 100);
     expect(table.take("s0", "heads", 500)).toBe(100);
   });
+
+  it("gives nothing back for an amount that is not a number", () => {
+    /*
+     * The second lock on the same door. The adapter asks the question before
+     * anything reaches here, but `Math.floor` of a non-number is `NaN` and
+     * `NaN` survives both the `Math.min` and the zero check below it, so the
+     * pile would quietly stop being a number — for whatever calls this next.
+     */
+    const table = seated("casino");
+    table.place("s0", "heads", 100);
+    expect(table.take("s0", "heads", Number.NaN)).toBe(0);
+    expect(table.staked("s0")).toBe(100);
+  });
 });
 
 describe("the kip", () => {

@@ -495,6 +495,29 @@ describe("what a client is refused", () => {
     await adapter.act(table, "s0", { type: "throw" }, deps);
     expect(table.phase).toBe("spinning");
   });
+
+  it("ignores a take-back asking for a number that is not one", async () => {
+    /*
+     * The socket envelope validates the action's type and nothing else, so
+     * every other field arrives as whatever the client sent. `place` is saved
+     * by the table's own `check`, which asks `Number.isInteger` before
+     * anything moves; `take` had no such question, and `Math.floor("x")` is
+     * `NaN` all the way down — onto the pile, into the bank figure, and out
+     * to the store.
+     */
+    const { bank, read } = bankOf(1_000_000);
+    const adapter = twoUpAdapter({ bank });
+    const table = adapter.create("ABCD", { ruleset: "casino" });
+    sit(table, "s0", "u0");
+    const { held, deps } = purse({ u0: 5_000 });
+
+    await adapter.act(table, "s0", { type: "place", on: "heads", chips: 200 }, deps);
+    await adapter.act(table, "s0", { type: "take", on: "heads", chips: "x" }, deps);
+
+    expect(table.onCloth).toBe(200);
+    expect(read()).toBe(1_000_200);
+    expect(held["u0"]).toBe(4_800);
+  });
 });
 
 describe("a two-up table called off", () => {

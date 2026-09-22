@@ -208,6 +208,28 @@ describe("a roulette table's money", () => {
     expect(gave).not.toHaveBeenCalled();
   });
 
+  it("ignores a take-back asking for a number that is not one", async () => {
+    /*
+     * The socket envelope validates the action's type and nothing else, so
+     * every other field arrives as whatever the client sent. `place` is saved
+     * by `Table.check`, which asks `Number.isInteger` before anything moves;
+     * `take` had no such question, and `Math.floor("x")` is `NaN` all the way
+     * down — onto the pile, into the bank figure, and out to the store.
+     */
+    const { bank, held } = purse(1_000_000);
+    const game = rouletteAdapter({ bank, pick: () => 0 });
+    const table = game.create("ABCDE") as Table;
+    table.join("s1", "Ada", who("u1"));
+    const { deps, gave } = spy();
+
+    await game.act(table, "s1", { type: "place", spotId: RED, chips: 200 }, deps);
+    await game.act(table, "s1", { type: "take", spotId: RED, chips: "x" }, deps);
+
+    expect(table.onSpot("s1", RED)).toBe(200);
+    expect(held()).toBe(1_000_200);
+    expect(gave).not.toHaveBeenCalled();
+  });
+
   it("pays a winner out of the bank once the ball lands", async () => {
     const { bank, held } = purse(1_000_000);
     const game = rouletteAdapter({ bank, pick: () => 1 });
