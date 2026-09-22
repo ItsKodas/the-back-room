@@ -220,6 +220,33 @@ describe("the craps table", () => {
     );
   });
 
+  it("quotes the smaller of the odds rule and the bank behind the line", () => {
+    /*
+     * Two caps sit behind a line bet and only one of them is arithmetic about
+     * the game. Three-four-five allows 150 behind a 30 on the six; a bank of
+     * 102 covers 60 of it. Quoting the rule alone is a felt promising money it
+     * would refuse on the very next press — which is the one thing a quoted
+     * figure must never be.
+     */
+    render(
+      <Felt
+        table={stub().table}
+        state={view({
+          point: 6,
+          bank: 102,
+          placed: [{ seatId: "s1", spotId: "pass", chips: 30, off: false }],
+        })}
+        seatId="s1"
+      />,
+    );
+    const odds = screen.getByRole("switch", {
+      name: "Lay odds behind a bet instead of putting a new one on",
+    });
+    fireEvent.click(odds);
+    expect(odds.textContent).toContain("60");
+    expect(odds.textContent).not.toContain("150");
+  });
+
   it("works the numbers through a come-out when the seat asks it to", () => {
     const { table, act } = stub();
     render(<Felt table={table} state={view()} seatId="s1" />);
@@ -250,6 +277,50 @@ describe("the craps table", () => {
       name: "Work your numbers through the come-out roll",
     }) as HTMLButtonElement;
     expect(working.disabled).toBe(true);
+  });
+
+  it("will not offer to work the numbers with a point already on", () => {
+    /*
+     * The other half of the same rule, and the half the phase test cannot
+     * reach. `beginBetting` clears every seat's `works` whenever the point
+     * goes null, so a preference set with a point up is one the table throws
+     * away at the next come-out — which is the only roll it would have
+     * governed. A switch that took the press and forgot it is worse than one
+     * that says it is not for now.
+     */
+    render(<Felt table={stub().table} state={view({ point: 6 })} seatId="s1" />);
+    const working = screen.getByRole("switch", {
+      name: "Work your numbers through the come-out roll",
+    }) as HTMLButtonElement;
+    expect(working.disabled).toBe(true);
+  });
+
+  it("lights the box a winning bet sits in, not the box its own id names", () => {
+    /*
+     * `landedOn` takes box ids, as `boxFor` returns them, and a felt passing
+     * spot ids straight through lights nothing at all — silently.
+     *
+     * A seven with the point on the six is the case that tells the two apart.
+     * The don't-come six wins, and it has no box of its own: `boxFor` puts it
+     * in the six's box with the place bets, the way a real table does. And
+     * `place:6` itself wins nothing on a seven, so the box can only be lit by
+     * the translation actually happening.
+     */
+    render(
+      <Felt
+        table={stub().table}
+        state={view({
+          phase: "settling",
+          // The seven took the point down with it, which is what the table
+          // carries by the time this is drawn.
+          point: null,
+          dice: [3, 4] as Roll,
+          history: [{ dice: [3, 4] as Roll, point: 6, what: "sevenOut" }],
+        })}
+        seatId="s1"
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Place 6" })).toHaveAttribute("data-lit", "true");
   });
 
   it("puts the chip on the cloth before the server has answered", () => {

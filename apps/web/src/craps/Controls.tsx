@@ -26,6 +26,7 @@ export function Controls({
   onChip,
   odds,
   onOdds,
+  room,
   down,
   onGiveUp,
 }: {
@@ -37,6 +38,12 @@ export function Controls({
   /** Whether a press on the cloth lays odds behind rather than a bet on. */
   odds: boolean;
   onOdds: (on: boolean) => void;
+  /**
+   * What the bank can still take on one spot, the felt's own copy of the
+   * server's arithmetic. Shown, never enforced — but a cap quoted without it
+   * is a cap the very next press disproves.
+   */
+  room: (spotId: string) => number;
   /** What this seat has on the cloth, chips it has not been acknowledged for included. */
   down: number;
   /**
@@ -110,7 +117,7 @@ export function Controls({
           onClick={() => onOdds(!odds)}
         >
           <span className="cr__act-name">Odds</span>
-          <span className="cr__act-note">{oddsNote(state, seatId, odds)}</span>
+          <span className="cr__act-note">{oddsNote(state, seatId, odds, room)}</span>
         </button>
         <button
           type="button"
@@ -228,24 +235,45 @@ export function Controls({
 /**
  * What the odds switch has to say for itself.
  *
- * The pass line's own cap when there is one, because that is the odds bet
- * nearly everybody at a craps table lays and the figure is otherwise something
- * you find out by being refused. Floored to a whole chip first: `maxOdds(6,
- * 30, true)` is 216 against a tray whose smallest plate is 30, and a felt that
- * offered 216 and then refused it would be a felt that lied. The table floors
- * it the same way in its own refusal.
+ * The line's own cap when there is one, because that is the odds bet nearly
+ * everybody at a craps table lays and the figure is otherwise something you
+ * find out by being refused.
+ *
+ * Two caps, and the smaller wins. `maxOdds` is the table's three-four-five
+ * rule and knows nothing about money; the bank's own headroom is the other,
+ * and a felt quoting only the first would offer a hundred and fifty behind a
+ * bank that can cover sixty — and be contradicted by the refusal one press
+ * later. `maxOdds`'s own doc says the felt offers the smaller of the two.
+ *
+ * Floored to a whole chip, which is where the dark side matters: `maxOdds(6,
+ * 30, true)` is 216 against a tray whose smallest plate is 30, so a felt that
+ * offered 216 and then refused it would be a felt that lied. The light side is
+ * always a whole multiple of the line and so never needs the floor — which is
+ * exactly why the dark line is read here too rather than the pass line alone.
+ * `Table.check` floors it the same way in its own refusal.
  */
-function oddsNote(state: TableView, seatId: string | null, odds: boolean): string {
+function oddsNote(
+  state: TableView,
+  seatId: string | null,
+  odds: boolean,
+  room: (spotId: string) => number,
+): string {
   if (!odds) {
     return "Off — presses bet";
   }
   const mine = (spotId: string) =>
     state.placed.find((one) => one.seatId === seatId && one.spotId === spotId)?.chips ?? 0;
-  const line = mine("pass");
+  // Whichever line this seat is actually on, and the light one when it is on
+  // both — the same choice `oddsSpotFor` makes, for the reason written there.
+  const dark = mine("pass") === 0 && mine("dontpass") > 0;
+  const line = dark ? mine("dontpass") : mine("pass");
   if (state.point === null || line === 0) {
     return "Press what you are backing";
   }
-  const cap = Math.floor(maxOdds(state.point, line, false) / MIN_CHIP) * MIN_CHIP;
-  const room = Math.max(0, cap - mine("odds:pass"));
-  return room === 0 ? "The line is fully backed" : `Up to ${fmt(room)} behind the line`;
+  const behind = dark ? "odds:dontpass" : "odds:pass";
+  const rule = Math.floor(maxOdds(state.point, line, dark) / MIN_CHIP) * MIN_CHIP;
+  const left = Math.min(Math.max(0, rule - mine(behind)), room(behind));
+  return left < MIN_CHIP
+    ? "The line is fully backed"
+    : `Up to ${fmt(left)} behind the line`;
 }

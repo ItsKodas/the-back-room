@@ -349,6 +349,7 @@ export function Felt({
           onChip={setChip}
           odds={odds}
           onOdds={setOdds}
+          room={room}
           down={down}
           onGiveUp={giveUp}
         />

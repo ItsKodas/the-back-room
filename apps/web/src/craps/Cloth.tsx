@@ -1,5 +1,5 @@
 import type { Placed } from "@backroom/game-craps";
-import { spotAt } from "@backroom/game-craps";
+import { CHIPS, spotAt } from "@backroom/game-craps";
 import { useEffect, useRef, useState } from "react";
 import { ChipStack } from "../chips/ChipStack.js";
 import { type Box, TALL, TURNS_AT, WIDE, boxFor, oddsSpotFor, slot } from "./layout.js";
@@ -230,8 +230,17 @@ function ClothBox({
            * rule. `tallest={3}` here split a four-chip bet into two columns
            * and the fixed-width clamp below then drew it at half the size of
            * a three-chip one: the money got smaller the more of it there was.
+           *
+           * `ladder={CHIPS}` is this table's own tray, which `ChipStack`'s
+           * own doc comment says a game has to give it when its numbers do
+           * not divide into the default plates — and craps' do not. Counted
+           * in the default `MINTED`, a 150 place bet drew as a hundred and a
+           * fifty, neither of which is a chip on this table; a 600 drew as a
+           * five hundred and a hundred though 600 is a craps plate; and a 30
+           * drew as a remainder in a denomination nothing in the building
+           * mints. A pile has to be countable as what was actually pushed out.
            */}
-          <ChipStack amount={one.chips} width={22} most={5} tallest={5} />
+          <ChipStack amount={one.chips} width={22} most={5} tallest={5} ladder={CHIPS} />
           {/*
            * A colour that merely changes is one somebody has to already know
            * the meaning of. This says the word.

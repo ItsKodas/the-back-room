@@ -68,6 +68,26 @@ describe("the cloth", () => {
     expect(six.querySelector("[data-slot='come']")).not.toBeNull();
   });
 
+  it("draws a stake in chips this table actually has", () => {
+    /*
+     * `ChipStack` counts in the building's betting plates by default, and none
+     * of them divide craps' tray — its own doc comment says a game whose
+     * numbers do not has to hand it its own ladder. Left to the default, a
+     * hundred and fifty on the field drew as a hundred and a fifty: two chips,
+     * neither of them anything on this table's tray, for a stake pushed out
+     * with one press of one plate.
+     */
+    render(
+      <Cloth
+        {...base}
+        placed={[{ seatId: "s1", spotId: "field", chips: 150, off: false }]}
+        onPlace={() => {}}
+      />,
+    );
+    const field = screen.getByRole("button", { name: /field/i });
+    expect(field.querySelectorAll(".stack__chip")).toHaveLength(1);
+  });
+
   it("says which bets the bank could not carry, rather than only dimming them", () => {
     // A colour that merely changes is one somebody has to already know the
     // meaning of. An OFF lozenge arrives and says the word.
