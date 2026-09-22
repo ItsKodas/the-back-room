@@ -199,8 +199,7 @@ export interface GameRecord {
  * keeps a tenth of what goes through it, a blackjack table about a
  * two-hundredth, a single-zero wheel about a thirty-seventh, the coins
  * about a thirty-second, the peg board about a thirty-third, and a baccarat
- * cloth about a hundred-and-twentieth, so one pot would be the machine
- * funding the felt.
+ * cloth about a hundredth, so one pot would be the machine funding the felt.
  *
  * A list rather than only a type, because a type cannot be counted. Every
  * bank needs a float before its game will take a stake at all, so the admin
