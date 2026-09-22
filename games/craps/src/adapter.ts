@@ -16,6 +16,17 @@ export interface Bank {
 }
 
 /**
+ * A number out of an action, or nothing.
+ *
+ * The socket envelope validates the action's `type` and passes every other
+ * field through as it arrived, so this is where a number from a browser stops
+ * being whatever the browser said it was. `place` was already saved by
+ * `check`'s own integer test; `take` was not, and `Math.min(pile, NaN)` is
+ * `NaN` — a NaN pile, then a NaN cloth, a NaN bank, and a NaN in the store.
+ */
+const chipsOf = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) ? n : 0);
+
+/**
  * What came off the cloth, or why it could not.
  *
  * Two refusals rather than one, because they are different facts and a player
@@ -380,7 +391,7 @@ export function crapsAdapter(
     },
 
     async act(table, seatId, action, deps) {
-      const move = action as { type?: string; spotId?: string; chips?: number; on?: boolean };
+      const move = action as { type?: string; spotId?: string; chips?: unknown; on?: boolean };
       const seat = table.seats.find((one) => one.id === seatId);
       if (seat === undefined) {
         throw new TableError("You are not at this table.");
@@ -393,7 +404,7 @@ export function crapsAdapter(
             if (spot === null) {
               throw new TableError("There is no such bet on this table.");
             }
-            const chips = move.chips ?? 0;
+            const chips = chipsOf(move.chips);
 
             /*
              * What this spot can still take, worked out across the whole cloth.
@@ -450,7 +461,12 @@ export function crapsAdapter(
             if (spot === null) {
               throw new TableError("There is no such bet on this table.");
             }
-            await giveBack(table, seat, () => table.take(seatId, spot.id, move.chips ?? 0), deps);
+            await giveBack(
+              table,
+              seat,
+              () => table.take(seatId, spot.id, chipsOf(move.chips)),
+              deps,
+            );
             return;
           }
 
@@ -543,6 +559,7 @@ export function crapsAdapter(
      * costs a greyed-out spot on a table nobody is sitting at yet.
      */
     async payOut(table, deps) {
+      let released = false;
       /*
        * The dice, released inside the bank's own queue.
        *
@@ -574,9 +591,8 @@ export function crapsAdapter(
           }
           throw error;
         }
-        return true;
-      }
-      if (table.leaving.size > 0) {
+        released = true;
+      } else if (table.leaving.size > 0) {
         await serially(table, async () => {
           /*
            * Round again whenever somebody's chips came off. A leaver refused
@@ -629,10 +645,20 @@ export function crapsAdapter(
           }
         });
       }
+      /*
+       * And the figure the felt greys spots out against, on every broadcast
+       * including the one that let the dice go. Returning early from the
+       * release would leave the bank on screen a broadcast stale on exactly
+       * the frame it changed most.
+       *
+       * Less what the other tables on this bank could owe, so the felt greys
+       * out the same spots the refusal would. Showing only; `place` asks again.
+       */
       if (!table.forFun) {
         const elsewhere = ledger?.owedElsewhere(table) ?? 0;
         table.housed = (await holds(table)) - elsewhere;
       }
+      return released;
     },
 
     isSettled(table) {

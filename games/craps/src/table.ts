@@ -378,8 +378,17 @@ export class Table {
    * Off by default, which is the real table's default and also the kinder one:
    * a place bet that slept through a come-out seven is a place bet that did
    * not lose.
+   *
+   * Only while the window is open, the same as every other thing a player does
+   * to the cloth. No money moves wrongly without this — the bank's cover is
+   * re-derived at the release, whatever anybody says — but a seat that could
+   * call its numbers on after the seal would be choosing whether to be in the
+   * roll with the window shut on everybody else.
    */
   setWorking(seatId: string, on: boolean): void {
+    if (this.phase !== "betting") {
+      throw new TableError("The dice are already out.");
+    }
     this.seatOf(seatId);
     this.works.set(seatId, on);
   }
