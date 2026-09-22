@@ -42,8 +42,25 @@ describe("the Roulette table's stylesheet", () => {
     const rows = /grid-template-rows:([^;]*);/.exec(grid)?.[1] ?? "";
     expect(rows, "the table declares no rows").not.toBe("");
     expect(rows.match(/minmax\(0,\s*1fr\)/g) ?? []).toHaveLength(1);
-    /* And it is the stage's row: second of the five, as the areas name them. */
-    expect(grid.replace(/\s+/g, " ")).toContain('"standing wheel" "stage stage"');
+    /* And it is the stage's row, under the line and the board of numbers —
+       both of which are `auto` and as tall as their one line of type. */
+    expect(grid.replace(/\s+/g, " ")).toContain('"standing wheel" "history history" "stage stage"');
+  });
+
+  it("keeps talk behind a key, and takes its inline rules with it (R16)", () => {
+    /*
+     * `play--fit` is worn by every table in the building and this app bundles
+     * every sheet into one, so a rule written here against `.play--fit > .chat`
+     * bounded the next table's chat to roulette's 48px log. The inline chat is
+     * gone; the rules that fenced it in go with it.
+     */
+    expect(page).not.toContain("<Chat");
+    expect(css).not.toContain(".play--fit > .chat");
+  });
+
+  it("gives a refusal the middle of the board at the table, and a strip on a page (N1, N5)", () => {
+    // Mid-hand, a strip above the felt is a strip nobody reads.
+    expect(page).toContain("<Refusal");
   });
 
   it("sizes the stage from the space it has, not from the viewport (L3)", () => {

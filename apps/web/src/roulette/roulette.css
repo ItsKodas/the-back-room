@@ -714,13 +714,18 @@
 }
 
 /*
- * The two boards, one above the other.
+ * The boards' box, one above the other.
  *
  * A column rather than a row, and at every width. Side by side they are two
  * strips of small type competing for the same glance, and on a phone one of
  * them would be four characters wide. Stacked, the numbers are a line and the
  * names are a line, and the eye takes them in that order — which is the order
  * they happened in.
+ *
+ * The felt's own copy holds the winners alone — its numbers are a strip of
+ * their own up beside the stage — and is hidden on a phone; see `.rl__in
+ * .rl__boards` in the layout below. This rule is the gallery's, which stands
+ * both boards in it.
  */
 .rl__boards {
   display: flex;
@@ -751,6 +756,19 @@
   margin: 0;
   padding: 0;
   max-width: 100%;
+}
+
+/*
+ * The same board in talk's activity tab, which is where a phone reads it.
+ *
+ * A strip above the log rather than something that scrolls with it: who has
+ * been paid is the state of the evening, and the lines under it are how it got
+ * there. It keeps its own height and hands the rest to the log.
+ */
+.talk__activity .rl__winners {
+  flex: none;
+  justify-content: flex-start;
+  padding: var(--gr-space-3) var(--gr-space-4) 0;
 }
 
 .rl__won {
@@ -1191,19 +1209,24 @@
  * A grid of its own inside the container, because a container cannot ask a
  * container query about itself.
  *
- * Phone first: the line, the stage, the boards, the keys and the seats, with
- * what the wheel has to say tucked into the corner beside the line, where it
- * costs no row of its own. That corner is a width rather than `auto` so that
- * the line beside it does not jump sideways when the wheel leaves for the
- * stage, and it is wide enough to hold the caption on one line.
+ * Phone first: the line, the numbers, the stage, the boards, the keys and the
+ * seats, with what the wheel has to say tucked into the corner beside the line,
+ * where it costs no row of its own. That corner is a width rather than `auto`
+ * so that the line beside it does not jump sideways when the wheel leaves for
+ * the stage, and it is wide enough to hold the caption on one line.
+ *
+ * The numbers are a row of their own and an `auto` one: twelve pockets at
+ * 22px is a strip that fits across a 375px phone without wrapping, and it is
+ * the one record a roulette player reads without being asked to open anything.
  */
 .rl__in {
   height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(84px, 24cqw, 112px);
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "standing wheel"
+    "history  history"
     "stage    stage"
     "boards   boards"
     "controls controls"
@@ -1224,6 +1247,14 @@
  */
 .rl__in > .rl__standing {
   grid-area: standing;
+  align-self: center;
+}
+
+/* The board of numbers, as a strip between the line and the stage. A child
+   selector because the gallery's mockup has one of these too, standing in an
+   `.rl` with no such grid around it. */
+.rl__in > .rl__history {
+  grid-area: history;
   align-self: center;
 }
 
@@ -1251,8 +1282,32 @@
   align-content: center;
 }
 
+/*
+ * The winners' board, which a phone has not the height for.
+ *
+ * What height a phone has goes on the cloth and the wheel, and there is no
+ * third thing it can afford: the board goes where the table's other sentences
+ * are, in the activity tab behind the talk key, rather than off the table
+ * altogether. The numbers stay out on the felt at every width — they are what
+ * players at a wheel actually read, and they are a strip rather than a panel.
+ *
+ * Wider than a phone there is room for it again, and it scrolls inside itself
+ * rather than pushing the wheel above it off the top.
+ */
 .rl__in .rl__boards {
   grid-area: boards;
+  display: none;
+}
+
+@container rl (min-width: 760px) {
+  .rl__in .rl__boards {
+    display: grid;
+    gap: var(--gr-space-3);
+    justify-items: center;
+    align-content: start;
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 /*
@@ -1406,12 +1461,54 @@
  * `housing` gives it the frame every panel in the building wears; this adds
  * only what a payout list needs on top of that.
  */
+/*
+ * Above everything the cloth stacks inside the stage, which is what the number
+ * is for: the chip piles sit at 5, the aim marker at 6 and a reach button with
+ * the keyboard's ring on it at 8, and all three are positioned descendants of
+ * `.rl__cloth` rather than of a stacking context of their own. At 3 the sheet
+ * had somebody's chips floating over it.
+ */
 .rl__pays {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 9;
   min-height: 0;
   animation: rl-pays-in 220ms var(--gr-settle) both;
+}
+
+/* It is focused when it opens, so a keyboard arrives inside it rather than
+   wherever it was; the ring around the whole panel would say nothing. */
+.rl__pays:focus {
+  outline: none;
+}
+
+/*
+ * The rest of the table, while the sheet is open: a tap off it shuts it, the
+ * same way a tap off talk shuts talk. Laid over the table rather than over the
+ * stage, because the sheet covers its own stage entirely — everywhere you
+ * could tap "outside" it is out here.
+ *
+ * Nought, and drawn before the table rather than after it. The stage is a size
+ * container, so it is a stacking context of its own and the sheet inside it
+ * cannot climb out: no positive number puts this over the seats and under the
+ * sheet. Painting order does — a positioned box covers the ordinary ones
+ * whatever their order, and loses to the positioned box that comes after it.
+ */
+.rl__pays-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  border: 0;
+  background: rgb(0 0 0 / 0.45);
+  cursor: default;
+  animation: rl-pays-scrim-in 200ms ease both;
+}
+
+@keyframes rl-pays-scrim-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /*
@@ -1506,9 +1603,10 @@
 @container rl (min-width: 900px) {
   .rl__in {
     grid-template-columns: minmax(0, 1fr) clamp(200px, 26cqw, 300px);
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       "standing side"
+      "history  side"
       "stage    side"
       "controls side"
       "seats    side";
@@ -1584,28 +1682,11 @@
     animation: none;
   }
 
+  .rl__pays-scrim {
+    animation: none;
+  }
+
   .rl__pays-row {
     transition: none;
   }
-}
-
-/* ------------------------------------------------------------- table talk */
-
-/*
- * The inline panel, until table talk moves into a sheet of its own.
- *
- * It keeps to a strip at the foot of the window rather than taking the stage's
- * height with it: a page that is exactly the window has no spare height to
- * give a log nobody has opened. It goes entirely when the sheet arrives, and
- * these two rules go with it.
- */
-.play--fit > .chat {
-  flex: none;
-  margin-top: 0;
-  padding: var(--gr-space-2);
-}
-
-.play--fit > .chat .chat__log {
-  max-height: 48px;
-  margin-bottom: var(--gr-space-2);
 }

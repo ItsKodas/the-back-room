@@ -5,13 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Avatar } from "../game/Avatar.js";
 import { play } from "../game/audio.js";
-import { Chat } from "../game/Chat.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { useCountdown } from "../game/useCountdown.js";
 import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
+import { ActivityLog, useActivity } from "../table/Activity.js";
+import { Refusal } from "../table/Refusal.js";
 import { TableSetup } from "../table/TableSetup.js";
+import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
@@ -91,7 +93,17 @@ export function Roulette() {
 
   return (
     <main className={`play${atTable ? " play--fit" : ""}`}>
-      {table.error !== null ? <p className="play__error">{table.error}</p> : null}
+      {/*
+        At the table a refusal takes the middle of the board, because a strip
+        above the felt is a strip nobody reads with a window closing on them.
+        On a page — setup, or a table that turned you away — it stays a strip:
+        there is nothing there to cover, and nothing being decided on a clock.
+      */}
+      {atTable ? (
+        <Refusal message={table.error} id={table.errorKey} />
+      ) : table.error !== null ? (
+        <p className="play__error">{table.error}</p>
+      ) : null}
 
       {/*
         A second window on the same game is turned away, and says so in its own
@@ -103,10 +115,7 @@ export function Roulette() {
       ) : state === null ? (
         <Sit table={table} invited={urlCode} account={account} />
       ) : (
-        <>
-          <Felt table={table} state={state} seatId={seatId} />
-          <Chat log={table.chat} seatId={seatId} onSay={table.say} />
-        </>
+        <Felt table={table} state={state} seatId={seatId} />
       )}
     </main>
   );
@@ -139,6 +148,31 @@ export function Felt({
   /* Behind the ? key: what the cloth is worth, lighting whatever it is aimed at. */
   const [paysOpen, setPaysOpen] = useState(false);
   const [aimedKind, setAimedKind] = useState<Kind | null>(null);
+
+  const talk = useTalk(table.chat, seatId);
+  /*
+   * Everything the table has said, kept from its first line.
+   *
+   * The server only ever sends the latest one, so a table that said "Bram sat
+   * down" while talk was shut said it to nobody. The counter is what tells one
+   * broadcast sent twice from the same sentence happening twice — the same
+   * player winning the same amount on the same number is an ordinary evening.
+   */
+  const activity = useActivity({ code: state.code, text: state.lastEvent, seq: state.eventSeq });
+
+  /*
+   * Talk and what it pays are two dialogs claiming one rectangle, so opening
+   * either shuts the other rather than stacking a second scrim over the first.
+   */
+  const closePays = useCallback(() => setPaysOpen(false), []);
+  const togglePays = () => {
+    talk.close();
+    setPaysOpen((was) => !was);
+  };
+  const toggleTalk = () => {
+    setPaysOpen(false);
+    talk.toggle();
+  };
 
   /*
    * The keys press the buttons on screen rather than calling what they call,
@@ -237,19 +271,47 @@ export function Felt({
 
   return (
     <section className="rl" data-game="roulette" ref={root}>
+      {/*
+        The rest of the table, while what it pays is open: a tap off the sheet
+        shuts it, the way a tap off talk shuts talk. Out here rather than inside
+        the sheet, which covers its own stage entirely — everywhere you could
+        tap "outside" it is out here — and before the table rather than after
+        it, which is what leaves the stage drawn over the top. See the
+        stylesheet: the stage is a stacking context and the sheet cannot climb
+        out of it.
+      */}
+      {paysOpen ? (
+        <button
+          type="button"
+          className="rl__pays-scrim"
+          tabIndex={-1}
+          aria-label="Close what it pays"
+          onClick={closePays}
+        />
+      ) : null}
+
       <div className="rl__in" data-on={onStage}>
         <Standing state={state} />
 
+        {/*
+          The one record a roulette player actually reads, and it stays on the
+          felt rather than going into the log with the table's sentences: a
+          board you have to open something to see is a board nobody glances at.
+          Twelve numbers wide, which is a strip rather than a row.
+        */}
+        <History pockets={state.history} />
+
         <div className="rl__stage">
-          {/* The column the talk and ? keys stand in; the talk key is still to come. */}
+          {/* The column the talk and ? keys stand in, beside the cloth. */}
           <div className="rl__corner">
+            <TalkKey open={talk.open} unread={talk.unread} onToggle={toggleTalk} />
             <button
               type="button"
               className="key key--icon"
               aria-label="What it pays"
               aria-expanded={paysOpen}
               aria-controls={PAYS_SHEET_ID}
-              onClick={() => setPaysOpen((was) => !was)}
+              onClick={togglePays}
             >
               ?
             </button>
@@ -269,7 +331,7 @@ export function Felt({
               onAim={setAimedKind}
             />
           </div>
-          <HowItPays open={paysOpen} onClose={() => setPaysOpen(false)} lit={aimedKind} />
+          <HowItPays open={paysOpen} onClose={closePays} lit={aimedKind} />
         </div>
 
         {/*
@@ -297,8 +359,12 @@ export function Felt({
             </span>
           </div>
 
+          {/*
+            The winners' board, which a desk has the height for and a phone has
+            not. On a phone it goes where the table's other sentences are — the
+            activity tab below — rather than off the table altogether.
+          */}
           <div className="rl__boards">
-            <History pockets={state.history} />
             <Winners winners={state.winners} />
           </div>
         </div>
@@ -324,6 +390,25 @@ export function Felt({
 
         <Seats state={state} seatId={seatId} />
       </div>
+
+      {/*
+        Talk, opened on purpose rather than standing on the page taking height
+        off the cloth. No region around it: the chat inside is already one named
+        "Table talk", and two landmarks of a name is noise to a screen reader.
+      */}
+      <TalkSheet
+        open={talk.open}
+        onClose={talk.close}
+        log={table.chat}
+        seatId={seatId}
+        onSay={table.say}
+        activity={
+          <>
+            <Winners winners={state.winners} />
+            <ActivityLog entries={activity} />
+          </>
+        }
+      />
     </section>
   );
 }

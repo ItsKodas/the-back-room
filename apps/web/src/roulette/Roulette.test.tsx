@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-roulette";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { play } from "../game/audio.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Felt } from "./Roulette.js";
@@ -18,6 +18,12 @@ vi.mock("../game/audio.js", async (original) => ({
   ...(await original<typeof import("../game/audio.js")>()),
   play: vi.fn(),
 }));
+
+beforeAll(() => {
+  // Talk's log scrolls itself to the newest line, and jsdom lays nothing out,
+  // so it has no such method to call.
+  Element.prototype.scrollIntoView = vi.fn();
+});
 
 afterEach(() => {
   cleanup();
@@ -64,15 +70,23 @@ const view = (over: Partial<TableView> = {}): TableView => ({
   hostId: "s1",
   watching: 0,
   lastEvent: null,
+  eventSeq: 0,
   window: 30_000,
   canRepeat: false,
   ...over,
 });
 
-const stub = () => {
+/**
+ * The socket, as much of it as a felt touches.
+ *
+ * `chat` and `say` are real here rather than left off: talk is part of the
+ * table's furniture now, and a felt that read them off nothing would throw
+ * before it drew a square.
+ */
+const stub = (over: Partial<TableSocketHook<TableView>> = {}) => {
   const act = vi.fn();
   return {
-    table: { act, busy: false } as unknown as TableSocketHook<TableView>,
+    table: { act, busy: false, chat: [], say: vi.fn(), ...over } as unknown as TableSocketHook<TableView>,
     act,
   };
 };
@@ -117,6 +131,9 @@ const keys = () => box(".rl__controls", "keys under it");
 
 /** Every bet on the cloth, as the keyboard reaches them. */
 const bets = () => box(".rl__reach", "reachable bets");
+
+/** The column beside the cloth, where the talk and ? keys stand. */
+const corner = () => box(".rl__corner", "corner beside the cloth");
 
 /**
  * One bet on the cloth, by the words it reads as.
@@ -434,5 +451,102 @@ describe("the roulette felt", () => {
     const reachable = document.querySelectorAll(".rl__reach button").length;
     expect(reachable).toBeGreaterThan(150);
     expect(bets().getAllByRole("button")).toHaveLength(reachable);
+  });
+});
+
+/*
+ * What stands around the table rather than on it: talk, the log of what the
+ * table has said, and the two boards. Every question here is asked inside the
+ * corner or of one element by class, for the reason the paragraph above `box`
+ * gives — a felt is 168 buttons, and an unscoped ask pays for all of them.
+ */
+describe("the table's furniture", () => {
+  it("opens talk rather than pushing it onto the page (C1)", () => {
+    const { container } = render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    // Nothing inline: the only way to talk is to open it.
+    expect(container.querySelector(".chat")).toBeNull();
+    expect(corner().getByRole("button", { name: "Table talk" })).toBeTruthy();
+  });
+
+  it("counts what somebody else said while talk was shut (C2)", () => {
+    /*
+     * Said while you were looking at the cloth, which is how talk arrives at a
+     * table: the socket hands the felt a longer log, and the key carries what
+     * you have not read. Two lines land and one of them is yours, so the key
+     * says one — your own line is not news to you.
+     */
+    const state = view();
+    const { rerender } = render(<Felt table={stub().table} state={state} seatId="s1" />);
+    const chat = [
+      { seatId: "s2", name: "Bram", text: "evening", at: 1 },
+      { seatId: "s1", name: "Ada", text: "hello", at: 2 },
+    ];
+    rerender(<Felt table={stub({ chat }).table} state={state} seatId="s1" />);
+    expect(corner().getByRole("button", { name: "Table talk, 1 unread" })).toBeTruthy();
+  });
+
+  it("keeps the pocket board on the felt rather than folding it into the log (A3)", () => {
+    /*
+     * Roulette's numbers are the table's own record and the one thing players
+     * at a wheel actually read. The log is for the table's sentences; the
+     * board stays where it can be glanced at without opening anything.
+     */
+    const { container } = render(
+      <Felt table={stub().table} state={view({ history: [17, 0, 32] })} seatId="s1" />,
+    );
+    const board = container.querySelector(".rl__in > .rl__history");
+    expect(board).not.toBeNull();
+    expect(board?.closest(".talk")).toBeNull();
+  });
+
+  it("keeps what the table has said, rather than one line that flashes", () => {
+    const { table } = stub();
+    const { rerender } = render(
+      <Felt table={table} state={view({ lastEvent: "Bram sat down.", eventSeq: 1 })} seatId="s1" />,
+    );
+    rerender(
+      <Felt table={table} state={view({ lastEvent: "17. Bram is up 350.", eventSeq: 2 })} seatId="s1" />,
+    );
+
+    fireEvent.click(corner().getByRole("button", { name: /^Table talk/ }));
+    fireEvent.click(box(".talk", "talk sheet").getByRole("button", { name: "Activity" }));
+    const log = document.querySelector(".activity")?.textContent ?? "";
+    expect(log).toContain("Bram sat down.");
+    expect(log).toContain("17. Bram is up 350.");
+  });
+
+  it("never stands talk and what it pays on the same rectangle at once", () => {
+    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    fireEvent.click(corner().getByRole("button", { name: "What it pays" }));
+    expect(document.querySelector(".rl__pays")).not.toBeNull();
+
+    fireEvent.click(corner().getByRole("button", { name: /^Table talk/ }));
+    expect(document.querySelector(".rl__pays")).toBeNull();
+    expect(document.querySelector(".talk")).not.toBeNull();
+
+    fireEvent.click(corner().getByRole("button", { name: "What it pays" }));
+    expect(document.querySelector(".talk")).toBeNull();
+    expect(document.querySelector(".rl__pays")).not.toBeNull();
+  });
+
+  it("shuts what it pays the way talk shuts — Escape, the scrim, and focus home (R19)", () => {
+    /*
+     * Two panels on one rectangle that dismiss differently is a defect, and
+     * the keyboard half of it is the worse half: a sheet that goes without
+     * handing focus back leaves the tab order standing on nothing.
+     */
+    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    const key = corner().getByRole("button", { name: "What it pays" });
+
+    fireEvent.click(key);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector(".rl__pays")).toBeNull();
+    expect(document.activeElement).toBe(key);
+
+    fireEvent.click(key);
+    const scrim = document.querySelector(".rl__pays-scrim");
+    expect(scrim, "what it pays has no scrim to tap off").not.toBeNull();
+    fireEvent.click(scrim as Element);
+    expect(document.querySelector(".rl__pays")).toBeNull();
   });
 });

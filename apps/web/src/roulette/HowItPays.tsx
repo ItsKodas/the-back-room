@@ -1,5 +1,6 @@
 import type { Kind } from "@backroom/game-roulette";
 import { pays, SPOTS } from "@backroom/game-roulette";
+import { useSheetDismiss } from "../table/useSheetDismiss.js";
 
 export const PAYS_SHEET_ID = "rl-pays";
 
@@ -35,11 +36,26 @@ export function HowItPays({
   /** The kind of bet currently aimed at, whose row lights. */
   lit: Kind | null;
 }) {
+  /*
+   * It calls itself a dialog, so it has to behave like one: Escape shuts it and
+   * focus goes back to the ? key. Shared with table talk rather than written
+   * again here — the two stand on the same rectangle, and the one that shut
+   * differently would be the one a player stopped trusting.
+   */
+  const panel = useSheetDismiss({ open, onClose, id: PAYS_SHEET_ID });
+
   if (!open) {
     return null;
   }
   return (
-    <div className="rl__pays housing" id={PAYS_SHEET_ID} role="dialog" aria-label="What it pays">
+    <div
+      className="rl__pays housing"
+      id={PAYS_SHEET_ID}
+      role="dialog"
+      aria-label="What it pays"
+      ref={panel}
+      tabIndex={-1}
+    >
       <div className="housing__head">
         <span className="label">What it pays</span>
         <button
