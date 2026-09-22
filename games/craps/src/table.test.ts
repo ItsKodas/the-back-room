@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_CHIP } from "./bank.js";
+import { HORN_STEP, MIN_CHIP } from "./bank.js";
 import type { Roll } from "./dice.js";
 import { Table, WINDOWS } from "./table.js";
 
@@ -126,8 +126,6 @@ describe("the cloth is not swept", () => {
     // A seven takes every place bet on the cloth — but not a sleeping one.
     expect(table.placed).toHaveLength(1);
 
-    table.beginBetting();
-    table.setWorking(seat.id, true);
     const awake = tableWith([[3, 4]]);
     awake.join("s1", "Ada", null);
     awake.setWorking("s1", true);
@@ -238,7 +236,7 @@ describe("the view", () => {
     expect(table.view("s2").canRoll).toBe(false);
   });
 
-  it("keeps the dice to itself until they have landed", () => {
+  it("shows the dice once they are thrown, not before", () => {
     // The felt is handed the faces during the throw so the dice can settle on
     // them — but the result is the server's fact and the phase is what tells
     // the felt when it may be read.
@@ -250,5 +248,191 @@ describe("the view", () => {
     table.release(Number.MAX_SAFE_INTEGER);
     expect(table.view(seat.id).phase).toBe("rolling");
     expect(table.view(seat.id).dice).toEqual([3, 3] as Roll);
+  });
+
+  it("never offers the roll to a watcher when nobody holds the dice", () => {
+    // shooterId and forSeatId are both null before anybody has sat down, and
+    // null === null is not "yes, this is your turn."
+    const table = tableWith([[3, 3]]);
+    expect(table.view(null).canRoll).toBe(false);
+  });
+});
+
+describe("the escrow does not empty on a roll it did not decide", () => {
+  it("still holds a bet that survived a roll, so a later take-back can release it", () => {
+    // Roulette clears its whole escrow every spin because its cloth is swept
+    // every spin — the two always hold the same chips. This cloth is not
+    // swept, so a blanket clear here would leave chips on the felt with
+    // nothing behind them in the escrow to release when they come off it.
+    const table = tableWith([[3, 3]]); // six on the come-out: sets the point, and the place bet sleeps through it
+    // A chips table, not a for-fun one — the escrow only holds real stakes.
+    table.forFun = false;
+    const seat = table.join("s1", "Ada", { userId: "u1", avatar: null, accentColor: null });
+    table.place(seat.id, "place:5", MIN_CHIP * 5);
+
+    play(table);
+    // Still on the felt...
+    expect(table.placed).toContainEqual({
+      seatId: seat.id,
+      spotId: "place:5",
+      chips: MIN_CHIP * 5,
+      off: false,
+    });
+    // ...and the escrow still knows it, because it was never handed anywhere.
+    expect(table.escrow.heldBy("u1")).toBe(MIN_CHIP * 5);
+
+    table.beginBetting();
+    const off = table.take(seat.id, "place:5", MIN_CHIP * 5);
+    expect(table.escrow.release("u1", off)).toBe(MIN_CHIP * 5);
+  });
+});
+
+describe("accounts outlive the point when chips still ride", () => {
+  it("keeps the account behind a seat whose come bet outlives the point", () => {
+    // A travelled come bet, a place bet or a hardway can all survive the
+    // point being made — the felt still owes whoever put them there.
+    const table = tableWith([
+      [3, 3], // six: point set
+      [2, 3], // five: the come bet's own come-out — travels to five
+      [4, 2], // six: point made, hand ends — but the come bet is still live
+    ]);
+    const seat = table.join("s1", "Ada", { userId: "u1", avatar: null, accentColor: null });
+    table.place(seat.id, "pass", MIN_CHIP);
+    play(table);
+    table.beginBetting();
+
+    table.place(seat.id, "come", MIN_CHIP);
+    play(table);
+    table.beginBetting();
+
+    table.removeSeat(seat.id);
+    play(table);
+    table.beginBetting();
+
+    expect(table.point).toBeNull();
+    expect(table.placed.some((one) => one.spotId === "come:5")).toBe(true);
+    expect(table.accountOf(seat.id)).toBe("u1");
+  });
+});
+
+describe("the dice with three or more seats", () => {
+  it("passes to the seat that was next, not back to the front", () => {
+    // With findIndex alone, removing the shooter makes the *first* remaining
+    // seat the shooter — right only when there happen to be two seats.
+    const table = tableWith([[3, 3]]);
+    table.join("s1", "Ada", null);
+    const two = table.join("s2", "Bea", null);
+    const three = table.join("s3", "Cleo", null);
+    table.shooterId = two.id;
+    table.removeSeat(two.id);
+    expect(table.shooterId).toBe(three.id);
+  });
+});
+
+describe("release is a one-way door", () => {
+  it("refuses a second release, so the dice cannot be re-thrown over a published result", () => {
+    const table = tableWith([
+      [3, 3],
+      [4, 2],
+    ]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "pass", MIN_CHIP);
+    table.seal();
+    const first = table.release(Number.MAX_SAFE_INTEGER);
+    expect(() => table.release(Number.MAX_SAFE_INTEGER)).toThrow();
+    expect(table.dice).toEqual(first);
+  });
+});
+
+describe("odds caps quote a chip somebody can actually place", () => {
+  it("rounds a dark-side cap down to a whole chip", () => {
+    // maxOdds(6, 30, true) is 216, which nothing on this tray can place.
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "dontpass", MIN_CHIP);
+    play(table);
+    table.beginBetting();
+    expect(() => table.check(seat.id, "odds:dontpass", MIN_CHIP * 8)).toThrow(
+      /most you may put behind that is 210/,
+    );
+    expect(() => table.check(seat.id, "odds:dontpass", 210)).not.toThrow();
+  });
+});
+
+describe("undo and clear skip contracts", () => {
+  it("leaves a contract on the cloth when the rest is cleared", () => {
+    // Otherwise a player clears their way out of a bet the point has been set on.
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "pass", MIN_CHIP);
+    table.place(seat.id, "place:5", MIN_CHIP * 5);
+    play(table);
+    table.beginBetting();
+    table.clear(seat.id);
+    expect(table.placed.map((one) => one.spotId)).toEqual(["pass"]);
+  });
+
+  it("skips the pass line for undo once it is a contract", () => {
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "pass", MIN_CHIP);
+    play(table);
+    table.beginBetting();
+    // The pass line is the only chip down, and it is a contract now.
+    table.undo(seat.id);
+    expect(table.placed).toContainEqual({
+      seatId: seat.id,
+      spotId: "pass",
+      chips: MIN_CHIP,
+      off: false,
+    });
+  });
+});
+
+describe("offByBank", () => {
+  it("names only what the bank turned off", () => {
+    // The felt uses offByBank to explain a refusal. Listing a bet its owner
+    // put to sleep would tell somebody the bank is broke when they switched
+    // it off themselves. A bank this tight also forces `working` to actually
+    // decide something, rather than the bottomless bank the sleep test above
+    // uses — which is what proves sleeps() ran first: if the bet's own sleep
+    // flag had not already been applied before `working` saw it, a bank this
+    // tight could not tell "asleep" from "turned off" apart at all.
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "place:5", MIN_CHIP * 5); // asleep on the come-out — not the bank's doing
+    table.place(seat.id, "horn", HORN_STEP); // awake regardless, and too rich for this bank
+    table.seal();
+    table.release(0);
+    expect(table.offByBank).toEqual(["horn"]);
+  });
+});
+
+describe("shoot", () => {
+  it("refuses anyone but the shooter, whatever the clock says", () => {
+    const table = tableWith([[3, 3]]);
+    const one = table.join("s1", "Ada", null);
+    const two = table.join("s2", "Bea", null);
+    table.place(one.id, "pass", MIN_CHIP);
+    expect(() => table.shoot(two.id)).toThrow(/not your dice/i);
+  });
+
+  it("refuses to seal before the window has had its share of time", () => {
+    // Otherwise the shooter bets and seals in the same tick, every round, and
+    // nobody else at the table ever gets to put a chip down — the mirror image
+    // of the idle shooter the auto-seal solves.
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "pass", MIN_CHIP);
+    expect(() => table.shoot(seat.id)).toThrow(/everybody/i);
+  });
+
+  it("lets the shooter seal once the window has had its share of time", () => {
+    const table = tableWith([[3, 3]]);
+    const seat = table.join("s1", "Ada", null);
+    table.place(seat.id, "pass", MIN_CHIP);
+    table.deadline = Date.now() - 1;
+    table.shoot(seat.id);
+    expect(table.phase).toBe("sealed");
   });
 });

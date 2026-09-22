@@ -193,10 +193,10 @@ export class Table {
    *
    * A seat that stands up mid-hand still has chips riding on it, and whatever
    * the dice decide is theirs. The name is kept with it so the winners board
-   * can still say who won after the seat has gone. Pruned when the *hand*
-   * ends rather than on every roll — a hand outlives a round, and pruning a
-   * roll at a time would forget somebody halfway through their own point and
-   * quietly keep their winnings.
+   * can still say who won after the seat has gone. Pruned once nothing of
+   * theirs is still on the felt — see {@link beginBetting} — because a
+   * travelled come bet or a place bet can outlive the point that was up when
+   * they left.
    */
   private readonly accounts = new Map<string, { userId: string | null; name: string }>();
 
@@ -311,12 +311,23 @@ export class Table {
    * period did the same.
    */
   removeSeat(seatId: string): void {
+    /*
+     * Captured before the seat is gone. `passDice`'s -1-wraps-to-seats[0]
+     * trick only covers "nobody has the dice" — after removal the leaver is
+     * simply absent, so a `findIndex` run then would always miss and always
+     * wrap to the front, handing the dice to the host and skipping everyone
+     * seated between the leaver and them. The seat that was next sits at this
+     * same index once the leaver is spliced out, so this is the seat to look
+     * at instead.
+     */
+    const at = this.seats.findIndex((seat) => seat.id === seatId);
     const hadDice = seatId === this.shooterId;
     this.seating.remove(seatId);
     this.previous.delete(seatId);
     // The dice do not wait for a shooter who has gone.
     if (hadDice) {
-      this.passDice();
+      const seats = this.seats;
+      this.shooterId = seats.length === 0 ? null : (seats[at % seats.length]?.id ?? null);
     }
     /*
      * Nothing comes off the cloth here, even while bets are open. Handing the
@@ -396,6 +407,12 @@ export class Table {
    * when it runs out, which is the whole of "a table that deals itself": a
    * ready button one idle player can hold shut is a table that has stopped
    * dealing.
+   *
+   * Floored by the same last-call margin that ends the window, so the dice
+   * are theirs but the window is everybody's: a shooter free to bet and seal
+   * in the same tick, every round, would never give anybody else a chip's
+   * chance to get down, which is the same rule CLAUDE.md gives the host over
+   * the shape of the table turned on its one other decision-maker.
    */
   shoot(seatId: string): void {
     if (this.phase !== "betting") {
@@ -403,6 +420,10 @@ export class Table {
     }
     if (seatId !== this.shooterId) {
       throw new TableError("They are not your dice.");
+    }
+    const remaining = this.deadline === null ? 0 : this.deadline - Date.now();
+    if (this.window - remaining < this.lastCallMs) {
+      throw new TableError("The dice are yours, but the window is everybody's — give it a moment.");
     }
     this.seal();
   }
@@ -576,7 +597,10 @@ export class Table {
       if (behind === null) {
         throw new TableError("There is nothing to back with odds yet.");
       }
-      const most = maxOdds(behind.point, behind.chips, spot.dark);
+      // Floored to a whole chip: maxOdds(6, 30, true) is 216, and quoting a
+      // figure nothing on the tray can place would refuse the very number
+      // the message just offered.
+      const most = Math.floor(maxOdds(behind.point, behind.chips, spot.dark) / MIN_CHIP) * MIN_CHIP;
       if (this.onSpot(seatId, spot.id) + chips > most) {
         throw new TableError(`The most you may put behind that is ${most.toLocaleString("en-US")}.`);
       }
@@ -718,16 +742,29 @@ export class Table {
    * Two passes over the cloth, in this order: what its owner put to sleep, and
    * then what the bank cannot carry. The order matters — `working` never turns
    * a bet back on, so a sleeping bet stays asleep however rich the bank is.
+   *
+   * Guarded like every other phase change, and for the same reason `seal`
+   * leaves the cloth alone when there is nothing to roll for: this is the one
+   * transition the adapter reaches by joining the bank's own queue, which is
+   * asynchronous, and a table that could be asked twice before the first
+   * answer lands would throw the dice twice and overwrite an already
+   * published result. `releasing` is set before anything else runs, so a
+   * second call — however it arrives — finds a table already on its way to
+   * rolling rather than one still waiting to be asked.
    */
   release(bank: number): Roll {
+    if (this.phase !== "sealed" && this.phase !== "releasing") {
+      throw new TableError("The dice are not waiting to go.");
+    }
+    this.phase = "releasing";
     const hand = this.hand;
     const known = this.placed.filter((one) => spotAt(one.spotId) !== null);
     const asleep = known.map((one) => ({
       ...one,
       off: sleeps(spotAt(one.spotId) as Spot, hand, this.worksFor(one.seatId)),
     }));
-    const decided = working(bank, toBets(asleep), hand);
-    this.placed = asleep.map((one, at) => ({ ...one, off: decided[at]?.off ?? one.off }));
+    const carried = working(bank, toBets(asleep), hand);
+    this.placed = asleep.map((one, at) => ({ ...one, off: carried[at]?.off ?? one.off }));
     this.offByBank = this.placed
       .filter((one, at) => one.off && asleep[at]?.off === false)
       .map((one) => one.spotId);
@@ -742,12 +779,6 @@ export class Table {
     if (this.phase !== "rolling" || this.dice === null) {
       return;
     }
-    /*
-     * The dice have landed, so the cloth now belongs to its result rather than
-     * to the accounts that put it there — a void from here has nothing to hand
-     * back for this roll.
-     */
-    this.escrow.settle();
     const hand = this.hand;
     const dice = this.dice;
     const result = settle(this.placed, dice, hand);
@@ -761,6 +792,15 @@ export class Table {
     for (const one of this.placed) {
       const spot = spotAt(one.spotId);
       if (spot === null || one.off || after(spot, dice, hand) !== null) continue;
+      /*
+       * Only what ended. Roulette settles the whole escrow here because its
+       * cloth is swept every spin, so escrow and cloth always hold the same
+       * chips — this one is not, and a blanket settle would leave the chips
+       * still on the felt with nothing behind them in the escrow, so a
+       * take-back, a leaver or a void would hand back nothing at all.
+       */
+      const userId = this.accounts.get(one.seatId)?.userId;
+      if (userId != null) this.escrow.release(userId, one.chips);
       if (spot.derived) continue;
       this.previous.set(one.seatId, [...(this.previous.get(one.seatId) ?? []), { ...one }]);
     }
@@ -816,15 +856,25 @@ export class Table {
       seat.waiting = false;
     }
     /*
-     * Accounts are pruned when the *hand* ends, not when a roll does. A craps
-     * hand outlives a round, and pruning per roll would forget somebody halfway
-     * through their own point and quietly keep their winnings.
+     * Pruned once nothing of theirs is still riding — not when the hand ends.
+     * A travelled come bet, a place bet or a hardway can all survive the point
+     * being made, so a seat that left with one of those standing is still
+     * owed when it resolves. The point going null is not what makes it safe
+     * to forget who somebody was; having no chips left on the felt is.
+     */
+    const here = new Set(this.seats.map((seat) => seat.id));
+    const riding = new Set(this.placed.map((one) => one.seatId));
+    for (const seatId of [...this.accounts.keys()]) {
+      if (!here.has(seatId) && !riding.has(seatId)) this.accounts.delete(seatId);
+    }
+    /*
+     * A fresh come-out reverts every seat's numbers to the table's own
+     * default — off — the same as a real table asking "working?" again each
+     * time a new point is up for grabs. Gated on the point actually having
+     * gone null, not on the cloth being empty, so a seat's own preference for
+     * *this* hand survives every roll of it.
      */
     if (this.point === null) {
-      const here = new Set(this.seats.map((seat) => seat.id));
-      for (const seatId of [...this.accounts.keys()]) {
-        if (!here.has(seatId)) this.accounts.delete(seatId);
-      }
       this.works.clear();
     }
   }
@@ -871,7 +921,7 @@ export class Table {
       bank: this.bank,
       canRepeat: forSeatId !== null && this.lastRound(forSeatId).length > 0,
       shooterId: this.shooterId,
-      canRoll: forSeatId === this.shooterId && this.phase === "betting",
+      canRoll: forSeatId !== null && forSeatId === this.shooterId && this.phase === "betting",
       seats,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,
       forFun: this.forFun,
