@@ -106,6 +106,19 @@ describe("the round in between", () => {
     expect(one.round.toAct).toBe("b");
   });
 
+  it("gives it to the caller when a correct exact leaves exactly two players live", () => {
+    // At two live players a correct exact has exactly one loser — the sole
+    // non-caller — which is the same shape as a liar call's one loser. The
+    // opener has to be told apart by what happened, not by counting losers.
+    const one = game(["a", "b"], 2);
+    one.raise("a", { count: 4, face: 5 });
+    one.call("b", "exact");
+    expect(one.diceFor("a")).toBe(1);
+    expect(one.diceFor("b")).toBe(2);
+    one.nextRound();
+    expect(one.round.toAct).toBe("b");
+  });
+
   it("refuses to deal a round while one is still running", () => {
     const one = game(["a", "b", "c"], 3);
     one.nextRound();

@@ -159,8 +159,16 @@ export class Game {
      * Who opens next. Whoever lost the die, which is the player with the most
      * to prove — and when a correct exact cost everybody *but* the caller one,
      * the caller opens, for the same reason from the other end.
+     *
+     * Told apart by what happened, not by counting losers: at exactly two live
+     * players a correct exact has exactly one loser too — the sole non-caller
+     * — the same shape as a liar call, so a losers.length === 1 guard hands
+     * the opener to whoever just lost instead of to the caller. When it is
+     * not a correct exact, the single loser IS the caller on a wrong exact,
+     * so losers[0] is right either way; losers is never empty (Task 4's
+     * invariant), so it is always there to read.
      */
-    this.opener = out.losers.length === 1 ? (out.losers[0] as string) : out.caller;
+    this.opener = out.call === "exact" && out.right ? out.caller : (out.losers[0] as string);
     this.board.push({
       round: this.roundNumber,
       bid: out.bid,
