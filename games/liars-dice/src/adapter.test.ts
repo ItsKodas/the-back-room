@@ -761,6 +761,32 @@ describe("calling the table off", () => {
   });
 });
 
+describe("bots", () => {
+  it("plays only at a for-fun table, and makes a legal move", () => {
+    const adapter = liarsDiceAdapter({ roll: fives });
+    const table = seated(adapter, ["a"], { forFun: true });
+    table.addBot("bot", "Robot", "normal");
+    table.begin(["a", "bot"]);
+    // Get the turn onto the bot whichever way the opener fell.
+    if (table.game?.round.toAct !== "bot") {
+      table.game?.raise(table.game.round.toAct, { count: 1, face: 2 });
+    }
+    const move = adapter.botMove?.(table);
+    expect(move?.seatId).toBe("bot");
+    move?.play();
+    const view = table.view(null);
+    expect(view.bid !== null || view.resolution !== null).toBe(true);
+  });
+
+  it("is not offered a turn at a table playing for chips, because none can sit", () => {
+    const adapter = liarsDiceAdapter({ roll: fives });
+    const table = seated(adapter, ["a", "b"]);
+    table.begin(["a", "b"]);
+    expect(adapter.botMove?.(table)).toBe(null);
+    expect(() => table.addBot("bot", "Robot", "normal")).toThrow("for fun");
+  });
+});
+
 describe("the table's own clock", () => {
   const clocked = () => liarsDiceAdapter({ roll: fives, revealMs: 1_234, resultMs: 4_321 });
 

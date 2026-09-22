@@ -2,6 +2,7 @@ import type { BotMove, GameAdapter, GameDeps, Seat } from "@backroom/core";
 import { seatLimit, TableError } from "@backroom/core";
 import type { Face } from "./bid.js";
 import { isFace, minRaise, says } from "./bid.js";
+import { choose, thinkingTime } from "./bot.js";
 import { anteFor, diceFor, LIARS_DICE, RESULT_MS, REVEAL_MS, TURN_MS } from "./listing.js";
 import type { Resolution } from "./round.js";
 import { Table } from "./table.js";
@@ -514,8 +515,47 @@ export function liarsDiceAdapter(
     },
 
     /** A bot's turn, or nothing. Bots only sit at tables playing for fun. */
-    botMove(): BotMove | null {
-      return null;
+    botMove(table): BotMove | null {
+      const game = table.game;
+      if (game === null || game.over || game.round.over) {
+        return null;
+      }
+      const round = game.round;
+      const seat = table.seats.find((one) => one.id === round.toAct);
+      if (seat === undefined || !seat.isBot) {
+        return null;
+      }
+      const skill = seat.skill ?? "normal";
+      const choice = choose({
+        skill,
+        hand: round.handFor(seat.id) ?? [],
+        total: round.total,
+        standing: round.bid,
+      });
+      return {
+        seatId: seat.id,
+        delayMs: thinkingTime(skill),
+        play() {
+          // Checked again on the way in: the clock may have acted for this seat
+          // while the bot was thinking, or the round may be over.
+          if (
+            table.game !== game ||
+            game.round !== round ||
+            round.over ||
+            round.toAct !== seat.id
+          ) {
+            return;
+          }
+          if (choice.type === "bid") {
+            game.raise(seat.id, choice.bid);
+            table.say(`${seat.name} bid ${says(choice.bid)}.`);
+          } else {
+            const out = game.call(seat.id, choice.type);
+            table.say(said(table, out));
+          }
+          table.touchClock();
+        },
+      };
     },
 
     /**

@@ -38,3 +38,5 @@ export { Game } from "./game.js";
 export type { Phase, ResolutionView, SeatView, TableView } from "./table.js";
 export { Table } from "./table.js";
 export { liarsDiceAdapter } from "./adapter.js";
+export type { Choice } from "./bot.js";
+export { atLeast, choose, exactly, NERVE, thinkingTime } from "./bot.js";
