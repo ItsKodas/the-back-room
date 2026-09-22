@@ -84,14 +84,25 @@ export function Cloth({
   const box = useRef<HTMLDivElement>(null);
 
   /*
-   * The press in progress: what it is aimed at, and whether it has been held
-   * long enough to mean a take-back.
+   * The press in progress: which pointer owns it, what it is aimed at, and
+   * whether it has been held long enough to mean a take-back.
    *
    * One object rather than three states, because they change together and a
    * render that had the new spot and the old "held" would name one bet and
    * take back another.
+   *
+   * `pointerId` is carried so a second finger can never step into a press
+   * that is not its own — every handler below checks it before touching
+   * `press`. A second pointer going down while one is already live is
+   * ignored outright rather than taking over: this is a betting surface, and
+   * a resting thumb silently stealing or corrupting the bet a pointing
+   * finger is naming is worse than the second finger simply doing nothing.
    */
-  const [press, setPress] = useState<{ spotId: string | null; held: boolean } | null>(null);
+  const [press, setPress] = useState<{
+    pointerId: number;
+    spotId: string | null;
+    held: boolean;
+  } | null>(null);
   /* Hover, which is a desk's way of asking the same question and costs nothing. */
   const [hovered, setHovered] = useState<string | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,12 +241,17 @@ export function Cloth({
         if (disabled || event.button !== 0) {
           return;
         }
+        // A press already owns the cloth: see the comment on `press` for why
+        // a second finger is ignored rather than taking over.
+        if (press !== null) {
+          return;
+        }
         // Capture, so a finger that slides off an element inside the cloth
         // keeps reporting to the cloth. The opposite of Plinko's drop key,
         // which refuses capture because sliding off is its escape — here
         // sliding is how you aim, and lifting outside is the escape.
         event.currentTarget.setPointerCapture?.(event.pointerId);
-        setPress({ spotId: spotUnder(event), held: false });
+        setPress({ pointerId: event.pointerId, spotId: spotUnder(event), held: false });
         holdTimer.current = setTimeout(() => {
           setPress((was) => (was === null ? null : { ...was, held: true }));
         }, HOLD_MS);
@@ -245,15 +261,25 @@ export function Cloth({
           setHovered(spotUnder(event));
           return;
         }
+        if (event.pointerId !== press.pointerId) {
+          return;
+        }
         const spot = spotUnder(event);
         setPress((was) => (was === null || was.spotId === spot ? was : { ...was, spotId: spot }));
       }}
       onPointerUp={(event) => {
-        if (press === null) {
+        if (press === null || event.pointerId !== press.pointerId) {
           return;
         }
         const { spotId, held } = press;
         endPress();
+        // The betting window can shut while a finger is still down — the
+        // table's own clock, not this pointer, decides that. The aim and
+        // ghost already vanish under `disabled` below; this is what stops
+        // the lift itself from placing or taking back anything once shut.
+        if (disabled) {
+          return;
+        }
         // Lifted off the cloth entirely: the way out of a press you did not mean.
         if (spotId === null || spotUnder(event) === null) {
           return;
@@ -264,7 +290,11 @@ export function Cloth({
           onPlace?.(spotId);
         }
       }}
-      onPointerCancel={endPress}
+      onPointerCancel={(event) => {
+        if (press !== null && event.pointerId === press.pointerId) {
+          endPress();
+        }
+      }}
       onPointerLeave={() => setHovered(null)}
       onContextMenu={(event) => {
         // The browser's own menu is never what somebody wants over a chip.
