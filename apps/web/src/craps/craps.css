@@ -276,15 +276,127 @@
   }
 }
 
+/* ------------------------------------------------------------------ dice */
+
+/*
+ * Where the dice throw.
+ *
+ * `container-type` so the throw's own `x` — a fraction of the rail-to-wall
+ * distance, from `throw.ts` — has a box to be a fraction *of*, the same way
+ * the cloth's own boxes read their font size from theirs.
+ */
+.cr-dice {
+  position: relative;
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--d, 44px) * 0.6);
+  padding: calc(var(--d, 44px) * 0.4) 0;
+}
+
+/*
+ * One die in flight.
+ *
+ * White with red pips, plain, because these are not $GREED's — no letters, no
+ * gems, nothing this table's rules would send anyone looking up. `--d` sizes
+ * it the same way the room's other dice are sized: by whoever is holding it,
+ * never by itself.
+ *
+ * Position and turn are `Dice.tsx` reading `path()` onto three custom
+ * properties every sampled frame and handing them straight to `transform` —
+ * the one motion this die has. `scale` is left free for the settle below, so
+ * the two never fight over the same property.
+ */
+.cr-die {
+  position: relative;
+  flex: none;
+  width: var(--d, 44px);
+  height: var(--d, 44px);
+  padding: calc(var(--d, 44px) * 0.14);
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  background: radial-gradient(
+    120% 100% at 30% 18%,
+    #fff,
+    var(--gr-color-ink-lit) 55%,
+    color-mix(in srgb, var(--gr-color-ink-lit) 78%, var(--gr-color-ink-dim))
+  );
+  border-radius: calc(var(--d, 44px) * 0.22);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.75),
+    0 3px 0 color-mix(in srgb, var(--gr-color-ink-dim) 55%, var(--gr-color-night)),
+    0 8px 12px rgb(0 0 0 / 0.5);
+  transform:
+    translate(calc(var(--cr-die-x, 0) * 60cqw), calc(var(--cr-die-y, 0) * var(--d, 44px) * -1))
+    rotate(calc(var(--cr-die-turn, 0) * 1turn));
+}
+
+.cr-die__pip {
+  width: calc(var(--d, 44px) * 0.16);
+  height: calc(var(--d, 44px) * 0.16);
+  border-radius: 50%;
+  background: var(--gr-color-bad);
+  place-self: center;
+}
+
+/*
+ * No face is readable yet — the tumble itself is what says so, a haze rather
+ * than a guess at what will land.
+ */
+.cr-die__blank {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  place-self: center;
+  width: 55%;
+  height: 55%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--gr-color-ink-dim) 65%, transparent), transparent 72%);
+  filter: blur(1.5px);
+}
+
+/*
+ * The beat the real face locks in: a small pop with a little overshoot, on
+ * `scale` rather than `transform` so it never fights the throw itself for
+ * that property. Keyed off `--thrown` leaving rather than a class it adds,
+ * so it plays exactly once — the moment the table actually stops rolling,
+ * never on a re-render while it already had.
+ */
+.cr-die:not(.cr-die--thrown) {
+  animation: cr-die-settle 260ms var(--gr-settle) both;
+}
+
+@keyframes cr-die-settle {
+  from {
+    scale: 0.86;
+  }
+  to {
+    scale: 1;
+  }
+}
+
+.cr-dice__status {
+  position: absolute;
+  inset: auto 0 calc(var(--d, 44px) * -0.9) 0;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: clamp(10px, 3cqw, 13px);
+  color: var(--gr-color-ink-dim);
+}
+
 /*
  * Every keyframe above has an off switch, and the felt still says everything
  * it needs to without them: the point still glows, odds are still outlined,
- * a winning box still lights and an off bet still wears its word — they
- * simply arrive rather than travel.
+ * a winning box still lights, an off bet still wears its word, and the dice
+ * appear already at rest on their faces — `Dice.tsx` skips the tumble itself
+ * under this same query, so there is never a turning die left for this rule
+ * to freeze mid-air.
  */
 @media (prefers-reduced-motion: reduce) {
   .cr__box[data-lit="true"],
-  .cr__off {
+  .cr__off,
+  .cr-die:not(.cr-die--thrown) {
     animation: none;
   }
 }
