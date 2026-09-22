@@ -218,14 +218,28 @@ describe("drawing it for real", () => {
     expect(cards.png({ ...table, players: [null, null, null, null] })).not.toBe(cards.png(table));
   });
 
-  it("does not grow without limit", () => {
-    const cards = new Cards(FONTS, 4);
+  it("does not grow without limit, and pushes the oldest out first", () => {
+    /*
+     * Two deep, and four drawings in all.
+     *
+     * Every miss here is a real rasterization — a card costs about a tenth of a
+     * second, three quarters of which is the rasterizer reading the five fonts
+     * again — so this file's runtime is very nearly the number of cards it
+     * draws. It used to draw seven to show this, which put it close enough to
+     * the runner's five seconds that a busy machine tipped it over, and a cache
+     * test failed over how many other suites were running. Two is also the
+     * smallest cache that can show the *order*: with one entry there is no
+     * difference between throwing the oldest out and throwing out whatever was
+     * there.
+     */
+    const cards = new Cards(FONTS, 2);
     const first = cards.png(table);
-    for (let seats = 0; seats <= 5; seats += 1) {
-      cards.png({ ...table, players: Array.from({ length: seats }, () => null) });
-    }
+    const second = cards.png({ ...table, players: [null] });
+    cards.png({ ...table, players: [null, null, null, null] });
 
-    // Pushed out by the ones after it, and drawn again rather than kept.
+    // The one after it kept — asked first, because the miss below evicts it.
+    expect(cards.png({ ...table, players: [null] })).toBe(second);
+    // And the oldest pushed out by them, so drawn again rather than kept.
     expect(cards.png(table)).not.toBe(first);
   });
 });

@@ -178,6 +178,19 @@ export interface BackRoomServerOptions {
   lastCallMs?: number;
   /** How long a dropped player keeps their seat. */
   reconnectGraceMs?: number;
+  /**
+   * What holds a dropped player's seat until that grace is up.
+   *
+   * A timer, in the building. Injected for the same reason as `roll`: a test
+   * about what happens *while* a seat is going needs the going to happen at a
+   * moment it chose, and turning `reconnectGraceMs` down to a hundred
+   * milliseconds cannot give it that. It is a bet that the test gets scheduled
+   * again inside the grace — one a machine running the rest of the suite
+   * alongside it loses, and then the test waits forever on chips that went back
+   * before it was looking. A test hands over its own hold and lets the seat go
+   * when it is ready.
+   */
+  holdSeat?: (letGo: () => void) => void;
   /** How long an abandoned table survives. */
   emptyRoomTtlMs?: number;
   /** Where the browser client is served from, for CORS. */
@@ -327,6 +340,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     turnMs,
     lastCallMs,
     reconnectGraceMs = 90_000,
+    holdSeat,
     emptyRoomTtlMs = 5 * 60 * 1000,
     clientOrigin = "http://localhost:5173",
     serveClient = true,
@@ -3129,7 +3143,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       broadcast(seat.code);
 
       // Hold the seat long enough for a page refresh to reclaim it.
-      later(() => {
+      const letGo = () => {
         const still = rooms.get(seat.code);
         if (still === undefined) {
           return;
@@ -3146,7 +3160,12 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         }
         still.table.removeSeat(seatId);
         broadcast(seat.code);
-      }, reconnectGraceMs);
+      };
+      if (holdSeat === undefined) {
+        later(letGo, reconnectGraceMs);
+      } else {
+        holdSeat(letGo);
+      }
 
       reapWhenEmpty(seat.code);
     });
