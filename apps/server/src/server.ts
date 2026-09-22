@@ -178,6 +178,17 @@ export interface BackRoomServerOptions {
    * the window itself, so a test hurrying a table has to turn this down too.
    */
   lastCallMs?: number;
+  /**
+   * How long the felt is open for bets, how long the dice are in the air, and
+   * how long a finished roll stays up to be read, at a craps table. Named
+   * apart from blackjack's `bettingMs` and friends because craps takes its
+   * own copies of these — `crapsAdapter` already has a `window`, a `rollMs`
+   * and a `settleMs` — and a test that wants a table to deal itself without
+   * sitting through a real fifteen-second window needs to reach all three.
+   */
+  crapsWindow?: number;
+  crapsRollMs?: number;
+  crapsSettleMs?: number;
   /** How long a dropped player keeps their seat. */
   reconnectGraceMs?: number;
   /** How long an abandoned table survives. */
@@ -328,6 +339,9 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     settleMs,
     turnMs,
     lastCallMs,
+    crapsWindow,
+    crapsRollMs,
+    crapsSettleMs,
     reconnectGraceMs = 90_000,
     emptyRoomTtlMs = 5 * 60 * 1000,
     clientOrigin = "http://localhost:5173",
@@ -1068,6 +1082,9 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          * draw over the eleven sums would make the seven as likely as the two.
          */
         pick: (faces: number) => Math.floor(spinRandom() * faces),
+        ...(crapsWindow === undefined ? {} : { window: crapsWindow }),
+        ...(crapsRollMs === undefined ? {} : { rollMs: crapsRollMs }),
+        ...(crapsSettleMs === undefined ? {} : { settleMs: crapsSettleMs }),
         /* Its own bank, kept apart from the wheel's and the machine's. */
         bank: crapsBank,
       }) as GameAdapter<PlayTable>,

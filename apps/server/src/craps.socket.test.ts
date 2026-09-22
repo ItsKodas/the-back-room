@@ -119,9 +119,16 @@ function refusal(socket: Client, ms = 2000): Promise<string> {
   });
 }
 
-/** Opens a table, with a real bank behind it and a real account at it. */
+/**
+ * Opens a table, with a real bank behind it and a real account at it.
+ *
+ * `timings` threads through to `crapsWindow` / `crapsRollMs` / `crapsSettleMs`
+ * on the server itself, the same hook `bettingMs` and friends give blackjack —
+ * so a test that wants the table's own clock to actually run does not have to
+ * sit through a real fifteen-second window to watch it.
+ */
 async function openTable(
-  options: { bank?: number; window?: number } = {},
+  options: { bank?: number; timings?: { window?: number; rollMs?: number; settleMs?: number } } = {},
 ): Promise<{ store: MemoryStore; port: number; userId: string; host: Client; code: string }> {
   const store = new MemoryStore();
   const player = await store.upsertDiscordUser({
@@ -140,27 +147,24 @@ async function openTable(
 
   const ids = [player.id, companion.id];
   let connections = 0;
+  const timings = options.timings ?? {};
   server = createBackRoomServer({
     store,
     auth: null,
     serveClient: false,
     identify: () => ids[connections++] ?? null,
     identifyRequest: () => player.id,
+    ...(timings.window === undefined ? {} : { crapsWindow: timings.window }),
+    ...(timings.rollMs === undefined ? {} : { crapsRollMs: timings.rollMs }),
+    ...(timings.settleMs === undefined ? {} : { crapsSettleMs: timings.settleMs }),
   });
   await listenForFetch(server.http);
   const port = (server.http.address() as AddressInfo).port;
 
   const host = await client(port);
   const code = await new Promise<string>((resolve) =>
-    host.emit(
-      "lobby:create",
-      {
-        name: "Ada",
-        game: "craps",
-        forFun: false,
-        ...(options.window === undefined ? {} : { window: options.window }),
-      },
-      (ack: { ok: boolean; code?: string }) => resolve(ack.code ?? ""),
+    host.emit("lobby:create", { name: "Ada", game: "craps", forFun: false }, (ack: { ok: boolean; code?: string }) =>
+      resolve(ack.code ?? ""),
     ),
   );
   return { store, port, userId: player.id, host, code };
@@ -217,17 +221,20 @@ describe("a craps table over a socket", () => {
   });
 
   it("rolls on its own clock when the shooter does nothing", async () => {
-    // The shortest window the table offers. Nobody ever presses "roll" — the
-    // table's own clock has to seal the felt, release the dice and land them
-    // entirely on its own, which is the whole of CLAUDE.md's table that deals
-    // itself: a ready button one idle player can hold shut is not this.
-    const { host } = await openTable({ window: 15_000 });
+    // Nobody ever presses "roll" — the table's own clock has to seal the
+    // felt, release the dice and land them entirely on its own, which is the
+    // whole of CLAUDE.md's table that deals itself: a ready button one idle
+    // player can hold shut is not this. Cut to a handful of milliseconds so
+    // the test proves the clock runs on its own without sitting through a
+    // real fifteen-second window to watch it.
+    const { host } = await openTable({ timings: { window: 60, rollMs: 40, settleMs: 40 } });
     await stateWhere(host, (state) => state.seats.length === 1);
     await act(host, { type: "place", spotId: "pass", chips: 300 });
+    await stateWhere(host, (state) => state.placed.length === 1);
 
-    const settling = await stateWhere(host, (state) => state.phase === "settling", 25_000);
+    const settling = await stateWhere(host, (state) => state.phase === "settling");
     expect(settling.dice).not.toBeNull();
-  }, 30_000);
+  });
 
   it("pays a winner out of the craps bank and nowhere else", async () => {
     /*
@@ -254,6 +261,9 @@ describe("a craps table over a socket", () => {
     await store.bankAdd("craps", 100_000);
     await store.bankAdd("roulette", 50_000);
 
+    // Cut to a handful of milliseconds, the same as "rolls on its own clock":
+    // this test is about which bank moves, not about sitting through a real
+    // window to watch it happen.
     server = createBackRoomServer({
       store,
       auth: null,
@@ -261,31 +271,30 @@ describe("a craps table over a socket", () => {
       identify: () => player.id,
       identifyRequest: () => player.id,
       spinRandom,
+      crapsWindow: 60,
+      crapsRollMs: 40,
+      crapsSettleMs: 40,
     });
     await listenForFetch(server.http);
     const port = (server.http.address() as AddressInfo).port;
     const socket = await client(port);
     await new Promise<void>((resolve) =>
-      socket.emit(
-        "lobby:create",
-        { name: "Ada", game: "craps", forFun: false, window: 15_000 },
-        () => resolve(),
-      ),
+      socket.emit("lobby:create", { name: "Ada", game: "craps", forFun: false }, () => resolve()),
     );
     await stateWhere(socket, (state) => state.seats.length === 1);
 
     const chipsBefore = (await store.get(player.id))?.chips ?? 0;
     await act(socket, { type: "place", spotId: "pass", chips: 300 });
+    await stateWhere(socket, (state) => state.placed.length === 1);
 
     // Paid straight back: stake and an equal win, six hundred for three hundred.
     await stateWhere(
       socket,
       (state) => (state.paid.find((one) => one.seatId === state.seats[0]?.id)?.back ?? 0) > 0,
-      25_000,
     );
 
     expect((await store.get(player.id))?.chips).toBe(chipsBefore + 300);
     expect(await store.bank("craps")).toBe(100_000 - 300);
     expect(await store.bank("roulette")).toBe(50_000);
-  }, 30_000);
+  });
 });
