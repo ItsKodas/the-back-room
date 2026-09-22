@@ -17,38 +17,17 @@ import type { GameListing } from "./catalogue.js";
  * before they can take a chip: a bank players fill, a cap derived from its own
  * worst outcome, and a cryptographic source for whatever it turns over.
  * Roulette and Baccarat and Craps are house games, so none of those can be
- * built without that argument being made again. Liar's Dice is not — the stake
- * goes into a pot and one of the players takes it, so the chips never leave
- * the table and there is nothing for a bank to do.
+ * built without that argument being made again.
  *
- * Poker, Death Rolling and Two-up were on this list and have been built. Two-up
- * had to make the bank argument twice over — once for a casino school paying
- * from its own bank, and once for a traditional school that needs no bank
- * because the chips never leave the ring. Their listings live in their own
- * packages now, beside the rules, the way the others do.
+ * Poker, Death Rolling, Two-up and Liar's Dice were on this list and have been
+ * built. Two-up had to make the bank argument twice over — once for a casino
+ * school paying from its own bank, and once for a traditional school that
+ * needs no bank because the chips never leave the ring. Liar's Dice needed no
+ * bank at all: the stake goes into a pot and one of the players takes it, so
+ * the chips never leave the table. Their listings live in their own packages
+ * now, beside the rules, the way the others do.
  */
 export const COMING: readonly GameListing[] = [
-  {
-    id: "liars-dice",
-    name: "Liar's Dice",
-    blurb: "Everybody's dice are hidden. Raise the bid, or call the lie.",
-    shape: "table",
-    /*
-     * Two at the very least, because the game is the lie: a bid nobody can
-     * doubt is just a number said out loud.
-     */
-    minSeats: 2,
-    maxSeats: 6,
-    /*
-     * The other one here that needs no bank. Players stake against each other
-     * and one of them takes it, so the chips never leave the table — which
-     * puts it beside Poker and Death Rolling as the cheap half of this list to
-     * make honest.
-     */
-    open: false,
-    mark: { text: "LIAR'S DICE", accentAt: 0 },
-    theme: { wall: "#13181a", felt: "#1d3336", accent: "#2f8f92", accentHi: "#7fdde0" },
-  },
   {
     id: "baccarat",
     name: "Baccarat",

@@ -15,6 +15,7 @@ import {
 } from "@backroom/game-blackjack";
 import { DEATH_ROLL, deathRollAdapter } from "@backroom/game-death-roll";
 import { GREED, greedAdapter, RoomError } from "@backroom/game-greed";
+import { LIARS_DICE, liarsDiceAdapter } from "@backroom/game-liars-dice";
 import { PATHS as PLINKO_PATHS, PLINKO, maxStake as plinkoMaxStake } from "@backroom/game-plinko";
 import { POKER, pokerAdapter } from "@backroom/game-poker";
 import {
@@ -115,7 +116,8 @@ const CATALOGUE = COMING.reduce(
     .add(ROULETTE)
     .add(DEATH_ROLL)
     .add(TWO_UP)
-    .add(SCRIBBLE),
+    .add(SCRIBBLE)
+    .add(LIARS_DICE),
 );
 
 
@@ -1029,6 +1031,23 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          * float is not.
          */
         roll: deathRollRoll ?? ((ceiling: number) => randomInt(1, ceiling + 1)),
+        ...(turnMs === undefined ? {} : { turnMs }),
+      }) as GameAdapter<PlayTable>,
+    ],
+    [
+      LIARS_DICE.id,
+      liarsDiceAdapter({
+        /*
+         * The dice, from the same source the reels and the shoe come from. A
+         * reveal hands every player at the table thirty faces in one message,
+         * which over an evening is exactly the run of observations needed to
+         * recover Math.random's state — and somebody who knew the next deal
+         * would know whether to call, which is the whole game.
+         *
+         * `randomInt` rather than scaling a float, because it is
+         * rejection-sampled and so uniform over six, which scaling is not.
+         */
+        roll: () => randomInt(1, 7) as 1 | 2 | 3 | 4 | 5 | 6,
         ...(turnMs === undefined ? {} : { turnMs }),
       }) as GameAdapter<PlayTable>,
     ],
@@ -2380,6 +2399,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           buyIn: parsed.data.buyIn,
           window: parsed.data.window,
           ceiling: parsed.data.ceiling,
+          dice: parsed.data.dice,
           scribble: parsed.data.scribble,
         });
         rooms.set(code, { game, table, listed: parsed.data.listed ?? true });

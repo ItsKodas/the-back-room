@@ -71,6 +71,15 @@ export const createSchema = z.object({
    */
   ceiling: z.number().int().min(100).max(10_000).optional(),
   /**
+   * How many dice each player starts with, for a game that deals them.
+   *
+   * The same kind of decision as the seat count: three dice at ten players is
+   * one hand of an evening and five is the whole evening, so it belongs to the
+   * host with the rest of the table's shape. Bounded here and snapped to a
+   * level the game offers, which is where the real refusal lives.
+   */
+  dice: z.number().int().min(1).max(5).optional(),
+  /**
    * A scribble table's shape. Bounded here and snapped to real choices by the
    * game, like every other option on this object. Custom words are one string
    * rather than an array so the bound is on characters: two hundred words of

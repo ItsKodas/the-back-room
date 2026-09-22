@@ -4,7 +4,7 @@ import type { GameListing } from "@backroom/core";
 export const LIARS_DICE: GameListing = {
   id: "liars-dice",
   name: "Liar's Dice",
-  blurb: "Five under a cup. Bid it up or call it.",
+  blurb: "Everybody's dice are hidden. Raise the bid, or call the lie.",
   shape: "table",
   /*
    * Two to ten. Two is the game stripped to its bones — one bid, one call —

@@ -53,3 +53,16 @@ describe("opening a scribble table", () => {
     expect(createSchema.safeParse({ name: "Ada", scribble: { packs: Array.from({ length: 17 }, () => "x") } }).success).toBe(false);
   });
 });
+
+describe("how many dice a table deals", () => {
+  it("is accepted between one and five", () => {
+    expect(createSchema.safeParse({ name: "Ada", game: "liars-dice", dice: 3 }).success).toBe(true);
+    expect(createSchema.safeParse({ name: "Ada", game: "liars-dice", dice: 5 }).success).toBe(true);
+  });
+
+  it("is refused outside that, so a client cannot deal a hundred", () => {
+    expect(createSchema.safeParse({ name: "Ada", dice: 0 }).success).toBe(false);
+    expect(createSchema.safeParse({ name: "Ada", dice: 6 }).success).toBe(false);
+    expect(createSchema.safeParse({ name: "Ada", dice: 2.5 }).success).toBe(false);
+  });
+});
