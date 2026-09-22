@@ -1200,6 +1200,28 @@
   width: 100%;
 }
 
+/*
+ * The lamps and, beside them, the one key a taunt has room for while
+ * somebody else decides. The lamps keep first claim on the row — they are
+ * the decision that matters — and the key takes only what its own label
+ * needs, at the end where its panel opens leftward and stays on screen.
+ */
+.pk__pre-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gr-space-2);
+  width: 100%;
+}
+
+.pk__pre-row .pk__pre {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.pk__pre-row .taunt-picker {
+  flex: 0 0 auto;
+}
+
 /* ------------------------------------------------- what you are holding */
 
 /*

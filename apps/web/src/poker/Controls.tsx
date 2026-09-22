@@ -1,9 +1,11 @@
 import type { SeatView, TableView } from "@backroom/game-poker";
 import { useEffect, useRef, useState } from "react";
+import type { Account } from "../game/useAccount.js";
 import { compact } from "../game/money.js";
 import { fmt } from "./Felt.js";
 import type { Table } from "./Felt.js";
 import { OnTurn } from "./Amount.js";
+import { TauntPicker } from "../taunt/TauntPicker.js";
 import type { Move } from "./useIntent.js";
 import type { useIntent } from "./useIntent.js";
 
@@ -36,11 +38,20 @@ export function Actions({
   state,
   me,
   intent,
+  account,
 }: {
   table: Table;
   state: TableView;
   me: SeatView | null;
   intent: ReturnType<typeof useIntent>;
+  /**
+   * The one account the corner balance already reads from.
+   *
+   * Threaded in rather than read again here with its own `useAccount()` —
+   * two calls would be two numbers that can disagree the moment a taunt's
+   * optimistic cost leaves one of them and not the other.
+   */
+  account: Account;
 }) {
   const you = state.you;
   const mine = me !== null && state.toAct === me.id;
@@ -242,22 +253,49 @@ export function Actions({
       );
     }
     return (
-      // Room left on the right for the taunt key a later task adds while
-      // somebody else is deciding — the row does not fill its own width.
       <div className="pk__controls">
-        <div className="pk__pre lamps" role="group" aria-label="Decide in advance">
-          {PRE_CHOICES.map(({ pre, label, hint }) => (
-            <button
-              key={pre}
-              type="button"
-              className="lamp lamp--word lamp--fit"
-              aria-pressed={live === pre}
-              title={hint}
-              onClick={() => setArmed(live === pre ? null : { pre, street: state.street })}
-            >
-              {label}
-            </button>
-          ))}
+        {/*
+          * The lamps do not fill the row's own width, which is what leaves
+          * room on the right for the taunt key — offered here and nowhere
+          * else, because it is only while somebody else is deciding that
+          * there is nothing else for your hands to be doing.
+          */}
+        <div className="pk__pre-row">
+          <div className="pk__pre lamps" role="group" aria-label="Decide in advance">
+            {PRE_CHOICES.map(({ pre, label, hint }) => (
+              <button
+                key={pre}
+                type="button"
+                className="lamp lamp--word lamp--fit"
+                aria-pressed={live === pre}
+                title={hint}
+                onClick={() => setArmed(live === pre ? null : { pre, street: state.street })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <TauntPicker
+            seats={state.seats}
+            seatId={me.id}
+            chips={account.profile?.chips ?? null}
+            stakes={table.stakes}
+            openClassName="key"
+            onThrow={(emote, at) => {
+              // The cost is this player's own number, so it leaves the corner on the press.
+              if (account.profile !== null) {
+                account.setChips(account.profile.chips - emote.cost);
+              }
+              table.taunt(emote.id, at, (result) => {
+                if (result.ok) {
+                  account.setChips(result.chips);
+                } else {
+                  // Refused, so give the early decrement back.
+                  account.refresh();
+                }
+              });
+            }}
+          />
         </div>
         <p className="pk__note">
           {live === null

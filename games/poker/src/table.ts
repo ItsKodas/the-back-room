@@ -118,6 +118,14 @@ export interface SeatView {
   allIn: boolean;
   /** Marked on the felt, so nobody wonders who they are playing. */
   isBot: boolean;
+  /**
+   * Playing from a profile rather than as a guest.
+   *
+   * Here because things outside the hand turn on it — a taunt is staked in
+   * real chips, so it can only be thrown at somebody with an account for them
+   * to reach. Mirrors blackjack's own `SeatView.signedIn`.
+   */
+  signedIn: boolean;
   /** The last thing they did, for the felt to say over their head. */
   spoke: { move: Move; said: string; at: number } | null;
   /**
@@ -736,6 +744,7 @@ export class Table implements PlayTable {
         folded: seat.folded,
         allIn: seat.allIn,
         isBot: seat.isBot,
+        signedIn: seat.userId !== null,
         spoke: seat.spoke,
         /*
          * The whole reason a view is per-seat. Your own cards, and anybody

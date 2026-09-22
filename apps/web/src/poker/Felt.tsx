@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TableIcon } from "../blackjack/Icons.js";
 import { Card } from "../blackjack/Cards.js";
 import { ChipStack } from "../chips/ChipStack.js";
+import type { Account } from "../game/useAccount.js";
 import { Sheet } from "../table/Sheet.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Actions } from "./Controls.js";
@@ -14,6 +15,21 @@ import { Seat } from "./Seat.js";
 import { useIntent } from "./useIntent.js";
 
 export type Table = TableSocketHook<TableView>;
+
+/*
+ * Nobody signed in and nothing loading, for a caller that has no account to
+ * hand down — every test that renders the felt without a hand in the taunt
+ * picker, mostly. A real page always has a real one from `useAccount()`.
+ */
+const GUEST_ACCOUNT: Account = {
+  profile: null,
+  available: false,
+  loading: false,
+  admin: false,
+  refresh: () => undefined,
+  setChips: () => undefined,
+  signOut: () => undefined,
+};
 
 export const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -123,6 +139,7 @@ export function Felt({
   onCloseRules,
   hostOpen = false,
   onToggleHost,
+  account = GUEST_ACCOUNT,
 }: {
   table: Table;
   state: TableView;
@@ -143,6 +160,12 @@ export function Felt({
   /** Whether the host's table sheet is open — only its key lives here. */
   hostOpen?: boolean;
   onToggleHost?: () => void;
+  /**
+   * The one account the corner balance reads from, for the taunt key's own
+   * cost and refund. Optional because most of this file's tests have no
+   * taunt to throw; `Poker.tsx` always has a real one to hand down.
+   */
+  account?: Account;
 }) {
   const intent = useIntent(state, seatId, table.error, table.errorKey);
   const me = state.seats.find((seat) => seat.id === seatId) ?? null;
@@ -525,7 +548,7 @@ export function Felt({
           </p>
         ) : null}
 
-        <Actions table={table} state={state} me={me} intent={intent} />
+        <Actions table={table} state={state} me={me} intent={intent} account={account} />
       </div>
 
       {/* The side column's own copy, standing rather than behind a key — a

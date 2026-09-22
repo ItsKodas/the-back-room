@@ -3,10 +3,30 @@ import type { SeatView, TableView } from "@backroom/game-poker";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { Account } from "../game/useAccount.js";
 import type { TableKeys } from "../table/useTableKeys.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import { Actions } from "./Controls.js";
 import { seat, stub, view } from "./fixtures.js";
+
+/** The one account every render below reads its balance from. */
+const ACCOUNT: Account = {
+  profile: {
+    id: "u1",
+    name: "Ada",
+    avatar: null,
+    accentColor: null,
+    chips: 12_400,
+    stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+    byGame: {},
+  },
+  available: true,
+  loading: false,
+  admin: false,
+  refresh: vi.fn(),
+  setChips: vi.fn(),
+  signOut: vi.fn(),
+};
 
 /*
  * The fittings the controls are built from, checked the way the reference
@@ -34,6 +54,7 @@ describe("the fittings", () => {
         state={state}
         me={MINE}
         intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
       />,
     );
   }
@@ -96,6 +117,7 @@ describe("the fittings", () => {
         state={view({ street: "waiting", seats: [mine] })}
         me={mine}
         intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
       />,
     );
     const go = screen.getByRole("button", { name: /sit down/i });
@@ -113,6 +135,7 @@ describe("the fittings", () => {
         state={view({ canShow: true, seats: [mine] })}
         me={mine}
         intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
       />,
     );
     const show = screen.getByRole("button", { name: /show cards/i });
@@ -130,6 +153,7 @@ describe("the fittings", () => {
         state={view({ street: "waiting", canTakeOff: true, seats: [mine] })}
         me={mine}
         intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
       />,
     );
     const cashOut = screen.getByRole("button", { name: /off the table/i });
@@ -148,6 +172,7 @@ describe("what you are offered", () => {
         state={view({ street: "waiting", seats: [mine] })}
         me={mine}
         intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
       />,
     );
     expect(screen.getByRole("button", { name: /Sit down/ })).toBeTruthy();
@@ -162,6 +187,7 @@ describe("what you are offered", () => {
         state={view()}
         me={null}
         intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
       />,
     );
     expect(screen.queryAllByRole("button")).toHaveLength(0);
@@ -188,10 +214,14 @@ describe("deciding before your turn", () => {
       view({ toAct, you: own, street: "flop", seats: [mine, seat({ id: "s2", name: "Bram" })] });
 
     const shown = render(
-      <Actions table={table} state={at(null, "s2")} me={mine} intent={idle} />,
+      <Actions table={table} state={at(null, "s2")} me={mine} intent={idle}
+        account={ACCOUNT}
+      />,
     );
     const yourTurn = (own: NonNullable<TableView["you"]>) =>
-      shown.rerender(<Actions table={table} state={at(own, "s1")} me={mine} intent={idle} />);
+      shown.rerender(<Actions table={table} state={at(own, "s1")} me={mine} intent={idle}
+          account={ACCOUNT}
+        />);
     return { table, yourTurn };
   }
 
@@ -272,7 +302,9 @@ describe("deciding before your turn", () => {
       view({ street, toAct, you: own, seats: [mine, seat({ id: "s2", name: "Bram" })] });
 
     const shown = render(
-      <Actions table={table} state={at("flop", null, "s2")} me={mine} intent={idle} />,
+      <Actions table={table} state={at("flop", null, "s2")} me={mine} intent={idle}
+        account={ACCOUNT}
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Fold" }));
     // The turn card, and now it is your go.
@@ -282,6 +314,7 @@ describe("deciding before your turn", () => {
         state={at("turn", { toCall: 0, minRaiseTo: 40, maxRaiseTo: 2_000, canRaise: true }, "s1")}
         me={mine}
         intent={idle}
+        account={ACCOUNT}
       />,
     );
     expect(table.sent).toEqual([]);
@@ -323,6 +356,7 @@ describe("keyboard shortcuts", () => {
           state={state}
           me={MINE}
           intent={{ move: null, committed: null, send: vi.fn() }}
+          account={ACCOUNT}
         />
       </div>
     );

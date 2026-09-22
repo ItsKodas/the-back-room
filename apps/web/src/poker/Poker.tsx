@@ -15,6 +15,7 @@ import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import type { TableKeys } from "../table/useTableKeys.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import { useTableSocket } from "../table/useTableSocket.js";
+import { TauntStage } from "../taunt/TauntStage.js";
 import { Felt, fmt } from "./Felt.js";
 import type { Table } from "./Felt.js";
 import { PokerSheet } from "./PokerSheet.js";
@@ -149,7 +150,10 @@ export function Poker() {
             onCloseRules={closeSheet}
             hostOpen={sheet === "table"}
             onToggleHost={() => toggleSheet("table")}
+            account={account}
           />
+          {/* Over the felt, because a taunt belongs to the table and not to any one card. */}
+          <TauntStage landed={table.landed} />
           {isHost ? (
             <PokerSheet
               open={sheet === "table"}

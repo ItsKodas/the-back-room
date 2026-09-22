@@ -14,6 +14,7 @@ export const seat = (over: Partial<SeatView> & { id: string; name: string }): Se
   hole: [],
   showed: null,
   isBot: false,
+  signedIn: true,
   spoke: null,
   ...over,
 });

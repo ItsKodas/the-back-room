@@ -365,6 +365,16 @@ describe("what a seat is told it may do", () => {
   });
 });
 
+describe("what a seat may see of another", () => {
+  it("says which seats are somebody with an account", () => {
+    // A bot is not a real person and a guest has no account, so neither can be
+    // either end of a stake — the server says so, and the view has to as well.
+    const made = table([1_000, 1_000]);
+    made.seats[1].userId = null;
+    expect(made.view(null).seats.map((seat) => seat.signedIn)).toEqual([true, false]);
+  });
+});
+
 describe("reading your own hand", () => {
   /*
    * The felt shows you what you are holding, and this is where that comes
