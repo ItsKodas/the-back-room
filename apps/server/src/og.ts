@@ -671,7 +671,16 @@ const PICTURE_HOST = "https://cdn.discordapp.com/";
 const MOST_BYTES = 512 * 1024;
 
 export class Avatars {
-  private readonly held = new Map<string, string | null>();
+  /**
+   * The request rather than its answer.
+   *
+   * A cache written only once the bytes land is empty for the whole of the
+   * burst it exists for: a table with one person's face in two seats asked
+   * twice, and two links to that table unfurled at once asked twice again.
+   * Holding the fetch itself means the second caller waits on the first one's
+   * request instead of starting its own.
+   */
+  private readonly held = new Map<string, Promise<string | null>>();
   private readonly most: number;
 
   constructor(most = 256) {
@@ -688,30 +697,40 @@ export class Avatars {
       return had;
     }
 
-    let picture: string | null = null;
-    try {
-      const answer = await fetch(url, { signal: AbortSignal.timeout(2500) });
-      const type = answer.headers.get("content-type") ?? "";
-      if (answer.ok && type.startsWith("image/")) {
-        const bytes = Buffer.from(await answer.arrayBuffer());
-        if (bytes.byteLength <= MOST_BYTES) {
-          picture = `data:${type};base64,${bytes.toString("base64")}`;
-        }
-      }
-    } catch {
-      // Slow, refused, or gone. The seat gets a chip.
-    }
-
-    // Remembered either way, so a picture that is not coming is not asked for
-    // again on every unfurl of every link to that table.
+    // Started and remembered in the same breath, before anything is awaited,
+    // so nothing can slip between the miss and the entry.
+    const coming = this.fetched(url);
     if (this.held.size >= this.most) {
       const oldest = this.held.keys().next();
       if (!oldest.done) {
         this.held.delete(oldest.value);
       }
     }
-    this.held.set(url, picture);
-    return picture;
+    this.held.set(url, coming);
+    return coming;
+  }
+
+  /**
+   * The request itself, which never rejects.
+   *
+   * A failure resolves to null and is remembered as null, so a picture that
+   * is not coming is not asked for again on every unfurl of every link to
+   * that table.
+   */
+  private async fetched(url: string): Promise<string | null> {
+    try {
+      const answer = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      const type = answer.headers.get("content-type") ?? "";
+      if (answer.ok && type.startsWith("image/")) {
+        const bytes = Buffer.from(await answer.arrayBuffer());
+        if (bytes.byteLength <= MOST_BYTES) {
+          return `data:${type};base64,${bytes.toString("base64")}`;
+        }
+      }
+    } catch {
+      // Slow, refused, or gone. The seat gets a chip.
+    }
+    return null;
   }
 
   /** Every seat's picture, in order, fetched together. */
