@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { Coup, Rank, SeatView, TableView } from "@backroom/game-baccarat";
 import { CHIPS, coupFrom, schedule } from "@backroom/game-baccarat";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Felt } from "./Baccarat.js";
@@ -62,7 +62,7 @@ const view = (over: Partial<TableView> = {}): TableView => ({
 const stub = () => {
   const act = vi.fn();
   return {
-    table: { act, busy: false } as unknown as TableSocketHook<TableView>,
+    table: { act, busy: false, error: null, errorKey: 0 } as unknown as TableSocketHook<TableView>,
     act,
   };
 };
@@ -200,6 +200,24 @@ describe("the baccarat felt", () => {
     render(<Felt table={table} state={view()} seatId="s1" />);
     screen.getByRole("button", { name: /^Player, pays 1 to 1/ }).click();
     expect(act).toHaveBeenCalledWith(expect.objectContaining({ type: "place", spotId: "player" }));
+  });
+
+  /*
+   * Empirically confirmed missing in the running app during task 17: with the
+   * server's reply artificially delayed, a clicked spot stayed empty for the
+   * whole of that delay — CLAUDE.md's "the chips go down on the press" had no
+   * control behind it. `table.act` here never resolves (this stub's `act` is
+   * a bare mock, standing in for a stalled round trip), so a chip on screen
+   * afterwards can only be this player's own press, not the table's word.
+   */
+  it("shows a chip on the spot the moment it is pressed, before the table answers", () => {
+    const { table } = stub();
+    render(<Felt table={table} state={view()} seatId="s1" />);
+    // `fireEvent`, not a bare `.click()`: this asserts on a re-render, and
+    // only a click routed through React's own act() wrapping is guaranteed
+    // to have flushed one by the time the assertion below runs.
+    fireEvent.click(screen.getByRole("button", { name: /^Player, pays 1 to 1/ }));
+    expect(screen.getByRole("button", { name: /^Player,.*on it/ })).toBeTruthy();
   });
 
   it("takes nothing once the coup is being dealt", () => {

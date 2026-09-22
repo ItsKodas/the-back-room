@@ -19,6 +19,7 @@ import { Cloth } from "./Cloth.js";
 import { Coup } from "./Coup.js";
 import { shownAt as fullyRevealed, useReveal } from "./reveal.js";
 import { useCoupSound } from "./useCoupSound.js";
+import { usePendingChips } from "./usePendingChips.js";
 import { Winners } from "./Winners.js";
 import "@backroom/game-baccarat/theme.css";
 import "./baccarat.css";
@@ -152,6 +153,22 @@ export function Felt({
    */
   const [refused, setRefused] = useState<string | null>(null);
 
+  /*
+   * A stake is a number this player chose, so it goes down on the press —
+   * CLAUDE.md's own bargain, and the one this table was missing: watched live
+   * against the old code, a clicked spot stayed empty for the whole of an
+   * artificially delayed round trip. The table's own figure always wins once
+   * it catches up; this is only ever what fills the gap before it does.
+   */
+  const { pending, add: addPending } = usePendingChips(state.placed, seatId, table.error, table.errorKey);
+  const displayPlaced = useMemo(() => {
+    if (seatId === null || Object.keys(pending).length === 0) {
+      return state.placed;
+    }
+    const extra = Object.entries(pending).map(([spotId, chips]) => ({ seatId, spotId, chips }));
+    return [...state.placed, ...extra];
+  }, [state.placed, pending, seatId]);
+
   const place = (spotId: SpotId) => {
     if (!canBet) {
       return;
@@ -166,6 +183,7 @@ export function Felt({
       return;
     }
     setRefused(null);
+    addPending(spotId, chip);
     table.act({ type: "place", spotId, chips: chip });
   };
 
@@ -218,7 +236,7 @@ export function Felt({
       <div className="bc__table">
         <Coup shown={shown} outcome={revealed} />
         <Cloth
-          placed={state.placed}
+          placed={displayPlaced}
           mine={seatId}
           won={revealed}
           pushed={revealed === "tie"}
