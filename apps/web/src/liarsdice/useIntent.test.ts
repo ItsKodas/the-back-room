@@ -62,6 +62,29 @@ describe("a bid", () => {
   });
 });
 
+describe("a second press", () => {
+  it("outlives the first press's patience timer", () => {
+    const { result } = renderHook(() => useIntent(table(), "s0", null));
+    act(() => result.current.sendBid({ count: 3, face: 5 }));
+    act(() => void vi.advanceTimersByTime(1_500));
+    act(() => result.current.sendBid({ count: 3, face: 6 }));
+    // The first press's timer fires here. It must not clear the second.
+    act(() => void vi.advanceTimersByTime(200));
+    expect(result.current.bid).toEqual({ count: 3, face: 6 });
+    expect(result.current.busy).toBe(true);
+  });
+
+  it("is still given up on, in its own turn", () => {
+    const { result } = renderHook(() => useIntent(table(), "s0", null));
+    act(() => result.current.sendBid({ count: 3, face: 5 }));
+    act(() => void vi.advanceTimersByTime(1_500));
+    act(() => result.current.sendBid({ count: 3, face: 6 }));
+    act(() => void vi.advanceTimersByTime(1_600));
+    expect(result.current.bid).toBe(null);
+    expect(result.current.busy).toBe(false);
+  });
+});
+
 describe("a call", () => {
   it("holds the button down without inventing a count", () => {
     const { result } = renderHook(() => useIntent(table({ bid: { count: 3, face: 5 } }), "s0", null));

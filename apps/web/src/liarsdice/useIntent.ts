@@ -59,10 +59,23 @@ export function useIntent(
   const [ready, setReadyState] = useState<boolean | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
   const timers = useRef<number[]>([]);
+  /**
+   * Which press, of each kind, is the current one. A timer armed for an
+   * earlier press checks its own number against this before it is allowed to
+   * clear anything — a bid changed mid-flight must outlive the patience of
+   * the bid it replaced, and a ready press has no business cancelling a bid's
+   * patience at all, so the two are counted separately.
+   */
+  const latest = useRef({ sent: 0, ready: 0 });
 
-  /** Nothing asked for outlives its patience, however the answer goes. */
-  const forget = useCallback((drop: () => void) => {
-    const id = window.setTimeout(drop, PATIENCE_MS);
+  /** Nothing asked for outlives its patience — but only its own press's patience. */
+  const forget = useCallback((of: "sent" | "ready", token: number, drop: () => void) => {
+    const id = window.setTimeout(() => {
+      // A newer press has since superseded this one; its own timer owns the state now.
+      if (latest.current[of] === token) {
+        drop();
+      }
+    }, PATIENCE_MS);
     timers.current.push(id);
   }, []);
 
@@ -77,22 +90,25 @@ export function useIntent(
 
   const sendBid = useCallback(
     (bid: Bid) => {
+      const token = ++latest.current.sent;
       setSent({ bid, round, standing, revealed });
-      forget(() => setSent(null));
+      forget("sent", token, () => setSent(null));
     },
     [round, standing, revealed, forget],
   );
 
   const sendCall = useCallback(() => {
     // The call itself is not kept: there is nothing about it to show early.
+    const token = ++latest.current.sent;
     setSent({ bid: null, round, standing, revealed });
-    forget(() => setSent(null));
+    forget("sent", token, () => setSent(null));
   }, [round, standing, revealed, forget]);
 
   const setReady = useCallback(
     (value: boolean) => {
+      const token = ++latest.current.ready;
       setReadyState(value);
-      forget(() => setReadyState(null));
+      forget("ready", token, () => setReadyState(null));
     },
     [forget],
   );
