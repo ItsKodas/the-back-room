@@ -29,3 +29,5 @@ export {
 } from "./bank.js";
 export type { Hand, Ratio } from "./resolve.js";
 export { after, back, decided, maxOdds, multiplier, nextPoint, ratioOf, sleeps } from "./resolve.js";
+export type { Paid, Placed } from "./bets.js";
+export { settle, toBets } from "./bets.js";
