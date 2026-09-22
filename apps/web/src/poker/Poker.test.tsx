@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-poker";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Account } from "../game/useAccount.js";
@@ -426,8 +426,11 @@ describe("the page around the felt", () => {
     // this is asked for the way the sheet actually names it.
     fireEvent.click(screen.getByRole("button", { name: "Activity" }));
 
-    expect(screen.getByText("Ines raised to 200")).toBeInTheDocument();
-    expect(screen.getByText("Tam folded")).toBeInTheDocument();
+    // Scoped to the log itself: the readout now says the same last thing the
+    // table said too (T2), so the bare text is no longer unique on the page.
+    const log = within(screen.getByRole("list", { name: "Activity" }));
+    expect(log.getByText("Ines raised to 200")).toBeInTheDocument();
+    expect(log.getByText("Tam folded")).toBeInTheDocument();
   });
 
   it("puts a refusal over the cloth rather than in a strip", () => {

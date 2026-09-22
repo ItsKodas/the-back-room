@@ -5,6 +5,7 @@ import { Card } from "../blackjack/Cards.js";
 import { ChipStack } from "../chips/ChipStack.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Actions } from "./Controls.js";
+import { Readout, readoutFor } from "./Readout.js";
 import { Rankings } from "./Rankings.js";
 import { Seat } from "./Seat.js";
 import { useIntent } from "./useIntent.js";
@@ -182,6 +183,15 @@ export function Felt({
 
   return (
     <div className="pk">
+      {/*
+        * The felt's own "read" grid area, above the cloth rather than pushed
+        * into it — the one figure this player is deciding about, worked out
+        * once here so it stays whatever `state.you` the table has sent, the
+        * same way every other piece of this screen reads off `state` rather
+        * than guessing.
+        */}
+      <Readout model={readoutFor({ state, seatId })} />
+
       <div className="pk__table">
         <div className="pk__felt" />
 

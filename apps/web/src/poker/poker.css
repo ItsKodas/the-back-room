@@ -78,6 +78,94 @@
   gap: var(--gr-space-2);
 }
 
+/* ------------------------------------------------------------ the readout */
+
+/*
+ * The one figure this player is deciding about (T2): what it costs, big, with
+ * the pot and what is left beside it as one block, and the turn clock along
+ * the top edge. `.readout` is the building's own fitting for a panel with one
+ * figure on it; this only lays that figure out and adds the clock.
+ *
+ * Prefixed `pk__read-` rather than reusing `.pk__label`/`.pk__figure`/
+ * `.pk__note` — this table already has classes by those shorter names for the
+ * amount dial, and a readout borrowing them would inherit rules meant for a
+ * slider.
+ */
+.readout.pk__read {
+  grid-area: read;
+  position: relative;
+  /* Tighter than the fitting's own padding: this row takes its height out of
+     the auto track above the felt, and every pixel of it is a pixel the felt
+     (the one flexing row) does not get on a short phone. */
+  padding: 9px 14px 10px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.pk__read-big {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gr-space-2);
+}
+
+.pk__read-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.pk__read-figure {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--gr-color-ink-lit);
+}
+
+/* Chips, so gold — the one figure here that is ever allowed to be (F3). */
+.pk__read-figure--chips {
+  color: var(--gr-color-chip-hi);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--gr-color-chip) 55%, transparent),
+    0 0 22px color-mix(in srgb, var(--gr-color-chip) 25%, transparent);
+}
+
+.pk__read-note {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+/*
+ * The turn clock, draining along the readout's top edge.
+ *
+ * A bar rather than `TurnRing`'s ring — a different shape for the same
+ * deadline — but the same arithmetic: `Readout` feeds it the fraction of a
+ * turn left from the same `useCountdown` the ring is built on, so there is
+ * one answer to "how long is left" rather than a second clock reimplementing
+ * it. Neon rather than gold: this is what is happening now, not a stake.
+ */
+.pk__read-clock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--t);
+  height: 2px;
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 8px var(--gr-color-neon);
+  transition: width 1s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pk__read-clock {
+    /* Still says how much is left — the width itself — just not by easing
+       there from wherever it last was. */
+    transition: none;
+  }
+}
+
 /*
  * A face beside a name.
  *
