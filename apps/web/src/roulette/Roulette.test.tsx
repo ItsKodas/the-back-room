@@ -104,19 +104,13 @@ const said = () => document.querySelector(".rl__said")?.textContent ?? null;
  * landmark, and giving it a role to be found by would put a second one in
  * every screen reader's way for the sake of a test.
  */
-const box = (cls: string) => {
-  const found = document.querySelector<HTMLElement>(cls);
+const keys = () => {
+  const found = document.querySelector<HTMLElement>(".rl__controls");
   if (found === null) {
-    throw new Error(`no ${cls} on this felt`);
+    throw new Error("this felt has no keys under it");
   }
   return within(found);
 };
-
-/** The keys under the cloth: the tray, the custom box and the three acts. */
-const keys = () => box(".rl__controls");
-
-/** Every bet on the cloth, as the keyboard reaches them. */
-const bets = () => box(".rl__reach");
 
 /**
  * One bet on the cloth, by the words it reads as.
@@ -125,8 +119,8 @@ const bets = () => box(".rl__reach");
  * reads the words itself rather than asking by role and naming the other 156
  * on the way past. Nothing is given up by that: these buttons carry no label
  * of their own, so their words *are* their accessible name, and the last test
- * in the file pins that by asking both ways and insisting on the same button.
- * The one-and-only-one check is the half of `getByRole` doing the real work.
+ * in the file pins exactly that, of one button, without naming the rest. The
+ * one-and-only-one check is the half of `getByRole` doing the real work.
  */
 const bet = (reads: RegExp): HTMLButtonElement => {
   const found = [...document.querySelectorAll<HTMLButtonElement>(".rl__reach button")].filter(
@@ -342,17 +336,18 @@ describe("the roulette felt", () => {
   it("reaches every bet by name, and keeps the keys somewhere small to ask", () => {
     /*
      * The pin for the paragraph above, in the one unit that does not vary with
-     * how busy the machine is: how many buttons a question has to name. Last,
-     * and the only wide ask left in the file, so that `bet` and `keys` can be
-     * narrow everywhere else. If the acts ever move out of the keys, or the
-     * reach list ever grows a label of its own, this fails and says why,
-     * rather than every question above quietly going wide again.
+     * how busy the machine is: how many buttons a question has to name. Every
+     * ask here is about one element or one small box, deliberately — a test
+     * that guarded the file's speed by being slow itself would be a poor sort
+     * of guard. If the acts ever move out of the keys, or a reach button ever
+     * grows a label of its own, this fails and says why, rather than every
+     * question above quietly going wide again.
      */
     render(<Felt table={stub().table} state={view()} seatId="s1" />);
     expect(document.querySelectorAll("button").length).toBeGreaterThan(150);
     expect(keys().getAllByRole("button").length).toBeLessThan(20);
-    // Asked both ways, and it has to be the same button: which is what lets
-    // every press above read the words instead of computing 157 names.
-    expect(bets().getByRole("button", { name: "17, pays 35 to 1" })).toBe(bet(/^17, pays 35 to 1/));
+    // The licence for `bet`: a reach button reads out as the words it holds,
+    // so finding one by its words finds it by its name.
+    expect(bet(/^17, pays 35 to 1/)).toHaveAccessibleName("17, pays 35 to 1");
   });
 });
