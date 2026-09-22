@@ -42,6 +42,7 @@ export function Controls({
   onUndo,
   onClear,
   taunt,
+  shut,
 }: {
   chip: number;
   onChip: (value: number) => void;
@@ -56,6 +57,12 @@ export function Controls({
   onUndo: () => void;
   onClear: () => void;
   taunt?: ReactNode;
+  /**
+   * Standing under an open sheet, which is the felt's business rather than
+   * these keys'. A scrim dims them and stops a pointer; this is what stops a
+   * keyboard reaching a money key it cannot see. See `Roulette.tsx`.
+   */
+  shut?: boolean;
 }) {
   const id = useId();
   /* Half a number is nobody's business but this box's. */
@@ -113,7 +120,7 @@ export function Controls({
   };
 
   return (
-    <div className="rl__controls">
+    <div className="rl__controls" {...(shut === true ? { inert: "" } : {})}>
       <div className="rl__tray" role="radiogroup" aria-label="What to bet with">
         {CHIPS.map((value) => (
           <button

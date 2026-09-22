@@ -184,6 +184,26 @@ export function Felt({
   };
 
   /*
+   * The table, switched off under whichever sheet is standing on it.
+   *
+   * A scrim stops a pointer and nothing else, and the cloth keeps a reachable
+   * button for all 157 bets — parked off-screen until the keyboard's ring
+   * finds one, and painted under the sheet rather than over it. Shift+Tab out
+   * of an open panel therefore landed on a live money button nobody could see,
+   * with Enter putting a chip down on it. `inert` is the narrow answer: a
+   * focus trap would have to be written into talk and would change five other
+   * tables to fix one.
+   *
+   * Three places rather than the one it ought to be, because what it pays is
+   * itself inside the stage: there is no single ancestor here holding all of
+   * the table and neither of the sheets. Nothing else under them focuses.
+   */
+  const underSheet = paysOpen || talk.open;
+  // React 18 has no `inert` prop of its own, and an empty string is the
+  // attribute as HTML spells it.
+  const shut = underSheet ? { inert: "" } : {};
+
+  /*
    * The keys press the buttons on screen rather than calling what they call,
    * so a key can never do what the button would refuse. Bound to the felt, so
    * a letter typed into the talk box is a letter.
@@ -352,7 +372,7 @@ export function Felt({
 
         <div className="rl__stage">
           {/* The column the talk and ? keys stand in, beside the cloth. */}
-          <div className="rl__corner">
+          <div className="rl__corner" {...shut}>
             <TalkKey open={talk.open} unread={talk.unread} onToggle={toggleTalk} />
             <button
               type="button"
@@ -365,7 +385,7 @@ export function Felt({
               ?
             </button>
           </div>
-          <div className="rl__cloth-holds table-scroll">
+          <div className="rl__cloth-holds table-scroll" {...shut}>
             <Cloth
               placed={state.placed}
               mine={seatId}
@@ -435,6 +455,7 @@ export function Felt({
             onUndo={() => table.act({ type: "undo" })}
             onClear={() => table.act({ type: "clear" })}
             taunt={taunt}
+            shut={underSheet}
           />
         )}
 

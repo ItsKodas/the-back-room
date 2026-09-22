@@ -309,11 +309,22 @@ describe("the roulette felt", () => {
     expect(said()).toMatch(/bank/i);
   });
 
-  it("says the bank is empty before anybody presses anything", () => {
+  /*
+   * The empty bank is said once, by whichever of the two lines the reader can
+   * actually see. Both halves of that are pinned below, because only pinning
+   * the half that speaks is what let this regress twice by two different
+   * routes: a line present is easy to assert and says nothing about the other
+   * line saying it as well, and a table that announces the same fact from two
+   * places at once is a table reading itself out twice to a screen reader.
+   */
+  it("says the bank is empty before anybody presses anything, and only there", () => {
     // A table that cannot take a bet should say so while you are still
     // deciding, not once you have tried and been ignored.
     render(<Felt table={stub().table} state={view({ bank: 0 })} seatId="s1" account={account} />);
     expect(said()).toMatch(/nothing to play for yet/i);
+    // And the standing line stays on what the table is doing: a seated player
+    // is reading said() already, and Standing is the watcher's copy.
+    expect(document.querySelector(".rl__standing")?.textContent).not.toMatch(/bank/i);
   });
 
   it("tells a watcher the bank is empty too, since they never open Controls", () => {
@@ -322,6 +333,9 @@ describe("the roulette felt", () => {
     // place left that can tell somebody who hasn't sat down yet.
     render(<Felt table={stub().table} state={view({ bank: 0, you: null })} seatId={null} account={account} />);
     expect(screen.getByRole("status").textContent).toMatch(/nothing to play for yet/i);
+    // The other half: nothing under the keys is saying it as well. A watcher
+    // has no keys at all, so the line is absent rather than merely quiet.
+    expect(said()).toBeNull();
   });
 
   it("names the cap when the bank can cover something but not this", () => {
@@ -648,6 +662,42 @@ describe("the table's furniture", () => {
     fireEvent.click(corner().getByRole("button", { name: "What it pays" }));
     expect(document.querySelector(".talk")).toBeNull();
     expect(document.querySelector(".rl__pays")).not.toBeNull();
+  });
+
+  it("switches the table off under an open sheet, both sheets (N7)", () => {
+    /*
+     * The one that bites is the cloth. Its 157 bets are reachable buttons
+     * parked off-screen until the keyboard's ring lands on one, and that ring
+     * paints under a sheet rather than over it — so a Shift+Tab out of an open
+     * panel used to land on a live money button nobody could see, with Enter
+     * putting a chip down on it. The scrim stops a pointer and nothing else;
+     * `inert` is the only thing here that speaks to a keyboard.
+     *
+     * Asked of the nearest inert ancestor rather than of one element, because
+     * what the attribute is on is an implementation detail and what matters is
+     * that nothing under the sheet is left live. The sheet itself must stay
+     * out of it, which is the half a blanket `inert` would get wrong.
+     */
+    const reachable = () => bet(/^17, pays 35 to 1/).closest("[inert]");
+    const acts = () => document.querySelector(".rl__controls")?.closest("[inert]") ?? null;
+
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
+    expect(reachable()).toBeNull();
+    expect(acts()).toBeNull();
+
+    const key = corner().getByRole("button", { name: "What it pays" });
+    fireEvent.click(key);
+    expect(reachable()).not.toBeNull();
+    expect(acts()).not.toBeNull();
+    expect(document.querySelector(".rl__pays")?.closest("[inert]")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(reachable()).toBeNull();
+
+    fireEvent.click(corner().getByRole("button", { name: /^Table talk/ }));
+    expect(reachable()).not.toBeNull();
+    expect(acts()).not.toBeNull();
+    expect(document.querySelector(".talk")?.closest("[inert]")).toBeNull();
   });
 
   it("shuts what it pays the way talk shuts — Escape, the scrim, and focus home (R19)", () => {
