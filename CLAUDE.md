@@ -173,6 +173,7 @@ games/roulette     one wheel, thirty-seven pockets, its own bank
 games/two-up       two coins in the air, heads or tails, its own bank
 games/poker        up to ten to a table, the pot is everybody's chips
 games/death-roll   halve the number or pay, roll a one and you're out
+games/liars-dice   five under a cup, bid it up or call it
 games/scribble     one of you draws it, everybody else races to name it
 games/tips         the bar drips, you tap, the chips are yours
 apps/server        express + socket.io, one game:action envelope
