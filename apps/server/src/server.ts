@@ -13,6 +13,7 @@ import {
   blackjackAdapter,
   maxStake as blackjackMaxStake,
 } from "@backroom/game-blackjack";
+import { CRAPS, crapsAdapter, STAKE_DIVISOR as CRAPS_DIVISOR } from "@backroom/game-craps";
 import { DEATH_ROLL, deathRollAdapter } from "@backroom/game-death-roll";
 import { GREED, greedAdapter, RoomError } from "@backroom/game-greed";
 import { PATHS as PLINKO_PATHS, PLINKO, maxStake as plinkoMaxStake } from "@backroom/game-plinko";
@@ -115,6 +116,7 @@ const CATALOGUE = COMING.reduce(
     .add(ROULETTE)
     .add(DEATH_ROLL)
     .add(TWO_UP)
+    .add(CRAPS)
     .add(SCRIBBLE),
 );
 
@@ -961,6 +963,11 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     add: (amount: number) => store.bankAdd("two-up", amount),
     take: (amount: number) => store.bankTake("two-up", amount),
   };
+  const crapsBank = {
+    holds: () => store.bank("craps"),
+    add: (amount: number) => store.bankAdd("craps", amount),
+    take: (amount: number) => store.bankTake("craps", amount),
+  };
 
   /** Every game this server can host, by id. */
   const ADAPTERS = new Map<string, GameAdapter<PlayTable>>([
@@ -1046,6 +1053,25 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         bank: twoUpBank,
       }) as GameAdapter<PlayTable>,
     ],
+    [
+      CRAPS.id,
+      crapsAdapter({
+        /*
+         * The dice, from the same source the reels and the shoe come from.
+         * This table hands every watcher its whole result every roll, which
+         * over an evening is exactly the run of observations needed to
+         * recover Math.random's state — and then the next number is not a
+         * question.
+         *
+         * A face at a time rather than a scaled total: rejection-sampled and
+         * so uniform over six, which scaling a float is not, and a single
+         * draw over the eleven sums would make the seven as likely as the two.
+         */
+        pick: (faces: number) => Math.floor(spinRandom() * faces),
+        /* Its own bank, kept apart from the wheel's and the machine's. */
+        bank: crapsBank,
+      }) as GameAdapter<PlayTable>,
+    ],
     [SCRIBBLE.id, scribbleAdapter(scribble) as unknown as GameAdapter<PlayTable>],
   ]);
 
@@ -1089,6 +1115,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return emptyAllButOwed(twoUpBank, "two-up");
       case "plinko":
         return plinko.empty();
+      case "craps":
+        return emptyAllButOwed(crapsBank, "craps");
     }
   }
 
@@ -1339,6 +1367,14 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
        */
       case "plinko":
         return plinkoMaxStake(bank, "high");
+      /*
+       * The worst a lone chip can do here: a two or a twelve at thirty to
+       * one. A real table is capped far more finely, chip by chip against
+       * the whole cloth as it lands — but this route answers "what could
+       * this bank take at all", and that is the prop.
+       */
+      case "craps":
+        return Math.max(0, Math.floor(Math.max(0, bank) / CRAPS_DIVISOR));
     }
   }
 
