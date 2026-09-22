@@ -297,7 +297,10 @@ export class Table {
     if (!this.forFun) {
       throw new TableError("Bots only sit at tables playing for fun.");
     }
-    return this.seating.addBot(id, name, skill);
+    const seat = this.seating.addBot(id, name, skill);
+    // No account to charge or credit, but the winners board still wants a name.
+    this.accounts.set(seat.id, { userId: null, name: seat.name });
+    return seat;
   }
 
   /**

@@ -201,13 +201,14 @@ describe("the boards", () => {
 
   it("keeps the name with the win, so a seat that leaves still won", () => {
     const { table } = chipsTable();
-    table.place("a", "player", 100);
+    table.place("a", "banker", 100);
     table.closeBetting();
     table.land();
     table.removeSeat("a");
-    for (const win of table.winners) {
-      expect(win.name).toBe("a");
-    }
+    // Asserted before the loop: an empty board would pass the loop vacuously,
+    // which is exactly the failure this test is meant to catch.
+    expect(table.winners).toHaveLength(1);
+    expect(table.winners[0]?.name).toBe("a");
   });
 });
 
@@ -273,5 +274,16 @@ describe("bots", () => {
      */
     const table = new Table("AAAAA", 8);
     expect(() => table.addBot("bot:1", "Dealer's mate", "normal")).toThrow(/for fun/i);
+  });
+
+  it("keeps a winning bot's name on the board too", () => {
+    const table = new Table("AAAAA", 8, { random: () => 0.5, window: 60_000 });
+    table.forFun = true;
+    const bot = table.addBot("bot:1", "Dealer's mate", "normal");
+    table.place(bot.id, "banker", 100);
+    table.closeBetting();
+    table.land();
+    expect(table.winners).toHaveLength(1);
+    expect(table.winners[0]?.name).toBe("Dealer's mate");
   });
 });
