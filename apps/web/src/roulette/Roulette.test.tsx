@@ -104,13 +104,19 @@ const said = () => document.querySelector(".rl__said")?.textContent ?? null;
  * landmark, and giving it a role to be found by would put a second one in
  * every screen reader's way for the sake of a test.
  */
-const keys = () => {
-  const found = document.querySelector<HTMLElement>(".rl__controls");
+const box = (cls: string, what: string) => {
+  const found = document.querySelector<HTMLElement>(cls);
   if (found === null) {
-    throw new Error("this felt has no keys under it");
+    throw new Error(`this felt has no ${what}`);
   }
   return within(found);
 };
+
+/** The keys under the cloth: the tray, the custom box and the three acts. */
+const keys = () => box(".rl__controls", "keys under it");
+
+/** Every bet on the cloth, as the keyboard reaches them. */
+const bets = () => box(".rl__reach", "reachable bets");
 
 /**
  * One bet on the cloth, by the words it reads as.
@@ -349,5 +355,17 @@ describe("the roulette felt", () => {
     // The licence for `bet`: a reach button reads out as the words it holds,
     // so finding one by its words finds it by its name.
     expect(bet(/^17, pays 35 to 1/)).toHaveAccessibleName("17, pays 35 to 1");
+    /*
+     * And every one of them still arrives as a button. This list is the only
+     * way to place a bet without a pointer — aiming at the point where four
+     * squares meet is a pointer's talent, and this is what a keyboard has
+     * instead — so an `aria-hidden` or a `role="presentation"` on any of them
+     * takes the cloth away from anybody not using a mouse while breaking
+     * nothing a gesture test would notice. Asked by role, once, on purpose:
+     * `toHaveAccessibleName` above would name a hidden button quite happily.
+     */
+    const reachable = document.querySelectorAll(".rl__reach button").length;
+    expect(reachable).toBeGreaterThan(150);
+    expect(bets().getAllByRole("button")).toHaveLength(reachable);
   });
 });
