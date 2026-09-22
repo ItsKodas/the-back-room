@@ -101,6 +101,16 @@ describe("what one more chip may be", () => {
     const leaning = headroom(600, [bet("dontpass", 3_000)], comeOut, at("pass"));
     expect(leaning).toBeGreaterThan(bare);
   });
+
+  it("is exact where the true cap is a whole number of chips", () => {
+    /*
+     * The boundary the float form lost. Eleven fifths minus one is
+     * 1.2000000000000002, so dividing by it gives 9999.999999999998 and floors
+     * a chip short of a cap the bank can genuinely carry. Multiplying through
+     * by the denominator keeps the division exact.
+     */
+    expect(headroom(12_000, [], on(6), at("odds:pass"))).toBe(10_000);
+  });
 });
 
 describe("the off rule", () => {
