@@ -12,3 +12,6 @@ export { FACES, isHard, OUTCOMES, roll, total } from "./dice.js";
 export { CRAPS } from "./listing.js";
 export type { Kind, Spot } from "./spots.js";
 export { oddsFor, POINTS, SPOTS, spotAt } from "./spots.js";
+export { CHIPS, HORN_STEP, MIN_CHIP } from "./bank.js";
+export type { Hand, Ratio } from "./resolve.js";
+export { after, back, decided, maxOdds, multiplier, nextPoint, ratioOf, sleeps } from "./resolve.js";
