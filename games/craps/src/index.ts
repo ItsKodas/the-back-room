@@ -33,3 +33,6 @@ export type { Paid, Placed } from "./bets.js";
 export { settle, toBets } from "./bets.js";
 export type { Phase, SeatView, TableView, Throw, Win } from "./table.js";
 export { HISTORY, LAST_CALL_MS, ROLL_MS, SETTLE_MS, Table, WINDOWS, WINNERS } from "./table.js";
+export type { Bank } from "./adapter.js";
+export { crapsAdapter } from "./adapter.js";
+export { botBet, thinkingTime } from "./bot.js";
