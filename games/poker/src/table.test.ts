@@ -557,3 +557,45 @@ describe("paying out a hand with a side pot", () => {
     expect(chips(made)).toBe(before);
   });
 });
+
+describe("eventSeq", () => {
+  it("moves on for every action the table reports", () => {
+    const made = table([1_000, 1_000, 1_000]);
+    made.deal();
+    const before = made.view(made.seats[0].id).eventSeq;
+    made.act(made.toAct as string, "call");
+    const after = made.view(made.seats[0].id).eventSeq;
+    expect(after).toBe(before + 1);
+  });
+
+  it("moves on again for a second action of the same kind", () => {
+    const made = table([1_000, 1_000, 1_000]);
+    made.deal();
+    // Close the preflop betting so the flop deals: button calls, small blind
+    // calls, big blind checks it shut.
+    made.act(made.toAct as string, "call");
+    made.act(made.toAct as string, "call");
+    made.act(made.toAct as string, "check");
+    expect(made.street).toBe("flop");
+
+    const between = made.view(made.seats[0].id).eventSeq;
+    made.act(made.toAct as string, "check");
+    const afterFirstCheck = made.view(made.seats[0].id).eventSeq;
+    expect(afterFirstCheck).toBe(between + 1);
+
+    // Two checks in a row are two events. The counter is the only thing that
+    // can say so — the sentences differ only by a name, and may not differ at
+    // all once two players share one.
+    made.act(made.toAct as string, "check");
+    expect(made.view(made.seats[0].id).eventSeq).toBe(afterFirstCheck + 1);
+  });
+
+  it("does not move on when nothing happened", () => {
+    const made = table([1_000, 1_000]);
+    made.deal();
+    const at = made.view(made.seats[0].id).eventSeq;
+    made.view(made.seats[0].id);
+    made.view(made.seats[0].id);
+    expect(made.view(made.seats[0].id).eventSeq).toBe(at);
+  });
+});
