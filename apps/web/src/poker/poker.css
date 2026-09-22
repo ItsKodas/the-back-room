@@ -280,12 +280,23 @@
  * it, and the drawing was doing the pill's job anyway. What is left is what a
  * stake looks like on a table — a pile, and the figure under it.
  */
+/*
+ * Where round the ring, worked out once and shared by everything that sits
+ * on one: a seat, its stake, and the two chip animations that travel between
+ * a seat and the pot. All four are siblings under `.pk__table` rather than
+ * nested inside one another, so none of them can inherit `--angle` from
+ * another — each is handed its own `--seat`/`--of` instead, and this is the
+ * one place the formula that turns those into an angle is written.
+ */
+.pk__seat,
+.pk__bet,
+.pk__gather,
+.pk__sweep {
+  --angle: calc(90deg + (var(--seat) / var(--of)) * 360deg);
+}
+
 .pk__bet {
   position: absolute;
-  /* Its own angle rather than one inherited from a seat: `.pk__bet` is a
-     sibling of `.pk__seat`, not inside it, so it needs the same custom
-     property worked out again from the `--seat`/`--of` it is handed. */
-  --angle: calc(90deg + (var(--seat) / var(--of)) * 360deg);
   left: calc(50% + cos(var(--angle)) * var(--bet-across));
   top: calc(50% + sin(var(--angle)) * var(--bet-down));
   /* `--dodge` steps a seat above the middle out of the pot's column; it is
@@ -663,9 +674,6 @@
  */
 .pk__gather {
   position: absolute;
-  /* Its own angle for the same reason `.pk__bet` needs one: this is a
-     sibling of `.pk__seat`, not a descendant, so nothing cascades down to it. */
-  --angle: calc(90deg + (var(--seat) / var(--of)) * 360deg);
   left: calc(50% + cos(var(--angle)) * var(--bet-across));
   top: calc(50% + sin(var(--angle)) * var(--bet-down));
   z-index: 5;
@@ -716,9 +724,6 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  /* Its own angle, worked out again from `--seat`/`--of` rather than
-     inherited: a sibling of `.pk__seat`, not a descendant of it. */
-  --angle: calc(90deg + (var(--seat) / var(--of)) * 360deg);
   z-index: 5;
   pointer-events: none;
   animation: pk-sweep 900ms cubic-bezier(0.32, 0.9, 0.32, 1) forwards;
@@ -1738,12 +1743,11 @@
   position: absolute;
   /*
    * Counted from the bottom middle and going round, so seat zero is always
-   * you. Worked out here rather than handed over by React: a container query
-   * can rewrite this one declaration — opening the ring into a horseshoe on a
-   * phone — without anything upstream having to measure the felt or know it
-   * happened.
+   * you (`--angle` itself is declared once, above, shared with the stake and
+   * the two chip animations). A container query can rewrite this one
+   * declaration — opening the ring into a horseshoe on a phone — without
+   * anything upstream having to measure the felt or know it happened.
    */
-  --angle: calc(90deg + (var(--seat) / var(--of)) * 360deg);
   left: calc(50% + cos(var(--angle)) * var(--across));
   top: calc(50% + sin(var(--angle)) * var(--down));
   transform: translate(-50%, -50%);
@@ -1796,57 +1800,42 @@
  */
 @container pk (max-width: 560px) {
   /*
-   * Taller, because the seats need somewhere to go.
-   *
-   * A table nearer square has far more room down its sides, which is where
-   * the seats that were fighting each other end up.
-   *
-   * No `aspect-ratio` stated here any more — the felt is a grid item stretched
-   * to fill the row it is given on both axes, so a stated ratio on top of that
-   * has nothing left to resolve and would be dead weight. The ring itself is
-   * pulled in to suit a taller felt instead, which is the thing actually being
-   * asked for.
+   * No `aspect-ratio` stated here — the felt is a grid item stretched to fill
+   * the row it is given on both axes, so a stated ratio on top of that has
+   * nothing left to resolve and would be dead weight (see the test that pins
+   * it). What actually makes a phone's table taller is `.pk__below`'s own
+   * height plus the flexing row's `min-height: 0`, which this block does not
+   * need to touch — and the radius that reaches into that extra height lives
+   * in the `fit`-keyed block just below, not here: a `pk`-size container
+   * cannot restyle the element that establishes it, so a redeclaration of
+   * `--across`/`--down` on `.pk__table` here would be dead code (confirmed
+   * empirically — see that block's own comment).
    */
-  .pk__table {
-    /* Still no `aspect-ratio` here: `.pk__table` is a grid item stretched to
-       fill "felt" on both axes, so a ratio would have nothing left to
-       resolve and would sit here doing nothing (see the test that pins it). */
-    --across: 38%;
-    --down: 30%;
-    /*
-     * Inherited from before this task and left as it was: a size container
-     * cannot be restyled by a query of the very container it establishes
-     * (`.pk__table` is `pk`), so in practice these four redeclare nothing —
-     * the ring keeps the oval's 36%/32% radius on a phone too. Real, and
-     * pre-existing: the same was true of the unnamed query this replaced.
-     * `.pk__seat` works round it below with its own literal radius, because
-     * it is a descendant of `pk` rather than `pk` itself, and does respond.
-     */
-    --bet-across: 23%;
-    --bet-down: 24%;
-  }
 
   /*
    * The ring opens at the bottom. Nine others over an arc from 150° to 390°,
    * centred in it rather than pinned to its ends, so the shape degrades
    * correctly as seats empty: at two seats the one opponent lands at the top,
    * where an opponent belongs.
-   *
-   * The radius is written out rather than read from `--across`/`--down`
-   * (which cannot reach here — see `.pk__table` above): with everybody's
-   * face, cards and stake back on the cloth, nine of them round a 240° arc at
-   * the oval's own radius overlap their neighbours on every side. Widened
-   * until they clear each other at the narrowest phone this is checked at
-   * (375×560) with a seat in every state at once — the one seat still
-   * touching there is the one showing both a mark and a spoken bubble
-   * simultaneously, which is rarer than either alone.
    */
   .pk__seat {
     --angle: calc(150deg + ((var(--seat) - 0.5) / (var(--of) - 1)) * 240deg);
-    left: calc(50% + cos(var(--angle)) * 49%);
-    top: calc(50% + sin(var(--angle)) * 49%);
-    width: 56px;
-    gap: 2px;
+    width: 48px;
+    gap: 1px;
+  }
+
+  /*
+   * Pulled in over its own cards rather than left floating above them, so a
+   * seat's spoken bubble no longer reaches into the seat above it on the
+   * arc — measured against `games/poker/src/table.ts`, `seat.spoke` is set
+   * on every fold, check, call, raise and all-in, so this is common rather
+   * than rare, and it was the difference between a clear horseshoe and one
+   * with two or three pairs of seats touching (see the radius block below).
+   */
+  .pk__bubble {
+    bottom: 60%;
+    padding: 2px 6px;
+    font-size: 9px;
   }
 
   /* The bottom of the cloth is yours: your cards, your stack, what you hold. */
@@ -1870,8 +1859,12 @@
     /* Against the felt's own height too, not just its width — a squat phone
        gives nine opponents' cards less headroom than a tall one, and a card
        that only ever shrank with width kept its full height on a short felt
-       right up until it ran into the seat beside it. */
-    width: clamp(22px, 7.5cqh, 30px);
+       right up until it ran into the seat beside it. Floor and coefficient
+       both lower than a first pass: nine boxes with a mark and a spoken
+       bubble apiece do not clear each other at the old 22px floor even at
+       the widest radius the felt can give them without a card corner
+       leaving the table outright (see the radius block below). */
+    width: clamp(18px, 3.5cqh, 24px);
   }
 
   /* Still the biggest thing on the table, because it is still the only hand
@@ -1900,6 +1893,11 @@
   }
 
   .pk__mark {
+    /* Closer over the seat than the oval's badge sits, so it adds only a
+       little to how far a seat's own box reaches upward — see the radius
+       block below, where every pixel of reach here is one the ring has to
+       be pulled in to clear. */
+    top: -1px;
     right: 2px;
     min-width: 17px;
     height: 17px;
@@ -1932,6 +1930,67 @@
 
   .pk__prebtn {
     flex: 1 1 45%;
+  }
+}
+
+/*
+ * The ring, pulled in to suit a taller, narrower table.
+ *
+ * `.pk__table` cannot answer its own `pk` container's query: a size
+ * container cannot be restyled by a query of the container it establishes —
+ * confirmed empirically (an isolated `container-type: size` element given a
+ * trivially-true rule targeting itself, for even a harmless custom property,
+ * never applied, while the identical rule targeting a child did). Asked of
+ * `fit` instead, this reaches it: `.pk__table` is only `fit`'s descendant,
+ * not the container it establishes, so nothing stops `fit`'s query from
+ * restyling it — confirmed the same way, with `fit` in place of `pk`.
+ *
+ * `.pk__seat`, `.pk__bet`, `.pk__gather` and `.pk__sweep` need nothing of
+ * their own: all four already read `var(--across)` etc. by inheritance from
+ * `.pk__table`, so fixing it once here is what keeps the seats and the chips
+ * that travel to and from them agreeing on where the ring actually is,
+ * rather than a radius copied into each of them by hand.
+ *
+ * The values: measured in a live browser at the narrowest and shortest size
+ * this is checked at (375×560, a ~331×376 felt), with every non-`--you` seat
+ * carrying both a mark badge and a spoken bubble at once — stricter than any
+ * single hand can actually show (the button, small blind and big blind marks
+ * are three fixed seats, not nine), but the unconditional guarantee ("seats
+ * must not overlap") is for whichever three those happen to be, including
+ * the small blind and big blind sitting next to each other, which they
+ * always do; and `games/poker/src/table.ts` sets `seat.spoke` on every fold,
+ * check, call, raise and all-in, so a bubble on the seat beside a mark is
+ * ordinary, not a stress case. Neither sits in the seat's own flow (both are
+ * `position: absolute`), so the union of a seat's box with its own mark and
+ * bubble is what has to clear its neighbours' — a bare seat-to-seat check
+ * missed this: 49%/49% with an ordinary seat box cleared, but the mark and
+ * the bubble's own reach (see `.pk__mark` and `.pk__bubble` above) put pairs
+ * back into each other.
+ *
+ * Both were pulled in over their seat rather than left floating above it —
+ * the bubble's own text is still readable sat over the top of a face-down
+ * card, and the mark loses only a pixel or two of the ring it already draws
+ * round itself. That brought the tallest a seat's box (with its mark and its
+ * bubble) actually gets to 68px, down from 82px at the settings the seats
+ * were widened for. At 42%/43% nine boxes clear every pair over the 240°
+ * arc, and the worst corner — the topmost seat's mark, not its card — lands
+ * about 8px past the table's own edge, well inside the width of the rail
+ * itself, never off the table. `felt.test.ts` holds every number here to
+ * this exactly — it reads the radius back out of this block rather than
+ * copying it, and checks the same worst case, mark and bubble included, in
+ * pure arithmetic, with the same 8px margin and the same reasoning for it.
+ * (One seat, `games/poker`'s own mock data for an "all in" caption on the
+ * `/style` gallery only, briefly measured 101px tall and looked like the
+ * binding constraint; the real `Seat.tsx` has no such always-on label —
+ * `allIn` only recolours the stack figure — so it was discounted once
+ * found, and the numbers above reflect production seats.)
+ */
+@container fit (max-width: 560px) {
+  .pk__table {
+    --across: 42%;
+    --down: 43%;
+    --bet-across: 29%;
+    --bet-down: 25%;
   }
 }
 

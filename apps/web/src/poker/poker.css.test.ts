@@ -133,8 +133,14 @@ describe("size variables inherit rather than being redeclared (L4)", () => {
 
 describe("the three arrangements", () => {
   it("places a seat from its index, in CSS", () => {
+    /*
+     * The formula is declared once, shared by `.pk__seat` and the three other
+     * things a `--seat`/`--of` pair is handed (the stake, and the two chip
+     * animations) — fix for review finding 5, which found it hand-copied into
+     * four separate rules with nothing keeping them in agreement.
+     */
+    expect(css).toMatch(/--angle:\s*calc\(90deg \+ \(var\(--seat\) \/ var\(--of\)\) \* 360deg\)/);
     const seat = ruleIn(css, ".pk__seat");
-    expect(seat).toMatch(/--angle:\s*calc\(90deg \+ \(var\(--seat\) \/ var\(--of\)\) \* 360deg\)/);
     expect(seat).toMatch(/cos\(var\(--angle\)\)/);
     expect(seat).toMatch(/sin\(var\(--angle\)\)/);
   });
