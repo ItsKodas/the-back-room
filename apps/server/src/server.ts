@@ -9,6 +9,11 @@ import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core"
 import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
+  BACCARAT,
+  baccaratAdapter,
+  STAKE_DIVISOR as BACCARAT_DIVISOR,
+} from "@backroom/game-baccarat";
+import {
   BLACKJACK,
   blackjackAdapter,
   maxStake as blackjackMaxStake,
@@ -115,7 +120,8 @@ const CATALOGUE = COMING.reduce(
     .add(ROULETTE)
     .add(DEATH_ROLL)
     .add(TWO_UP)
-    .add(SCRIBBLE),
+    .add(SCRIBBLE)
+    .add(BACCARAT),
 );
 
 
@@ -961,6 +967,11 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     add: (amount: number) => store.bankAdd("two-up", amount),
     take: (amount: number) => store.bankTake("two-up", amount),
   };
+  const baccaratBank = {
+    holds: () => store.bank("baccarat"),
+    add: (amount: number) => store.bankAdd("baccarat", amount),
+    take: (amount: number) => store.bankTake("baccarat", amount),
+  };
 
   /** Every game this server can host, by id. */
   const ADAPTERS = new Map<string, GameAdapter<PlayTable>>([
@@ -1047,6 +1058,20 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       }) as GameAdapter<PlayTable>,
     ],
     [SCRIBBLE.id, scribbleAdapter(scribble) as unknown as GameAdapter<PlayTable>],
+    [
+      BACCARAT.id,
+      baccaratAdapter({
+        /*
+         * The shuffle, from the same source the reels and the shoe come from.
+         * This table hands every watcher every card it deals, which over an
+         * evening is exactly the run of observations needed to recover
+         * Math.random's state — and then the next coup is not a question.
+         */
+        random: spinRandom,
+        /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
+        bank: baccaratBank,
+      }) as GameAdapter<PlayTable>,
+    ],
   ]);
 
   /**
@@ -1089,6 +1114,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return emptyAllButOwed(twoUpBank, "two-up");
       case "plinko":
         return plinko.empty();
+      case "baccarat":
+        return emptyAllButOwed(baccaratBank, "baccarat");
     }
   }
 
@@ -1339,6 +1366,15 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
        */
       case "plinko":
         return plinkoMaxStake(bank, "high");
+      /*
+       * The worst a lone chip can do here: the tie, at eight to one. A real
+       * table is capped far more finely — every chip is measured against the
+       * whole cloth as it lands, and matched money on the two sides needs
+       * almost no bank — but this route answers "what could this bank take
+       * at all", and that is the tie.
+       */
+      case "baccarat":
+        return Math.max(0, Math.floor(Math.max(0, bank) / BACCARAT_DIVISOR));
     }
   }
 

@@ -427,6 +427,15 @@ export const MOTIFS: Record<string, () => string> = {
   slots: cabinet,
   tips: jar,
   plinko: pegs,
+  /*
+   * A hand rather than the board, which is what tells this card from the
+   * poker one at a glance — the same distinction the poker comment draws, the
+   * other way round. And a large 9 rather than a face card is what tells it
+   * from blackjack's own two-card hand: nine is the number this whole game
+   * chases, so a card announcing it reads as baccarat before anybody has
+   * read the word.
+   */
+  baccarat: () => `${pip(944, 322, -9, "9", true)}${pip(1082, 298, 7, "4", false)}`,
 };
 
 /**
