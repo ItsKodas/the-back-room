@@ -144,4 +144,15 @@ describe("a raise you can type", () => {
     fireEvent.change(box, { target: { value: "7" } });
     expect(onAct).not.toHaveBeenCalled();
   });
+
+  it("holds a typed figure under the minimum up to the minimum, on commit, and says so", () => {
+    // The case a player hits most often: typing a small number because they
+    // do not yet know the minimum raise.
+    renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000 });
+    const box = screen.getByLabelText(/how much/i);
+    fireEvent.change(box, { target: { value: "5" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(box).toHaveValue("200");
+    expect(screen.getByText("Held to the least you can bet, 200.")).toBeTruthy();
+  });
 });
