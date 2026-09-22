@@ -49,6 +49,7 @@ export function Controls({
   onReady,
   taunt,
   help,
+  bot,
 }: {
   state: TableView;
   seatId: string | null;
@@ -61,6 +62,8 @@ export function Controls({
   onReady: (ready: boolean) => void;
   taunt: ReactNode;
   help: ReactNode;
+  /** The host's key for seating a bot, or null for anybody else. */
+  bot?: ReactNode;
 }) {
   const standing = state.bid;
   const total = state.total;
@@ -86,6 +89,7 @@ export function Controls({
         <p className="ld__waiting">{whoseTurn(state, seatId)}</p>
         <div className="ld__keys">
           {help}
+          {bot}
           {taunt}
           <button
             type="button"
@@ -108,6 +112,7 @@ export function Controls({
         <p className="ld__waiting">{whoseTurn(state, seatId)}</p>
         <div className="ld__keys">
           {help}
+          {bot}
           {taunt}
         </div>
       </div>
@@ -188,6 +193,7 @@ export function Controls({
       )}
       <div className="ld__keys">
         {help}
+        {bot}
         <button
           type="button"
           className="key ld__liar"

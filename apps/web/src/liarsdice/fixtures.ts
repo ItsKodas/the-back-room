@@ -54,6 +54,7 @@ export function view(seats: SeatView[], over: Partial<TableView> = {}): TableVie
     waitingFor: null,
     lastEvent: null,
     eventSeq: 1,
+    hostId: seats[0]?.id ?? null,
     you: seats[0] ?? null,
     ...over,
   };

@@ -304,3 +304,50 @@ describe("the felt", () => {
     expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("Table talk");
   });
 });
+
+describe("the bot key", () => {
+  // A lone player's only table is a for-fun one, and a for-fun table with
+  // nobody to seat never deals — so without this key open on your own is a
+  // table that sits there forever.
+  it("is offered to the host of a for-fun table with room to seat somebody", () => {
+    show(socket(view([seat({ id: "s0" }), seat({ id: "s1" })], { forFun: true, hostId: "s0" })));
+    expect(screen.getByRole("button", { name: /bot/i })).toBeInTheDocument();
+  });
+
+  it("is never offered at a table playing for chips", () => {
+    // The server would refuse it outright — a bot has no account to win chips
+    // from or pay them to — so offering the key here would be a press this
+    // table can only say no to.
+    show(socket(view([seat({ id: "s0" }), seat({ id: "s1" })], { forFun: false, hostId: "s0" })));
+    expect(screen.queryByRole("button", { name: /bot/i })).not.toBeInTheDocument();
+  });
+
+  it("is never offered to somebody other than the host", () => {
+    show(
+      socket(view([seat({ id: "s0" }), seat({ id: "s1" })], { forFun: true, hostId: "s1" }), {
+        seatId: "s0",
+      }),
+    );
+    expect(screen.queryByRole("button", { name: /bot/i })).not.toBeInTheDocument();
+  });
+
+  it("is never offered once the table is full", () => {
+    show(
+      socket(
+        view([seat({ id: "s0" }), seat({ id: "s1" })], { forFun: true, hostId: "s0", maxSeats: 2 }),
+      ),
+    );
+    expect(screen.queryByRole("button", { name: /bot/i })).not.toBeInTheDocument();
+  });
+
+  it("seats a bot at normal skill on the press", () => {
+    const addBot = vi.fn();
+    show(
+      socket(view([seat({ id: "s0" }), seat({ id: "s1" })], { forFun: true, hostId: "s0" }), {
+        addBot,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /bot/i }));
+    expect(addBot).toHaveBeenCalledWith("normal");
+  });
+});

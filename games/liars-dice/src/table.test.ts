@@ -57,6 +57,13 @@ describe("a table", () => {
     one.forFun = true;
     expect(() => one.join("s0", "Player 0", null)).not.toThrow();
   });
+
+  it("names the host in its view, so a felt can offer the host's own controls to them", () => {
+    // The client decides whether to show a host-only key (seating a bot) off
+    // this field — without it in the view, every player looks like the host.
+    const one = table(2);
+    expect(one.view(null).hostId).toBe("s0");
+  });
 });
 
 describe("your own dice and nobody else's", () => {

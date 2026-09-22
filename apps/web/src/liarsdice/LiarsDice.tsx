@@ -163,6 +163,25 @@ function Felt({
       ?
     </button>
   );
+  /*
+   * A for-fun table is the only table a lone player can open, and it never
+   * deals for one — so without a way to seat a bot, opening one alone means
+   * sitting there. Shown to the host alone (the shape of the table, seats and
+   * all, is theirs to set) and never at a chips table, where the server would
+   * only refuse it: a bot has no account to win chips from or pay them to.
+   */
+  const canAddBot =
+    state.hostId === seatId && state.forFun && state.seats.length < state.maxSeats;
+  const bot = !canAddBot ? null : (
+    <button
+      type="button"
+      className="key ld__bot"
+      aria-label="Deal a bot into an open seat"
+      onClick={() => table.addBot("normal")}
+    >
+      Deal in a bot
+    </button>
+  );
 
   return (
     <section className="ld" aria-label="The table" ref={root}>
@@ -230,6 +249,7 @@ function Felt({
             table.act({ type: "ready", ready: value });
           }}
           help={help}
+          bot={bot}
           taunt={
             <TauntPicker
               seats={state.seats}

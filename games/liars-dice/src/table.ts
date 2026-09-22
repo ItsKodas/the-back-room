@@ -119,6 +119,8 @@ export interface TableView {
    * sent twice.
    */
   eventSeq: number;
+  /** Whose table it is, so the controls that are theirs are offered to them. */
+  hostId: string | null;
   /** This seat, or null for somebody only watching. */
   you: SeatView | null;
 }
@@ -604,6 +606,7 @@ export class Table implements PlayTable {
       waitingFor: game === null && this.present().length < 2 ? "players" : null,
       lastEvent: this.lastEvent,
       eventSeq: this.seq,
+      hostId: this.hostId,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,
     };
   }
