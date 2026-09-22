@@ -12,6 +12,7 @@ export function seat(over: Partial<SeatView> = {}): SeatView {
     connected: true,
     waiting: false,
     isBot: false,
+    signedIn: true,
     avatar: null,
     accentColor: null,
     ready: false,

@@ -1,18 +1,34 @@
 import type { TableView } from "@backroom/game-liars-dice";
 import { ANTE, DICE, DICE_LEVELS, STAKES } from "@backroom/game-liars-dice";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
+import { useCountdown } from "../game/useCountdown.js";
 import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
+import { ActivityLog, useActivity } from "../table/Activity.js";
 import { Refusal } from "../table/Refusal.js";
 import { TableSetup } from "../table/TableSetup.js";
+import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { useTablePeek } from "../table/useTablePeek.js";
+import { TauntPicker } from "../taunt/TauntPicker.js";
+import { TauntStage } from "../taunt/TauntStage.js";
 import { DiscordIcon } from "../blackjack/Icons.js";
+import { Board } from "./Board.js";
+import { Controls } from "./Controls.js";
+import { Hand } from "./Dice.js";
+import { Readout, readoutFor } from "./Readout.js";
+import { Reveal } from "./Reveal.js";
+import { RULES_SHEET_ID, Rules } from "./Rules.js";
+import { Seats } from "./Seats.js";
+import { Sheet } from "./Sheet.js";
+import { useDiceSound } from "./useDiceSound.js";
+import { useIntent } from "./useIntent.js";
+import { useLiarsKeys } from "./useLiarsKeys.js";
 import "@backroom/game-liars-dice/theme.css";
 import "./liarsdice.css";
 
@@ -82,10 +98,173 @@ export function LiarsDice() {
       ) : state === null ? (
         <Sit table={table} invited={urlCode} account={account} />
       ) : (
-        // The felt lands in the commit that builds it.
-        <p className="play__error">Table {state.code}</p>
+        <>
+          <Felt table={table} state={state} seatId={table.seatId} account={account} />
+          {/* Over the felt, because a taunt belongs to the table and not to the dice. */}
+          <TauntStage landed={table.landed} />
+        </>
       )}
     </main>
+  );
+}
+
+function Felt({
+  table,
+  state,
+  seatId,
+  account,
+}: {
+  table: Table;
+  state: TableView;
+  seatId: string | null;
+  account: Account;
+}) {
+  const chips = account.profile?.chips ?? null;
+  const me = state.seats.find((seat) => seat.id === seatId) ?? null;
+  const intent = useIntent(state, seatId, table.error, table.errorKey);
+  const turnLeft = useCountdown(state.turnEndsAt);
+  const countdown = useCountdown(state.countdownEndsAt);
+  const talk = useTalk(table.chat, seatId);
+  const activity = useActivity({ code: state.code, text: state.lastEvent, seq: state.eventSeq });
+  const [sheet, setSheet] = useState(false);
+  const root = useRef<HTMLElement | null>(null);
+  useLiarsKeys(root);
+  useDiceSound(state, seatId);
+
+  // Talk and the rules sheet are two dialogs claiming the same rectangle at
+  // desk width, so opening one closes the other rather than stacking a scrim.
+  const toggleSheet = () => {
+    talk.close();
+    setSheet((was) => !was);
+  };
+  const toggleTalk = () => {
+    setSheet(false);
+    talk.toggle();
+  };
+
+  /*
+   * The bid on the felt: this player's own press until the table agrees.
+   *
+   * The only fact shown early anywhere on this table, and it is safe to show
+   * because it is a number they chose. Everything else here waits.
+   */
+  const shown = intent.bid === null ? state : { ...state, bid: intent.bid, bidder: seatId };
+  const model = readoutFor({ state: shown, seatId, turnLeft });
+  const log = <ActivityLog entries={activity} />;
+  const help = (
+    <button
+      type="button"
+      className="key key--icon ld__help"
+      aria-label="How it plays"
+      aria-controls={RULES_SHEET_ID}
+      aria-expanded={sheet}
+      onClick={toggleSheet}
+    >
+      ?
+    </button>
+  );
+
+  return (
+    <section className="ld" aria-label="The table" ref={root}>
+      <div className="ld__in">
+        <Seats state={state} seatId={seatId} />
+
+        <div className="ld__play">
+          <Readout model={model} />
+          {me !== null && me.hand.length > 0 ? (
+            <Hand dice={me.hand} matched={state.resolution?.bid.face ?? null} label="Your dice" />
+          ) : (
+            <p className="quiet ld__quiet">
+              {state.phase === "waiting"
+                ? countdown === null
+                  ? "No dice yet."
+                  : `Dealing in ${countdown}.`
+                : "You are not in this one."}
+            </p>
+          )}
+          <Reveal state={state} />
+          <div className="table-talk-corner">
+            <TalkKey open={talk.open} unread={talk.unread} onToggle={toggleTalk} />
+          </div>
+          <Sheet
+            id={RULES_SHEET_ID}
+            label="How it plays"
+            open={sheet}
+            onClose={() => setSheet(false)}
+            className="ld__sheet--felt"
+          >
+            <Rules standing={state.bid} />
+          </Sheet>
+        </div>
+
+        <aside className="ld__side-rules" aria-label="How it plays">
+          <h2 className="ld__panel-title">How it plays</h2>
+          <Rules standing={state.bid} />
+        </aside>
+
+        <aside className="ld__side-board" aria-label="Rounds so far">
+          <h2 className="ld__panel-title">Rounds</h2>
+          <Board state={state} />
+        </aside>
+
+        <aside className="ld__side-activity" aria-label="Activity">
+          <h2 className="ld__panel-title">Activity</h2>
+          {log}
+        </aside>
+
+        <Controls
+          state={state}
+          seatId={seatId}
+          busy={intent.busy}
+          ready={intent.ready ?? me?.ready ?? false}
+          onBid={(bid) => {
+            intent.sendBid(bid);
+            table.act({ type: "bid", count: bid.count, face: bid.face });
+          }}
+          onCall={(call) => {
+            intent.sendCall(call);
+            table.act({ type: call });
+          }}
+          onReady={(value) => {
+            intent.setReady(value);
+            table.act({ type: "ready", ready: value });
+          }}
+          help={help}
+          taunt={
+            <TauntPicker
+              seats={state.seats}
+              seatId={seatId}
+              chips={chips}
+              stakes={table.stakes}
+              openClassName="key"
+              onThrow={(emote, at) => {
+                // The cost leaves the corner on the press: it is the player's
+                // own number, so showing it at once invents nothing.
+                if (account.profile !== null) {
+                  account.setChips(account.profile.chips - emote.cost);
+                }
+                table.taunt(emote.id, at, (result) => {
+                  if (result.ok) {
+                    account.setChips(result.chips);
+                  } else {
+                    account.refresh();
+                  }
+                });
+              }}
+            />
+          }
+        />
+      </div>
+
+      <TalkSheet
+        open={talk.open}
+        onClose={talk.close}
+        log={table.chat}
+        seatId={seatId}
+        onSay={table.say}
+        activity={log}
+      />
+    </section>
   );
 }
 

@@ -1,37 +1,112 @@
 // @vitest-environment jsdom
+import type { TableView } from "@backroom/game-liars-dice";
+import { says } from "@backroom/game-liars-dice";
+import type { ChatMessage } from "@backroom/shared";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Account } from "../game/useAccount.js";
+import { useAccount } from "../game/useAccount.js";
+import type { TableSocketHook } from "../table/useTableSocket.js";
+import { useTableSocket } from "../table/useTableSocket.js";
+import { opening } from "./Controls.js";
+import { seat, view } from "./fixtures.js";
 import { LiarsDice } from "./LiarsDice.js";
 
 // The socket is not this test's business; the page is.
-vi.mock("../table/useTableSocket.js", () => ({
-  useTableSocket: () => ({
-    state: null,
+vi.mock("../table/useTableSocket.js", () => ({ useTableSocket: vi.fn() }));
+vi.mock("../game/useAccount.js", () => ({ useAccount: vi.fn() }));
+vi.mock("../nav/NavContext.js", () => ({ useNav: vi.fn() }));
+vi.mock("../game/audio.js", async (original) => ({
+  ...(await original<typeof import("../game/audio.js")>()),
+  play: vi.fn(),
+  preload: vi.fn(async () => {}),
+  unlock: vi.fn(),
+}));
+
+const account: Account = {
+  profile: {
+    id: "u1",
+    name: "Ada",
+    avatar: null,
+    accentColor: null,
+    chips: 12_400,
+    stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+    byGame: {},
+  },
+  available: true,
+  loading: false,
+  admin: false,
+  refresh: vi.fn(),
+  setChips: vi.fn(),
+  signOut: vi.fn(),
+};
+
+function socket(
+  state: TableView | null,
+  over: Partial<TableSocketHook<TableView>> = {},
+): TableSocketHook<TableView> {
+  return {
+    state,
     listed: true,
-    seatId: null,
+    seatId: "s0",
     error: null,
     errorKey: 0,
     connected: true,
     taken: null,
-    retry: () => undefined,
+    retry: vi.fn(),
     busy: false,
     chat: [],
-    say: () => undefined,
-    addBot: () => undefined,
-    setListed: () => undefined,
-    create: () => undefined,
-    join: () => undefined,
-    watch: () => undefined,
-    leave: () => undefined,
-    act: () => undefined,
+    say: vi.fn(),
+    addBot: vi.fn(),
+    setListed: vi.fn(),
+    create: vi.fn(),
+    join: vi.fn(),
+    watch: vi.fn(),
+    leave: vi.fn(),
+    act: vi.fn(),
     onRelay: () => () => undefined,
     onError: () => () => undefined,
     landed: [],
     stakes: [],
-    taunt: () => undefined,
-  }),
-}));
+    taunt: vi.fn(),
+    ...over,
+  };
+}
+
+function tree() {
+  return (
+    <MemoryRouter initialEntries={["/liars-dice/HG4ME"]}>
+      <Routes>
+        <Route path="/liars-dice/:code" element={<LiarsDice />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+function show(hook: TableSocketHook<TableView>) {
+  vi.mocked(useTableSocket).mockReturnValue(hook as TableSocketHook<unknown>);
+  return render(tree());
+}
+
+beforeEach(() => {
+  vi.mocked(useAccount).mockReturnValue(account);
+  vi.mocked(useTableSocket).mockReturnValue(socket(null) as TableSocketHook<unknown>);
+  // The taunt catalogue: none, which is a picker that does not render.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: false, json: async () => ({}) })),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+beforeAll(() => {
+  // jsdom lays nothing out, so it has no scrolling to do.
+  Element.prototype.scrollIntoView = vi.fn();
+});
 
 describe("the Liar's Dice page", () => {
   it("offers a table to join and one to open", () => {
@@ -109,5 +184,90 @@ describe("the stake and dice pickers", () => {
     const after = lamps.map((lamp) => lamp.className);
     expect(new Set(after).size).toBe(1);
     expect(after).toEqual(before);
+  });
+});
+
+describe("the felt", () => {
+  it("is the fitted, liars-dice-flavoured page", () => {
+    const { container } = show(socket(view([seat({ id: "s0" }), seat({ id: "s1" })])));
+    const main = container.querySelector("main");
+    expect(main?.classList.contains("play--fit")).toBe(true);
+    expect(main?.classList.contains("play--liars")).toBe(true);
+  });
+
+  it("shows a plate per seat on the rail, and your own hand as faces", () => {
+    const { container } = show(
+      socket(
+        view([
+          seat({ id: "s0", hand: [1, 2, 3, 4, 5] }),
+          seat({ id: "s1" }),
+          seat({ id: "s2" }),
+        ]),
+      ),
+    );
+    expect(container.querySelectorAll(".ld__seat")).toHaveLength(3);
+    const yours = screen.getByRole("group", { name: "Your dice" });
+    // Faces, not cups: the down state reads "Face down" rather than "Showing…".
+    expect(within(yours).queryAllByLabelText(/^Showing /)).toHaveLength(5);
+  });
+
+  it("says a bid on the press, and shows it on the felt before any new state arrives", () => {
+    const acted = vi.fn();
+    const one = seat({ id: "s0", hand: [1, 2, 3, 4, 5] });
+    const two = seat({ id: "s1", hand: [1, 2, 3, 4, 5] });
+    show(socket(view([one, two], { bid: null, toAct: "s0" }), { act: acted }));
+
+    const floor = opening(10);
+    const button = screen.getByRole("button", { name: new RegExp(`^Bid ${says(floor)}`) });
+    fireEvent.click(button);
+
+    expect(acted).toHaveBeenCalledWith({ type: "bid", count: floor.count, face: floor.face });
+    // Shown at once: a stake is the player's own number, so nothing waited
+    // for the table to answer before it appeared.
+    expect(screen.getByText(says(floor))).toBeInTheDocument();
+  });
+
+  it("calls liar on the press, and invents nothing about the count on the felt", () => {
+    const acted = vi.fn();
+    const standing = { count: 3, face: 2 as const };
+    const one = seat({ id: "s0", hand: [1, 2, 3, 4, 5] });
+    const two = seat({ id: "s1", hand: [1, 2, 3, 4, 5] });
+    show(socket(view([one, two], { bid: standing, bidder: "s1", toAct: "s0" }), { act: acted }));
+
+    const before = document.querySelector(".ld__figure")?.textContent;
+    fireEvent.click(screen.getByRole("button", { name: "Liar" }));
+
+    expect(acted).toHaveBeenCalledWith({ type: "liar" });
+    // A call's answer is thirty dice and a count only the server knows — so
+    // nothing about it may be guessed, and the figure must not have moved.
+    expect(document.querySelector(".ld__figure")?.textContent).toBe(before);
+  });
+
+  it("shows a refusal over the board rather than as a strip", () => {
+    const { container } = show(
+      socket(view([seat({ id: "s0" }), seat({ id: "s1" })]), {
+        error: "Last call — the round is already decided.",
+        errorKey: 1,
+      }),
+    );
+    expect(screen.getByRole("alert").textContent).toContain("Last call");
+    expect(container.querySelector(".play__error")).toBeNull();
+    expect(container.querySelector(".refusal")).not.toBeNull();
+  });
+
+  it("carries an unread count on the talk key for somebody else's lines", () => {
+    const table = view([seat({ id: "s0" }), seat({ id: "s1" })]);
+    // Empty at mount, so the first line to arrive is news rather than history
+    // already on screen when the key first drew itself.
+    const { rerender } = show(socket(table, { chat: [] }));
+    expect(screen.getByRole("button", { name: "Table talk" })).toBeTruthy();
+
+    const line: ChatMessage = { seatId: "s1", name: "Bo", text: "coward", at: 1 };
+    vi.mocked(useTableSocket).mockReturnValue(
+      socket(table, { chat: [line] }) as TableSocketHook<unknown>,
+    );
+    rerender(tree());
+
+    expect(screen.getByRole("button", { name: "Table talk, 1 unread" })).toBeTruthy();
   });
 });

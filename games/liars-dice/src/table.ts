@@ -37,6 +37,14 @@ export interface SeatView {
   /** Sat down while a game was running, and waiting for the next one. */
   waiting: boolean;
   isBot: boolean;
+  /**
+   * Playing from a profile rather than as a guest.
+   *
+   * A taunt is staked in real chips, so it can only be thrown at somebody
+   * with an account for them to reach — Greed's seat view has said this
+   * since it had one, and blackjack's after it.
+   */
+  signedIn: boolean;
   avatar: string | null;
   accentColor: number | null;
   /** In for the next game. Only meaningful between games. */
@@ -537,6 +545,7 @@ export class Table implements PlayTable {
       connected: seat.connected,
       waiting: seat.waiting,
       isBot: seat.isBot,
+      signedIn: seat.userId !== null,
       avatar: seat.avatar,
       accentColor: seat.accentColor,
       ready: this.readiness.isReady(seat.id),
