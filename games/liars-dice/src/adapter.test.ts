@@ -1,4 +1,4 @@
-import type { GameDeps } from "@backroom/core";
+import type { FinishedGame, GameDeps, StatBumpLike } from "@backroom/core";
 import { TableError } from "@backroom/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { liarsDiceAdapter } from "./adapter.js";
@@ -22,13 +22,22 @@ const store = () => {
     give: vi.fn(async (userId: string, amount: number) => {
       balances.set(userId, (balances.get(userId) ?? 0) + amount);
     }),
-    record: vi.fn(async () => undefined),
-    finished: vi.fn(async () => undefined),
+    // Typed rather than bare, so the payloads below are checked as well as counted.
+    record: vi.fn(async (_userId: string, _bump: StatBumpLike) => undefined),
+    finished: vi.fn(async (_record: FinishedGame) => undefined),
   } satisfies GameDeps;
   return { balances, deps };
 };
 
 const fives = () => 5 as Face;
+
+/** Every chip named across a mock's calls. What went out, or what came back. */
+const sum = (calls: readonly (readonly [string, number])[]) =>
+  calls.reduce((total, call) => total + call[1], 0);
+
+/** What went back to one account across a mock's calls. */
+const backTo = (calls: readonly (readonly [string, number])[], userId: string) =>
+  sum(calls.filter((call) => call[0] === userId));
 
 /**
  * A table with these players sat at it, ready to be dealt.
@@ -106,6 +115,8 @@ describe("the antes", () => {
     expect(table.game?.players).toEqual(["a", "b"]);
     expect(bank.balances.get("a")).toBe(500);
     expect(table.view(null).pot).toBe(1_000);
+    // A table that never stopped draining would never deal itself again.
+    expect(table.draining).toBe(false);
   });
 
   it("sits out only the player who cannot cover it", async () => {
@@ -120,6 +131,32 @@ describe("the antes", () => {
     expect(table.game?.players).toEqual(["a", "b"]);
     expect(table.view(null).seats.find((seat) => seat.id === "c")?.short).toBe(true);
     expect(bank.balances.get("c")).toBe(100);
+  });
+
+  it("hands every ante back and deals nobody when fewer than two can pay", async () => {
+    /*
+     * The one funded player's ante has already left their account by the time
+     * the table knows there is nobody to play against, so the only honest end
+     * to this is handing it back. A table that dealt anyway would be a game of
+     * one, and a table that simply stopped would have kept the money.
+     */
+    const table = seated(adapter, ["a", "b", "c"]);
+    bank.balances.set("a", 1_000);
+    bank.balances.set("b", 100);
+    bank.balances.set("c", 100);
+    allReady(table, ["a", "b", "c"]);
+
+    expect(await deal(adapter, table, bank.deps)).toBe(true);
+
+    expect(table.game).toBe(null);
+    expect(backTo(bank.deps.give.mock.calls, "a")).toBe(500);
+    expect(bank.balances.get("a")).toBe(1_000);
+    expect(bank.balances.get("b")).toBe(100);
+    expect(bank.balances.get("c")).toBe(100);
+    expect(table.view(null).readyCount).toBe(0);
+    expect(table.view(null).lastEvent).toBe(
+      "Not enough players could cover the ante, so nobody was dealt.",
+    );
   });
 
   it("deals nobody and hands everything back when the store throws", async () => {
@@ -137,15 +174,19 @@ describe("the antes", () => {
     expect(table.game).toBe(null);
     expect(bank.deps.give).toHaveBeenCalledWith("a", 500);
     expect(table.view(null).lastEvent).toContain("nobody was dealt");
+    expect(table.view(null).readyCount).toBe(0);
+    // A deal that fell through still has to let go of the table.
+    expect(table.draining).toBe(false);
   });
 
-  it("refunds and does not deal somebody who left while the antes were taken", async () => {
+  it("does not charge or deal somebody who dropped before their own ante", async () => {
     const table = seated(adapter, ["a", "b", "c"]);
     for (const one of ["a", "b", "c"]) {
       bank.balances.set(one, 1_000);
     }
     allReady(table, ["a", "b", "c"]);
-    // c goes while the second ante is in flight.
+    // c goes while the second ante is in flight, so c's own ante is never
+    // reached: this is the first pass's skip, not the re-check below it.
     bank.deps.take.mockImplementation(async (userId: string, amount: number) => {
       if (userId === "b") {
         table.disconnect("c");
@@ -157,7 +198,85 @@ describe("the antes", () => {
     await deal(adapter, table, bank.deps);
 
     expect(table.game?.players).toEqual(["a", "b"]);
+    expect(bank.deps.take).toHaveBeenCalledTimes(2);
     expect(bank.balances.get("c")).toBe(1_000);
+    // Never charged is not the same as could not pay, and a felt that said so
+    // would be accusing somebody who was only on a bad line.
+    expect(table.view(null).seats.find((seat) => seat.id === "c")?.short).toBe(false);
+  });
+
+  it("refunds and does not deal a funded player who drops while a later ante is taken", async () => {
+    const table = seated(adapter, ["a", "b", "c"]);
+    for (const one of ["a", "b", "c"]) {
+      bank.balances.set(one, 1_000);
+    }
+    allReady(table, ["a", "b", "c"]);
+    /*
+     * a has already paid by the time they go, so the first pass's skip cannot
+     * catch them — only the re-check under the antes can hand that ante back.
+     * Leave at this table only disconnects, so a's seat is still sitting there
+     * looking dealable while a is not.
+     */
+    bank.deps.take.mockImplementation(async (userId: string, amount: number) => {
+      if (userId === "c") {
+        table.disconnect("a");
+      }
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) - amount);
+      return true;
+    });
+
+    await deal(adapter, table, bank.deps);
+
+    expect(table.game?.players).toEqual(["b", "c"]);
+    expect(bank.deps.give).toHaveBeenCalledWith("a", 500);
+    expect(bank.balances.get("a")).toBe(1_000);
+    expect(table.view(null).pot).toBe(1_000);
+    expect(sum(bank.deps.take.mock.calls)).toBe(
+      sum(bank.deps.give.mock.calls) + table.view(null).pot,
+    );
+  });
+
+  it("refunds somebody who goes while another's refund is in flight, and deals no ghost", async () => {
+    /*
+     * The window the re-check loop closes, and the reason it is a loop rather
+     * than a pass: a refund is itself an await, so who is left can change again
+     * while one is running. d's ante drops a; handing a's ante back drops b,
+     * right in the middle of paying it.
+     *
+     * A single pass would refund a, then deal b — a seat in the turn order
+     * whose player has gone, and a pot nobody could be paid if it won.
+     */
+    const table = seated(adapter, ["a", "b", "c", "d"]);
+    for (const one of ["a", "b", "c", "d"]) {
+      bank.balances.set(one, 1_000);
+    }
+    allReady(table, ["a", "b", "c", "d"]);
+    bank.deps.take.mockImplementation(async (userId: string, amount: number) => {
+      if (userId === "d") {
+        table.disconnect("a");
+      }
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) - amount);
+      return true;
+    });
+    bank.deps.give.mockImplementation(async (userId: string, amount: number) => {
+      if (userId === "a") {
+        table.disconnect("b");
+      }
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) + amount);
+    });
+
+    await deal(adapter, table, bank.deps);
+
+    expect(table.game?.players).toEqual(["c", "d"]);
+    expect(backTo(bank.deps.give.mock.calls, "a")).toBe(500);
+    expect(backTo(bank.deps.give.mock.calls, "b")).toBe(500);
+    expect(bank.balances.get("a")).toBe(1_000);
+    expect(bank.balances.get("b")).toBe(1_000);
+    // Nothing was created and nothing was kept: what is left off the accounts
+    // is exactly what is on the felt.
+    expect(sum(bank.deps.take.mock.calls)).toBe(
+      sum(bank.deps.give.mock.calls) + table.view(null).pot,
+    );
   });
 
   it("deals nobody at a table called off while an ante was in flight", async () => {
@@ -175,6 +294,106 @@ describe("the antes", () => {
 
     expect(table.game).toBe(null);
     expect(bank.balances.get("a")).toBe(1_000);
+  });
+
+  it("deals nobody when it is called off while a leaver's ante is going back", async () => {
+    /*
+     * Every ante is in and held; a dropped during c's take, and the void lands
+     * while a's is being handed back. b and c are still two, but their antes
+     * have already gone back with the void — a game dealt now would be a pot
+     * with nothing in it, and the winner would be paid out of thin air.
+     *
+     * A different route to a called-off table than the `hold` refusal above:
+     * that one lands while a take is in flight, this one while a *refund* is.
+     */
+    const table = seated(adapter, ["a", "b", "c"]);
+    for (const one of ["a", "b", "c"]) {
+      bank.balances.set(one, 1_000);
+    }
+    allReady(table, ["a", "b", "c"]);
+    let voiding: Promise<unknown> = Promise.resolve();
+    bank.deps.take.mockImplementation(async (userId: string, amount: number) => {
+      if (userId === "c") {
+        table.disconnect("a");
+      }
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) - amount);
+      return true;
+    });
+    bank.deps.give.mockImplementation(async (userId: string, amount: number) => {
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) + amount);
+      if (userId === "a") {
+        voiding = adapter.void(table, bank.deps);
+      }
+    });
+
+    await deal(adapter, table, bank.deps);
+    await voiding;
+
+    expect(table.game).toBe(null);
+    for (const one of ["a", "b", "c"]) {
+      expect(bank.balances.get(one)).toBe(1_000);
+    }
+  });
+
+  it("takes no second set of antes while the first deal is still draining", async () => {
+    /*
+     * What makes running on every broadcast exactly-once: the queue is emptied
+     * before the first await, so a payOut arriving while antes are in flight
+     * finds nothing to do. Without that, four antes off two accounts for a pot
+     * of two.
+     */
+    const table = seated(adapter, ["a", "b"]);
+    for (const one of ["a", "b"]) {
+      bank.balances.set(one, 1_000);
+    }
+    allReady(table, ["a", "b"]);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    bank.deps.take.mockImplementation(async (userId: string, amount: number) => {
+      await gate;
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) - amount);
+      return true;
+    });
+
+    table.askForGame(Date.now());
+    expect(table.pending).toBe(true);
+    const first = adapter.payOut?.(table, bank.deps);
+
+    // Deliberately not awaited: the queue has to be empty and the table has to
+    // be flagged as draining already, before anything can have yielded.
+    expect(table.pending).toBe(false);
+    expect(table.draining).toBe(true);
+    expect(await adapter.payOut?.(table, bank.deps)).toBe(false);
+
+    release();
+    await first;
+
+    expect(bank.deps.take).toHaveBeenCalledTimes(2);
+    expect(table.game?.players).toEqual(["a", "b"]);
+    expect(bank.balances.get("a")).toBe(500);
+    expect(table.draining).toBe(false);
+  });
+
+  it("offers no second deal while the antes are still being taken", async () => {
+    // A table that looked idle mid-deal would arm another one, and the pause
+    // the room runs is what would arm it.
+    const table = seated(adapter, ["a", "b"]);
+    for (const one of ["a", "b"]) {
+      bank.balances.set(one, 1_000);
+    }
+    allReady(table, ["a", "b"]);
+    let during: unknown = "never ran";
+    bank.deps.take.mockImplementation(async (userId: string, amount: number) => {
+      during = adapter.pause?.(table) ?? null;
+      bank.balances.set(userId, (bank.balances.get(userId) ?? 0) - amount);
+      return true;
+    });
+
+    await deal(adapter, table, bank.deps);
+
+    expect(during).toBeNull();
   });
 
   it("does nothing at all when no deal was asked for", async () => {
@@ -266,11 +485,22 @@ describe("the moves", () => {
   it("resolves a liar call and says so", async () => {
     const table = dealt();
     const first = table.game?.round.toAct as string;
+    const opened = table.view(null).eventSeq;
     await adapter.act(table, first, { type: "bid", count: 4, face: 5 }, bank.deps);
     const second = table.game?.round.toAct as string;
 
+    /*
+     * Counted, not just said. `eventSeq` is the only thing in the view that
+     * moves with every action the table reports, so it is the only way the
+     * activity log can tell the same sentence twice running apart from one
+     * broadcast sent twice — a sentence set on `lastEvent` directly is a
+     * sentence the log will swallow.
+     */
+    expect(table.view(null).eventSeq).toBe(opened + 1);
+
     await adapter.act(table, second, { type: "liar" }, bank.deps);
 
+    expect(table.view(null).eventSeq).toBe(opened + 2);
     expect(table.view(null).resolution?.call).toBe("liar");
     expect(table.view(null).lastEvent).toContain("liar");
     // Six fives on the table against a bid of four: the bid was good, so the
@@ -371,11 +601,107 @@ describe("paying out", () => {
     expect(adapter.isSettled(table)).toBe(true);
     await adapter.settle(table, bank.deps);
 
+    expect(winner).toBe("b");
+    expect(loser).toBe("a");
     expect(bank.balances.get(winner)).toBe(1_500);
     expect(bank.balances.get(loser)).toBe(500);
-    expect(bank.deps.record).toHaveBeenCalledTimes(2);
-    expect(bank.deps.finished).toHaveBeenCalledTimes(1);
     expect(adapter.winners?.(table)).toEqual([winner]);
+
+    // The one assertion in this file that would catch chips being created:
+    // everything paid out came off an account first.
+    expect(sum(bank.deps.give.mock.calls)).toBe(sum(bank.deps.take.mock.calls));
+    expect(sum(bank.deps.give.mock.calls)).toBe(1_000);
+
+    /*
+     * The whole payload, not just the call count. `add` and `max` are
+     * Record<string, number>, so a typo'd stat key is a silent loss of
+     * somebody's history that typecheck cannot see: three rounds, a bid from
+     * the opener and a call from the other every time.
+     */
+    expect(bank.deps.record.mock.calls).toEqual([
+      [
+        "a",
+        {
+          shared: { rounds: 1, roundsWon: 0, chipsWon: -500, chipsStaked: 500 },
+          game: "liars-dice",
+          add: { games: 1, bids: 3, calls: 0, exacts: 0, exactsHit: 0 },
+          max: { pot: 1_000, rounds: 3 },
+        },
+      ],
+      [
+        "b",
+        {
+          shared: { rounds: 1, roundsWon: 1, chipsWon: 500, chipsStaked: 500 },
+          game: "liars-dice",
+          add: { games: 1, bids: 0, calls: 3, exacts: 0, exactsHit: 0 },
+          max: { pot: 1_000, rounds: 3 },
+        },
+      ],
+    ]);
+
+    expect(bank.deps.finished).toHaveBeenCalledTimes(1);
+    const history = bank.deps.finished.mock.calls[0]?.[0] as FinishedGame;
+    expect(history).toMatchObject({
+      code: "ABCDE",
+      rulesetName: "3 dice",
+      buyIn: 500,
+      pot: 1_000,
+      winnerIds: ["b"],
+    });
+    // A game nobody paid into and nobody took out of: the nets have to cancel.
+    expect(history.players.reduce((total, one) => total + one.net, 0)).toBe(0);
+    expect(history.players).toEqual([
+      { userId: "a", name: "a", score: 3, isBot: false, net: -500 },
+      { userId: "b", name: "b", score: 3, isBot: false, net: 500 },
+    ]);
+  });
+
+  it("records no game and no stats as though the pot were paid, when paying the winner fails", async () => {
+    const bank = store();
+    const adapter = liarsDiceAdapter({ roll: fives });
+    const table = seated(adapter, ["a", "b"]);
+    for (const one of ["a", "b"]) {
+      bank.balances.set(one, 1_000);
+    }
+    allReady(table, ["a", "b"]);
+    await deal(adapter, table, bank.deps);
+    await playOut(adapter, table, bank.deps);
+    bank.deps.give.mockImplementation(async () => {
+      throw new Error("the store is down");
+    });
+    expect(adapter.isSettled(table)).toBe(true);
+
+    await expect(adapter.settle(table, bank.deps)).rejects.toThrow("the store is down");
+
+    expect(bank.deps.record).not.toHaveBeenCalled();
+    expect(bank.deps.finished).not.toHaveBeenCalled();
+  });
+
+  it("refuses to settle a game won by a seat that is not there", async () => {
+    /*
+     * The backstop under `begin`'s one promise: whoever took the antes has
+     * already answered who is in this game, and nothing downstream re-checks
+     * it. Handed an id that is not sitting at the table, the pot cannot be paid
+     * — and the one thing that must not happen then is a history saying it was.
+     */
+    const bank = store();
+    const adapter = liarsDiceAdapter({ roll: fives });
+    const table = seated(adapter, ["a", "b"]);
+    table.begin(["a", "ghost"]);
+    while (table.game !== null && !table.game.over) {
+      const bidder = table.game.round.toAct;
+      const caller = table.game.round.order.find((one) => one !== bidder) as string;
+      table.game.raise(bidder, { count: 1, face: 2 });
+      table.game.call(caller, "liar");
+      table.nextRound();
+    }
+    expect(table.game?.winnerId).toBe("ghost");
+
+    await expect(adapter.settle(table, bank.deps)).rejects.toThrow("pot unpaid");
+
+    expect(bank.deps.give).not.toHaveBeenCalled();
+    expect(bank.deps.record).not.toHaveBeenCalled();
+    expect(bank.deps.finished).not.toHaveBeenCalled();
   });
 
   it("pays nothing twice when a void arrives after the pot is settled", async () => {
