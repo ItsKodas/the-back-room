@@ -188,11 +188,15 @@ describe("the stake and dice pickers", () => {
 });
 
 describe("the felt", () => {
-  it("is the fitted, liars-dice-flavoured page", () => {
+  it("is the fitted, liars-dice-flavoured page, with the felt actually up", () => {
     const { container } = show(socket(view([seat({ id: "s0" }), seat({ id: "s1" })])));
     const main = container.querySelector("main");
     expect(main?.classList.contains("play--fit")).toBe(true);
     expect(main?.classList.contains("play--liars")).toBe(true);
+    // The wrapper's classes are the parent page's business and would still be
+    // there over a blank felt — the rail is Felt's own markup, so its
+    // presence is what actually says the table is up.
+    expect(container.querySelectorAll(".ld__seat")).toHaveLength(2);
   });
 
   it("shows a plate per seat on the rail, and your own hand as faces", () => {
@@ -253,6 +257,9 @@ describe("the felt", () => {
     expect(screen.getByRole("alert").textContent).toContain("Last call");
     expect(container.querySelector(".play__error")).toBeNull();
     expect(container.querySelector(".refusal")).not.toBeNull();
+    // "no strip" is true of a blank page too — the board has to actually be
+    // there, under the refusal, for "over the board" to mean anything.
+    expect(container.querySelectorAll(".ld__seat")).toHaveLength(2);
   });
 
   it("carries an unread count on the talk key for somebody else's lines", () => {
@@ -269,5 +276,31 @@ describe("the felt", () => {
     rerender(tree());
 
     expect(screen.getByRole("button", { name: "Table talk, 1 unread" })).toBeTruthy();
+  });
+
+  it("keeps only one dialog open: opening the rules sheet while talk is open closes talk", () => {
+    show(socket(view([seat({ id: "s0" }), seat({ id: "s1" })])));
+
+    fireEvent.click(screen.getByRole("button", { name: "Table talk" }));
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("Table talk");
+
+    fireEvent.click(screen.getByRole("button", { name: "How it plays" }));
+
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("How it plays");
+  });
+
+  it("keeps only one dialog open: opening talk while the rules sheet is open closes the sheet", () => {
+    show(socket(view([seat({ id: "s0" }), seat({ id: "s1" })])));
+
+    fireEvent.click(screen.getByRole("button", { name: "How it plays" }));
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("How it plays");
+
+    fireEvent.click(screen.getByRole("button", { name: "Table talk" }));
+
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("Table talk");
   });
 });
