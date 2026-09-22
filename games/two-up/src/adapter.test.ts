@@ -7,19 +7,14 @@ import { toBets } from "./bets.js";
 import type { Table } from "./table.js";
 
 /**
- * A bot at a for-fun table.
+ * A bot at a for-fun table, through the door the server uses.
  *
- * `Table` has no `addBot`; a bot is a seat like any other with `isBot` and
- * `skill` set on it. A fresh seat is `waiting: true` here whatever the table's
- * history — `Table.status` never reports "lobby" — so `beginRound()` is what
- * deals it in, exactly as the brief's note says.
+ * `Table.addBot` refuses anywhere but a for-fun table, so this only works on
+ * one — which is the point of going through it rather than dressing a joined
+ * seat up as a bot.
  */
-const sitBot = (table: Table, id: string, skill: "easy" | "normal" | "hard" = "normal") => {
-  const seat = table.join(id, id, null);
-  seat.isBot = true;
-  seat.skill = skill;
-  return seat;
-};
+const sitBot = (table: Table, id: string, skill: "easy" | "normal" | "hard" = "normal") =>
+  table.addBot(id, id, skill);
 
 /** A store that remembers balances, so a test can assert on real movement. */
 function purse(start: Record<string, number>) {
