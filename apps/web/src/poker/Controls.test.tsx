@@ -199,7 +199,7 @@ describe("the taunt key", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Taunt" })).toBeTruthy());
   });
 
-  it("does not appear on your own turn", () => {
+  it("does not appear on your own turn", async () => {
     const table = stub();
     render(
       <Actions
@@ -215,13 +215,18 @@ describe("the taunt key", () => {
         account={ACCOUNT}
       />,
     );
-    // The on-turn branch never mounts TauntPicker at all, so this is true
-    // from the first render — nothing here waits on the stubbed fetch.
-    expect(screen.getByRole("button", { name: /call 200/i })).toBeTruthy();
+    /*
+     * The same wait the positive test gives the stubbed fetch's two-stage
+     * `.then` chain, on an anchor this branch definitely renders — without
+     * it, "Taunt" being absent could just mean "hasn't loaded yet" rather
+     * than "not rendered here," which would pass whether this branch is
+     * right or wrong.
+     */
+    await waitFor(() => expect(screen.getByRole("button", { name: /call 200/i })).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Taunt" })).toBeNull();
   });
 
-  it("does not appear once you have folded out of the hand", () => {
+  it("does not appear once you have folded out of the hand", async () => {
     const table = stub();
     const folded = { ...MINE, folded: true };
     render(
@@ -233,6 +238,9 @@ describe("the taunt key", () => {
         account={ACCOUNT}
       />,
     );
+    // Same reasoning as above: wait out the stubbed fetch on an anchor this
+    // branch definitely renders before trusting the absence.
+    await waitFor(() => expect(screen.getByText(/waiting for the others/i)).toBeTruthy());
     // Confirms the not-in-hand branch is the one showing (no lamps either),
     // same as "offers nothing to somebody who has folded" below.
     expect(screen.queryByRole("button", { name: "Call any" })).toBeNull();
