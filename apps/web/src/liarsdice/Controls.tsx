@@ -102,7 +102,7 @@ export function Controls({
   }
 
   const myTurn = state.toAct !== null && state.toAct === seatId;
-  if (!myTurn || bid === null) {
+  if (!myTurn) {
     return (
       <div className="ld__controls">
         <p className="ld__waiting">{whoseTurn(state, seatId)}</p>
@@ -114,62 +114,78 @@ export function Controls({
     );
   }
 
-  const least = leastCount(bid.face, standing, total) ?? 1;
-  const step = (by: number) =>
-    setPick({ face: bid.face, count: Math.min(total, Math.max(least, bid.count + by)) });
+  /*
+   * Your turn always has something to press, but not always the same thing:
+   * near the ceiling ones become the only raise, and past that there is none
+   * at all — thirty dice with "thirty sixes" standing is call-or-call. `bid`
+   * is null exactly there, and that is a real state the game produces, not a
+   * fallback to bail out of into the waiting line.
+   */
+  const raise = bid === null ? null : { current: bid, least: leastCount(bid.face, standing, total) ?? 1 };
+  const step = (by: number) => {
+    if (raise === null) {
+      return;
+    }
+    setPick({
+      face: raise.current.face,
+      count: Math.min(total, Math.max(raise.least, raise.current.count + by)),
+    });
+  };
   const chooseFace = (face: Face) => {
     const lowest = leastCount(face, standing, total);
     if (lowest === null) {
       return;
     }
     // Keep the count if it is still legal at the new face, lift it if not.
-    setPick({ face, count: Math.max(bid.count, lowest) });
+    setPick({ face, count: Math.max(raise?.current.count ?? lowest, lowest) });
   };
 
   return (
     <div className="ld__controls">
-      <div className="well ld__builder">
-        <div className="lamps ld__faces" role="radiogroup" aria-label="Which face">
-          {FACES.map((face) => {
-            const reachable = leastCount(face, standing, total) !== null;
-            return (
-              <button
-                key={face}
-                type="button"
-                role="radio"
-                aria-checked={bid.face === face}
-                aria-label={FACE_NAMES[face]}
-                disabled={!reachable}
-                className="lamp ld__face-lamp"
-                onClick={() => chooseFace(face)}
-              >
-                {face}
-              </button>
-            );
-          })}
+      {raise === null ? null : (
+        <div className="well ld__builder">
+          <div className="lamps ld__faces" role="radiogroup" aria-label="Which face">
+            {FACES.map((face) => {
+              const reachable = leastCount(face, standing, total) !== null;
+              return (
+                <button
+                  key={face}
+                  type="button"
+                  role="radio"
+                  aria-checked={raise.current.face === face}
+                  aria-label={FACE_NAMES[face]}
+                  disabled={!reachable}
+                  className="lamp ld__face-lamp"
+                  onClick={() => chooseFace(face)}
+                >
+                  {face}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ld__stepper" role="group" aria-label="How many">
+            <button
+              type="button"
+              className="key key--icon"
+              aria-label="One fewer"
+              disabled={raise.current.count <= raise.least}
+              onClick={() => step(-1)}
+            >
+              −
+            </button>
+            <output className="ld__amount">{raise.current.count}</output>
+            <button
+              type="button"
+              className="key key--icon"
+              aria-label="One more"
+              disabled={raise.current.count >= total}
+              onClick={() => step(1)}
+            >
+              +
+            </button>
+          </div>
         </div>
-        <div className="ld__stepper" role="group" aria-label="How many">
-          <button
-            type="button"
-            className="key key--icon"
-            aria-label="One fewer"
-            disabled={bid.count <= least}
-            onClick={() => step(-1)}
-          >
-            −
-          </button>
-          <output className="ld__amount">{bid.count}</output>
-          <button
-            type="button"
-            className="key key--icon"
-            aria-label="One more"
-            disabled={bid.count >= total}
-            onClick={() => step(1)}
-          >
-            +
-          </button>
-        </div>
-      </div>
+      )}
       <div className="ld__keys">
         {help}
         <button
@@ -190,14 +206,16 @@ export function Controls({
         >
           Exact
         </button>
-        <button
-          type="button"
-          className={`slab ld__go${busy ? " is-busy" : ""}`}
-          aria-keyshortcuts="Space"
-          onClick={() => onBid(bid)}
-        >
-          Bid {says(bid)}
-        </button>
+        {raise === null ? null : (
+          <button
+            type="button"
+            className={`slab ld__go${busy ? " is-busy" : ""}`}
+            aria-keyshortcuts="Space"
+            onClick={() => onBid(raise.current)}
+          >
+            Bid {says(raise.current)}
+          </button>
+        )}
       </div>
     </div>
   );

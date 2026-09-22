@@ -121,6 +121,23 @@ describe("calling", () => {
   });
 });
 
+describe("your turn with no legal raise", () => {
+  it("offers Liar and Exact live, and no slab", () => {
+    // Every die in play already claimed as ones: nothing beats it, so
+    // minRaise is null and calling is the only move left.
+    render(
+      <Controls
+        {...props({
+          state: view([seat(), seat({ id: "s1" })], { total: 6, toAct: "s0", bid: { count: 6, face: 1 } }),
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Liar/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Exact/ })).toBeEnabled();
+    expect(document.querySelectorAll(".slab")).toHaveLength(0);
+  });
+});
+
 describe("whose turn it is not", () => {
   it("lights nothing, says who it is waiting on, and offers a taunt", () => {
     render(
