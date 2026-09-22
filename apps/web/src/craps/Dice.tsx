@@ -43,6 +43,34 @@ const PIPS: Record<number, ReadonlyArray<readonly [number, number]>> = {
   ],
 };
 
+/**
+ * One die's face, still.
+ *
+ * Pulled out so the board beside the felt is drawn from the same pip table
+ * the thrown dice are. A second table of dots would be a second thing to get
+ * wrong, and a board whose five did not match the felt's five is a board
+ * nobody would trust to say what the last twelve rolls were.
+ *
+ * `null` is the haze a die wears while no face is readable yet, which is a
+ * state only a die in flight is ever in.
+ */
+export function DieFace({ face }: { face: number | null }) {
+  if (face === null) {
+    return <span className="cr-die__blank" />;
+  }
+  return (
+    <>
+      {PIPS[face]?.map(([row, column]) => (
+        <span
+          className="cr-die__pip"
+          key={`${row}-${column}`}
+          style={{ gridRow: row, gridColumn: column }}
+        />
+      ))}
+    </>
+  );
+}
+
 function prefersReducedMotion(): boolean {
   try {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -101,13 +129,7 @@ function Die({ dice, which, thrown, ms }: { dice: Roll; which: 0 | 1; thrown: bo
 
   return (
     <span className={`cr-die${thrown ? " cr-die--thrown" : ""}`} style={style}>
-      {frame.face === null ? (
-        <span className="cr-die__blank" />
-      ) : (
-        PIPS[frame.face]?.map(([row, column]) => (
-          <span className="cr-die__pip" key={`${row}-${column}`} style={{ gridRow: row, gridColumn: column }} />
-        ))
-      )}
+      <DieFace face={frame.face} />
     </span>
   );
 }

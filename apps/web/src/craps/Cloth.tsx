@@ -2,7 +2,7 @@ import type { Placed } from "@backroom/game-craps";
 import { spotAt } from "@backroom/game-craps";
 import { useEffect, useRef, useState } from "react";
 import { ChipStack } from "../chips/ChipStack.js";
-import { type Box, NUMBER_BOXES, TALL, TURNS_AT, WIDE, boxFor, slot } from "./layout.js";
+import { type Box, TALL, TURNS_AT, WIDE, boxFor, oddsSpotFor, slot } from "./layout.js";
 
 /**
  * The betting cloth.
@@ -23,6 +23,7 @@ export function Cloth({
   offByBank,
   odds,
   landedOn,
+  full,
   portrait,
 }: {
   placed: readonly Placed[];
@@ -56,6 +57,15 @@ export function Cloth({
    * several seconds early and gives the result away.
    */
   landedOn: readonly string[] | null;
+  /**
+   * The boxes the bank has no room left on — box ids, the same as `landedOn`.
+   *
+   * Still pressable, deliberately. Greying one out says "not this one" at a
+   * glance; leaving the press alive is what lets the felt answer *why* when
+   * somebody tries it anyway, and a control that is dimmed and dead says
+   * neither. The cap is the server's either way.
+   */
+  full?: readonly string[];
   /** Forces the arrangement. Left off, the cloth works it out for itself. */
   portrait?: boolean;
 }) {
@@ -127,6 +137,7 @@ export function Cloth({
           offByBank={offByBank}
           odds={odds}
           lit={landedOn?.includes(one.id) ?? false}
+          full={full?.includes(one.id) ?? false}
           onPlace={onPlace}
           onTake={onTake}
           placed={placed}
@@ -153,6 +164,7 @@ function ClothBox({
   offByBank,
   odds,
   lit,
+  full,
   onPlace,
   onTake,
   placed,
@@ -165,6 +177,7 @@ function ClothBox({
   offByBank: readonly string[];
   odds: boolean;
   lit: boolean;
+  full: boolean;
   onPlace?: (spotId: string) => void;
   onTake?: (spotId: string) => void;
   placed: readonly Placed[];
@@ -191,6 +204,7 @@ function ClothBox({
       data-point={isPoint || undefined}
       data-odds={canOdds || undefined}
       data-lit={lit || undefined}
+      data-full={full || undefined}
       onClick={() => onPlace?.(box.id)}
       onContextMenu={(event) => {
         // The browser's own menu is never what somebody wants over a chip.
@@ -238,10 +252,10 @@ function ClothBox({
 /**
  * Whether a box could take odds laid behind what `mine` already has down.
  *
- * The line boxes want a point on the board as well as a bet on the line —
- * there is nothing to price odds against before the shooter has one. A
- * travelled come or don't-come bet needs no point of the table's, because its
- * own number is the number odds would be priced against.
+ * Asked of `oddsSpotFor` rather than answered again here, because the answer
+ * has to be the same one the felt sends when the box is pressed. Outlining a
+ * box by one rule and placing by another is a box that lights up for a bet
+ * the table then refuses.
  */
 function eligibleForOdds(
   boxId: string,
@@ -249,16 +263,5 @@ function eligibleForOdds(
   mine: string | null,
   point: number | null,
 ): boolean {
-  const has = (spotId: string) => placed.some((one) => one.seatId === mine && one.spotId === spotId);
-  if (boxId === "pass") {
-    return point !== null && has("pass");
-  }
-  if (boxId === "dontpass") {
-    return point !== null && has("dontpass");
-  }
-  if (NUMBER_BOXES.includes(boxId)) {
-    const number = boxId.slice("place:".length);
-    return has(`come:${number}`) || has(`dontcome:${number}`);
-  }
-  return false;
+  return oddsSpotFor(boxId, placed, mine, point) !== null;
 }

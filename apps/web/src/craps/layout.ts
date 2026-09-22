@@ -1,4 +1,5 @@
-import { POINTS, spotAt } from "@backroom/game-craps";
+import type { Placed } from "@backroom/game-craps";
+import { POINTS, oddsFor, spotAt } from "@backroom/game-craps";
 
 /**
  * Where everything sits, in grid units rather than pixels.
@@ -164,3 +165,45 @@ export function slot(spotId: string): "flat" | "come" | "dontcome" | "odds" | "d
 
 /** Every number a come bet can travel to, for the felt to outline them. */
 export const NUMBER_BOXES: readonly string[] = POINTS.map((one) => `place:${one}`);
+
+/**
+ * Every box on the cloth, whichever way round it is drawn.
+ *
+ * Taken from one arrangement rather than merged from both, because the two
+ * hold the same set by construction — layout.test.ts asserts of each that its
+ * boxes are exactly the spots a player can press, so a box in one and not the
+ * other is already a failing test rather than a silent gap here.
+ */
+export const BOXES: readonly string[] = WIDE.boxes.map((one) => one.id);
+
+/**
+ * Which odds bet a press on this box would lay behind what `mine` already has
+ * down, or nothing if there is nothing there to back.
+ *
+ * One function rather than two, because "outline this box while odds are
+ * being laid" and "send this spot when it is pressed" are the same question
+ * asked twice — and two answers free to drift is a box that lights up for a
+ * bet the table then refuses.
+ *
+ * The line boxes want a point on the board as well as a bet on the line:
+ * there is nothing to price odds against before the shooter has one. A
+ * travelled come or don't-come bet needs no point of the table's, because its
+ * own number is what the odds are priced against.
+ */
+export function oddsSpotFor(
+  boxId: string,
+  placed: readonly Placed[],
+  mine: string | null,
+  point: number | null,
+): string | null {
+  const has = (spotId: string) => placed.some((one) => one.seatId === mine && one.spotId === spotId);
+  if (boxId === "pass" || boxId === "dontpass") {
+    return point !== null && has(boxId) ? oddsFor(boxId) : null;
+  }
+  if (NUMBER_BOXES.includes(boxId)) {
+    const number = boxId.slice("place:".length);
+    if (has(`come:${number}`)) return oddsFor(`come:${number}`);
+    if (has(`dontcome:${number}`)) return oddsFor(`dontcome:${number}`);
+  }
+  return null;
+}

@@ -5,6 +5,682 @@
  */
 
 /*
+ * The pit wants the width, the way the wheel's room does.
+ *
+ * A craps cloth is twenty-eight units across carrying twenty-five boxes, and
+ * it is the thing you aim at — every pixel of width is a bigger target. Both
+ * classes, not one: `.play` sets its own max-width in game.css and a single
+ * class here only ties with it, which then loses on whichever stylesheet the
+ * bundler happened to put last. That argument has been lost twice in this
+ * building already.
+ */
+.play.play--pit {
+  max-width: min(1560px, 96vw);
+}
+
+.cr {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--gr-space-3);
+  width: 100%;
+}
+
+/*
+ * Phone first: the rail above the cloth, and the cloth standing up so its
+ * boxes are big enough to read and hit. See the note in Cloth.tsx — the cloth
+ * decides which way round it goes from its own width, not the viewport's.
+ */
+.cr__table {
+  display: grid;
+  gap: var(--gr-space-3);
+  justify-items: center;
+}
+
+.cr__pit {
+  /*
+   * How big a die is here. Every die in this building is sized by whoever is
+   * holding it and never by itself — see `.cr-die` — and this is the pit
+   * holding them. Against the felt's own width rather than the viewport's, so
+   * the same rule serves a phone and a table beside a wide cloth.
+   */
+  --d: clamp(32px, 8cqw, 48px);
+  display: grid;
+  gap: var(--gr-space-2);
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * The strip the dice are thrown along.
+ *
+ * Held open at the height of a throw whether or not there is one in it, and
+ * given a width of its own: `throw.ts` hands the felt an `x` between the
+ * shooter's rail and the back wall, and the die's transform reads that as a
+ * share of this box, so a box sized to its own two dice would be a table three
+ * dice wide to throw across.
+ */
+.cr__throwing {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  min-height: calc(var(--d, 44px) * 2.2);
+  /* Room under the dice for the total, which `.cr-dice__status` hangs below
+     its box rather than inside it. Without this it would land on the cloth. */
+  padding-bottom: var(--d, 44px);
+}
+
+.cr__throwing .cr-dice {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/*
+ * Wide enough for a real table: the rail beside the cloth, which is where the
+ * stick stands.
+ *
+ * The threshold is derived, not chosen. Standing the rail beside the cloth
+ * hands the cloth 2.4 of 3.4 columns, so a container of W gives it about
+ * (W - gap) × 2.4 / 3.4 — and the cloth lies down below TURNS_AT, which is
+ * 640. That needs W of at least 640 × 3.4 / 2.4 + gap, a shade over 920. At
+ * 900 the two thresholds disagree and a desk gets a portrait cloth with an
+ * empty column beside it, which is the trap roulette's own note describes.
+ *
+ * The floor on the second column says the same thing a second time, so the
+ * cloth cannot be squeezed under TURNS_AT by anything else that changes here.
+ */
+@container (min-width: 960px) {
+  .cr__table {
+    grid-template-columns: minmax(220px, 1fr) minmax(640px, 2.4fr);
+    align-items: center;
+    justify-items: stretch;
+  }
+}
+
+/* --------------------------------------------------------------- the puck */
+
+/*
+ * The furniture: the puck over the boards.
+ *
+ * Given a width of its own rather than left to size to its contents, because
+ * the boards inside it are the things that decide how wide "its contents" is —
+ * an empty board on a fresh table would have shrunk the puck rail with it.
+ */
+.cr__rail {
+  display: grid;
+  gap: var(--gr-space-2);
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * The rail the puck sits on: Off, then the six numbers a point can be.
+ *
+ * Seven equal cells, so the puck's own position is an index rather than a
+ * measurement — `--cr-puck-at` is which cell, and the track's own width does
+ * the arithmetic. A layout that positioned it in pixels would need a second
+ * copy of the six numbers to work them out from.
+ */
+.cr__puck-rail {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  width: 100%;
+  max-width: 420px;
+  padding: 3px;
+  border-radius: var(--gr-radius-sm);
+  background: var(--gr-color-shadow);
+  border: 1px solid var(--gr-color-neon-dim);
+}
+
+.cr__puck-slot {
+  display: grid;
+  place-items: center;
+  /* Tall enough that the puck sitting on one still leaves the rail readable,
+     and the same height whichever cell the puck is over. */
+  min-height: 34px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--gr-color-ink-faint);
+  font-weight: 700;
+  font-size: var(--gr-text-sm);
+}
+
+.cr__puck-slot--off {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/*
+ * The puck itself.
+ *
+ * It travels, and it travels only when the server says the point moved —
+ * which is why this is a transition on a property fed from the view rather
+ * than a keyframe something starts. There is nothing to start: the puck is
+ * always somewhere, and the somewhere changes.
+ *
+ * Black side up for off and white side up for on, the way a real one is.
+ */
+.cr__puck {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc((100% - 6px - 12px) / 7);
+  height: calc(100% - 6px);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--gr-color-night);
+  border: 2px solid var(--gr-color-ink-dim);
+  color: var(--gr-color-ink-dim);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transform: translateX(calc(var(--cr-puck-at, 0) * (100% + 2px)));
+  transition: transform 420ms var(--gr-settle), background 200ms ease, color 200ms ease;
+  pointer-events: none;
+}
+
+.cr__puck[data-on="true"] {
+  background: var(--gr-color-ink-lit);
+  border-color: var(--gr-color-neon-hi);
+  color: var(--gr-color-night);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gr-color-neon-hi) 55%, transparent);
+}
+
+/* ------------------------------------------------------------- the boards */
+
+/*
+ * The two boards, one above the other.
+ *
+ * A column rather than a row, and at every width. Side by side they are two
+ * strips of small type competing for the same glance, and on a phone one of
+ * them would be four characters wide.
+ */
+.cr__boards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-2);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Wraps rather than scrolls. A strip that scrolls sideways on a phone is a
+ * strip whose last entry — the one that just happened — is the one off the
+ * edge.
+ */
+.cr__rolls,
+.cr__winners {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+.cr__roll {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 3px;
+  border-radius: 4px;
+  background: var(--gr-color-shadow);
+  border: 1px solid color-mix(in srgb, var(--gr-color-neon) 24%, transparent);
+}
+
+.cr__roll-dice {
+  display: flex;
+  gap: 2px;
+}
+
+/*
+ * A die on the board, drawn from the same pip table the thrown ones are —
+ * `--d` is how every die in this building is sized, by whoever is holding it.
+ */
+.cr__roll-die {
+  --d: 14px;
+  width: var(--d);
+  height: var(--d);
+  padding: 1px;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  background: var(--gr-color-ink-lit);
+  border-radius: 3px;
+}
+
+.cr__roll-die .cr-die__pip {
+  width: 3px;
+  height: 3px;
+}
+
+.cr__roll-total {
+  font-family: var(--gr-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gr-color-ink-dim);
+}
+
+/* What the throw did to the hand. A strip of totals cannot say which eight
+   was the one that made the point. */
+.cr__roll-what {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gr-color-ink-faint);
+}
+
+.cr__roll[data-what="made"] {
+  border-color: var(--gr-color-good);
+}
+.cr__roll[data-what="made"] .cr__roll-what {
+  color: var(--gr-color-good);
+}
+
+.cr__roll[data-what="sevenOut"] {
+  border-color: var(--gr-color-bad);
+}
+.cr__roll[data-what="sevenOut"] .cr__roll-what {
+  color: var(--gr-color-bad);
+}
+
+.cr__roll[data-what="set"] {
+  border-color: var(--gr-color-neon-hi);
+}
+.cr__roll[data-what="set"] .cr__roll-what {
+  color: var(--gr-color-neon-hi);
+}
+
+/*
+ * The newest throw, arriving. It comes up from under the board because that is
+ * where it came from — the felt is below this. One pass and done: a board that
+ * pulsed would be claiming something is still happening after the dice stopped.
+ */
+.cr__roll--latest {
+  animation: cr-roll-in 380ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+
+@keyframes cr-roll-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.cr__won {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 3px;
+  border-radius: 999px;
+  background: var(--gr-color-shadow);
+  border: 1px solid color-mix(in srgb, var(--gr-color-neon) 28%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* The total they were paid on, wearing the same mark the board above uses so
+   the two read as one thing. */
+.cr__won-roll {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gr-color-neon) 30%, var(--gr-color-night));
+  font-family: var(--gr-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gr-color-ink-lit);
+  flex: none;
+}
+
+/*
+ * A name is somebody else's text.
+ *
+ * The seating caps one, so a real one always fits whole and this never fires.
+ * It is here for the case where that stops being true: without a width of its
+ * own a name is a flex item that grows the pill, the pill grows the board and
+ * the board grows the page — one long name and the whole felt scrolls
+ * sideways.
+ */
+.cr__won-name {
+  color: var(--gr-color-ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 20ch;
+}
+
+/* Chips, in the colour chips are everywhere in this building. */
+.cr__won-up {
+  font-family: var(--gr-font-data);
+  font-weight: 700;
+  color: var(--gr-color-chip);
+  flex: none;
+}
+
+.cr__won--latest {
+  animation: cr-won 420ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  border-color: color-mix(in srgb, var(--gr-color-neon-hi) 55%, transparent);
+}
+
+@keyframes cr-won {
+  from {
+    transform: translateY(9px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------- what the table is doing */
+
+/*
+ * The one line everybody at the table reads, and here it carries one thing
+ * roulette's does not: whether a point is up and what it is. Every bet on this
+ * cloth resolves differently depending on the answer.
+ */
+.cr__standing {
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--gr-color-ink);
+  min-height: 1.6em;
+  text-wrap: balance;
+}
+
+.cr__standing-point {
+  color: var(--gr-color-neon-hi);
+}
+
+/* Last call, when the felt stops taking chips. Warm rather than alarming. */
+.cr__standing--last {
+  color: var(--gr-color-neon-hi);
+}
+
+.cr__standing--shut {
+  color: var(--gr-color-ink-dim);
+  text-transform: uppercase;
+}
+
+.cr__watching {
+  margin: 0;
+  text-align: center;
+  color: var(--gr-color-ink-dim);
+  font-size: var(--gr-text-sm);
+}
+
+/* ------------------------------------------------------------- the controls */
+
+/*
+ * Everything you press during a hand, together and last on the page, so the
+ * tray and the dice are both within reach of the thumb already holding the
+ * phone. A control you have to scroll to during a betting window is a control
+ * that shuts the window on you.
+ */
+.cr__controls {
+  display: grid;
+  gap: var(--gr-space-3);
+  justify-items: center;
+}
+
+/*
+ * Side by side where there is room, and wrapping rather than laid out in
+ * fixed columns: this tray is seven chips wide, and three groups of that size
+ * pinned to one row is a row that runs off the side of a laptop.
+ */
+@container (min-width: 720px) {
+  .cr__controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--gr-space-4);
+  }
+  .cr__throw,
+  .cr__note {
+    flex-basis: 100%;
+  }
+}
+
+/*
+ * Seven chips, and all seven on one row at 375.
+ *
+ * A grid rather than a wrapping flex row, because seven of anything wrapped
+ * against a phone's width comes out six and one — and the orphan reads as a
+ * chip that does not belong with the others. Seven equal columns of (331 - 12)
+ * / 7 is a shade over 45 at 375, which clears the building's forty-four pixel
+ * floor for anything pressed during a hand.
+ */
+.cr__tray {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+  width: 100%;
+  max-width: 460px;
+}
+
+.cr__chip {
+  background: none;
+  border: none;
+  /* Fills its column, capped so a tray on a wide screen is a row of targets
+     rather than a row of dinner plates. */
+  width: 100%;
+  max-width: 62px;
+  justify-self: center;
+  padding: 2px;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0.55;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.cr__chip:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.cr__chip svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.cr__chip--picked {
+  opacity: 1;
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 2px var(--gr-color-neon-hi);
+}
+
+.cr__chip:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.cr__switches,
+.cr__acts {
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/*
+ * The switches and the three take-backs share a shape, and deliberately share
+ * a weight too. One of them spends money — "same again" puts a whole round
+ * back down — and lighting it the way a primary action is usually lit would be
+ * the felt leaning on the player. Poker's raise stopped being the bright one
+ * for exactly this reason.
+ */
+.cr__act,
+.cr__switch,
+.cr__throw {
+  /* Big enough for a thumb: these are pressed against a closing window. */
+  min-height: 52px;
+  min-width: 116px;
+  padding: var(--gr-space-2) var(--gr-space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.cr__act:hover:not(:disabled),
+.cr__switch:hover:not(:disabled),
+.cr__throw:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.cr__act:disabled,
+.cr__switch:disabled,
+.cr__throw:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* A switch that is on says so by being lit, because what it changes is what
+   the *next* press on the cloth will buy — which nothing else can show. */
+.cr__switch--on {
+  background: color-mix(in srgb, var(--gr-color-neon) 22%, transparent);
+  border-color: var(--gr-color-neon-hi);
+  color: var(--gr-color-ink-lit);
+}
+
+/*
+ * The dice, and the only control on this felt that is one person's.
+ *
+ * Wider than the rest because it is the shooter's whole turn, and it carries
+ * the table's own countdown so it is obvious the dice go with or without them.
+ */
+.cr__throw {
+  min-width: 180px;
+  border-color: var(--gr-color-neon);
+}
+
+.cr__act-name {
+  font-size: var(--gr-text-base);
+  line-height: 1.1;
+}
+
+/* What it will actually do, because a verb alone is a guess. */
+.cr__act-note {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gr-color-ink-faint);
+  text-align: center;
+}
+
+.cr__note {
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
+}
+
+/* Money is gold everywhere in this building, including in a sentence. */
+.cr__note-figure {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- the seats */
+
+.cr__seats {
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cr__seat {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-1);
+  padding: 4px var(--gr-space-2);
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.25);
+  border: var(--gr-edge-soft);
+  font-size: var(--gr-text-sm);
+}
+
+.cr__seat--you {
+  border-color: var(--gr-color-neon);
+}
+
+.cr__seat--away {
+  opacity: 0.45;
+}
+
+.cr__seat-name {
+  color: var(--gr-color-ink);
+}
+
+/* Whose dice they are — a word, because the shooter is the one thing at this
+   table that moves round and a mark would need learning. */
+.cr__seat-shooter {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--gr-color-neon-hi);
+  color: var(--gr-color-night);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* What they have on the cloth, which is gold because it is money. */
+.cr__seat-down {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+}
+
+.cr__seat-up {
+  color: var(--gr-color-good);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr__seat-up--down {
+  color: var(--gr-color-ink-faint);
+}
+
+/*
  * The cloth.
  *
  * A grid rather than absolute positioning, because every box on this table is
@@ -151,6 +827,18 @@
 .cr__box[data-odds="true"] {
   outline: 2px dashed var(--gr-color-neon-hi);
   outline-offset: -4px;
+}
+
+/*
+ * A box the bank has no room left on.
+ *
+ * Dimmed, not disabled. Greying it says "not this one" while you are still
+ * deciding; leaving the press alive is what lets the felt answer *why* when
+ * somebody tries it anyway, and a control that is dim and dead says neither.
+ * The cap is the server's either way — this only saves the trip.
+ */
+.cr__box[data-full="true"] {
+  filter: saturate(0.35) brightness(0.72);
 }
 
 /*
@@ -396,7 +1084,19 @@
 @media (prefers-reduced-motion: reduce) {
   .cr__box[data-lit="true"],
   .cr__off,
+  .cr__roll--latest,
+  .cr__won--latest,
   .cr-die:not(.cr-die--thrown) {
     animation: none;
+  }
+
+  /*
+   * The puck is the one thing here that moves without an animation to turn
+   * off: it is always somewhere and the somewhere changes, so it travels on a
+   * transition rather than a keyframe. It still has to arrive rather than
+   * slide, and it still says which number it is on.
+   */
+  .cr__puck {
+    transition: none;
   }
 }

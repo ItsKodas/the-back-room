@@ -171,6 +171,13 @@
   max-width: min(1560px, 96vw);
 }
 
+/* Written out rather than joined to the wheel's rule above, though the two
+   figures match today: each is that table's own width, from its own
+   stylesheet, and sharing a selector would move one when the other changed. */
+.shell__bar:has(+ .play--pit) {
+  max-width: min(1560px, 96vw);
+}
+
 .nav__mark {
   margin: 0;
   display: flex;
