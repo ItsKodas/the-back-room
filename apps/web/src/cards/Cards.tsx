@@ -262,8 +262,16 @@ export function FaceDown({
  * is the thing this whole arrangement exists to stop.
  */
 const DEAL_MS = 380;
-/** Half a turn: the back folding away, then the face opening out. */
-const FOLD_MS = 120;
+/**
+ * Half a turn: the back folding away, then the face opening out.
+ *
+ * Exported because a felt that turns its own cards — baccarat's, which turns
+ * a pair together on a schedule rather than one card as somebody acts — has
+ * to wait exactly this long between the two halves. `cards.css` holds the
+ * third copy, in the `card-fold` and `card-unfold` durations, and the three
+ * have to agree or a face opens over a back that is still there.
+ */
+export const FOLD_MS = 120;
 
 /**
  * One place in a hand, which may not have a card in it yet.

@@ -1,7 +1,7 @@
 import type { Outcome } from "@backroom/game-baccarat";
 import { useEffect, useState } from "react";
 import { useBumped } from "../blackjack/useIntent.js";
-import { Card, FaceDown } from "../cards/Cards.js";
+import { Card, FaceDown, FOLD_MS } from "../cards/Cards.js";
 import type { Shown } from "./reveal.js";
 
 /**
@@ -12,9 +12,6 @@ import type { Shown } from "./reveal.js";
  * browser opened mid-coup and is seeing it for the first time, because
  * `shownAt` already answered that question the same way either way.
  */
-
-/** Half of the fold-then-open a card does when it turns in place. */
-const FOLD_MS = 120;
 
 export function Coup({
   shown,

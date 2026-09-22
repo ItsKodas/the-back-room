@@ -71,28 +71,36 @@
 }
 
 /*
- * The weave, in whatever colours the game being played is dressed in. A
- * table's theme sets these three and gets a deck of its own without a second
- * drawing of one.
+ * The weave.
+ *
+ * One back for the whole building, not one a game dresses to match itself: a
+ * deck is the thing you recognise wherever you sit down, and a room that
+ * printed its own would be a room where a card no longer reads as the same
+ * object. What does follow the room is the border, through the deep end of
+ * whatever the sign is lit with — enough for a back to belong on the cloth it
+ * is lying on without it becoming that room's own deck.
+ *
+ * `card-`, not `bj-`. The deck lived in blackjack once and these three kept
+ * the prefix on the way out; nothing outside this file has ever read them.
  */
 .card--down {
-  --bj-back: var(--gr-color-neon-deep, #0b3fd4);
-  --bj-back-weft: #12203c;
-  --bj-back-warp: #1f3a70;
+  --card-back: var(--gr-color-neon-deep, #0b3fd4);
+  --card-back-weft: #12203c;
+  --card-back-warp: #1f3a70;
 }
 
 .card__back {
   fill: #0d1220;
-  stroke: var(--bj-back);
+  stroke: var(--card-back);
   stroke-width: 1;
 }
 
 .card__weft {
-  fill: var(--bj-back-weft);
+  fill: var(--card-back-weft);
 }
 
 .card__warp {
-  fill: var(--bj-back-warp);
+  fill: var(--card-back-warp);
 }
 
 /* The one gold line on the back, which is what ties it to the chips. */

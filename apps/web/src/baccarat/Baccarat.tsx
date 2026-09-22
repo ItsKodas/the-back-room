@@ -178,8 +178,12 @@ export function Felt({
     const withoutMineOnPendingSpots = state.placed.filter(
       (one) => !(one.seatId === seatId && one.spotId in pending),
     );
-    const mine = Object.entries(pending).map(([spotId, chips]) => ({ seatId, spotId, chips }));
-    return [...withoutMineOnPendingSpots, ...mine];
+    const standingIn = Object.entries(pending).map(([spotId, chips]) => ({
+      seatId,
+      spotId,
+      chips,
+    }));
+    return [...withoutMineOnPendingSpots, ...standingIn];
   }, [state.placed, pending, seatId]);
 
   const place = (spotId: SpotId) => {
