@@ -96,7 +96,7 @@ function gated(store: MemoryStore) {
   return { proxy, hold };
 }
 
-async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number }) {
+async function start(timings: { emptyRoomTtlMs: number }) {
   const store = new MemoryStore();
   const ada = await store.upsertDiscordUser({
     discordId: "d1",
@@ -116,6 +116,16 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
 
   const ids = [ada.id, bo.id];
   let seen = 0;
+  /*
+   * Every dropped seat's grace, held rather than timed.
+   *
+   * These tests are about what happens while a seat is going, so the moment it
+   * goes has to be theirs. Turning the grace down to a hundred milliseconds
+   * cannot give them that: it is a bet that the test gets scheduled again
+   * inside the grace, and a machine running the rest of the suite loses it,
+   * leaving the test waiting on chips that went back before it was looking.
+   */
+  const holding: Array<() => void> = [];
   // Ada, so the admin desk will answer her; read when the server starts.
   process.env["ADMIN_DISCORD_IDS"] = "d1";
   server = createBackRoomServer({
@@ -129,6 +139,7 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
       return id;
     },
     identifyRequest: () => ada.id,
+    holdSeat: (go) => holding.push(go),
     ...timings,
   });
   // A port fetch will talk to, because the admin desk is reached over HTTP.
@@ -145,7 +156,16 @@ async function start(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number
   };
   // Read through the real store, so a held call never holds up an assertion.
   const chipsOf = async (id: string) => (await store.get(id))?.chips ?? -1;
-  return { store, ada, bo, client, hold, chipsOf, port };
+  /** The grace running out, now, on every seat that has dropped. */
+  const letGo = () => {
+    if (holding.length === 0) {
+      throw new Error("no dropped seat is being held");
+    }
+    for (const go of holding.splice(0)) {
+      go();
+    }
+  };
+  return { store, ada, bo, client, hold, chipsOf, port, letGo };
 }
 
 const until = async (check: () => Promise<boolean> | boolean, ms = 3_000) => {
@@ -159,6 +179,16 @@ const until = async (check: () => Promise<boolean> | boolean, ms = 3_000) => {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The event loop taken away for a while: what a loaded machine does to a worker. */
+function stall(ms: number): number {
+  const until = Date.now() + ms;
+  let spins = 0;
+  while (Date.now() < until) {
+    spins += 1;
+  }
+  return spins;
+}
 
 const openTable = (socket: Client, game: string) =>
   new Promise<string>((resolve) =>
@@ -174,7 +204,7 @@ const watch = (socket: Client, code: string) =>
   new Promise<void>((resolve) => socket.emit("lobby:watch", { code }, () => resolve()));
 
 /** A roulette table with Ada's 200 on red, taken and on the cloth. */
-async function stakedWheel(timings: { reconnectGraceMs: number; emptyRoomTtlMs: number }) {
+async function stakedWheel(timings: { emptyRoomTtlMs: number }) {
   const started = await start(timings);
   const before = await started.chipsOf(started.ada.id);
   const player = await started.client();
@@ -187,7 +217,6 @@ async function stakedWheel(timings: { reconnectGraceMs: number; emptyRoomTtlMs: 
 describe("a table nobody is sitting at any more", () => {
   it("gives the chips on its cloth back before it is cleared away, and says so", async () => {
     const { store, ada, client, chipsOf, before, player, code } = await stakedWheel({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 150,
     });
 
@@ -210,8 +239,7 @@ describe("a table nobody is sitting at any more", () => {
    * that followed was refused by the bank, logged, and never paid.
    */
   it("keeps its chips payable when an admin empties the banks before it is cleared away", async () => {
-    const { store, ada, chipsOf, before, player, code, port } = await stakedWheel({
-      reconnectGraceMs: 100,
+    const { store, ada, chipsOf, before, player, code, port, letGo } = await stakedWheel({
       emptyRoomTtlMs: 60_000,
     });
     /*
@@ -225,7 +253,9 @@ describe("a table nobody is sitting at any more", () => {
     expect(table.phase).toBe("spinning");
     player.close();
     // The seat gone, not just disconnected: the reset refuses a seated player.
-    await until(() => server?.rooms.get(code)?.table.seats.length === 0);
+    await until(() => server?.rooms.get(code)?.table.isEmpty === true);
+    letGo();
+    expect(server?.rooms.get(code)?.table.seats).toHaveLength(0);
 
     const reset = await fetch(`http://localhost:${port}/api/admin/reset`, {
       method: "POST",
@@ -251,7 +281,6 @@ describe("a table while it is being called off", () => {
    */
   it("refuses a move and sends nobody a state", async () => {
     const { ada, client, hold, player, code } = await stakedWheel({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const watcher = await client();
@@ -303,7 +332,6 @@ describe("a table while it is being called off", () => {
    */
   it("hands back a taunt whose chips were still being taken", async () => {
     const { store, bo, client, hold, chipsOf } = await start({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const gif = new Uint8Array(64);
@@ -350,7 +378,6 @@ describe("a table while it is being called off", () => {
    */
   it("hands back a stake that was still being taken", async () => {
     const { store, ada, client, hold, chipsOf } = await start({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const before = await chipsOf(ada.id);
@@ -378,17 +405,49 @@ describe("a table while it is being called off", () => {
    * everything the escrow holds or has queued. Kept so that stays true.
    */
   it("still hands everything back when a dropped seat's grace runs out mid-close", async () => {
-    const { store, ada, hold, chipsOf, before, player, code } = await stakedWheel({
-      reconnectGraceMs: 100,
+    const { store, ada, hold, chipsOf, before, player, code, letGo } = await stakedWheel({
       emptyRoomTtlMs: 60_000,
     });
     player.close();
+    // Dropped, and the seat now being held: `letGo` is the grace, in hand.
     await until(() => server?.rooms.get(code)?.table.isEmpty === true);
     const refund = hold(ada.id, 1);
 
     const closing = server?.closeTable(code, "admin");
+    // The close is now stopped part way through handing the chips back, which
+    // is the only moment this test is about — so the grace runs out here.
     await refund.arrived;
-    await sleep(300);
+    letGo();
+    refund.release();
+    await closing;
+
+    await until(async () => (await chipsOf(ada.id)) === before);
+    await until(async () => (await store.bank("roulette")) === BANK);
+  });
+
+  /*
+   * The same seat, against a worker that stops being scheduled.
+   *
+   * This is the flake the reconnect hold was injected for. While the grace was
+   * a timer, a stall longer than it took the seat away before this had
+   * registered the refund it was about to wait on — and then it waited on chips
+   * that had already gone back, until the runner gave up. It failed perhaps one
+   * run in twelve, always on a machine with the rest of the suite on it, and
+   * never on its own. Nothing here is on a clock now, so the stall is only lost
+   * time.
+   */
+  it("holds a dropped seat however long its worker stops being scheduled", async () => {
+    const { store, ada, hold, chipsOf, before, player, code, letGo } = await stakedWheel({
+      emptyRoomTtlMs: 60_000,
+    });
+    player.close();
+    await until(() => server?.rooms.get(code)?.table.isEmpty === true);
+    stall(400);
+
+    const refund = hold(ada.id, 1);
+    const closing = server?.closeTable(code, "admin");
+    await refund.arrived;
+    letGo();
     refund.release();
     await closing;
 
@@ -398,7 +457,6 @@ describe("a table while it is being called off", () => {
 
   it("still hands everything back when a seat leaves mid-close", async () => {
     const { store, ada, hold, chipsOf, before, player, code } = await stakedWheel({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const refund = hold(ada.id, 1);
@@ -421,7 +479,6 @@ describe("a table while it is being called off", () => {
    */
   it("hands a blackjack bet back exactly once when its seat stands up mid-close", async () => {
     const { store, ada, client, hold, chipsOf } = await start({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const before = await chipsOf(ada.id);
@@ -448,7 +505,6 @@ describe("a table while it is being called off", () => {
 describe("the server stopping", () => {
   it("hands back a blackjack bet still on the felt", async () => {
     const { store, ada, client, chipsOf } = await start({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const before = await chipsOf(ada.id);
@@ -467,7 +523,6 @@ describe("the server stopping", () => {
 
   it("calls every table off as part of closing", async () => {
     const { ada, client, chipsOf } = await start({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const before = await chipsOf(ada.id);
@@ -491,7 +546,6 @@ describe("the server stopping", () => {
    */
   it("waits for a close already under way before it finishes", async () => {
     const { ada, hold, chipsOf, before, code } = await stakedWheel({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const refund = hold(ada.id, 1);
@@ -519,7 +573,6 @@ describe("the server stopping", () => {
    */
   it("leaves nothing on a table opened while it is stopping", async () => {
     const { store, ada, bo, client, hold, chipsOf, before } = await stakedWheel({
-      reconnectGraceMs: 60_000,
       emptyRoomTtlMs: 60_000,
     });
     const late = await client();
@@ -557,7 +610,6 @@ describe("the server stopping", () => {
   for (const broken of ["isSettled", "winners"] as const) {
     it(`still calls every table off when a game's ${broken} throws`, async () => {
       const { store, ada, bo, client, chipsOf, before, code } = await stakedWheel({
-        reconnectGraceMs: 60_000,
         emptyRoomTtlMs: 60_000,
       });
       const other = await client();
