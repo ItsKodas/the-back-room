@@ -235,6 +235,7 @@ function Felt({
           state={state}
           seatId={seatId}
           busy={intent.busy}
+          call={intent.call}
           ready={intent.ready ?? me?.ready ?? false}
           onBid={(bid) => {
             intent.sendBid(bid);

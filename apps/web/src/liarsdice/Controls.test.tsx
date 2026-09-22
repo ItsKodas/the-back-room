@@ -8,6 +8,7 @@ const props = (over: Record<string, unknown> = {}) => ({
   state: view([seat(), seat({ id: "s1", name: "Bram" })], { total: 10, toAct: "s0" }),
   seatId: "s0",
   busy: false,
+  call: null,
   ready: false,
   onBid: vi.fn(),
   onCall: vi.fn(),
@@ -175,6 +176,66 @@ describe("the press going down", () => {
     const slab = screen.getByRole("button", { name: /Bid three twos/ });
     expect(slab).toHaveClass("is-busy");
     expect(slab).not.toBeDisabled();
+  });
+
+  it("marks the slab when a bid is in flight, and leaves the calls alone", () => {
+    render(
+      <Controls
+        {...props({
+          state: view([seat(), seat({ id: "s1" })], {
+            total: 10,
+            toAct: "s0",
+            bid: { count: 3, face: 5 },
+            bidder: "s1",
+          }),
+          busy: true,
+          call: null,
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Bid/ })).toHaveClass("is-busy");
+    expect(screen.getByRole("button", { name: /Liar/ })).not.toHaveClass("is-busy");
+    expect(screen.getByRole("button", { name: /Exact/ })).not.toHaveClass("is-busy");
+  });
+
+  it("marks the Liar key when a liar call is in flight, and leaves the slab alone", () => {
+    render(
+      <Controls
+        {...props({
+          state: view([seat(), seat({ id: "s1" })], {
+            total: 10,
+            toAct: "s0",
+            bid: { count: 3, face: 5 },
+            bidder: "s1",
+          }),
+          busy: true,
+          call: "liar",
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Liar/ })).toHaveClass("is-busy");
+    expect(screen.getByRole("button", { name: /Exact/ })).not.toHaveClass("is-busy");
+    expect(screen.getByRole("button", { name: /Bid/ })).not.toHaveClass("is-busy");
+  });
+
+  it("marks the Exact key when an exact call is in flight, and leaves the slab alone", () => {
+    render(
+      <Controls
+        {...props({
+          state: view([seat(), seat({ id: "s1" })], {
+            total: 10,
+            toAct: "s0",
+            bid: { count: 3, face: 5 },
+            bidder: "s1",
+          }),
+          busy: true,
+          call: "exact",
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Exact/ })).toHaveClass("is-busy");
+    expect(screen.getByRole("button", { name: /Liar/ })).not.toHaveClass("is-busy");
+    expect(screen.getByRole("button", { name: /Bid/ })).not.toHaveClass("is-busy");
   });
 });
 

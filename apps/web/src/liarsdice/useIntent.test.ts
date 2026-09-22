@@ -94,6 +94,18 @@ describe("a call", () => {
     expect(result.current.bid).toBe(null);
   });
 
+  it("remembers which call was pressed, so the right key can hold itself down", () => {
+    const { result } = renderHook(() => useIntent(table({ bid: { count: 3, face: 5 } }), "s0", null));
+    act(() => result.current.sendCall("exact"));
+    expect(result.current.call).toBe("exact");
+  });
+
+  it("says no call is outstanding while a bid is the one in flight", () => {
+    const { result } = renderHook(() => useIntent(table(), "s0", null));
+    act(() => result.current.sendBid({ count: 3, face: 5 }));
+    expect(result.current.call).toBe(null);
+  });
+
   it("lets go when the reveal lands", () => {
     const standing = { bid: { count: 3, face: 5 }, bidder: "s1" };
     const { result, rerender } = renderHook(

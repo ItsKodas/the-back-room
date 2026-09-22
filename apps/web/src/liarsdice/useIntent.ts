@@ -21,6 +21,8 @@ const PATIENCE_MS = 1_600;
 interface Sent {
   /** The bid, for a raise; null for a call. */
   bid: Bid | null;
+  /** Which call is in flight, for a call; null for a raise. */
+  call: Call | null;
   /** What the board looked like when it went, so we can tell when it lands. */
   round: number;
   standing: string;
@@ -30,6 +32,12 @@ interface Sent {
 export interface Intent {
   /** The bid to show: this player's own last press until the table agrees. */
   bid: Bid | null;
+  /**
+   * The call in flight, so the key that was actually pressed is the one that
+   * holds itself down — a call has no number to show, but it does have a
+   * button, and it is not always the same button as a raise's.
+   */
+  call: Call | null;
   /** Readiness to show: the same, for the ready key. */
   ready: boolean | null;
   /** A move gone and not yet answered, so the main action stays held down. */
@@ -91,18 +99,23 @@ export function useIntent(
   const sendBid = useCallback(
     (bid: Bid) => {
       const token = ++latest.current.sent;
-      setSent({ bid, round, standing, revealed });
+      setSent({ bid, call: null, round, standing, revealed });
       forget("sent", token, () => setSent(null));
     },
     [round, standing, revealed, forget],
   );
 
-  const sendCall = useCallback(() => {
-    // The call itself is not kept: there is nothing about it to show early.
-    const token = ++latest.current.sent;
-    setSent({ bid: null, round, standing, revealed });
-    forget("sent", token, () => setSent(null));
-  }, [round, standing, revealed, forget]);
+  const sendCall = useCallback(
+    (call: Call) => {
+      // The count is not kept: there is nothing about the answer to show early.
+      // Which call it was is kept, so the key that was pressed can hold itself
+      // down instead of the bid slab it sits beside.
+      const token = ++latest.current.sent;
+      setSent({ bid: null, call, round, standing, revealed });
+      forget("sent", token, () => setSent(null));
+    },
+    [round, standing, revealed, forget],
+  );
 
   const setReady = useCallback(
     (value: boolean) => {
@@ -158,6 +171,7 @@ export function useIntent(
 
   return {
     bid: sent?.bid ?? null,
+    call: sent?.call ?? null,
     ready,
     busy: sent !== null,
     sendBid,

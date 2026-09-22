@@ -43,6 +43,7 @@ export function Controls({
   state,
   seatId,
   busy,
+  call,
   ready,
   onBid,
   onCall,
@@ -55,6 +56,8 @@ export function Controls({
   seatId: string | null;
   /** A move sent and not yet answered: the slab is held down. */
   busy: boolean;
+  /** Which call, if any, is sent and not yet answered: that key is held down. */
+  call: Call | null;
   /** Readiness to show — this player's own last press until the table agrees. */
   ready: boolean;
   onBid: (bid: Bid) => void;
@@ -196,7 +199,7 @@ export function Controls({
         {bot}
         <button
           type="button"
-          className="key ld__liar"
+          className={`key ld__liar${call === "liar" ? " is-busy" : ""}`}
           aria-keyshortcuts="L"
           disabled={standing === null}
           onClick={() => onCall("liar")}
@@ -205,7 +208,7 @@ export function Controls({
         </button>
         <button
           type="button"
-          className="key ld__exact"
+          className={`key ld__exact${call === "exact" ? " is-busy" : ""}`}
           aria-keyshortcuts="E"
           disabled={standing === null}
           onClick={() => onCall("exact")}
@@ -215,7 +218,9 @@ export function Controls({
         {raise === null ? null : (
           <button
             type="button"
-            className={`slab ld__go${busy ? " is-busy" : ""}`}
+            // Busy from a raise, never from a call in flight: a call has its own
+            // key to hold down, and this slab has nothing to show for it.
+            className={`slab ld__go${busy && call === null ? " is-busy" : ""}`}
             aria-keyshortcuts="Space"
             onClick={() => onBid(raise.current)}
           >

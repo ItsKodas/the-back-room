@@ -491,10 +491,33 @@
 }
 
 /*
- * The go slab doesn't pair `is-busy` with `:disabled` the way the other
- * tables' mains do — it stays pressable while a call is in flight — so the
- * shared `.slab.is-busy:disabled` rule in fittings.css never matches here.
- * This is the same "lit, pulsing faster" look without requiring :disabled.
+ * None of the three keys a press can hold down pair `is-busy` with
+ * `:disabled` the way the other tables' mains do — every one of them stays
+ * pressable while its own move is in flight (a raise on the slab, a call on
+ * Liar or Exact) — so the shared `.slab.is-busy:disabled` rule in
+ * fittings.css never matches any of them. This is that rule's colour and
+ * text-shadow half, copied rather than requiring :disabled to get it, and
+ * left out of its box-shadow half, which is that rule's disabled-sink look
+ * and none of these three ever disables.
+ *
+ * Static colour and a text-shadow, not an animation, which is what keeps this
+ * the one part of "busy" a `prefers-reduced-motion` player still sees once the
+ * pulse below is switched off.
+ */
+.ld__go.is-busy,
+.ld__liar.is-busy,
+.ld__exact.is-busy {
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 10px rgb(255 255 255 / 0.4),
+    0 0 22px var(--gr-color-neon-hi);
+}
+
+/*
+ * The go slab's own screen, pulsing faster while a raise is in flight. Liar
+ * and Exact are plain keys with no lit screen to speed up, so this is the
+ * slab's alone; reduced motion turns it off along with every other `.slab`
+ * animation in fittings.css.
  */
 .ld__go.is-busy::before {
   animation-duration: 1.4s;
