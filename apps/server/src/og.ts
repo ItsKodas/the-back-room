@@ -435,9 +435,10 @@ export const MOTIFS: Record<string, () => string> = {
    * above tells poker from blackjack — a silhouette apart, not just a
    * different rank on the same two angled cards. Built from `board`, the
    * small card poker's own hand already draws with: a hand at this table is
-   * a size down from one somebody would actually hold. Angled toward the gap
-   * between them rather than away from it, so the two sides read as leaning
-   * in to compare rather than as one fanned pair split in half.
+   * a size down from one somebody would actually hold. Each pair fans away
+   * from the gap between them rather than into it — the outer card turned
+   * hardest — so the two sides read as two hands laid out opposite each other
+   * rather than as one fanned pair split down the middle.
    */
   baccarat: () => `
       ${board(900, 308, -10, "9", true)}
