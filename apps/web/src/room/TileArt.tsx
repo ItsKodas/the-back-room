@@ -1,3 +1,4 @@
+import { CRAPS } from "@backroom/game-craps";
 import { OPENING } from "@backroom/game-death-roll";
 import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import type { Face } from "@backroom/game-slots";
@@ -120,6 +121,66 @@ export function CardsArt() {
       </Piece>
       <Piece n={2}>
         <PlayingCard x={130} y={86} turn={9} rank="K" red />
+      </Piece>
+    </svg>
+  );
+}
+
+/**
+ * A die with its pips lit in the table's own gold rather than greed's black.
+ *
+ * The same shape `Die` above draws — flat body, flat spots, no gradient — with
+ * one thing changed. Two dice reading identically to greed's would be a tile
+ * advertising the wrong table; the pip colour is the one thing at this size
+ * that tells a passer-by which room they are looking into.
+ */
+function CrapsDie({ x, y, turn, spots }: { x: number; y: number; turn: number; spots: [number, number][] }) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${turn})`}>
+      <rect x="-30" y="-30" width="60" height="60" rx="11" fill="#e8ecf3" />
+      <rect x="-30" y="-30" width="60" height="60" rx="11" fill="none" stroke="#aab4c4" strokeWidth="1.5" />
+      {spots.map(([sx, sy]) => (
+        <circle key={`${sx},${sy}`} cx={sx} cy={sy} r="5.2" fill={CRAPS.theme.accent} />
+      ))}
+    </g>
+  );
+}
+
+/**
+ * Two dice, caught mid-tumble — a four and a three, the seven every table on
+ * the floor calls a natural.
+ *
+ * Two and not one: one die is greed's tile, and the whole of craps is what the
+ * pair adds up to. Turned against each other and close enough to overlap, the
+ * way a pair actually lands rather than the way two dice would be placed.
+ */
+export function CrapsArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      <Piece n={1}>
+        <CrapsDie
+          x={78}
+          y={100}
+          turn={-16}
+          spots={[
+            [-14, -14],
+            [14, -14],
+            [-14, 14],
+            [14, 14],
+          ]}
+        />
+      </Piece>
+      <Piece n={2}>
+        <CrapsDie
+          x={128}
+          y={74}
+          turn={14}
+          spots={[
+            [-14, -14],
+            [0, 0],
+            [14, 14],
+          ]}
+        />
       </Piece>
     </svg>
   );
@@ -551,6 +612,9 @@ export function TileArt({ game }: { game: string }) {
   }
   if (game === "plinko") {
     return <PegsArt />;
+  }
+  if (game === "craps") {
+    return <CrapsArt />;
   }
   return <ChipsArt />;
 }

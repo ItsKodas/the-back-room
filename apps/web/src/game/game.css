@@ -168,6 +168,13 @@
   max-width: 1600px;
 }
 
+/* The pit widens too, and the figure is craps' own, from craps.css. Written
+   out rather than joined to poker's rule above: each is that table's own
+   width, and sharing a selector would move one when the other changed. */
+.shell__bar:has(+ .play--pit) {
+  max-width: min(1560px, 96vw);
+}
+
 .nav__mark {
   margin: 0;
   display: flex;

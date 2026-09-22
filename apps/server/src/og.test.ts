@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { GameListing } from "@backroom/core";
 import { COMING } from "@backroom/core";
 import { BLACKJACK } from "@backroom/game-blackjack";
+import { CRAPS } from "@backroom/game-craps";
 import { GREED } from "@backroom/game-greed";
 import { POKER } from "@backroom/game-poker";
 import { POCKETS, ROULETTE } from "@backroom/game-roulette";
@@ -108,7 +109,7 @@ describe("the card a link unfurls into", () => {
  * four of the six were doing exactly that — a card still rendered, and still
  * had the right words on it.
  */
-const DEALT: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS];
+const DEALT: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS, CRAPS];
 
 /** One card for a whole game, which is the shape a link to /roulette unfurls into. */
 const banner = (game: GameListing): string =>

@@ -21,6 +21,7 @@ export const BANKS = [
   { game: "roulette", label: "Roulette", per: "straight up" },
   { game: "two-up", label: "Two-up", per: "a five-odds chip" },
   { game: "plinko", label: "Plinko", per: "a High ball" },
+  { game: "craps", label: "Craps", per: "a two or twelve" },
 ] as const;
 
 interface Held {

@@ -1,3 +1,4 @@
+import { CRAPS } from "@backroom/game-craps";
 import { WHEEL, colourOf } from "@backroom/game-roulette";
 import { Resvg } from "@resvg/resvg-js";
 
@@ -402,6 +403,45 @@ function pegs(): string {
 }
 
 /**
+ * Two dice, turned against each other, sitting dark in the table's own gold.
+ *
+ * Filled rather than the tile's ivory — flat, the way `pegs` fills its pegs
+ * and its ball and `wheel` fills every pocket, not the outline this drew
+ * before, which read as a diagram of a die rather than a die. The body is
+ * the table's own felt, not a fifth colour invented for this: a dark square
+ * lit only at its rim and its pips is the room craps is in, the same one
+ * lit by its own sign and nothing else.
+ */
+function dice(cx: number, cy: number, size: number): string {
+  const accent = CRAPS.theme.accent;
+  const body = CRAPS.theme.felt;
+  const half = size / 2;
+  const corner = size * 0.16;
+  const dot = size * 0.07;
+  const spread = size * 0.24;
+
+  const one = (dx: number, dy: number, turn: number, spots: ReadonlyArray<[number, number]>): string =>
+    `<g transform="translate(${cx + dx} ${cy + dy}) rotate(${turn})">
+      <rect x="${-half}" y="${-half}" width="${size}" height="${size}" rx="${corner}" fill="${body}" stroke="${accent}" stroke-width="4"/>
+      ${spots.map(([sx, sy]) => `<circle cx="${sx}" cy="${sy}" r="${dot}" fill="${accent}"/>`).join("")}
+    </g>`;
+
+  return `<g>
+    ${one(-size * 0.42, -size * 0.26, -9, [
+      [-spread, -spread],
+      [spread, -spread],
+      [-spread, spread],
+      [spread, spread],
+    ])}
+    ${one(size * 0.4, size * 0.24, 13, [
+      [-spread, -spread],
+      [0, 0],
+      [spread, spread],
+    ])}
+  </g>`;
+}
+
+/**
  * The furniture each game keeps, by which game it is.
  *
  * A record rather than a run of ifs, so the set can be counted. A game that is
@@ -446,6 +486,7 @@ export const MOTIFS: Record<string, () => string> = {
   slots: cabinet,
   tips: jar,
   plinko: pegs,
+  craps: () => dice(1028, 318, 120),
 };
 
 /**
