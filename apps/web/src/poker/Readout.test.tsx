@@ -32,6 +32,27 @@ function waitingState({ seats }: { seats: number }): TableView {
   });
 }
 
+/**
+ * A hand that has just paid out.
+ *
+ * `pot` is zero here on purpose — that is what `award()` actually leaves it
+ * at, the same way it is on the real table by the time anybody's browser sees
+ * a `street: "showdown"` view. `paid` is what stays true: the server's own
+ * record of who got what, which is the only thing a showdown readout is
+ * allowed to read a figure off.
+ */
+function showdownState(over: Partial<TableView> = {}): TableView {
+  return view({
+    street: "showdown",
+    pot: 0,
+    toAct: null,
+    turnEndsAt: null,
+    lastEvent: "Ada won 500 with two pair",
+    seats: [seat({ id: "me", name: "Me", stack: 1_500 }), seat({ id: "other", name: "Other", stack: 2_000 })],
+    ...over,
+  });
+}
+
 describe("readoutFor", () => {
   it("names what this decision costs when it is yours", () => {
     const model = readoutFor({ state: dealtState({ toAct: "me", you: { toCall: 200 } }), seatId: "me" });
@@ -52,5 +73,50 @@ describe("readoutFor", () => {
 
   it("puts the clock on the readout only while somebody is on it", () => {
     expect(readoutFor({ state: dealtState({ toAct: "other", turnEndsAt: 9_000 }), seatId: "me" }).endsAt).toBe(9_000);
+  });
+});
+
+describe("readoutFor at showdown", () => {
+  it("shows what you actually took, off state.paid, rather than the pot the table has already zeroed", () => {
+    const state = showdownState({
+      paid: [{ pot: 0, seatId: "me", name: "Me", chips: 500, said: "two pair" }],
+    });
+    const model = readoutFor({ state, seatId: "me" });
+    expect(model.figure).toBe("500");
+    expect(model.tone).toBe("chips");
+    expect(model.label).toMatch(/won/i);
+  });
+
+  it("sums every pot you won, for a split or side-pot hand", () => {
+    const state = showdownState({
+      paid: [
+        { pot: 0, seatId: "me", name: "Me", chips: 300, said: "a straight" },
+        { pot: 1, seatId: "me", name: "Me", chips: 150, said: "a straight" },
+        { pot: 1, seatId: "other", name: "Other", chips: 150, said: "a straight" },
+      ],
+    });
+    expect(readoutFor({ state, seatId: "me" }).figure).toBe("450");
+  });
+
+  it("says something true rather than a manufactured loss when you were in the hand and were not paid", () => {
+    const state = showdownState({
+      paid: [{ pot: 0, seatId: "other", name: "Other", chips: 500, said: "two pair" }],
+    });
+    const model = readoutFor({ state, seatId: "me" });
+    // Not a number: nothing here was computed by subtracting a bet the view
+    // does not carry any more — `seat.committed`/`seat.paid` are already zero
+    // by the time this state exists, on the real table.
+    expect(model.figure).not.toMatch(/\d/);
+    expect(model.tone).toBe("plain");
+  });
+
+  it("never says 'Pot 0' to somebody watching the felt", () => {
+    const state = showdownState({
+      seats: [seat({ id: "other", name: "Other", stack: 2_500 })],
+      paid: [{ pot: 0, seatId: "other", name: "Other", chips: 500, said: "two pair" }],
+    });
+    const model = readoutFor({ state, seatId: null });
+    expect(model.figure).toBe("500");
+    expect(model.figure).not.toBe("0");
   });
 });

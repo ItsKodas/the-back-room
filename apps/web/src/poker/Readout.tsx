@@ -15,6 +15,21 @@ export interface ReadoutModel {
 }
 
 /**
+ * What a showdown actually paid, in chips.
+ *
+ * Summed across every pot a seat won — a side-pot hand can win the main pot
+ * and lose a side pot to a bigger stack, and that is one figure, its net of
+ * the hand, not two. `seatId: null` sums the lot, for a watcher who is nobody
+ * to pay: the true total this hand paid out, in place of the zeroed pot.
+ */
+function sumPaidTo(paid: TableView["paid"], seatId: string | null): number {
+  return paid.reduce(
+    (total, one) => (seatId === null || one.seatId === seatId ? total + one.chips : total),
+    0,
+  );
+}
+
+/**
  * The one figure this player is deciding about.
  *
  * Worked out here rather than in the component so every state the table can
@@ -41,6 +56,53 @@ export function readoutFor({
       tone: "plain",
       // A table that cannot find a second real player does not deal, and says so.
       note: enough ? "Next hand shortly." : "Waiting for another player.",
+      endsAt: null,
+      turnMs: state.turnMs,
+    };
+  }
+
+  /*
+   * `state.pot` is the felt in front of everybody right now, and `award()`
+   * empties that before a `showdown` view is ever sent — every chip that was
+   * in the middle is in somebody's stack by the time this street exists. So
+   * the biggest figure on the screen would read 0 at the exact moment a hand
+   * just paid, for the winner most of all. `state.paid` is what stays true:
+   * the server's own record of who got what, and the only thing this branch
+   * reads a figure off — nothing here is a bet subtracted from a stack the
+   * view no longer carries.
+   */
+  if (state.street === "showdown") {
+    const takenByMe = me === null ? 0 : sumPaidTo(state.paid, me.id);
+    if (takenByMe > 0) {
+      return {
+        label: "You won",
+        figure: fmt(takenByMe),
+        tone: "chips",
+        note: state.lastEvent ?? "This hand is over.",
+        endsAt: null,
+        turnMs: state.turnMs,
+      };
+    }
+    if (me !== null) {
+      // Not a number: what you lost is a fact this view stopped carrying the
+      // moment the pot was swept, and a figure guessed from what is left
+      // would be exactly the invented fact this readout exists to refuse.
+      return {
+        label: "This hand",
+        figure: me.folded ? "Folded" : "No pot",
+        tone: "plain",
+        note: state.lastEvent ?? "This hand is over.",
+        endsAt: null,
+        turnMs: state.turnMs,
+      };
+    }
+    // Watching: still a real figure, the total this hand actually paid out,
+    // rather than the pot the table has already zeroed.
+    return {
+      label: "Pot",
+      figure: fmt(sumPaidTo(state.paid, null)),
+      tone: "chips",
+      note: state.lastEvent ?? "This hand is over.",
       endsAt: null,
       turnMs: state.turnMs,
     };
