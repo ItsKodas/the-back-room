@@ -179,6 +179,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* The row the name sits in is bounded too, or the name inside it has
+     nothing to ellipsise against. */
+  max-width: 100%;
+  min-width: 0;
   gap: 5px;
   min-width: 0;
 }
@@ -209,6 +213,16 @@
   flex-direction: column;
   line-height: 1.2;
   min-width: 0;
+  /*
+   * A seat is as wide as the seat, whatever it is called.
+   *
+   * `min-width: 0` lets this shrink but nothing stopped it growing, so a
+   * long name laid its whole line out at max-content: measured on a phone,
+   * "Skint Alice" made a 113px block inside a 48px seat, hanging 10px off
+   * the left of the window and across the seat next to it on the arc. The
+   * name already ellipsises; it just needed to be told how much room it has.
+   */
+  max-width: 100%;
   text-shadow:
     0 1px 3px rgb(0 0 0 / 0.9),
     0 0 10px rgb(0 0 0 / 0.6);
@@ -1836,16 +1850,28 @@
     --angle: 90deg;
   }
 
-  .pk__cards .bj-card {
-    /* Against the felt's own height too, not just its width — a squat phone
-       gives nine opponents' cards less headroom than a tall one, and a card
-       that only ever shrank with width kept its full height on a short felt
-       right up until it ran into the seat beside it. Floor and coefficient
-       both lower than a first pass: nine boxes with a mark and a spoken
-       bubble apiece do not clear each other at the old 22px floor even at
-       the widest radius the felt can give them without a card corner
-       leaving the table outright (see the radius block below). */
-    width: clamp(18px, 3.5cqh, 24px);
+  /*
+   * Everybody else gives up their cards again, and this time it is measured.
+   *
+   * They were taken away here once, then handed back when the felt took the
+   * whole window on the grounds that it could now afford them. It cannot.
+   * On a live ten-handed table at 375×560 the felt is 351×275, and an
+   * opponent's box is 72px tall once it carries its two cards (25px), its
+   * name and stack (32px) and — mid-hand, which is nearly always — a wager
+   * line (14px). Nine boxes of that height do not fit that arc at any
+   * radius: searched from 34% to 52% across and 34% to 56% down, every one
+   * either overlaps a neighbour or throws a seat off the table. At 48px,
+   * which is what is left once the cards go, they fit with 0.6px to spare.
+   *
+   * So the trade is the one the first version made, for the reason it gave:
+   * two dark rectangles at this size say only "still in", which the seat
+   * already says by not being dimmed, while who somebody is, what they have
+   * left and what they have put in are the things you actually read across a
+   * table. Your own hand keeps its own — it is the one nobody can play for
+   * you.
+   */
+  .pk__seat:not(.pk__seat--you) .pk__cards {
+    display: none;
   }
 
   /* Still the biggest thing on the table, because it is still the only hand

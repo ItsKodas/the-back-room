@@ -18,15 +18,12 @@ describe("where a seat sits", () => {
  * existing test green while the horseshoe went back to overlapping.
  *
  * The radius and the seat width are read out of `poker.css` itself, the same
- * way `poker.css.test.ts` does, so this cannot silently drift from what is
- * actually shipped. The one number that cannot be read out of the sheet —
- * how tall a real opponent seat's box gets once its mark and its spoken
- * bubble (both `position: absolute`, so no CSS custom property carries their
- * reach) are counted — is measured instead: 68px, at a live 331×376 felt (a
- * 375×560 phone, the narrowest and shortest size this is checked at, as
- * rendered by the `/style` gallery's own copy of this markup) with a mark
- * badge and a spoken bubble on the same seat at once. `poker.css`'s own
- * comment above `@container fit (max-width: 560px)` has the full derivation.
+ * way `poker.css.test.ts` does, so they cannot silently drift from what is
+ * actually shipped. The two numbers that cannot be read out of the sheet —
+ * how tall an opponent's box gets, and how big the felt it sits on is — are
+ * measured on a live ten-handed table, not modelled and not taken from the
+ * gallery's mockup. Getting either of those from the mockup is exactly how
+ * this test passed while the real felt overlapped.
  */
 function sheet(path: string): string {
   const found = [resolve(process.cwd(), `apps/web/${path}`), resolve(process.cwd(), path)].find((each) =>
@@ -71,13 +68,31 @@ const phoneSeat = block(css, "@container pk (max-width: 560px)");
 const ACROSS = pct(phoneRadius, "--across");
 const DOWN = pct(phoneRadius, "--down");
 const SEAT_W = Number(phoneSeat.match(/\.pk__seat\s*\{[^}]*width:\s*(\d+)px/)?.[1]);
-// Measured, not guessed — see this file's own top comment.
-const SEAT_H = 68;
+/*
+ * How tall an opponent's seat actually gets, measured on the real table.
+ *
+ * This number was twice wrong before, and both times the test stayed green
+ * while the felt overlapped:
+ *
+ *  - it was taken from `/style`'s mockup rather than a dealt table, and the
+ *    mockup's seat carries no wager line. A seat with `bet 540` under its
+ *    stack is a row taller than one without, and mid-hand nearly every seat
+ *    has one.
+ *  - the felt it was measured against was the mockup's, which is a different
+ *    shape from the real one.
+ *
+ * So both are measured off a live ten-handed table now, at the shortest size
+ * this is checked at, and the browser numbers are written down beside them:
+ * an opponent's box is its cards, its name-and-stack block and its wager
+ * line, and nothing else — the mark and the bubble are `position: absolute`
+ * and contribute nothing to the box the browser lays out.
+ */
+const SEAT_H = 48;
 
 const OF = 10;
-// The same felt this was measured against: `/style`'s mockup at 375×560.
-const TABLE_W = 331;
-const TABLE_H = 376;
+// The real felt at 375×560, measured: `.pk__table`'s own border box.
+const TABLE_W = 351;
+const TABLE_H = 275;
 
 /** Radians, matching `calc(150deg + ((var(--seat) - 0.5) / (var(--of) - 1)) * 240deg)`. */
 function horseshoeAngle(seat: number, of: number): number {
@@ -110,19 +125,14 @@ describe("the horseshoe actually fits, at ten seats (fix round 1, finding 4)", (
 
   it("keeps every opponent's box on the table", () => {
     /*
-     * The table, not the green cloth inside it: a card corner is allowed to
-     * land on the timber (the oval's own cards do, at a tight radius) — it
-     * is leaving the table altogether that this guards against. A margin
-     * rather than a hard 0: nine boxes with a mark and a bubble apiece only
-     * clear each other (the test above) by asking a little more of the felt
-     * than a table this size, at this radius, has going spare at its very
-     * top — the worst seat's mark pokes `MARGIN`px past the table's own
-     * edge, well inside the rail's own width (the felt's own 3.4% top inset
-     * is ~13px at this felt's height), never off it. Set to the exact worst
-     * case measured rather than a round number, so tightening the margin
-     * later is a choice rather than an accident.
+     * The table, not the green cloth inside it: a plate is allowed to overlap
+     * the timber, which is what the rail is for — it is leaving the table
+     * altogether that this guards against. The margin is the worst case the
+     * shipped radii actually produce, to one decimal place rather than a
+     * round number, so that widening it later is a decision somebody makes
+     * on purpose rather than a regression that slips under a generous cap.
      */
-    const MARGIN = 8;
+    const MARGIN = 5;
     for (let index = 0; index < opponents.length; index += 1) {
       const box = opponents[index];
       expect(box.left, `seat ${index + 1} left`).toBeGreaterThanOrEqual(-MARGIN);
