@@ -56,7 +56,12 @@ export interface SeatView {
    *
    * A face-down die is `null` rather than a missing entry, so the felt can draw
    * the right number of cups without being told what is under them. Empty
-   * between rounds, when nobody has a hand.
+   * between games, when nothing has been dealt at all; between rounds, mid-game,
+   * it is the opposite — the just-revealed hand, real faces, for everybody to
+   * read until the next deal. In that window it can hold more dice than `dice`
+   * says: whoever just lost one already shows the lower count, but the hand is
+   * still the one they were judged on, and the two numbers answer different
+   * questions.
    */
   hand: readonly (Face | null)[];
 }

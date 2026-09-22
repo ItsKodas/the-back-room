@@ -112,6 +112,15 @@ describe("what the felt says", () => {
     one.say("Nothing happened.");
     expect(one.view(null).eventSeq).toBeGreaterThan(first);
   });
+
+  it("clears the felt without counting that as an event", () => {
+    const one = deal(table(), ["s0", "s1", "s2"]);
+    one.say("The cups are down.");
+    const before = one.view(null).eventSeq;
+    one.finish();
+    expect(one.view(null).lastEvent).toBe(null);
+    expect(one.view(null).eventSeq).toBe(before);
+  });
 });
 
 describe("standing up", () => {
