@@ -51,6 +51,14 @@ describe("what a bot does", () => {
     expect(out.type).toBe("liar");
   });
 
+  it("calls liar on a bid it just does not believe, not one it has run out of room to raise", () => {
+    // Two twos among six dice on the table, well short of the ceiling: there is
+    // plenty of room left to raise, so a hard bot calling liar here is belief
+    // doing the work, not the board running out of bids.
+    const out = choose({ skill: "hard", hand, total: 6, standing: { count: 2, face: 2 } });
+    expect(out.type).toBe("liar");
+  });
+
   it("raises a bid it still believes", () => {
     const out = choose({ skill: "normal", hand, total: 9, standing: { count: 2, face: 5 } });
     expect(out.type).toBe("bid");
@@ -65,12 +73,22 @@ describe("what a bot does", () => {
     }
   });
 
-  it("only calls exact at hard", () => {
+  it("an easy bot never calls exact", () => {
     // Its own two fives, four dice unseen, and a bid sitting exactly on what it
-    // expects: one more five among the four. An easy bot never tries this.
+    // expects: one more five among the four. Reaching for it is hard's alone.
     const hand: Face[] = [5, 5];
     const sitting = { skill: "easy" as const, hand, total: 6, standing: { count: 3, face: 5 as Face } };
     expect(choose(sitting).type).not.toBe("exact");
+  });
+
+  it("a hard bot calls exact when the count sits right on what it expects", () => {
+    // Two fives of its own, nine dice it cannot see, and a bid of five fives:
+    // three more among the nine is close enough to what it expects that easy
+    // and normal are still happy just to raise, but hard presses for the kill.
+    const standing = { count: 5, face: 5 as Face };
+    expect(choose({ skill: "easy", hand, total: 12, standing }).type).toBe("bid");
+    expect(choose({ skill: "normal", hand, total: 12, standing }).type).toBe("bid");
+    expect(choose({ skill: "hard", hand, total: 12, standing }).type).toBe("exact");
   });
 
   it("makes a legal bid whatever the standing bid is", async () => {
