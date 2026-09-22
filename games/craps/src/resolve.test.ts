@@ -242,56 +242,88 @@ describe("the hand itself", () => {
 
 describe("the rulebook as a whole", () => {
   it("never sends chips to a spot that does not exist", () => {
+    /*
+     * Collected and asserted once rather than asserted per combination. The
+     * arithmetic here is free; building an expect message per combination is
+     * not, and at a default timeout this test went red whenever the machine
+     * was busy. A failure still names the exact spot and where it sent chips.
+     */
+    const bad: string[] = [];
     for (const spot of SPOTS.values()) {
       for (const one of OUTCOMES) {
         for (const hand of hands) {
           const next = after(spot, one, hand);
-          if (next !== null) expect(spotAt(next), `${spot.id} -> ${next}`).not.toBeNull();
+          if (next !== null && spotAt(next) === null) bad.push(`${spot.id} -> ${next}`);
         }
       }
     }
+    expect(bad).toEqual([]);
   });
 
   it("never pays a fraction of a chip, for any chip in the tray", () => {
-    // Which is the entire reason the tray is multiples of thirty. A
-    // twenty-five on the six owes 29.166, and there is no such chip.
+    /*
+     * Collected and asserted once rather than asserted 89,000 times. The
+     * arithmetic here is free; building an expect message per combination is
+     * not, and at a default timeout this test went red whenever the machine
+     * was busy. A failure still names the exact spot, chip, roll and point.
+     */
+    const bad: string[] = [];
     for (const spot of SPOTS.values()) {
       const step = spot.id === "horn" ? HORN_STEP : MIN_CHIP;
       for (const chips of CHIPS.filter((one) => one % step === 0)) {
         for (const one of OUTCOMES) {
           for (const hand of hands) {
             const paid = back(chips, multiplier(spot, one, hand));
-            expect(Number.isInteger(paid), `${spot.id} ${chips} ${one} ${hand.point}`).toBe(true);
+            if (!Number.isInteger(paid)) {
+              bad.push(`${spot.id} ${chips} ${one} ${hand.point}`);
+            }
           }
         }
       }
     }
+    expect(bad).toEqual([]);
   });
 
   it("only ever pays a standing bet without settling it", () => {
     // A bet still on the cloth has not been settled, so handing over its stake
     // now would hand it over twice — unless it is one of the kinds that pay
     // winnings only and stay. Anything else doing both is a leak.
+    //
+    // Collected and asserted once rather than asserted per combination, for
+    // the same reason as the sweeps above: free arithmetic, expensive
+    // assertions, and a test that must not go red just because the machine
+    // is busy. A failure still names the exact spot.
     const standing = new Set(["place", "big", "hard"]);
+    const bad: string[] = [];
     for (const spot of SPOTS.values()) {
       if (standing.has(spot.kind)) continue;
       for (const one of OUTCOMES) {
         for (const hand of hands) {
           if (after(spot, one, hand) !== null) {
-            expect(multiplier(spot, one, hand), `${spot.id}`).toEqual([0, 1]);
+            const [num, den] = multiplier(spot, one, hand);
+            if (num !== 0 || den !== 1) bad.push(spot.id);
           }
         }
       }
     }
+    expect(bad).toEqual([]);
   });
 
   it("never pays more than thirty-one times a chip, which is what the cap rests on", () => {
+    /*
+     * Collected and asserted once rather than asserted per combination. The
+     * arithmetic here is free; building an expect message per combination is
+     * not, and at a default timeout this test went red whenever the machine
+     * was busy. A failure still names the exact spot.
+     */
+    const bad: string[] = [];
     for (const spot of SPOTS.values()) {
       for (const one of OUTCOMES) {
         for (const hand of hands) {
-          expect(ratioOf(multiplier(spot, one, hand)), `${spot.id}`).toBeLessThanOrEqual(31);
+          if (ratioOf(multiplier(spot, one, hand)) > 31) bad.push(spot.id);
         }
       }
     }
+    expect(bad).toEqual([]);
   });
 });

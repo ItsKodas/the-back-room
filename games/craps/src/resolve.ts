@@ -128,6 +128,11 @@ const MAX_TAKEN: Readonly<Record<number, number>> = { 4: 3, 10: 3, 5: 4, 9: 4, 6
  *
  * Nothing for a bet that lost, and nothing for a bet that was simply not this
  * roll's business. One-to-one is a push: the chip back and nothing on it.
+ *
+ * Neither this nor `after` knows the come-out rule: a sleeping bet is not a
+ * concept either function carries, so called directly on a come-out they will
+ * happily price and take down a number or a set of odds that was never
+ * working. `sleeps` is the thing that knows, and it has to be asked first.
  */
 export function multiplier(spot: Spot, roll: Roll, hand: Hand): Ratio {
   const t = total(roll);
