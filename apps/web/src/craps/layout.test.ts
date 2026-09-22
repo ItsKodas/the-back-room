@@ -46,7 +46,17 @@ describe("the tall cloth is the one that has to survive a thumb", () => {
   it("gives every box at least forty-four pixels at 375 wide", () => {
     // The building's floor for anything you have to hit during a hand. The
     // grid is in units, so this is arithmetic rather than a screenshot.
-    const gutters = 32;
+    /*
+     * The gutter the felt actually gets, not a guess: `.play` in game.css
+     * pads its sides with --gr-space-5, which is 22px, so 44 of the 375 are
+     * gone before the cloth starts. Guarding a real constraint with an
+     * invented number is worse than not guarding it — the next person
+     * believes it.
+     *
+     * If the craps felt later adds padding of its own inside `.play`, this
+     * number goes up again and this test should follow it.
+     */
+    const gutters = 44;
     const unit = (375 - gutters) / TALL.cols;
     for (const one of TALL.boxes) {
       expect(one.w * unit, `${one.id} across`).toBeGreaterThanOrEqual(44);
