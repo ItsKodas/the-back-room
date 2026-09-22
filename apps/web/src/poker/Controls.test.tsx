@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-poker";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { TableKeys } from "../table/useTableKeys.js";
+import { useTableKeys } from "../table/useTableKeys.js";
 import { Actions } from "./Controls.js";
 import { seat, stub, view } from "./fixtures.js";
 
@@ -282,5 +285,136 @@ describe("deciding before your turn", () => {
       />,
     );
     expect(table.sent).toEqual([]);
+  });
+});
+
+/*
+ * Space/F/R, wired the way Poker.tsx actually wires them: a ref on the
+ * table's own root and `useTableKeys` bound to it. The hook's own machinery
+ * — modifiers, repeats, fields, dialogs, the held/pressed distinction — is
+ * `useTableKeys.test.tsx`'s job; this only checks poker binds the right
+ * button to the right key, and that Space follows the lit slab rather than a
+ * fixed one.
+ */
+describe("keyboard shortcuts", () => {
+  const MINE = seat({
+    id: "s1",
+    name: "Ada",
+    hole: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "diamonds" },
+    ],
+  });
+  const OTHER = seat({ id: "s2", name: "Bram" });
+
+  // No `holds`: poker has no piece you click and then press Space at.
+  const POKER_KEYS: TableKeys = { shortcuts: { " ": "Space", f: "F", r: "R" } };
+
+  /** What the last `renderTable` call's stub table was asked to send. */
+  let sent: Record<string, unknown>[] = [];
+
+  function Harness({ table, state }: { table: ReturnType<typeof stub>; state: TableView }) {
+    const root = useRef<HTMLDivElement | null>(null);
+    useTableKeys(root, POKER_KEYS);
+    return (
+      <div ref={root}>
+        <Actions
+          table={table}
+          state={state}
+          me={MINE}
+          intent={{ move: null, committed: null, send: vi.fn() }}
+        />
+      </div>
+    );
+  }
+
+  function renderTable({ state, busy = false }: { state: TableView; busy?: boolean }) {
+    const table = stub();
+    table.busy = busy;
+    sent = table.sent;
+    render(<Harness table={table} state={state} />);
+  }
+
+  /** The turn actually in front of you. `at` pins the raise to a figure the test can name. */
+  function onYourTurn({ toCall, at, busy = false }: { toCall: number; at?: number; busy?: boolean }) {
+    return {
+      busy,
+      state: view({
+        toAct: "s1",
+        street: "flop",
+        you: { toCall, minRaiseTo: at ?? toCall + 20, maxRaiseTo: 2_000, canRaise: true },
+        seats: [MINE, OTHER],
+      }),
+    };
+  }
+
+  /** Somebody else's turn: nothing in the on-turn row exists to press. */
+  function somebodyElseDeciding() {
+    return { state: view({ toAct: "s2", street: "flop", seats: [MINE, OTHER] }) };
+  }
+
+  it("Space presses the lit action", () => {
+    renderTable(onYourTurn({ toCall: 200 }));
+    fireEvent.keyDown(window, { key: " " });
+    expect(sent).toEqual([{ type: "call" }]);
+  });
+
+  it("Space checks rather than calls once checking is free", () => {
+    // Proves Space follows the lit slab rather than a fixed one: the same
+    // key, a different button, because the felt is in a different state.
+    renderTable(onYourTurn({ toCall: 0 }));
+    fireEvent.keyDown(window, { key: " " });
+    expect(sent).toEqual([{ type: "check" }]);
+  });
+
+  it("F folds and R raises to what the amount shows", () => {
+    renderTable(onYourTurn({ toCall: 200, at: 600 }));
+    fireEvent.keyDown(window, { key: "r" });
+    expect(sent).toEqual([{ type: "raise", amount: 600 }]);
+    fireEvent.keyDown(window, { key: "f" });
+    expect(sent).toContainEqual({ type: "fold" });
+  });
+
+  it("does nothing while typing a raise", () => {
+    renderTable(onYourTurn({ toCall: 200 }));
+    screen.getByLabelText(/how much/i).focus();
+    fireEvent.keyDown(screen.getByLabelText(/how much/i), { key: "f" });
+    expect(sent).toEqual([]);
+  });
+
+  it("does nothing when the button it stands for could not be pressed", () => {
+    renderTable(somebodyElseDeciding());
+    fireEvent.keyDown(window, { key: " " });
+    expect(sent).toEqual([]);
+  });
+
+  it("F and R do nothing while it is somebody else's turn", () => {
+    // The pre-turn row has its own "Fold" lamp for arming a move in advance,
+    // but it does not carry aria-keyshortcuts — only the on-turn row's
+    // buttons do, so F and R are silent until the turn actually arrives.
+    renderTable(somebodyElseDeciding());
+    fireEvent.keyDown(window, { key: "f" });
+    fireEvent.keyDown(window, { key: "r" });
+    expect(sent).toEqual([]);
+  });
+
+  it("R does nothing when there is no raise to make", () => {
+    renderTable({
+      state: view({
+        toAct: "s1",
+        street: "flop",
+        you: { toCall: 200, minRaiseTo: 220, maxRaiseTo: 2_000, canRaise: false },
+        seats: [MINE, OTHER],
+      }),
+    });
+    fireEvent.keyDown(window, { key: "r" });
+    expect(sent).toEqual([]);
+  });
+
+  it("does nothing with a modifier held or on a repeat", () => {
+    renderTable(onYourTurn({ toCall: 200 }));
+    fireEvent.keyDown(window, { key: " ", ctrlKey: true });
+    fireEvent.keyDown(window, { key: " ", repeat: true });
+    expect(sent).toEqual([]);
   });
 });

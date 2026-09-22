@@ -1,7 +1,7 @@
 import type { TableView } from "@backroom/game-poker";
 import { blindsFor, BUY_IN, STAKES } from "@backroom/game-poker";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { compact } from "../game/money.js";
 import type { Account } from "../game/useAccount.js";
@@ -12,12 +12,20 @@ import { ActivityLog, useActivity } from "../table/Activity.js";
 import { Refusal } from "../table/Refusal.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
+import type { TableKeys } from "../table/useTableKeys.js";
+import { useTableKeys } from "../table/useTableKeys.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Felt, fmt } from "./Felt.js";
 import type { Table } from "./Felt.js";
 import { useTableSound } from "./useTableSound.js";
 import "@backroom/game-blackjack/theme.css";
 import "./poker.css";
+
+// Module-level so the object identity is stable across renders — useTableKeys
+// re-binds its listeners whenever this reference changes. No `holds`: poker
+// has no piece you click and then press Space at, the way blackjack's chip
+// tray works.
+const POKER_KEYS: TableKeys = { shortcuts: { " ": "Space", f: "F", r: "R" } };
 
 /**
  * The felt, wired up.
@@ -46,6 +54,11 @@ export function Poker() {
   const table = useTableSocket<TableView>("poker", back, account.setChips);
   const { state, seatId } = table;
   useTableSound(state, seatId);
+  // Scoped to the table's own element so Space/F/R never reach a button on
+  // another table sharing the page — there is only one, but the lookup is
+  // still by this ref rather than `document`.
+  const root = useRef<HTMLElement | null>(null);
+  useTableKeys(root, POKER_KEYS);
 
   useNav({
     room: "poker",
@@ -92,7 +105,7 @@ export function Poker() {
   return (
     // Wider only at the felt: the screen before it is the building's width.
     // Fitted only at the felt too — the lobby and sign-in are pages and scroll.
-    <main className={state === null ? "play" : "play play--fit play--poker"}>
+    <main className={state === null ? "play" : "play play--fit play--poker"} ref={root}>
       {/* At the table a refusal takes the middle of the board; on a page it stays a strip. */}
       {atTable ? (
         <Refusal message={table.error} id={table.errorKey} />

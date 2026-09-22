@@ -231,7 +231,13 @@ export function OnTurn({
        */}
       <div className="pk__acts">
         {/* Never the lit one: raising is a second decision, not the one this row is for. */}
-        <button type="button" className="key" disabled={busy} onClick={() => onAct("fold", 0, { type: "fold" })}>
+        <button
+          type="button"
+          className="key"
+          disabled={busy}
+          aria-keyshortcuts="F"
+          onClick={() => onAct("fold", 0, { type: "fold" })}
+        >
           Fold
         </button>
 
@@ -240,11 +246,14 @@ export function OnTurn({
          * It goes busy on the press rather than disabled: F4 says busy is not
          * dead, so a second press while the table has not yet answered is a
          * no-op here rather than a control that looks like it stopped working.
+         * Space is declared on both — only one of the two is ever on screen —
+         * so the key follows whichever is lit rather than a fixed button.
          */}
         {opening ? (
           <button
             type="button"
             className={`slab${busy ? " is-busy" : ""}`}
+            aria-keyshortcuts="Space"
             onClick={() => {
               if (!busy) {
                 onAct("check", me.committed, { type: "check" });
@@ -258,6 +267,7 @@ export function OnTurn({
             type="button"
             className={`slab${busy ? " is-busy" : ""}`}
             aria-label={callAll ? `All in ${fmt(me.stack)}` : `Call ${fmt(you.toCall)}`}
+            aria-keyshortcuts="Space"
             onClick={() => {
               if (!busy) {
                 onAct("call", me.committed + you.toCall, { type: callAll ? "allIn" : "call" });
@@ -274,6 +284,7 @@ export function OnTurn({
             type="button"
             className="key"
             disabled={busy}
+            aria-keyshortcuts="R"
             aria-label={`${all ? "All in" : opening ? "Bet" : "Raise to"} ${fmt(
               all ? me.committed + me.stack : at,
             )}`}
