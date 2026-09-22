@@ -373,7 +373,19 @@
   border: 2px solid var(--rl-brass);
   border-radius: var(--gr-radius-sm);
   box-shadow: inset 0 0 40px rgb(0 0 0 / 0.4);
-  touch-action: manipulation;
+  /*
+   * pan-y, not none. A phone cloth taller than the screen sits in a scrolling
+   * box of its own (see Cloth's portrait height), and none here would take the
+   * drag away from that box — the bottom of the cloth would be unreachable.
+   * pan-y hands a vertical drag to the browser as a scroll instead, which
+   * fires pointercancel on whatever press was under the finger. A cancelled
+   * press is exactly the outcome a scroll should have: nothing was aimed at
+   * for long enough to mean it, so the gesture already treats it as no bet.
+   * What is given up is sliding to re-aim vertically on touch; press-to-name,
+   * lift-to-place and hold-to-take-back are unaffected, and a horizontal or
+   * diagonal drag still aims, because only a vertical one is a scroll.
+   */
+  touch-action: pan-y;
   cursor: crosshair;
   user-select: none;
 }
@@ -522,6 +534,28 @@
   color: var(--gr-color-ink-lit);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* Held past HOLD_MS, the name it is showing is not a bet any more but the
+   undo of one — coloured the same as everything else in the building that
+   takes something away rather than offers it. */
+.rl__aim--taking .rl__aim-name {
+  color: var(--gr-color-bad);
+}
+
+/*
+ * Where the chip would land. Under the name, not instead of it: the name says
+ * what the bet is and this says where it goes, and a press wants both.
+ */
+.rl__ghost {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px dashed var(--gr-color-chip-dim);
+  background: rgb(0 0 0 / 0.25);
+  pointer-events: none;
 }
 
 /* A pile of chips sitting on a spot. */
