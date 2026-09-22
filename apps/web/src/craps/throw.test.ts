@@ -41,9 +41,21 @@ describe("a throw", () => {
   });
 
   it("throws the two dice differently", () => {
-    // Two dice on identical arcs read as one object. They are thrown
-    // together and they do not travel together.
-    expect(path(dice, 0, 2_400)).not.toEqual(path(dice, 1, 2_400));
+    /*
+     * Two dice on identical arcs read as one object. They are thrown together
+     * and they do not travel together.
+     *
+     * Compared on the flight alone, because the faces differ on the last two
+     * samples whatever the arcs do — a whole-flight comparison can never fail,
+     * which is what this test used to be.
+     */
+    const arc = (which: 0 | 1) => path(dice, which, 2_400).map(({ x, y, turn }) => ({ x, y, turn }));
+    expect(arc(0)).not.toEqual(arc(1));
+
+    // And on a double, where even the faces are the same.
+    const pair: Roll = [4, 4];
+    const both = (which: 0 | 1) => path(pair, which, 2_400);
+    expect(both(0)).not.toEqual(both(1));
   });
 
   it("is the same throw every time it is asked for the same roll", () => {
