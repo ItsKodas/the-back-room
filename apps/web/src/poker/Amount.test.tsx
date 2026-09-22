@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-poker";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { OnTurn } from "./Amount.js";
 import { Actions } from "./Controls.js";
 import { seat, stub, view } from "./fixtures.js";
+import type { Move } from "./useIntent.js";
 
 describe("what you are offered", () => {
   const acting = (own: TableView["you"], me: Partial<SeatView> = {}) => {
@@ -84,5 +86,62 @@ describe("what you are offered", () => {
     expect(call).toHaveClass("slab");
     expect(raise).toHaveClass("key");
     expect(document.querySelectorAll(".slab")).toHaveLength(1);
+  });
+});
+
+describe("a raise you can type", () => {
+  /*
+   * `@testing-library/user-event` is not a dependency of this repo (checked:
+   * absent from every package.json and node_modules) — Slots.test.tsx drives
+   * its own typed box with `fireEvent`, so this follows that idiom rather
+   * than adding a new package for one file.
+   */
+  const renderAmount = ({
+    minRaiseTo,
+    maxRaiseTo,
+    toCall = 0,
+    onAct = vi.fn(),
+  }: {
+    minRaiseTo: number;
+    maxRaiseTo: number;
+    toCall?: number;
+    onAct?: (kind: Move, to: number, action: Record<string, unknown>) => void;
+  }) => {
+    const you: NonNullable<TableView["you"]> = { toCall, minRaiseTo, maxRaiseTo, canRaise: true, hand: null };
+    const me = seat({ id: "s1", name: "Ada" });
+    render(<OnTurn you={you} me={me} pot={30} blind={20} busy={false} onAct={onAct} />);
+  };
+
+  it("shows what is typed as it is typed", () => {
+    renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000 });
+    const box = screen.getByLabelText(/how much/i);
+    fireEvent.change(box, { target: { value: "750" } });
+    expect(box).toHaveValue("750");
+  });
+
+  it("holds a typed figure over the cap to the cap, on commit", () => {
+    const onAct = vi.fn();
+    renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000, onAct });
+    const box = screen.getByLabelText(/how much/i);
+    fireEvent.change(box, { target: { value: "99999" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(box).toHaveValue("4,000");
+  });
+
+  it("keeps what was there when nothing is typed", () => {
+    renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000 });
+    const box = screen.getByLabelText(/how much/i);
+    fireEvent.change(box, { target: { value: "" } });
+    fireEvent.blur(box);
+    expect(box).toHaveValue("200");
+  });
+
+  it("never sends on a keystroke", () => {
+    const onAct = vi.fn();
+    renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000, onAct });
+    const box = screen.getByLabelText(/how much/i);
+    // The figure is the player's, so it moves at once; the chips are the table's.
+    fireEvent.change(box, { target: { value: "7" } });
+    expect(onAct).not.toHaveBeenCalled();
   });
 });

@@ -35,6 +35,58 @@ export function OnTurn({
   const opening = you.toCall === 0;
 
   /*
+   * What is in the typed box while it is being typed into; null once it is
+   * not being edited, so the box shows `at` — the one figure the dial, the
+   * slider and the box all agree on — rather than a second copy of it.
+   */
+  const [typed, setTyped] = useState<string | null>(null);
+  /* What the box last had to say about a figure it held to the cap. */
+  const [held, setHeld] = useState<string | null>(null);
+
+  /*
+   * Enter and blur both land here (S2). A keystroke never does — the figure
+   * is the player's until they say they are done with it.
+   */
+  const commitTyped = () => {
+    if (typed === null) {
+      return;
+    }
+    const digits = typed.replace(/\D/g, "");
+    setTyped(null);
+    // Nothing typed keeps what was there, rather than guessing at a figure.
+    if (digits.length === 0) {
+      setHeld(null);
+      return;
+    }
+    const raw = Number(digits);
+    setTo(raw);
+    /*
+     * The cap is a courtesy (S3): held here only so the box does not sit on
+     * a number the table would refuse, never because the client is the one
+     * deciding it is illegal. The table still gets the same `raise`/`allIn`
+     * message it always would, at the figure this holds it to.
+     */
+    setHeld(
+      raw > you.maxRaiseTo
+        ? `Held to the most you can ${opening ? "bet" : "raise to"}, ${fmt(you.maxRaiseTo)}.`
+        : raw < you.minRaiseTo
+          ? `Held to the least you can ${opening ? "bet" : "raise to"}, ${fmt(you.minRaiseTo)}.`
+          : null,
+    );
+  };
+
+  /*
+   * Every other way of setting the figure — the dial, the slider, a preset —
+   * goes through here too, so the box never shows a draft that the rest of
+   * the control just moved past. One figure, one place that sets it.
+   */
+  const move = (next: number) => {
+    setTyped(null);
+    setHeld(null);
+    setTo(next);
+  };
+
+  /*
    * A slice of the pot, as a total to raise *to*.
    *
    * The pot a raise is measured against is the one that would exist after the
@@ -66,7 +118,7 @@ export function OnTurn({
               className="key key--icon"
               aria-label="Less"
               disabled={at <= you.minRaiseTo}
-              onClick={() => setTo(clamp(at - blind, you.minRaiseTo, you.maxRaiseTo))}
+              onClick={() => move(clamp(at - blind, you.minRaiseTo, you.maxRaiseTo))}
             >
               −
             </button>
@@ -79,7 +131,7 @@ export function OnTurn({
               className="key key--icon"
               aria-label="More"
               disabled={all}
-              onClick={() => setTo(clamp(at + blind, you.minRaiseTo, you.maxRaiseTo))}
+              onClick={() => move(clamp(at + blind, you.minRaiseTo, you.maxRaiseTo))}
             >
               +
             </button>
@@ -88,7 +140,14 @@ export function OnTurn({
           <input
             type="range"
             className="pk__range"
-            aria-label={opening ? "How much to bet" : "How much to raise to"}
+            /*
+             * Not "How much …" — the typed box below carries that name now,
+             * and a slider and a box both answering to it would be two
+             * controls a screen reader could not tell apart (they would read
+             * as the same one, twice). Dragging still moves the same figure;
+             * it just answers to its own name.
+             */
+            aria-label={opening ? "Drag to bet" : "Drag to raise to"}
             min={you.minRaiseTo}
             max={you.maxRaiseTo}
             step={blind}
@@ -96,11 +155,47 @@ export function OnTurn({
             /* How far along the track is filled, which CSS cannot work out for
                itself — a range input has no selector for its own value. */
             style={{ "--at": `${((at - you.minRaiseTo) / span) * 100}%` } as React.CSSProperties}
-            onChange={(event) => setTo(Number(event.target.value))}
+            onChange={(event) => move(Number(event.target.value))}
           />
 
+          {/*
+           * The figure you can type. A `.well` around the fitting `.input`,
+           * the same recess a housing uses for anything sunk into the panel —
+           * this is not a bespoke box, it is the one the building already has.
+           */}
+          <div className="well pk__typed">
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              className="input pk__typed-input"
+              aria-label={opening ? "How much to bet" : "How much to raise to"}
+              placeholder={`${fmt(you.minRaiseTo)} – ${fmt(you.maxRaiseTo)}`}
+              value={typed ?? fmt(at)}
+              onFocus={() => {
+                setTyped(String(at));
+                setHeld(null);
+              }}
+              onChange={(event) => setTyped(event.target.value.replace(/\D/g, ""))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  commitTyped();
+                } else if (event.key === "Escape") {
+                  setTyped(null);
+                }
+              }}
+              onBlur={commitTyped}
+            />
+            {/* Said, not just shown: blur has usually already moved focus off the
+                figure by the time it lands, so a screen reader needs this said
+                rather than left to be noticed on a box nothing is focused on. */}
+            <p className="hint" aria-live="polite">
+              {held ?? ""}
+            </p>
+          </div>
+
           <div className="pk__slices">
-            <button type="button" className="key key--small" onClick={() => setTo(you.minRaiseTo)}>
+            <button type="button" className="key key--small" onClick={() => move(you.minRaiseTo)}>
               Min
             </button>
             {(
@@ -114,12 +209,12 @@ export function OnTurn({
                 key={name}
                 type="button"
                 className="key key--small"
-                onClick={() => setTo(sliceTo(part))}
+                onClick={() => move(sliceTo(part))}
               >
                 {name}
               </button>
             ))}
-            <button type="button" className="key key--small" onClick={() => setTo(you.maxRaiseTo)}>
+            <button type="button" className="key key--small" onClick={() => move(you.maxRaiseTo)}>
               All in
             </button>
           </div>

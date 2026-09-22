@@ -1089,6 +1089,24 @@
 }
 
 /*
+ * The typed figure's well: tighter than a `.housing`'s, because this sits
+ * inside one control rather than holding a screen's worth of them.
+ */
+.pk__typed {
+  padding: var(--gr-space-2) var(--gr-space-3);
+  gap: 2px;
+}
+
+/* Chips (F3), lined up the way every other figure in this dial is. */
+.pk__typed-input {
+  text-align: center;
+  font-family: var(--gr-font-data);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--gr-color-chip);
+}
+
+/*
  * The sizes anybody actually bets.
  *
  * A pot-sized raise is the one every player already has a name for, and
