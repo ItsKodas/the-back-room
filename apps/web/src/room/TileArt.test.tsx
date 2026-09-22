@@ -389,6 +389,13 @@ describe("the napkin in scribble's corner", () => {
   });
 });
 
+describe("the cup in Liar's Dice's corner", () => {
+  it("gives Liar's Dice a cup", () => {
+    const { container } = render(<TileArt game="liars-dice" />);
+    expect(container.querySelector(".art__cup")).not.toBe(null);
+  });
+});
+
 describe("the pennies in two-up's corner", () => {
   it("tosses two coins, each with both faces", () => {
     const { container } = render(<TileArt game="two-up" />);

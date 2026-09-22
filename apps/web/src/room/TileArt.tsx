@@ -587,8 +587,48 @@ export function ScribbleArt() {
   );
 }
 
+/**
+ * A cup tipped over, with dice spilling out of it.
+ *
+ * Tipped rather than upright: an upright cup is a cup, and a tipped one is the
+ * moment the game is about. The cup tilts a little further on hover, so the
+ * furniture answers a pointer the way the other tiles do.
+ */
+export function CupArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      <g className="art__cup" transform="rotate(-24 96 74)">
+        <path d="M74 30 h44 l-7 56 h-30 z" fill="#4a2e1d" />
+        <ellipse cx="96" cy="30" rx="22" ry="7" fill="#6b452c" />
+        <ellipse cx="96" cy="30" rx="16" ry="4.5" fill="#1f130d" />
+      </g>
+      {[
+        { x: 108, y: 96, turn: 8, pips: [[2, 2]] },
+        { x: 138, y: 112, turn: -14, pips: [[1, 1], [3, 3]] },
+        { x: 78, y: 116, turn: 20, pips: [[1, 1], [2, 2], [3, 3]] },
+      ].map((die) => (
+        <g key={`${die.x}-${die.y}`} transform={`rotate(${die.turn} ${die.x + 14} ${die.y + 14})`}>
+          <rect x={die.x} y={die.y} width="28" height="28" rx="6" fill="#f2e6dc" />
+          {die.pips.map(([row, column]) => (
+            <circle
+              key={`${row}-${column}`}
+              cx={die.x + 6 + (column - 1) * 8}
+              cy={die.y + 6 + (row - 1) * 8}
+              r="2.6"
+              fill="#2e1c14"
+            />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 /** The furniture a game keeps, by which game it is. */
 export function TileArt({ game }: { game: string }) {
+  if (game === "liars-dice") {
+    return <CupArt />;
+  }
   if (game === "death-roll") {
     return <DuelArt />;
   }

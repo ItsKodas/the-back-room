@@ -1,8 +1,7 @@
 import type { BotSkill, PlayTable, Seat, SeatIdentity, TableStatus } from "@backroom/core";
-import { Escrow, Seating, TableError } from "@backroom/core";
+import { Escrow, Readiness, Seating, TableError } from "@backroom/core";
 import { Game } from "./game.js";
 import { COUNTDOWN_MS, FUN_PURSE, passPrice, RESET_CEILING, TURN_MS } from "./listing.js";
-import { Readiness } from "./ready.js";
 import type { Passed, Rolled } from "./round.js";
 
 /**

@@ -10,7 +10,9 @@ export { EXACT_CEILING, edge, lossOdds, passMargin, roundFor, solveRound } from 
 export type { Passed, Rolled } from "./round.js";
 export { Round } from "./round.js";
 export { Game } from "./game.js";
-export { Readiness } from "./ready.js";
+// Moved to @backroom/core when Liar's Dice needed the same ready button.
+// Re-exported rather than dropped: this package's exports are somebody's imports.
+export { Readiness } from "@backroom/core";
 export type { Phase, SeatView, TableView } from "./table.js";
 export { Table } from "./table.js";
 export type { Choice } from "./bot.js";
