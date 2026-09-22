@@ -62,9 +62,17 @@ export function RouletteMockup() {
     { seatId: "you", spotId: "dozen:13-14-15-16-17-18-19-20-21-22-23-24", chips: 100 },
   ]);
   const [chip, setChip] = useState<number>(100);
-  /* Cloth has taken this prop all along; nothing here had ever passed it, so
-     the gallery could not show a portrait cloth without a phone to force it. */
-  const [portrait, setPortrait] = useState(false);
+  /*
+   * Cloth has taken its own `portrait` prop all along, and reads `undefined`
+   * as "work it out from my own width" — that is how the real felt gets a
+   * phone right without ever passing the prop at all. `Seg` only carries
+   * `string | boolean`, so `undefined` needs a string of its own to sit
+   * beside "laid out" and "on its side"; "auto" is that string, and it is the
+   * default so the gallery shows a real phone's behaviour unless a size is
+   * forced.
+   */
+  const [orientation, setOrientation] = useState<"auto" | "laid" | "side">("auto");
+  const portrait = orientation === "auto" ? undefined : orientation === "side";
 
   /*
    * A spin, for the mockup only. The real table is told where the ball went by
@@ -120,11 +128,12 @@ export function RouletteMockup() {
 
       <Seg
         label="Cloth"
-        value={portrait}
-        onChange={setPortrait}
+        value={orientation}
+        onChange={setOrientation}
         options={[
-          { value: false, text: "Laid out" },
-          { value: true, text: "On its side" },
+          { value: "auto", text: "Auto" },
+          { value: "laid", text: "Laid out" },
+          { value: "side", text: "On its side" },
         ]}
       />
 

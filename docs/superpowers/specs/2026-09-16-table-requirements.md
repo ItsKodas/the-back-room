@@ -274,14 +274,14 @@ better than Greed and should keep or share.
 
 | | Blackjack | Poker | Roulette | Two-Up | Death Roll |
 |---|---|---|---|---|---|
-| One screen (L) | no — scrolls | partial — dvh budget, chat below | no | no — sticky rail | partial — dvh min-height, sticky controls |
-| Fittings (F) | no — `.btn`, `.panel` | no — bespoke | no — bespoke | no — bespoke | no — `.btn` |
-| Talk sheet (C) | no — inline | no — inline | no — inline | no — inline | no — inline |
-| Activity log (A) | no — `.play__event` | no — `.play__event` | no — History board | no — throw Board | no — roll strip |
-| Refusal overlay (N) | no | no | no | no | no |
-| Shortcuts (K) | none | none | none | none | none |
-| Stake (S) | chip buttons | slider, no typed figure | chip tray | chip tray | fixed ante |
-| Taunt key (K5) | inline picker | none | none | none | none |
+| One screen (L) | no — scrolls | partial — dvh budget, chat below | yes | no — sticky rail | partial — dvh min-height, sticky controls |
+| Fittings (F) | no — `.btn`, `.panel` | no — bespoke | yes | no — bespoke | no — `.btn` |
+| Talk sheet (C) | no — inline | no — inline | yes | no — inline | no — inline |
+| Activity log (A) | no — `.play__event` | no — `.play__event` | yes | no — throw Board | no — roll strip |
+| Refusal overlay (N) | no | no | yes | no | no |
+| Shortcuts (K) | none | none | R/U/C | none | none |
+| Stake (S) | chip buttons | slider, no typed figure | chip keys + typed | chip tray | fixed ante |
+| Taunt key (K5) | inline picker | none | yes | none | none |
 | Reduced motion (M1) | yes | yes | yes | yes | yes |
 
 ### Blackjack — `apps/web/src/blackjack/`
@@ -315,17 +315,35 @@ better than Greed and should keep or share.
   sound), the rankings help sheet.
 
 ### Roulette — `apps/web/src/roulette/`
-- [ ] One screen: the portrait cloth's `min(78dvh, 680px)` plus the boards and
-      chat below it do not fit; decide which boards go behind a key on a phone.
-- [ ] Bespoke `rl__chip` / `rl__act` / `stakes__pick` → fittings for actions and
+- [x] One screen: History stays on its own strip above the stage at every
+      size; Winners lives in the desk's side column and, on a phone, in the
+      talk sheet's activity tab instead, rather than being fought for on the
+      felt. The phone stage itself carries the cloth while betting and
+      settling and the wheel while the ball rolls, so only one of the two
+      ever needs the room.
+- [x] Bespoke `rl__chip` / `rl__act` / `stakes__pick` → fittings for actions and
       choices.
-- [ ] Inline chat → talk sheet; `.play__error` → `Refusal`. The pocket History
+- [x] Inline chat → talk sheet; `.play__error` → `Refusal`. The pocket History
       and Winners boards stay (A3); the table's sentences go to activity.
-- [ ] Keep the client-side cap refusal in the Standing line (N6).
-- [ ] Keys — **to decide:** Space for "same again"? U undo?
-- [ ] Taunts: add the picker as a key.
-- [ ] A cue when a chip is placed (it is silent today).
+- [x] Keep the client-side cap refusal in the Standing line (N6).
+- [x] Keys: **R** same again, **U** undo, **C** clear. No Space/slab main
+      action — see the K1/K2/F2 exception below.
+- [x] Taunts: add the picker as a key.
+- [x] A cue when a chip is placed.
 - Keep: the empty-bank line said before anyone presses.
+
+**Deliberate exceptions, kept rather than fixed:**
+- **K1, K2, F2 — no lit `.slab`.** Roulette's controls are three acts of
+  equal weight (R same again, U undo, C clear) and none of them is a main
+  action in Greed's sense: the only one-press action on this table would
+  spend a whole round's stake at once, and lighting a slab for it would be
+  the felt leaning on the player to press it. The cloth itself, not a
+  button, is where a stake is committed.
+- **T3's "side column at a desk."** What it pays is an overlay — laid over
+  the whole stage, corner and cloth both, behind the `?` key — at every
+  size, not a side-column panel at a desk. Roulette's desk side column is
+  already near its height budget (readout, boards, controls), and this
+  matches Blackjack's own pays-card, which is an overlay too.
 
 ### Two-Up — `apps/web/src/twoup/`
 - [ ] One screen: the sticky, safe-area-aware bottom rail already reaches the
@@ -379,9 +397,16 @@ the placeholder, `aria-live` explainer) is a good model for S2.
    game's other moves are proposals above and are yours to choose.
 2. **Blackjack's stake.** Is there a table stake before the hand, or is the chip
    bet during the hand the only one?
-3. **Roulette on a phone.** Which boards (History, Winners) go behind a key so
-   the cloth fits?
+3. ~~**Roulette on a phone.** Which boards (History, Winners) go behind a key
+   so the cloth fits?~~ Answered: neither goes behind a key. History stays on
+   the board above the stage; Winners moved into the talk sheet's activity
+   tab. The phone stage itself swaps instead — the cloth while betting and
+   while settling, the wheel while the ball is rolling — so only one of the
+   two ever needs the room.
 4. **Poker's minimum felt.** Keep the 580px floor at tablet widths, or let the
    felt shrink further?
-5. **Where the talk key sits** on tables whose play area has no free corner
-   (Roulette's cloth, Two-Up's ring).
+5. ~~**Where the talk key sits** on tables whose play area has no free corner
+   (Roulette's cloth, Two-Up's ring).~~ Answered, for Roulette: a corner
+   column stands beside the cloth inside the stage (`.rl__corner`), holding
+   the talk key and the `?` key together, rather than either sitting over the
+   cloth itself.
