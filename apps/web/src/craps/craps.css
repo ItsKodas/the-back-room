@@ -475,14 +475,18 @@
  * with its `--gr-space-2` between them come to 7x38 + 6x8 = 314, which does
  * fit inside the 331 a phone leaves — but only by keeping the chip at 38 to
  * 40, under the forty-four pixel floor this building puts on anything pressed
- * during a hand. Seven columns with a 2px gap give (331 - 12) / 7 = 45.6, so
- * the row fits *and* every target clears the floor. Roulette's tray is five
- * chips wide and never has to make the trade.
+ * during a hand. Seven chips at that floor need 7x44 = 308px plus the gaps
+ * between them, and the tray's own width depends on who is rendering the
+ * scrollbar: 316px in a desktop viewport at 375 (a classic scrollbar takes
+ * about 15px), 331px on an actual phone (whose scrollbar is an overlay and
+ * costs nothing). A 1px gap adds 6px, for 314px total, which clears the
+ * floor in both. Roulette's tray is five chips wide and never has to make
+ * the trade.
  */
 .cr__tray {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 2px;
+  gap: 1px;
   align-items: center;
   width: 100%;
   max-width: 460px;
@@ -828,7 +832,15 @@
   content: "Point";
   position: absolute;
   top: 2px;
-  right: 2px;
+  /*
+   * Left, not right. The label above is "Place N", centred as one line, so
+   * its number sits toward the right edge of the box — exactly where a
+   * top-right badge would sit on top of it. The number is the one character
+   * on this box that matters, so the badge goes over "Place"'s own initial
+   * on the left instead, where covering a letter costs nothing a player
+   * needs.
+   */
+  left: 2px;
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--gr-color-neon-hi);
