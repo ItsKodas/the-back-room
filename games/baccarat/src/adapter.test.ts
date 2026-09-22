@@ -25,6 +25,57 @@ function bankOf(start: number): Bank & { held: number } {
   return bank;
 }
 
+/**
+ * The same bank, made to stop on its next read or payout until a test lets go.
+ *
+ * What a store on the other side of a network does anyway: the table carries
+ * on with its own clock while the answer is on its way, and the one stage of
+ * `owing` with no other way to observe it is the stage that only exists in
+ * that gap. Roulette's `gated` fixture, which the same argument produced.
+ */
+function gatedBank(start: number): Bank & {
+  held: number;
+  stallNext: (on: "holds" | "take") => { reached: Promise<void>; open: () => void };
+} {
+  const inner = bankOf(start);
+  let stall: { on: "holds" | "take"; hit: () => void; open: Promise<void> } | null = null;
+  const pause = async (on: "holds" | "take") => {
+    if (stall?.on !== on) {
+      return;
+    }
+    const stopped = stall;
+    stall = null;
+    stopped.hit();
+    await stopped.open;
+  };
+  return {
+    get held() {
+      return inner.held;
+    },
+    holds: async () => {
+      await pause("holds");
+      return inner.holds();
+    },
+    add: inner.add,
+    take: async (amount: number) => {
+      await pause("take");
+      return inner.take(amount);
+    },
+    stallNext(on) {
+      let hit = () => {};
+      let open = () => {};
+      const reached = new Promise<void>((resolve) => {
+        hit = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      stall = { on, hit, open: gate };
+      return { reached, open };
+    },
+  };
+}
+
 /** Accounts, and a record of what was asked of them. */
 function depsOf(balances: Record<string, number>) {
   const given: Array<{ userId: string; amount: number }> = [];
@@ -330,6 +381,50 @@ describe("a bank more than one table is paid from", () => {
     expect(balances["u1"]).toBe(1_000);
     expect(balances["u2"]).toBe(400);
     expect(bank.held).toBe(1_600);
+  });
+
+  /*
+   * The fourth and last thing a table can owe: a coup that has been decided,
+   * handed to `settle`, and is still waiting its turn in the bank's queue.
+   *
+   * The other three are read off the table itself — the cloth's worst case
+   * while bets are open, the coup's decided figure once it lands, and a
+   * called-off table's unpaid refunds. This one cannot be, because the table
+   * does not wait for its own payout: it sweeps the cloth on its own clock,
+   * and a swept cloth says nothing about what the last coup is still owed. So
+   * it is tracked apart, and if it were not, the gap between the sweep and the
+   * store answering is a window in which a second table reads the winner's
+   * chips as headroom and promises them again.
+   */
+  it("keeps a settled coup's payout in the book until it has left the bank", async () => {
+    const bank = gatedBank(100_000);
+    const adapter = baccaratAdapter({ bank, random: () => 0.5 });
+    const table = adapter.create("AAAAA");
+    const other = adapter.create("BBBBB");
+    seat(table, "a", "u1");
+    const { deps, balances } = depsOf({ u1: 1_000 });
+
+    await adapter.act(table, "a", { type: "place", spotId: "banker", chips: 500 }, deps);
+    table.closeBetting();
+    table.land();
+    // Banker came in, so five hundred is owed a thousand back less the five
+    // per cent the house charges on it: 1,000 - ceil(500/20) = 975.
+    expect(table.coup?.outcome).toBe("banker");
+
+    const { reached, open } = bank.stallNext("take");
+    const settling = adapter.settle(table, deps);
+    await reached;
+    // The table's own clock comes round while the store is still answering.
+    table.beginBetting();
+
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(975);
+
+    open();
+    await settling;
+
+    expect(ledgerOf(bank).owedElsewhere(other)).toBe(0);
+    expect(balances["u1"]).toBe(1_475);
+    expect(bank.held).toBe(99_525);
   });
 
   it("says so when the bank will not pay a winner", async () => {
