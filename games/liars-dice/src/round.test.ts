@@ -124,10 +124,20 @@ describe("calling exact", () => {
     expect(out.losers).toEqual(["b"]);
   });
 
-  it("is wrong when the count is over as well as under", () => {
+  it("is wrong when the bid falls short of the count", () => {
     const one = round();
     one.raise("a", { count: 2, face: 5 });
     expect(one.call("b", "exact").right).toBe(false);
+  });
+
+  it("is wrong when the bid overshoots the count", () => {
+    // Four fives on the table (see the fixture above); bidding five asks for
+    // one more than is there, which a `<=` comparison would wave through.
+    const one = round();
+    one.raise("a", { count: 5, face: 5 });
+    const out = one.call("b", "exact");
+    expect(out.right).toBe(false);
+    expect(out.losers).toEqual(["b"]);
   });
 });
 
