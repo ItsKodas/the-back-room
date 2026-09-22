@@ -52,6 +52,28 @@ describe("what a bot bets", () => {
     expect(ties).toBeGreaterThan(0);
     expect(ties).toBeLessThan(120);
   });
+
+  /*
+   * The cap, not the purse. A bot with a full purse still reaches no further
+   * than the middle of the tray — one that shoved would make the table about
+   * the bot, and the point of it is to make the table look busy while
+   * somebody else plays.
+   */
+  it("never reaches past the middle of the tray, however rich the purse", () => {
+    // The chip pick takes the first affordable chip, which is the largest the
+    // cap allows. Without the cap this is a five-thousand chip.
+    const bet = botBet("normal", 0, 25_000, sequence([0.5, 0]));
+    expect(bet?.chips).toBe(500);
+  });
+
+  it("stays under the cap across the whole tray", () => {
+    for (let at = 0; at < 50; at += 1) {
+      const bet = botBet("hard", 0, 25_000, sequence([at / 50, at / 50]));
+      if (bet !== null) {
+        expect(bet.chips, `${at}`).toBeLessThanOrEqual(500);
+      }
+    }
+  });
 });
 
 describe("how long a bot thinks", () => {
