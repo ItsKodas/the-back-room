@@ -186,3 +186,13 @@ describe("placing a chip", () => {
     expect(onPlace).toHaveBeenCalledWith("straight:1");
   });
 });
+
+describe("reporting what is aimed at", () => {
+  it("reports what it is aiming at, so the payout sheet can light a row", () => {
+    const onAim = vi.fn();
+    draw({ onAim });
+    const cloth = screen.getByRole("group", { name: "The betting cloth" });
+    fireEvent.pointerDown(cloth, { ...ONE, button: 0, pointerId: 1 });
+    expect(onAim).toHaveBeenLastCalledWith("straight");
+  });
+});

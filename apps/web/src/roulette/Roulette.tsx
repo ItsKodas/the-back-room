@@ -1,4 +1,4 @@
-import type { TableView } from "@backroom/game-roulette";
+import type { Kind, TableView } from "@backroom/game-roulette";
 import { CHIPS, headroom, SPIN_MS, spotAt, toBets, WINDOWS } from "@backroom/game-roulette";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +18,7 @@ import { useTableSocket } from "../table/useTableSocket.js";
 import { Cloth } from "./Cloth.js";
 import { Controls } from "./Controls.js";
 import { History } from "./History.js";
+import { HowItPays, PAYS_SHEET_ID } from "./HowItPays.js";
 import { ANCHORS } from "./layout.js";
 import { Wheel } from "./Wheel.js";
 import { Winners } from "./Winners.js";
@@ -135,6 +136,10 @@ export function Felt({
 }) {
   const [chip, setChip] = useState<number>(CHIPS[CHIPS.length - 1]);
 
+  /* Behind the ? key: what the cloth is worth, lighting whatever it is aimed at. */
+  const [paysOpen, setPaysOpen] = useState(false);
+  const [aimedKind, setAimedKind] = useState<Kind | null>(null);
+
   /*
    * The keys press the buttons on screen rather than calling what they call,
    * so a key can never do what the button would refuse. Bound to the felt, so
@@ -236,8 +241,19 @@ export function Felt({
         <Standing state={state} />
 
         <div className="rl__stage">
-          {/* The column the talk and ? keys stand in; both are still to come. */}
-          <div className="rl__corner" />
+          {/* The column the talk and ? keys stand in; the talk key is still to come. */}
+          <div className="rl__corner">
+            <button
+              type="button"
+              className="key key--icon"
+              aria-label="What it pays"
+              aria-expanded={paysOpen}
+              aria-controls={PAYS_SHEET_ID}
+              onClick={() => setPaysOpen((was) => !was)}
+            >
+              ?
+            </button>
+          </div>
           <div className="rl__cloth-holds table-scroll">
             <Cloth
               placed={state.placed}
@@ -250,8 +266,10 @@ export function Felt({
                   table.act({ type: "take", spotId, chips: chip });
                 }
               }}
+              onAim={setAimedKind}
             />
           </div>
+          <HowItPays open={paysOpen} onClose={() => setPaysOpen(false)} lit={aimedKind} />
         </div>
 
         {/*

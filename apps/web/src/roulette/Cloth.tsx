@@ -1,3 +1,4 @@
+import type { Kind } from "@backroom/game-roulette";
 import { colourOf, pays, spotAt } from "@backroom/game-roulette";
 import { useEffect, useRef, useState } from "react";
 import { ChipStack } from "../chips/ChipStack.js";
@@ -51,6 +52,7 @@ export function Cloth({
   disabled = false,
   landed,
   portrait,
+  onAim,
 }: {
   placed: readonly Placed[];
   /** Which seat is yours, so your chips can be told from everybody else's. */
@@ -80,6 +82,8 @@ export function Cloth({
   landed?: number | null;
   /** Forces the orientation. Left off, the cloth works it out for itself. */
   portrait?: boolean;
+  /** What the cloth is currently aimed at, so a payout sheet can light its row. */
+  onAim?: (kind: Kind | null) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
 
@@ -212,6 +216,17 @@ export function Cloth({
   const showing = press?.spotId ?? hovered;
   const aimed = showing === null ? null : spotAt(showing);
   const taking = press?.held === true;
+
+  /*
+   * Reported from an effect rather than during render, so a parent's setter
+   * is never called while React is still deciding what this render looks
+   * like — that is the render loop an earlier task in this plan lost time
+   * chasing. The caller must pass a stable handler (a useState setter, not an
+   * inline arrow) or this fires every render regardless.
+   */
+  useEffect(() => {
+    onAim?.(aimed?.kind ?? null);
+  }, [aimed, onAim]);
 
   return (
     <div
