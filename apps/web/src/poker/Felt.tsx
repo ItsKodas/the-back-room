@@ -384,92 +384,102 @@ export function Felt({
       </div>
 
       {/*
-        * What you are holding, said plainly and kept on screen for as long as
-        * you hold it. Reading your own hand off five cards is the one thing
-        * that stands between somebody new and the game, and it is a thing the
-        * table already knows the answer to.
+        * Everything under the felt, in its own grid area ("controls") — the
+        * hand you are holding, the buttons, and the bots row all belong to the
+        * one place a player's thumb actually reaches, and they stack inside it
+        * exactly as they did before this was a grid: normal flow, so the
+        * negative margin below still pulls the reading pill up over the row
+        * above it.
         */}
-      {/*
-        * Who took the pot, in the same place the hand you are holding is
-        * announced — one headline slot under the table rather than two.
-        *
-        * Outside the felt on purpose. Every part of the cloth is spoken for at
-        * a showdown: the board is what everybody is reading, the middle is
-        * where the pot was, and below it is your own hand. A banner anywhere on
-        * it covers something somebody is looking at, and this is the moment
-        * they are looking hardest.
-        */}
-      {state.paid.length > 0 && state.paidAt != null ? (
-        <p
-            className="pk__won"
-            /* Keyed on the pot as well as the hand, so each announcement is a
-               new element that lands rather than text swapping in place. */
-            key={`${state.paidAt}:${moment}`}
-            /*
-             * A live region, which is both what this is and what lets it carry
-             * a label: a plain paragraph has no role to be named, and a win is
-             * exactly the kind of thing somebody not watching the felt should
-             * be told about when it happens.
-             */
-            role="status"
-            aria-live="polite"
-            /*
-             * Said once, as a sentence. The spans below are laid out with a
-             * gap rather than separated by spaces, so read straight off the
-             * markup this comes out as "Pocketswins 520kings and 3s".
-             */
-            aria-label={showing
-              .map(
-                (one) =>
-                  `${one.name} wins ${fmt(one.chips)}${one.said === null ? "" : ` with ${one.said}`}`,
-              )
-              .join(", and ")}
-          >
-            {showing.map((one, index) => (
-              <span className="pk__won-one" key={one.seatId}>
-                {index > 0 ? <span className="pk__won-and">and</span> : null}
-                <strong>{one.name}</strong>
-                <span className="pk__won-chips">wins {fmt(one.chips)}</span>
-                {one.said === null ? null : <span className="pk__won-with">{one.said}</span>}
-              </span>
-            ))}
-          </p>
-      ) : state.you?.hand != null && me !== null && !me.folded ? (
-        <p
-          /* Keyed on what it says, so a hand that becomes a different hand is
-             a different element — which is what makes it land rather than
-             quietly changing its own text. */
-          key={state.you.hand.title + state.you.hand.said}
-          className="pk__reading"
-        >
-          <strong>{state.you.hand.title}</strong>
-          <span>{state.you.hand.said}</span>
-        </p>
-      ) : null}
-
-      <Actions table={table} state={state} me={me} intent={intent} />
-      <Rankings open={helping} onClose={() => setHelping(false)} />
-      {/*
-        * Only at a table playing for nothing, and only for whoever opened it.
-        * The server refuses it anywhere else whatever the browser shows —
-        * hiding a control is a courtesy, refusing the message is the rule.
-        */}
-      {state.forFun && state.hostId === seatId ? (
-        <div className="pk__bots">
-          <span className="pk__bots-label">Deal somebody in</span>
-          {(["easy", "normal", "hard"] as const).map((skill) => (
-            <button
-              key={skill}
-              type="button"
-              className="pk__bot"
-              disabled={table.busy || state.seats.length >= 10}
-              onClick={() => table.addBot(skill)}
+      <div className="pk__below">
+        {/*
+          * What you are holding, said plainly and kept on screen for as long as
+          * you hold it. Reading your own hand off five cards is the one thing
+          * that stands between somebody new and the game, and it is a thing the
+          * table already knows the answer to.
+          */}
+        {/*
+          * Who took the pot, in the same place the hand you are holding is
+          * announced — one headline slot under the table rather than two.
+          *
+          * Outside the felt on purpose. Every part of the cloth is spoken for at
+          * a showdown: the board is what everybody is reading, the middle is
+          * where the pot was, and below it is your own hand. A banner anywhere on
+          * it covers something somebody is looking at, and this is the moment
+          * they are looking hardest.
+          */}
+        {state.paid.length > 0 && state.paidAt != null ? (
+          <p
+              className="pk__won"
+              /* Keyed on the pot as well as the hand, so each announcement is a
+                 new element that lands rather than text swapping in place. */
+              key={`${state.paidAt}:${moment}`}
+              /*
+               * A live region, which is both what this is and what lets it carry
+               * a label: a plain paragraph has no role to be named, and a win is
+               * exactly the kind of thing somebody not watching the felt should
+               * be told about when it happens.
+               */
+              role="status"
+              aria-live="polite"
+              /*
+               * Said once, as a sentence. The spans below are laid out with a
+               * gap rather than separated by spaces, so read straight off the
+               * markup this comes out as "Pocketswins 520kings and 3s".
+               */
+              aria-label={showing
+                .map(
+                  (one) =>
+                    `${one.name} wins ${fmt(one.chips)}${one.said === null ? "" : ` with ${one.said}`}`,
+                )
+                .join(", and ")}
             >
-              {skill}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              {showing.map((one, index) => (
+                <span className="pk__won-one" key={one.seatId}>
+                  {index > 0 ? <span className="pk__won-and">and</span> : null}
+                  <strong>{one.name}</strong>
+                  <span className="pk__won-chips">wins {fmt(one.chips)}</span>
+                  {one.said === null ? null : <span className="pk__won-with">{one.said}</span>}
+                </span>
+              ))}
+            </p>
+        ) : state.you?.hand != null && me !== null && !me.folded ? (
+          <p
+            /* Keyed on what it says, so a hand that becomes a different hand is
+               a different element — which is what makes it land rather than
+               quietly changing its own text. */
+            key={state.you.hand.title + state.you.hand.said}
+            className="pk__reading"
+          >
+            <strong>{state.you.hand.title}</strong>
+            <span>{state.you.hand.said}</span>
+          </p>
+        ) : null}
+
+        <Actions table={table} state={state} me={me} intent={intent} />
+        {/*
+          * Only at a table playing for nothing, and only for whoever opened it.
+          * The server refuses it anywhere else whatever the browser shows —
+          * hiding a control is a courtesy, refusing the message is the rule.
+          */}
+        {state.forFun && state.hostId === seatId ? (
+          <div className="pk__bots">
+            <span className="pk__bots-label">Deal somebody in</span>
+            {(["easy", "normal", "hard"] as const).map((skill) => (
+              <button
+                key={skill}
+                type="button"
+                className="pk__bot"
+                disabled={table.busy || state.seats.length >= 10}
+                onClick={() => table.addBot(skill)}
+              >
+                {skill}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <Rankings open={helping} onClose={() => setHelping(false)} />
     </div>
   );
 }

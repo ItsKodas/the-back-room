@@ -91,7 +91,8 @@ export function Poker() {
 
   return (
     // Wider only at the felt: the screen before it is the building's width.
-    <main className={state === null ? "play" : "play play--poker"}>
+    // Fitted only at the felt too — the lobby and sign-in are pages and scroll.
+    <main className={state === null ? "play" : "play play--fit play--poker"}>
       {/* At the table a refusal takes the middle of the board; on a page it stays a strip. */}
       {atTable ? (
         <Refusal message={table.error} id={table.errorKey} />

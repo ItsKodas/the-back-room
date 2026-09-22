@@ -406,7 +406,11 @@ export function PokerMockup() {
         </div>
       </div>
 
-      <Table seats={at} board={board} pot={2_900} {...(seats === 10 ? { side: 1_200 } : {})} />
+      {/* The felt grows to fill whatever flex column it is placed in — see
+          `.mock__felt` in gallery.css for why this page has to supply one. */}
+      <div className="mock__felt">
+        <Table seats={at} board={board} pot={2_900} {...(seats === 10 ? { side: 1_200 } : {})} />
+      </div>
       <Actions turn />
       <p className="gallery__note">
         And what is on screen for most of a hand, which is somebody else's turn.

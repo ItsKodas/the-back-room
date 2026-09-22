@@ -35,99 +35,44 @@
   margin-inline: auto;
 }
 
+/*
+ * The felt is the one thing on this page that flexes.
+ *
+ * Three rows — a readout not yet built, the felt, the controls — and only the
+ * middle one has anywhere to give. That used to be a guess: `--spare: calc(100dvh
+ * - 470px)` counted the bar, the hand-reading pill and the controls by hand,
+ * and it was wrong twice, once when the pill was added and once when the
+ * controls grew a row. A `minmax(0, 1fr)` row needs no guess — it takes
+ * whatever the other two leave it, however tall they turn out to be, so a
+ * later row growing by a pixel is a pixel the felt gives up rather than a
+ * number this sheet has to be told about.
+ *
+ * The names are load-bearing, not decoration: the readout (a later task), the
+ * rules and activity panels at a desk, and the side column all place
+ * themselves by area, and an area nothing is placed into yet still has to
+ * exist — an unnamed one means an item aimed at it later is auto-placed
+ * instead, silently, and only on a phone.
+ *
+ * One column, given the whole row rather than only its own min-content: every
+ * child already caps its own width (the felt at 100%, the reading pill and the
+ * controls at their own `min(…, 100%)`), so there is nothing here that a wide
+ * child could push sideways the way the row's height needs guarding.
+ *
+ * `flex: 1` because `.play--fit` is a flex column and this is its one
+ * in-flow child (talk is a drawer, positioned out of it) — without growing,
+ * a flex item takes only the height its own content asks for, which for a
+ * grid of three rows two of which are still empty is nowhere near the page.
+ * `min-height: 0` lets it shrink below that content size in turn, which a
+ * flex item does not do on its own either.
+ */
 .pk {
-  container-type: inline-size;
-  margin-inline: auto;
-  /* Named once: the face and the clock drawn round it have to agree, and two
-     copies of the same clamp is two things to keep in step. */
-  --face: clamp(18px, 2.4cqw, 40px);
-  /*
-   * A name and a stack, which are one size for the same reason — they are read
-   * as one line about one person.
-   *
-   * The coefficient is what stops a desktop being handed the phone's floor. At
-   * 1.15cqw a 1080p felt landed on 11px exactly, so somebody at a full-sized
-   * monitor read the other nine seats at the size a phone reads them, beside a
-   * 23px face and a 41px card. It reaches its ceiling a little earlier now and
-   * sits there, which is what a legibility ceiling is for.
-   */
-  --seat-text: clamp(11px, 1.45cqw, 18px);
-  /*
-   * What the window has left for the felt, once everything that is not the
-   * felt has had its share: the bar and the last event above it, and the hand
-   * you are holding, the amount, the sizes and the three buttons below.
-   *
-   * `dvh` rather than `vh` because a phone's address bar is part of that
-   * budget. Measured with the hand-reading pill in place, because that is the
-   * tallest this page gets.
-   */
-  --spare: calc(100dvh - 470px);
-  /*
-   * The flattest a table is allowed to be, as a ratio.
-   *
-   * A real ten-handed table is about two to one across the rail, so this is
-   * the shape of a poker table rather than an arbitrary stop — a felt that
-   * reached it is not a compromise, it is furniture.
-   */
-  --flattest: 2;
-}
-
-/*
- * The felt takes the room it is in, and gives up its shape before its size.
- *
- * The buttons are the one part of this screen somebody has to be able to
- * reach, so the felt can never be taller than the window has spare. It used to
- * pay for that in width: holding 16:10 whatever it cost, a 1080p window — 950
- * pixels of page, less the 470 that are not the table — drew a 768px felt
- * inside 1556px of room, and every card, name and chip on it is measured in
- * `cqw`, so the whole drawing came out at half the size of the screen it was
- * on. It looked right at 1440p only because the height budget there is
- * generous enough that 16:10 fills the page anyway, which is why it survived.
- *
- * So the felt takes the width, and lets the height cap flatten it instead. A
- * `max-height` on a box whose width is already settled takes height away
- * without taking width — the table stops being 16:10 and becomes the long oval
- * it is in a room, which is the honest way to spend a screen that is wide and
- * short. It stops at `--flattest`, and the width is capped there too so the
- * two halves of the same rule cannot disagree.
- */
-@media (min-width: 561px) {
-  .pk {
-    /*
-     * Floored above the width at which this felt becomes the phone one. That
-     * layout is square and stacks its controls taller, so shrinking a wide
-     * screen's table into it makes the very thing this cap exists to prevent:
-     * a short window would cross the breakpoint and push the buttons further
-     * off the bottom than leaving it alone would have.
-     */
-    max-width: max(580px, calc(var(--spare) * var(--flattest)));
-  }
-}
-
-/*
- * On the container rather than the viewport, because this is the exact
- * complement of the narrow felt below — that one is square on purpose, to give
- * ten seats somewhere to go, and a height cap would flatten it back into the
- * collisions it exists to avoid.
- *
- * Floored at the felt's own floor width over the flattest ratio, so that when
- * the felt is holding its 580px minimum on a very short window it holds a
- * table's shape with it rather than being squeezed into a letterbox.
- */
-@container (min-width: 561px) {
-  .pk__table {
-    /*
-     * Stated rather than left to `auto`, and this is the whole trick.
-     *
-     * An automatic width and an aspect ratio are two ways of saying the same
-     * size, so a cap on the height travels back through the ratio and takes
-     * the width with it — which is the shrinking this rule exists to stop. A
-     * width that is already settled has nowhere to travel to, so the cap can
-     * only do what it says: take height.
-     */
-    width: 100%;
-    max-height: max(calc(580px / var(--flattest)), var(--spare));
-  }
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "read" "felt" "controls";
+  flex: 1;
+  min-height: 0;
+  gap: var(--gr-space-2);
 }
 
 /*
@@ -299,20 +244,22 @@
 /*
  * The chips scale with the felt too, for the same reason the cards do — and
  * because React sized them for the smallest table they appear on. Only the
- * width is given; the drawing's own viewBox takes care of the rest.
+ * width is given; the drawing's own viewBox takes care of the rest. The three
+ * sizes are `.pk__table`'s own custom properties, `--pile`/`--bet-chip`/
+ * `--pot-chip`, so a short felt shrinks them along with everything else.
  */
 .pk__pile .stack {
-  width: clamp(11px, 1.9cqw, 32px);
+  width: var(--pile);
   height: auto;
 }
 
 .pk__bet .stack {
-  width: clamp(16px, 2.6cqw, 44px);
+  width: var(--bet-chip);
   height: auto;
 }
 
 .pk__pot-chips .stack {
-  width: clamp(19px, 3.2cqw, 54px);
+  width: var(--pot-chip);
   height: auto;
 }
 
@@ -883,6 +830,22 @@
 }
 
 /* ---------------------------------------------------------- what you do */
+
+/*
+ * Everything under the felt — the hand you are holding, the buttons, the bots
+ * row — in the grid's "controls" area, as one item rather than three. A grid
+ * area holds one box; sharing it between several would size the row to the
+ * tallest of them and let the rest overlap it, which is exactly the "Bet pot"
+ * row landing on top of "Deal somebody in" rather than above it. A flex
+ * column inside keeps them stacked the way normal flow always did, including
+ * the reading pill's negative margin pulling it up over whatever is above it.
+ */
+.pk__below {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 
 /*
  * The controls, under the table.
@@ -1553,8 +1516,25 @@
  * game is played on rather than one it borrows. The room's palette is smoke
  * and neon; a card table is oak, and a green cloth sitting straight on a dark
  * page reads as a shape rather than as furniture.
+ *
+ * A size container of its own — `pk`, distinct from the page's `fit` — so
+ * everything on the felt can be measured against both the room it actually has
+ * left and not merely the width the page happens to be. A phone that is short
+ * as well as narrow used to shrink nothing but the width term of every clamp
+ * below, so a squat window still drew full-height cards that shoved the
+ * controls off the bottom; sized against `min(cqi, cqh)` instead, the shorter
+ * axis wins and the cards give first.
+ *
+ * No `aspect-ratio` here any more: on one column the felt is simply whatever
+ * rectangle the flexing row gives it, and giving it back a table's actual
+ * shape — an oval past 760px of felt, square below it — is arrangement work
+ * for a later task, not sizing work for this one.
  */
 .pk__table {
+  grid-area: felt;
+  container: pk / size;
+  position: relative;
+  min-height: 0;
   /*
    * How far the ring of seats reaches.
    *
@@ -1582,8 +1562,34 @@
    */
   --bet-across: 25%;
   --bet-down: 18.5%;
-  position: relative;
-  aspect-ratio: 16 / 10;
+  /*
+   * The face beside a name, and the clock drawn round it — the two have to
+   * agree, and two copies of the same clamp is two things to keep in step.
+   * Set here, on the container, and read by every seat rather than declared
+   * again on one: a seat that fixed its own face size is a face that stops
+   * shrinking on a short phone while the cards around it still do.
+   */
+  --face: clamp(18px, min(2.4cqi, 1.9cqh), 40px);
+  /*
+   * A name and a stack, which are one size for the same reason — they are read
+   * as one line about one person.
+   *
+   * The coefficient is what stops a desktop being handed the phone's floor. At
+   * 1.15cqw a 1080p felt landed on 11px exactly, so somebody at a full-sized
+   * monitor read the other nine seats at the size a phone reads them, beside a
+   * 23px face and a 41px card. It reaches its ceiling a little earlier now and
+   * sits there, which is what a legibility ceiling is for.
+   */
+  --seat-text: clamp(11px, min(1.45cqi, 1.2cqh), 18px);
+  /*
+   * The chips, in the three places they pile up: beside a stack, out on a
+   * stake, and heaped in the pot. Each is its own size because they are read
+   * at different distances — the pot is the biggest pile on the table — but
+   * all three give up height before width for the same reason the cards do.
+   */
+  --pile: clamp(11px, min(1.9cqi, 1.5cqh), 32px);
+  --bet-chip: clamp(16px, min(2.6cqi, 2.1cqh), 44px);
+  --pot-chip: clamp(19px, min(3.2cqi, 2.6cqh), 54px);
   border-radius: 46% / 48%;
   background:
     radial-gradient(120% 90% at 50% -10%, rgb(255 214 160 / 0.22) 0%, transparent 55%),
@@ -1672,8 +1678,8 @@
  * reads as the wrong card moving.
  */
 /*
- * Everything on this felt is measured in `cqw` — hundredths of the table's own
- * width — rather than in pixels.
+ * Everything on this felt is measured in the felt's own container units
+ * rather than in pixels.
  *
  * The seats and the chips sit on rings given as percentages of the table, so a
  * card measured in pixels changes size relative to those rings at every screen
@@ -1682,18 +1688,24 @@
  * is chasing it. In the same units as the rings it simply cannot happen — the
  * whole felt is one drawing that gets bigger.
  *
+ * `min(cqi, cqh)` rather than `cqi` alone, so the height the felt actually has
+ * binds as readily as the width: a felt that is wide but short — the shape a
+ * phone gives it once the bar and the controls have taken their share — used
+ * to keep drawing full-width board cards until they ran the seats below them
+ * off the felt entirely.
+ *
  * Clamped at both ends. Below the floor a card stops being readable, and above
  * the ceiling a very wide monitor would deal playing cards the size of books.
  */
 .pk__gap {
-  width: clamp(44px, 6.2cqw, 104px);
+  width: clamp(44px, min(6.2cqi, 5cqh), 104px);
   aspect-ratio: 5 / 7;
   border-radius: 5px;
   border: 1px dashed rgb(255 255 255 / 0.1);
 }
 
 .pk__board .bj-card {
-  width: clamp(44px, 6.2cqw, 104px);
+  width: clamp(44px, min(6.2cqi, 5cqh), 104px);
   height: auto;
 }
 
@@ -1728,7 +1740,7 @@
 }
 
 .pk__cards .bj-card {
-  width: clamp(30px, 4.2cqw, 70px);
+  width: clamp(30px, min(4.2cqi, 3.4cqh), 70px);
   height: auto;
 }
 
@@ -1741,7 +1753,7 @@
  * one worth the room.
  */
 .pk__seat--you .pk__cards .bj-card {
-  width: clamp(44px, 7cqw, 118px);
+  width: clamp(44px, min(7cqi, 5.6cqh), 118px);
 }
 
 .pk__seat--you .pk__name,
@@ -1765,9 +1777,14 @@
    * pairs, and the outermost ones hanging off the sides of the page. A table
    * nearer square has far more room down its sides, which is where the seats
    * that were fighting each other end up.
+   *
+   * No `aspect-ratio` stated here any more — the felt is a grid item stretched
+   * to fill the row it is given on both axes, so a stated ratio on top of that
+   * has nothing left to resolve and would be dead weight. The ring itself is
+   * pulled in to suit a taller felt instead, which is the thing actually being
+   * asked for.
    */
   .pk__table {
-    aspect-ratio: 1 / 1;
     --across: 34%;
     --down: 33%;
     --bet-across: 23%;
