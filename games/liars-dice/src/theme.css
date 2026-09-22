@@ -1,0 +1,5 @@
+/* The Liar's Dice room. Written in full in the theme commit. */
+:root[data-game="liars-dice"],
+[data-game="liars-dice"] {
+  --gr-color-felt: #2e1c14;
+}
