@@ -102,6 +102,16 @@ export function OnTurn({
     );
 
   const span = Math.max(1, you.maxRaiseTo - you.minRaiseTo);
+  /*
+   * Whether the sizing controls are showing.
+   *
+   * Only a phone ever hides them — the stylesheet decides that, keyed on the
+   * page's width, and at a desk they are simply always there and this flag
+   * changes nothing. It lives here rather than in the sheet because "open"
+   * is a thing the player did, and a `:target` or a checkbox standing in for
+   * state is how a control ends up unreachable from a keyboard.
+   */
+  const [sizing, setSizing] = useState(false);
 
   return (
     /*
@@ -111,7 +121,7 @@ export function OnTurn({
      */
     <div className="pk__controls pk__controls--yours">
       {you.canRaise ? (
-        <div className="pk__amount">
+        <div className="pk__amount" data-open={sizing ? "true" : "false"}>
           <div className="pk__dial">
             <button
               type="button"
@@ -298,6 +308,37 @@ export function OnTurn({
           >
             <span className="pk__act-name">{all ? "All in" : opening ? "Bet" : "Raise to"}</span>
             <span className="pk__act-figure">{fmt(all ? me.committed + me.stack : at)}</span>
+          </button>
+        ) : null}
+
+        {/*
+          * The way to a different amount, when the sizing controls are shut.
+          *
+          * Drawn only on a phone — at a desk the controls are always there
+          * and this would be a key that toggles something already visible.
+          * Beside the raise rather than at the head of the row: the three
+          * buttons keep the thumb positions they had, and this asks for the
+          * one thing the raise beside it cannot, which is a different figure.
+          */}
+        {you.canRaise ? (
+          <button
+            type="button"
+            className="key key--icon pk__sizer"
+            aria-expanded={sizing}
+            aria-label={`Pick a different amount, now ${fmt(at)}`}
+            onClick={() => setSizing((was) => !was)}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d={sizing ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+            </svg>
           </button>
         ) : null}
       </div>

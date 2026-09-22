@@ -155,4 +155,49 @@ describe("a raise you can type", () => {
     expect(box).toHaveValue("200");
     expect(screen.getByText("Held to the least you can bet, 200.")).toBeTruthy();
   });
+
+
+  /*
+   * On a phone the sizing controls are opened, not always there.
+   *
+   * Stacked, they measured 323px of a 560px window and the felt — the only
+   * flexing row — collapsed to 70px under them, which put ten seats on top of
+   * each other. Folding the dial and the slices onto single lines got that to
+   * 252px and the felt to 141px, still not enough for nine seats to spread
+   * vertically. So on a phone they start shut, behind a key, and the row that
+   * is always there is the one you press most: fold, check or call, and a
+   * raise at the amount already offered.
+   *
+   * Whether they are *drawn* is a container query's decision and jsdom cannot
+   * see it — `poker.css.test.ts` pins that. What is asserted here is the part
+   * React owns: the key, what it says, and which state the block is in.
+   */
+  describe("the sizing controls open on a phone rather than always being there", () => {
+    it("starts shut, with a key that says what it would raise to", () => {
+      renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000 });
+      const key = screen.getByRole("button", { name: /pick a different amount/i });
+      expect(key).toHaveAttribute("aria-expanded", "false");
+      expect(document.querySelector(".pk__amount")).toHaveAttribute("data-open", "false");
+    });
+
+    it("opens on the key, and shuts again on a second press", () => {
+      renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000 });
+      const key = screen.getByRole("button", { name: /pick a different amount/i });
+      fireEvent.click(key);
+      expect(key).toHaveAttribute("aria-expanded", "true");
+      expect(document.querySelector(".pk__amount")).toHaveAttribute("data-open", "true");
+      fireEvent.click(key);
+      expect(key).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("still raises in one press at the amount it already offers", () => {
+      // Shut is not a step in the way of raising — it is a step in the way of
+      // raising *a different amount*.
+      const onAct = vi.fn();
+      renderAmount({ minRaiseTo: 200, maxRaiseTo: 4_000, onAct });
+      // This helper opens the betting (toCall 0), so the commit key says "Bet".
+    fireEvent.click(screen.getByRole("button", { name: /^bet 200$/i }));
+      expect(onAct).toHaveBeenCalledWith("raise", 200, { type: "raise", amount: 200 });
+    });
+  });
 });

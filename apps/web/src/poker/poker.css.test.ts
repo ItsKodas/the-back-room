@@ -20,11 +20,22 @@ function ruleIn(text: string, selector: string): string {
   return text.match(new RegExp(`^\\s*${escaped} \\{([^}]*)\\}`, "m"))?.[1] ?? "";
 }
 
-/** The body of the first block opened by this at-rule prelude, braces balanced. */
-function block(text: string, prelude: string): string {
-  const start = text.indexOf(`${prelude} {`);
-  if (start === -1) {
-    return "";
+/**
+ * The body of a block opened by this at-rule prelude, braces balanced.
+ *
+ * `nth` because one prelude can open more than one block, and this sheet
+ * deliberately has two `@container fit (max-width: 560px)` — one for the
+ * felt's radii, one for the controls folding up. Defaults to the first.
+ */
+function block(text: string, prelude: string, nth = 0): string {
+  let start = -1;
+  let from = 0;
+  for (let seen = 0; seen <= nth; seen += 1) {
+    start = text.indexOf(`${prelude} {`, from);
+    if (start === -1) {
+      return "";
+    }
+    from = start + prelude.length;
   }
   let depth = 0;
   for (let at = text.indexOf("{", start); at < text.length; at += 1) {
@@ -166,5 +177,26 @@ describe("the three arrangements", () => {
      * ancestor — keyed on `pk` this rule would simply never apply.
      */
     expect(block(css, "@container fit (min-width: 1200px)")).toMatch(/grid-template-areas/);
+  });
+});
+
+describe("the sizing controls, on a phone", () => {
+  /*
+   * The whole reason the felt fits on your turn. Stacked, the betting
+   * controls took 323px of a 560px window and the felt — the only flexing
+   * row — collapsed to 70px under them, which is where ten seats began
+   * landing on each other. These two rules are what keep them shut.
+   */
+  it("hides the sizing block until it is asked for", () => {
+    const phone = block(css, "@container fit (max-width: 560px)", 1);
+    expect(phone).toMatch(/\.pk__amount\[data-open="false"\]\s*\{[^}]*display:\s*none/);
+  });
+
+  it("draws the key that opens it on a phone and nowhere else", () => {
+    // Hidden by default, shown only inside the phone's own block.
+    expect(ruleIn(css, ".pk__sizer")).toMatch(/display:\s*none/);
+    expect(block(css, "@container fit (max-width: 560px)", 1)).toMatch(
+      /\.pk__sizer\s*\{[^}]*display:\s*inline-flex/,
+    );
   });
 });

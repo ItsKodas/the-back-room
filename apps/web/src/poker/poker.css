@@ -2021,7 +2021,62 @@
  * reads `--across`/`--down` out of the FIRST `@container fit (max-width:
  * 560px)` block in this sheet.
  */
+/*
+ * The key that opens the sizing controls is a phone's only. At a desk they
+ * are always drawn, so a key toggling something already visible would be a
+ * control that does nothing you can see.
+ */
+.pk__sizer {
+  display: none;
+  flex: 0 0 auto;
+}
+
 @container fit (max-width: 560px) {
+  .pk__sizer {
+    display: inline-flex;
+  }
+
+  /*
+   * Shut until asked for. Folding the dial and the slices onto single lines
+   * took the controls from 323px to 252px of a 560px window and the felt
+   * from 70px to 141px, which was better and still not a table: nine seats
+   * need vertical room to spread into, and at 141px there is none. Shut,
+   * the row is the three buttons and the felt has its 275px back — the size
+   * at which nothing overlaps, measured.
+   */
+  .pk__amount[data-open="false"] {
+    display: none;
+  }
+
+  /*
+   * Opened, it floats over the cloth rather than pushing it.
+   *
+   * Laid out in the flow it took its 178px back off the felt, which put the
+   * seats straight back where they started — four overlapping pairs at the
+   * moment the player is deciding how much to raise, which is the worst
+   * moment to have a table you cannot read. Over the cloth the felt keeps
+   * its 319px and its arrangement, so dismissing this puts nothing back: the
+   * table underneath never moved.
+   */
+  .pk__below {
+    position: relative;
+  }
+
+  .pk__amount[data-open="true"] {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Clear of the row it belongs to, which stays where the thumb left it.
+       `100%` is the top edge of that row; the gap lifts it off. */
+    bottom: calc(100% + var(--gr-space-2));
+    z-index: 3;
+    padding: var(--gr-space-2);
+    border: var(--gr-edge-soft);
+    border-radius: var(--gr-radius-cab);
+    background: color-mix(in srgb, var(--gr-color-slate) 94%, black);
+    box-shadow: 0 -10px 28px rgb(0 0 0 / 0.55);
+  }
+
   .pk__amount {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
