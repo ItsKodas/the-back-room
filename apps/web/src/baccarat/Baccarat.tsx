@@ -158,15 +158,23 @@ export function Felt({
    * CLAUDE.md's own bargain, and the one this table was missing: watched live
    * against the old code, a clicked spot stayed empty for the whole of an
    * artificially delayed round trip. The table's own figure always wins once
-   * it catches up; this is only ever what fills the gap before it does.
+   * it catches up; this only ever *stands in* for it before then.
+   *
+   * Substituted, not added: this player's own entries on a pending spot are
+   * dropped from the cloth and replaced by the one pending total for it, so
+   * the same chip is never counted under both this player's own press and
+   * the table's own word for the same spot at once.
    */
   const { pending, add: addPending } = usePendingChips(state.placed, seatId, table.error, table.errorKey);
   const displayPlaced = useMemo(() => {
     if (seatId === null || Object.keys(pending).length === 0) {
       return state.placed;
     }
-    const extra = Object.entries(pending).map(([spotId, chips]) => ({ seatId, spotId, chips }));
-    return [...state.placed, ...extra];
+    const withoutMineOnPendingSpots = state.placed.filter(
+      (one) => !(one.seatId === seatId && one.spotId in pending),
+    );
+    const mine = Object.entries(pending).map(([spotId, chips]) => ({ seatId, spotId, chips }));
+    return [...withoutMineOnPendingSpots, ...mine];
   }, [state.placed, pending, seatId]);
 
   const place = (spotId: SpotId) => {

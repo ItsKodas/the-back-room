@@ -261,4 +261,65 @@ describe("the baccarat felt", () => {
     render(<Felt table={stub().table} state={view({ forFun: true, you: null })} seatId={null} />);
     expect(screen.queryByText(/deal somebody in/i)).toBeNull();
   });
+
+  /*
+   * Round-2 review finding: the optimistic chip added on top of the table's
+   * own figure instead of standing in for it, so the render that first
+   * carries the table's confirmation still had the old pending amount too —
+   * one commit painting 50 for a press of 25 that had just been confirmed at
+   * 25. A plain `render`-then-`screen.getByRole` assertion cannot see this:
+   * `act()` keeps flushing effects (including `usePendingChips`'s own
+   * reconciliation effect) until everything settles, so by the time the
+   * assertion runs the correction has already happened — and a
+   * `useLayoutEffect` in a *wrapper* component does not help either, because
+   * the state that changes belongs to `Felt`'s own fiber, not the wrapper's,
+   * so the wrapper is never asked to re-render for it and its layout effect
+   * never re-fires.
+   *
+   * A `MutationObserver` sidesteps both problems: it is not a React
+   * component, so it does not depend on anything re-rendering to be told
+   * about a DOM change, and — with `attributeOldValue: true` — each mutation
+   * record carries what the attribute held *immediately before* that one
+   * mutation, not merely what it holds now. Two mutations on the same
+   * attribute (…→"50 on it"→"25 on it") leave two records, and the second
+   * one's `oldValue` is "…50 on it" even though the DOM has already moved on
+   * by the time this test inspects anything.
+   */
+  it("never paints a doubled stake in the commit where the table's own figure arrives", () => {
+    const { table } = stub();
+    const { container, rerender } = render(<Felt table={table} state={view()} seatId="s1" />);
+
+    const observer = new MutationObserver(() => {});
+    observer.observe(container, {
+      attributes: true,
+      attributeOldValue: true,
+      subtree: true,
+      attributeFilter: ["aria-label"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Player, pays 1 to 1/ }));
+
+    // The table's own broadcast lands: this seat's own confirmed total on
+    // "player" is now the very 25 that press was for — nothing new to add.
+    rerender(
+      <Felt
+        table={table}
+        state={view({ placed: [{ seatId: "s1", spotId: "player", chips: 25 }] })}
+        seatId="s1"
+      />,
+    );
+
+    const spot = screen.getByRole("button", { name: /^Player,/ });
+    const everyValueTheAttributeHeld = [
+      ...observer
+        .takeRecords()
+        .filter((record) => record.target === spot)
+        .map((record) => record.oldValue ?? ""),
+      spot.getAttribute("aria-label") ?? "",
+    ];
+
+    expect(everyValueTheAttributeHeld.some((value) => /50 on it/.test(value))).toBe(false);
+    expect(spot.getAttribute("aria-label")).toMatch(/25 on it/);
+    observer.disconnect();
+  });
 });

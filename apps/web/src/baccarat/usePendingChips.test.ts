@@ -73,6 +73,26 @@ describe("a chip, before the table has agreed to it", () => {
     expect(result.current.pending["player"]).toBeUndefined();
   });
 
+  it("builds a second press on the table's own figure, not a stale one, once the first has landed", () => {
+    // Round-2 review scenario: if a second press just used whatever this
+    // seat had last pressed for as its base, it would build on a number the
+    // table has already moved past — 25 (the first press) rather than the
+    // 25 the table actually confirmed by the time of the second press. Both
+    // happen to agree here, but only because `add` takes the higher of the
+    // two rather than always trusting its own last figure.
+    const { result, rerender } = renderHook(
+      ({ placed }: { placed: readonly Placed[] }) => usePendingChips(placed, "s1", null),
+      { initialProps: { placed: [] as readonly Placed[] } },
+    );
+    act(() => result.current.add("player", 25));
+    rerender({ placed: [{ seatId: "s1", spotId: "player", chips: 25 }] });
+    expect(result.current.pending["player"]).toBeUndefined();
+
+    act(() => result.current.add("player", 100));
+
+    expect(result.current.pending["player"]).toBe(125);
+  });
+
   it("gives up on an unanswered chip once it has waited long enough", () => {
     vi.useFakeTimers();
     try {

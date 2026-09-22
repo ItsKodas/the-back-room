@@ -7,21 +7,31 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * Every press here is a round trip, and a round trip is long enough to feel
  * like the table ignored it — the same bargain blackjack's `useIntent` makes
  * with a stake, adapted for a cloth that takes many chips, on three spots, in
- * one round rather than one bet a hand. Nothing here invents a fact: the
- * amount is this player's own last click, and the table's own figure always
- * wins once it catches up.
+ * one round rather than one bet a hand.
  *
- * A spot's own pile never actually removes what this player put on it once
- * the table agrees, so "the table caught up" is exactly this player's own
- * confirmed total on that spot going up. A refusal, or nothing coming back
- * inside `PATIENCE_MS`, gives the chip up — CLAUDE.md's own two ways out.
+ * `useIntent`'s own shape, carried over on purpose: this player's own last
+ * figure for a spot *replaces* the table's while it is still waiting on an
+ * answer, rather than adding to it. A first version of this file tracked an
+ * "extra to add" instead, and a render existed — watched live, and caught by
+ * a test built to look for exactly this — where the table's own confirmed
+ * figure had already arrived and the extra hadn't yet been retired, so the
+ * felt briefly showed both counted: fifty on a spot a player had put twenty-
+ * five on. Substituting rather than adding is what makes that render
+ * harmless even when it happens: showing this player's own number and
+ * showing the table's agree once the table has caught up, so which one wins
+ * a given render no longer matters.
  */
 
 /** How long an unanswered chip is trusted before it is taken back off. */
 const PATIENCE_MS = 1600;
 
 export interface PendingChips {
-  /** Chips this player has pressed for on a spot, not yet in the table's own figure. */
+  /**
+   * This player's own total for a spot, in place of the table's own figure,
+   * for exactly as long as the table's own figure has not yet reached it.
+   * Once it has, the spot is not here at all — the table's word is the only
+   * one left to show, the same as `useIntent`'s `bet` going back to `null`.
+   */
   pending: Readonly<Record<string, number>>;
   /** Records a chip as sent. Call it as the message goes, not after. */
   add: (spotId: SpotId, chips: number) => void;
@@ -34,9 +44,11 @@ export function usePendingChips(
   /** Moves on for every refusal, including one in the same words as the last. */
   errorKey = 0,
 ): PendingChips {
-  const [pending, setPending] = useState<Record<string, number>>({});
+  // What this player has actually pressed for, per spot — an absolute total
+  // each time (worked out against the table's own figure at the moment of
+  // the press), not a running "extra" on top of whatever the table says now.
+  const [pressed, setPressed] = useState<Record<string, number>>({});
   const timers = useRef<Record<string, number>>({});
-  const confirmedRef = useRef<Record<string, number>>({});
 
   /** This player's own confirmed total, per spot — never anybody else's chips. */
   const confirmed = useMemo(() => {
@@ -51,6 +63,24 @@ export function usePendingChips(
     return out;
   }, [placed, seatId]);
 
+  /*
+   * The table caught up: worked out fresh on every render, from `pressed`
+   * and `confirmed` as they stand *this* render, rather than by an effect a
+   * render behind reacting to the last one. A spot whose confirmed figure
+   * already covers what was pressed for it is not "pending" for even one
+   * commit — there is no render in between where the old figure could still
+   * be read alongside the new one.
+   */
+  const pending = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [spotId, amount] of Object.entries(pressed)) {
+      if ((confirmed[spotId] ?? 0) < amount) {
+        out[spotId] = amount;
+      }
+    }
+    return out;
+  }, [pressed, confirmed]);
+
   useEffect(() => {
     const held = timers.current;
     return () => {
@@ -60,57 +90,38 @@ export function usePendingChips(
     };
   }, []);
 
-  /*
-   * The table caught up: however much this player's own confirmed figure on a
-   * spot just grew is exactly the pending chip that press was for, so it
-   * retires that much of the pile rather than waiting out its patience.
-   */
-  useEffect(() => {
-    setPending((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const spotId of Object.keys(next)) {
-        const before = confirmedRef.current[spotId] ?? 0;
-        const now = confirmed[spotId] ?? 0;
-        const gained = now - before;
-        if (gained > 0) {
-          const left = Math.max(0, next[spotId] - gained);
-          if (left === 0) {
-            delete next[spotId];
-          } else {
-            next[spotId] = left;
-          }
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-    confirmedRef.current = confirmed;
-  }, [confirmed]);
-
-  // A refusal is a chip that was never going to land — every pending pile
+  // A refusal is a chip that was never going to land — every pressed figure
   // comes back off, the same as a hand that is told no.
   // biome-ignore lint/correctness/useExhaustiveDependencies: errorKey is the trigger for a repeat, not a value read
   useEffect(() => {
     if (error !== null) {
-      setPending({});
+      setPressed({});
     }
   }, [error, errorKey]);
 
-  const add = useCallback((spotId: SpotId, chips: number) => {
-    setPending((prev) => ({ ...prev, [spotId]: (prev[spotId] ?? 0) + chips }));
-    window.clearTimeout(timers.current[spotId]);
-    timers.current[spotId] = window.setTimeout(() => {
-      setPending((prev) => {
-        if (!(spotId in prev)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[spotId];
-        return next;
-      });
-    }, PATIENCE_MS);
-  }, []);
+  const add = useCallback(
+    (spotId: SpotId, chips: number) => {
+      setPressed((prev) => ({
+        ...prev,
+        // Against the higher of what was already pressed and what the table
+        // has actually confirmed — either can be ahead, and the new total
+        // this player expects to see is built on top of whichever is.
+        [spotId]: Math.max(prev[spotId] ?? 0, confirmed[spotId] ?? 0) + chips,
+      }));
+      window.clearTimeout(timers.current[spotId]);
+      timers.current[spotId] = window.setTimeout(() => {
+        setPressed((prev) => {
+          if (!(spotId in prev)) {
+            return prev;
+          }
+          const next = { ...prev };
+          delete next[spotId];
+          return next;
+        });
+      }, PATIENCE_MS);
+    },
+    [confirmed],
+  );
 
   return { pending, add };
 }
