@@ -35,3 +35,5 @@ export type { Call, Resolution, RevealedHand } from "./round.js";
 export { Round } from "./round.js";
 export type { BoardRow } from "./game.js";
 export { Game } from "./game.js";
+export type { Phase, ResolutionView, SeatView, TableView } from "./table.js";
+export { Table } from "./table.js";
