@@ -13,6 +13,8 @@ import { Refusal } from "../table/Refusal.js";
 import { Sheet } from "../table/Sheet.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
+import type { TableKeys } from "../table/useTableKeys.js";
+import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTablePeek } from "../table/useTablePeek.js";
 import { useTableSocket } from "../table/useTableSocket.js";
@@ -25,7 +27,6 @@ import { Moments } from "./Moments.js";
 import { Readout, readoutFor } from "./Readout.js";
 import { Dealer, Seats } from "./Seats.js";
 import { TABLE_SHEET_ID, TableSheet } from "./TableSheet.js";
-import { useBlackjackKeys } from "./useBlackjackKeys.js";
 import { useCardSound } from "./useCardSound.js";
 import type { Move } from "./useIntent.js";
 import { useIntent } from "./useIntent.js";
@@ -33,6 +34,10 @@ import "@backroom/game-blackjack/theme.css";
 import "./blackjack.css";
 
 type Table = TableSocketHook<TableView>;
+
+// Module-level so the object identity is stable across renders — useTableKeys
+// re-binds its listeners whenever this reference changes.
+const KEYS: TableKeys = { shortcuts: { " ": "Space", s: "S", d: "D", p: "P" }, holds: ".bj__chip" };
 
 export function Blackjack() {
   const navigate = useNavigate();
@@ -147,7 +152,7 @@ function BlackjackTable({
     talk.toggle();
   };
   const root = useRef<HTMLElement | null>(null);
-  useBlackjackKeys(root);
+  useTableKeys(root, KEYS);
   const isHost = state.hostId === seatId && seatId !== null;
   const pays = paysFor(state, seatId, chips);
 

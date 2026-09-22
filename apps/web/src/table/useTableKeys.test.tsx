@@ -3,28 +3,35 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TableView } from "@backroom/game-blackjack";
-import type { Move } from "./useIntent.js";
-import { Controls } from "./Controls.js";
-import { pairTurn, splitTurn, view, yourTurn } from "./fixtures.js";
-import { useBlackjackKeys } from "./useBlackjackKeys.js";
+import type { Move } from "../blackjack/useIntent.js";
+import { Controls } from "../blackjack/Controls.js";
+import { pairTurn, splitTurn, view, yourTurn } from "../blackjack/fixtures.js";
+import type { TableKeys } from "./useTableKeys.js";
+import { useTableKeys } from "./useTableKeys.js";
 
 const space = { key: " ", code: "Space" };
+
+// What Blackjack itself passes; the default here so existing tests below stay
+// tests of blackjack's own shortcuts and chip tray.
+const BLACKJACK_KEYS: TableKeys = { shortcuts: { " ": "Space", s: "S", d: "D", p: "P" }, holds: ".bj__chip" };
 
 function Harness({
   state,
   move = null,
+  keys = BLACKJACK_KEYS,
   onMove,
   onReady,
   onStake,
 }: {
   state: TableView;
   move?: Move | null;
+  keys?: TableKeys;
   onMove: (kind: Move) => void;
   onReady: (ready: boolean) => void;
   onStake: (amount: number) => void;
 }) {
   const root = useRef<HTMLDivElement | null>(null);
-  useBlackjackKeys(root);
+  useTableKeys(root, keys);
   return (
     <div ref={root}>
       <input aria-label="Message" />
@@ -59,9 +66,9 @@ function Harness({
   );
 }
 
-function table(state: TableView, move: Move | null = null) {
+function table(state: TableView, move: Move | null = null, keys?: TableKeys) {
   const calls = { onMove: vi.fn(), onReady: vi.fn(), onStake: vi.fn() };
-  render(<Harness state={state} move={move} {...calls} />);
+  render(<Harness state={state} move={move} keys={keys} {...calls} />);
   return calls;
 }
 
@@ -189,6 +196,23 @@ describe("a chip and the Space bar", () => {
     const chip = screen.getByRole("button", { name: "Add 100" });
     fireEvent.pointerDown(chip);
     screen.getByRole("button", { name: "Somebody else's key" }).focus();
+    chip.focus();
+    expect(fireEvent.keyDown(chip, space)).toBe(true);
+    expect(calls.onReady).not.toHaveBeenCalled();
+  });
+});
+
+describe("a table with no held piece", () => {
+  it("presses the button when the table has no held piece", () => {
+    /*
+     * No `holds`, so even a chip somebody clicked is not a piece this table
+     * can hold — Space has to stay with the chip, same as any other focused
+     * button. This is the one case that would come back wrong if the
+     * selector were still the literal ".bj__chip" instead of `keys.holds`.
+     */
+    const calls = table(view(), null, { shortcuts: { " ": "Space" } });
+    const chip = screen.getByRole("button", { name: "Add 100" });
+    fireEvent.pointerDown(chip);
     chip.focus();
     expect(fireEvent.keyDown(chip, space)).toBe(true);
     expect(calls.onReady).not.toHaveBeenCalled();
