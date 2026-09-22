@@ -262,6 +262,9 @@ describe("the rulebook as a whole", () => {
 
   it("never pays a fraction of a chip, for any chip in the tray", () => {
     /*
+     * Which is the entire reason the tray is multiples of thirty. A
+     * twenty-five on the six owes 29.166, and there is no such chip.
+     *
      * Collected and asserted once rather than asserted 89,000 times. The
      * arithmetic here is free; building an expect message per combination is
      * not, and at a default timeout this test went red whenever the machine
