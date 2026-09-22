@@ -64,10 +64,21 @@ rows: auto            standing
 
 **Phone:** one column.
 
-**Desk (`@container rl (min-width: 760px)`):** the cloth takes the stage; a
-right-hand side column carries the wheel, History, Winners and Activity;
+**Desk (`@container rl (min-width: 900px)`):** the cloth takes the stage; a
+right-hand side column carries the wheel, its caption and the Winners board;
 controls and seats span the bottom, so the actions stay one row under the cloth
-at both sizes (K1).
+at both sizes (K1). History is *not* in that column — it is a thin strip above
+the stage at both sizes, which is what the decision on boards says. Nor is the
+activity log: it lives in the talk sheet's second tab at both sizes, which is a
+deviation from A2 and is written down as one in the standard.
+
+Nine hundred, and the number is derived rather than chosen. The cloth lies down
+below 560px of its own width (`TURNS_AT`, in `Cloth.tsx`). The side column takes
+26% of the table and the corner about 44 with its keys in it, so the cloth is
+handed roughly `0.74C - 52` — 614px at 900, and under `TURNS_AT` at 760. A
+lower threshold stands a *portrait* cloth on a desk, which is the disagreement
+the layout before this one shipped with. Anybody moving this figure moves it
+against that arithmetic rather than by eye; it has been lost once already.
 
 The wheel moves *into the side column* rather than staying beside the cloth as
 it is today. That is deliberate. `roulette.css` already carries a scar from the
@@ -78,9 +89,10 @@ present arrangement:
 > seven tenths of the room, so a container of 720 handed it barely 520 — under
 > the width at which the cloth decides to lie down.
 
-Giving the cloth the whole stage width removes that coupling: the container
-query and `TURNS_AT` can no longer disagree, because the cloth's width is the
-stage's width.
+Giving the cloth the whole stage width shrinks that coupling; it does not
+remove it, because the corner column of keys stays beside the cloth. The
+container query and `TURNS_AT` still have to be held in agreement by hand,
+which is what the arithmetic above is for.
 
 ### L3 — sized from the space it has
 

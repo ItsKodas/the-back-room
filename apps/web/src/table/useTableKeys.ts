@@ -8,9 +8,14 @@ import { useEffect } from "react";
  * ref at the moment the key goes down, so nothing here goes stale.
  *
  * `shortcuts` maps a lowercased key to the name a button declares in its
- * aria-keyshortcuts. `handsOverSpace`, when given, is a selector for pieces
- * that hand Space to the table once clicked — Blackjack's chips, stacked with
- * Space pressed after, are the rhythm this exists for.
+ * aria-keyshortcuts. It is held by identity, so pass a module constant or a
+ * `useMemo` — an object written inline at the call is a new object every
+ * render, which tears down all three window listeners and builds them again on
+ * every tick of a table's countdown.
+ *
+ * `handsOverSpace`, when given, is a selector for pieces that hand Space to
+ * the table once clicked — Blackjack's chips, stacked with Space pressed
+ * after, are the rhythm this exists for.
  */
 export function useTableKeys(
   root: RefObject<HTMLElement | null>,

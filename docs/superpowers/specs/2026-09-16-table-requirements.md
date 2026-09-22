@@ -277,7 +277,7 @@ better than Greed and should keep or share.
 | One screen (L) | no — scrolls | partial — dvh budget, chat below | yes | no — sticky rail | partial — dvh min-height, sticky controls |
 | Fittings (F) | no — `.btn`, `.panel` | no — bespoke | yes | no — bespoke | no — `.btn` |
 | Talk sheet (C) | no — inline | no — inline | yes | no — inline | no — inline |
-| Activity log (A) | no — `.play__event` | no — `.play__event` | yes | no — throw Board | no — roll strip |
+| Activity log (A) | no — `.play__event` | no — `.play__event` | partial — talk tab at both sizes | no — throw Board | no — roll strip |
 | Refusal overlay (N) | no | no | yes | no | no |
 | Shortcuts (K) | none | none | R/U/C | none | none |
 | Stake (S) | chip buttons | slider, no typed figure | chip keys + typed | chip tray | fixed ante |
@@ -344,6 +344,15 @@ better than Greed and should keep or share.
   size, not a side-column panel at a desk. Roulette's desk side column is
   already near its height budget (readout, boards, controls), and this
   matches Blackjack's own pays-card, which is an overlay too.
+- **A2's "own panel in the side column at a desk."** The log lives in the
+  talk sheet's second tab at both widths, a desk included. A1, A3 and A4 are
+  met; where it lives is not. The same height budget is the reason: the desk
+  side column already carries the wheel, its caption and the winners' board,
+  and the third panel it would take is the one the wheel would have to give
+  up. The table's sentences are the least glanced-at of the three — the
+  pockets strip and the winners' board are what a roulette player reads — so
+  they are the ones behind a key. A table with room to spare in its side
+  column should still meet A2; this one has not got it.
 
 ### Two-Up — `apps/web/src/twoup/`
 - [ ] One screen: the sticky, safe-area-aware bottom rail already reaches the
