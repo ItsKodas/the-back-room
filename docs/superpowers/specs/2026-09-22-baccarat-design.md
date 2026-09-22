@@ -204,10 +204,34 @@ whole multiple of the stake. Here the Banker line is `2x − ceil(x/20)`, which
 is **not linear in x** — the commission steps. Dividing through would either
 over-promise or quietly under-serve the player by up to 5%.
 
-So it is solved by bisection instead. `back(s, x, o) − x` is non-decreasing in
-`x` for every spot and outcome, so the constraint is monotone and bisection is
-exact, not approximate. It costs about two dozen iterations and buys a cap
-that is arithmetic rather than nearly right.
+So it is solved by bisection instead, and what makes bisection exact rather
+than approximate needs stating carefully, because the obvious version of the
+argument is wrong.
+
+`back(s, x, o) − x` is **not** monotone across the board. For the outcome the
+spot wins on it rises with `x`; for an outcome the spot loses on it is
+`already(o) − x`, which *falls*. So the set of stakes the bank can cover is an
+interval `[lo, hi]` rather than a prefix, and bisecting it blind would find
+nothing.
+
+What rescues it is that `lo` is always nought on any cloth this table could
+actually have built. `fits(0)` is true exactly when `owed(cloth) ≤ bank +
+staked(cloth)` — which is to say exactly when the bank already covers the
+cloth as it stands, which is the invariant every chip is admitted under. So on
+a live cloth the interval starts at nought, the feasible set *is* a prefix,
+and bisection is exact.
+
+When `fits(0)` is false the cloth is over-committed — which happens for real,
+because every baccarat table shares one bank and another table's payout can
+take it below what this cloth already needs. The honest answer then is nought:
+the interior band does exist (with a thousand on Player and an empty bank, a
+thousand or more on Banker would technically balance the books, because Banker
+money is what Player money is paid out of), but offering it would be the table
+telling a player they must stake a minimum in order to rescue the house's
+shortfall. It refuses instead and lets the cloth settle on its own.
+
+About two dozen iterations, and a cap that is arithmetic rather than nearly
+right.
 
 The bank goes into that inequality as it is, **never clamped up to nought
 first** — roulette's comment explains why, and the reason carries: the bank is
