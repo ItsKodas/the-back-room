@@ -47,8 +47,22 @@ describe("one screen", () => {
   it("has exactly one flexing row", () => {
     // The felt gives, everything else takes its own height (L2).
     const grid = ruleIn(css, ".pk");
-    expect(grid).toMatch(/grid-template-rows:[^;]*minmax\(0, 1fr\)/);
-    expect(grid.match(/minmax\(0, 1fr\)/g)).toHaveLength(1);
+    const rows = grid.match(/grid-template-rows:\s*([^;]*);/)?.[1] ?? "";
+    expect(rows).toMatch(/minmax\(0, 1fr\)/);
+    // Scoped to the rows declaration alone: the column below is legitimately
+    // `minmax(0, 1fr)` too, for a different reason (L6, not L2).
+    expect(rows.match(/minmax\(0, 1fr\)/g)).toHaveLength(1);
+  });
+
+  /*
+   * A bare `1fr` column keeps its automatic min-content minimum, so a child
+   * that cannot shrink to fit — anything dropped into `.pk__below` later,
+   * say — would widen the column and take the page sideways with it (L6).
+   * `.pk__rank` already uses this exact idiom for the same hazard.
+   */
+  it("cannot be pushed wider than the window by its one column", () => {
+    const grid = ruleIn(css, ".pk");
+    expect(grid).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
   });
 
   it("does not guess the height of what is not the felt", () => {
@@ -77,17 +91,39 @@ describe("one screen", () => {
 
 describe("size variables inherit rather than being redeclared (L4)", () => {
   /*
-   * `--face` and `--seat-text` are set once, on `.pk__table`, so a short felt
-   * can shrink them along with everything else. A piece that declares either
-   * again on itself would beat the container's value with a fixed one — this
-   * is how every Greed die was once a fixed 56px whatever the felt had.
+   * Every custom property `.pk__table` declares is read out of the sheet
+   * itself rather than hand-listed here, so a sixth one (a later task adding
+   * a seventh size variable, say) is covered automatically instead of
+   * silently passing an out-of-date guard. `--face`, `--seat-text`, `--pile`,
+   * `--bet-chip` and `--pot-chip` are today's five.
    */
-  it("declares --face and --seat-text on .pk__table only", () => {
-    for (const name of ["--face", "--seat-text"]) {
-      const declaring = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-        .filter(([, , body = ""]) => body.includes(`${name}:`))
-        .map(([, selectors = ""]) => selectors.trim());
-      expect(declaring).toEqual([".pk__table"]);
-    }
+  const felt = ruleIn(css, ".pk__table");
+  const sizeVars = [...new Set([...felt.matchAll(/(--[a-z-]+)\s*:/g)].map(([, name]) => name))];
+
+  // A canary: if the container ever declared none, every case below would
+  // vacuously pass and the guard would be watching nothing.
+  it("finds at least the felt's five known size variables", () => {
+    expect(sizeVars.length).toBeGreaterThanOrEqual(5);
+  });
+
+  /*
+   * A piece that declares one of these again on itself would beat the
+   * container's value with a fixed one — this is how every Greed die was
+   * once a fixed 56px whatever the felt had. Deduplicated by selector before
+   * comparing: `.pk__table` responsively overriding its own `--across` etc.
+   * inside `@container (max-width: 560px)` is the same selector declaring it
+   * twice, not a second piece — the hazard is a *different* selector.
+   */
+  it.each(sizeVars)("declares %s on .pk__table only", (name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const boundary = new RegExp(`(?<![\\w-])${escaped}(?![\\w-])\\s*:`);
+    const declaring = [
+      ...new Set(
+        [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+          .filter(([, , body = ""]) => boundary.test(body))
+          .map(([, selectors = ""]) => selectors.trim()),
+      ),
+    ];
+    expect(declaring).toEqual([".pk__table"]);
   });
 });

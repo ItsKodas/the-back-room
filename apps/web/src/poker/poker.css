@@ -53,10 +53,13 @@
  * exist — an unnamed one means an item aimed at it later is auto-placed
  * instead, silently, and only on a phone.
  *
- * One column, given the whole row rather than only its own min-content: every
- * child already caps its own width (the felt at 100%, the reading pill and the
- * controls at their own `min(…, 100%)`), so there is nothing here that a wide
- * child could push sideways the way the row's height needs guarding.
+ * One column, `minmax(0, 1fr)` rather than a bare `1fr` for the same reason
+ * `.pk__rank` below already uses it: a bare `fr` track keeps its automatic
+ * min-content minimum, so a child that cannot shrink to fit would widen the
+ * column and take the whole page sideways with it (L6). Every child today
+ * already caps its own width (the felt at 100%, the reading pill and the
+ * controls at their own `min(…, 100%)`), but that is the content behaving,
+ * not the track being safe — the `minmax` is what actually stops it.
  *
  * `flex: 1` because `.play--fit` is a flex column and this is its one
  * in-flow child (talk is a drawer, positioned out of it) — without growing,
@@ -67,7 +70,7 @@
  */
 .pk {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "read" "felt" "controls";
   flex: 1;
