@@ -5,6 +5,79 @@ import { describe, expect, it, vi } from "vitest";
 import { Actions } from "./Controls.js";
 import { seat, stub, view } from "./fixtures.js";
 
+/*
+ * The fittings the controls are built from, checked the way the reference
+ * table (Blackjack's Controls.tsx) checks its own: one lit slab per state,
+ * busy without being dead, and the pre-turn choices dressed as lamps rather
+ * than the bespoke pk__prebtn this table used to carry.
+ */
+describe("the fittings", () => {
+  const MINE = seat({
+    id: "s1",
+    name: "Ada",
+    hole: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "diamonds" },
+    ],
+  });
+  const OTHER = seat({ id: "s2", name: "Bram" });
+
+  function renderControls({ state, busy = false }: { state: TableView; busy?: boolean }) {
+    const table = stub();
+    table.busy = busy;
+    render(
+      <Actions
+        table={table}
+        state={state}
+        me={MINE}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+      />,
+    );
+  }
+
+  /** The turn actually in front of you, with a raise on offer. */
+  function onYourTurn({ toCall, busy = false }: { toCall: number; busy?: boolean }) {
+    return {
+      busy,
+      state: view({
+        toAct: "s1",
+        street: "flop",
+        you: { toCall, minRaiseTo: toCall + 20, maxRaiseTo: 2_000, canRaise: true },
+        seats: [MINE, OTHER],
+      }),
+    };
+  }
+
+  /** Somebody else's turn, with Ada still in the hand to decide in advance about. */
+  function somebodyElseDeciding() {
+    return { state: view({ toAct: "s2", street: "flop", seats: [MINE, OTHER] }) };
+  }
+
+  it("lights exactly one action", () => {
+    renderControls(onYourTurn({ toCall: 200 }));
+    expect(document.querySelectorAll(".slab")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /call 200/i })).toHaveClass("slab");
+  });
+
+  it("lights check when checking is free", () => {
+    renderControls(onYourTurn({ toCall: 0 }));
+    expect(screen.getByRole("button", { name: /^check$/i })).toHaveClass("slab");
+  });
+
+  it("goes busy on the press rather than dead", () => {
+    renderControls(onYourTurn({ toCall: 200, busy: true }));
+    const call = screen.getByRole("button", { name: /call 200/i });
+    expect(call).toHaveClass("is-busy");
+    expect(call).not.toBeDisabled();
+  });
+
+  it("dresses the decide-in-advance group as lamps", () => {
+    renderControls(somebodyElseDeciding());
+    expect(document.querySelectorAll(".lamp").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".pk__prebtn")).toHaveLength(0);
+  });
+});
+
 describe("what you are offered", () => {
   it("offers the buy-in, and only that, to somebody with nothing in front of them", () => {
     const table = stub();

@@ -992,28 +992,6 @@
   gap: var(--gr-space-2);
 }
 
-.pk__step {
-  flex: 0 0 auto;
-  width: 44px;
-  min-height: 44px;
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
-  font-size: var(--gr-text-lg);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.pk__step:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.1);
-}
-
-.pk__step:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
 .pk__figure {
   flex: 1;
   min-width: 0;
@@ -1122,23 +1100,9 @@
   gap: 6px;
 }
 
-.pk__slice {
+/* Fills the row evenly, the way the bespoke pk__slice used to before it wore .key. */
+.pk__slices .key {
   flex: 1 1 auto;
-  min-height: 34px;
-  padding: 0 var(--gr-space-2);
-  border-radius: 999px;
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.04);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-xs);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.pk__slice:hover {
-  background: rgb(255 255 255 / 0.1);
-  color: var(--gr-color-ink);
 }
 
 /* -------------------------------------------------------- what to do */
@@ -1152,33 +1116,19 @@
 /*
  * Equal thirds, so the button under your thumb is the one you meant. Poker is
  * played fast and these three are pressed thousands of times; a fold that is
- * narrow because its word is short is a fold somebody hits by accident.
+ * narrow because its word is short is a fold somebody hits by accident. The
+ * fittings themselves stay generic — this is the poker-only part of their
+ * dress, the way blackjack.css sizes its own :is(.slab, .key) row.
  */
-.pk__act {
+.pk__acts :is(.slab, .key) {
   flex: 1 1 0;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
   min-height: 52px;
-  padding: 0 var(--gr-space-3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
+  padding-inline: var(--gr-space-3);
   font-size: var(--gr-text-sm);
-  cursor: pointer;
-}
-
-.pk__act:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.1);
-}
-
-.pk__act:disabled {
-  opacity: 0.4;
-  cursor: default;
+  line-height: 1.15;
 }
 
 .pk__act-name {
@@ -1194,29 +1144,28 @@
   line-height: 1.1;
 }
 
-.pk__act--fold {
-  color: var(--gr-color-ink-dim);
-}
-
 /*
- * The lit button, for a control that is the only thing to do.
+ * Busy, held down, without :disabled.
  *
- * Never on one of several moves. A raise drawn brighter than the call beside
- * it is the table lobbying: the eye lands on the lit control and the press
- * follows, and the difference is somebody's money. Calling and raising are
- * the player's decision, so they look identical and the felt keeps its
- * opinion to itself. Buying in has nothing to be pressed instead of.
+ * The fittings draw a busy slab's held-down look off `.slab.is-busy:disabled`
+ * — everywhere else, busy means inert too. Here it does not: F4 says busy is
+ * not dead, and a second press on Check or Call while the table has not yet
+ * answered is a no-op rather than a button a screen reader is told it cannot
+ * reach. So the same look is repeated without the `:disabled` guard.
  */
-.pk__act--go {
-  border-color: var(--gr-color-neon);
-  color: var(--gr-color-ink-lit);
-  /* Mixed from the token rather than written out, so it follows the room's
-     light instead of being a second opinion about what colour this is. */
-  background: color-mix(in srgb, var(--gr-color-neon) 14%, transparent);
+.pk__acts .slab.is-busy {
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 10px rgb(255 255 255 / 0.4),
+    0 0 22px var(--gr-color-neon-hi);
+  box-shadow:
+    0 0 0 var(--gr-color-neon-deep),
+    0 2px 6px rgb(0 0 0 / 0.45),
+    var(--gr-bezel);
 }
 
-.pk__act--go .pk__act-name {
-  color: var(--gr-color-ink-dim);
+.pk__acts .slab.is-busy::before {
+  animation-duration: 1.4s;
 }
 
 /*
@@ -1242,26 +1191,16 @@
   }
 }
 
-.pk__controls--yours .pk__act {
-  animation: pk-act-lit 900ms ease-out;
-}
-
-@keyframes pk-act-lit {
-  0% {
-    border-color: var(--gr-color-neon);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gr-color-neon) 55%, transparent);
-  }
-  35% {
-    box-shadow: 0 0 16px 2px color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-
+/*
+ * The per-button relit flash this used to carry on arrival is gone: the row
+ * now has an actual .slab, and a screen that is lit in exactly one place
+ * already says "this is on now" without a second animation racing the
+ * fittings' own — CLAUDE.md's one-motion-per-thing, applied to a button that
+ * would otherwise be animating two things (its own slab glow and a flash) at
+ * once.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .pk__controls--yours,
-  .pk__controls--yours .pk__act {
+  .pk__controls--yours {
     animation: none;
   }
 }
@@ -1283,32 +1222,6 @@
   gap: 6px;
   width: 100%;
 }
-
-.pk__prebtn {
-  flex: 1 1 auto;
-  min-height: 40px;
-  padding: 0 var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
-  border: 1px solid rgb(255 255 255 / 0.14);
-  background: rgb(255 255 255 / 0.03);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-xs);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.pk__prebtn:hover {
-  background: rgb(255 255 255 / 0.08);
-  color: var(--gr-color-ink);
-}
-
-.pk__prebtn--on {
-  border-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 20%, transparent);
-  color: var(--gr-color-ink-lit);
-}
-
 
 /* ------------------------------------------------- what you are holding */
 
@@ -2012,11 +1925,11 @@
    * nothing. Five of them across 375px is about sixty pixels each, which is
    * under a thumb and over a word.
    */
-  .pk__slice {
+  .pk__slices .key {
     flex: 1 1 30%;
   }
 
-  .pk__prebtn {
+  .pk__pre .lamp {
     flex: 1 1 45%;
   }
 }

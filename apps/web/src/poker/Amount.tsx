@@ -63,7 +63,7 @@ export function OnTurn({
           <div className="pk__dial">
             <button
               type="button"
-              className="pk__step"
+              className="key key--icon"
               aria-label="Less"
               disabled={at <= you.minRaiseTo}
               onClick={() => setTo(clamp(at - blind, you.minRaiseTo, you.maxRaiseTo))}
@@ -76,7 +76,7 @@ export function OnTurn({
             </span>
             <button
               type="button"
-              className="pk__step"
+              className="key key--icon"
               aria-label="More"
               disabled={all}
               onClick={() => setTo(clamp(at + blind, you.minRaiseTo, you.maxRaiseTo))}
@@ -100,7 +100,7 @@ export function OnTurn({
           />
 
           <div className="pk__slices">
-            <button type="button" className="pk__slice" onClick={() => setTo(you.minRaiseTo)}>
+            <button type="button" className="key key--small" onClick={() => setTo(you.minRaiseTo)}>
               Min
             </button>
             {(
@@ -113,13 +113,13 @@ export function OnTurn({
               <button
                 key={name}
                 type="button"
-                className="pk__slice"
+                className="key key--small"
                 onClick={() => setTo(sliceTo(part))}
               >
                 {name}
               </button>
             ))}
-            <button type="button" className="pk__slice" onClick={() => setTo(you.maxRaiseTo)}>
+            <button type="button" className="key key--small" onClick={() => setTo(you.maxRaiseTo)}>
               All in
             </button>
           </div>
@@ -127,35 +127,39 @@ export function OnTurn({
       ) : null}
 
       <div className="pk__acts">
-        <button
-          type="button"
-          className="pk__act pk__act--fold"
-          disabled={busy}
-          onClick={() => onAct("fold", 0, { type: "fold" })}
-        >
+        {/* Never the lit one: raising is a second decision, not the one this row is for. */}
+        <button type="button" className="key" disabled={busy} onClick={() => onAct("fold", 0, { type: "fold" })}>
           Fold
         </button>
 
+        {/*
+         * Check or Call is the row's one lit slab — whichever is free to press.
+         * It goes busy on the press rather than disabled: F4 says busy is not
+         * dead, so a second press while the table has not yet answered is a
+         * no-op here rather than a control that looks like it stopped working.
+         */}
         {opening ? (
           <button
             type="button"
-            className="pk__act"
-            disabled={busy}
-            onClick={() => onAct("check", me.committed, { type: "check" })}
+            className={`slab${busy ? " is-busy" : ""}`}
+            onClick={() => {
+              if (!busy) {
+                onAct("check", me.committed, { type: "check" });
+              }
+            }}
           >
             Check
           </button>
         ) : (
           <button
             type="button"
-            className="pk__act"
-            disabled={busy}
-            aria-label={
-              callAll ? `All in ${fmt(me.stack)}` : `Call ${fmt(you.toCall)}`
-            }
-            onClick={() =>
-              onAct("call", me.committed + you.toCall, { type: callAll ? "allIn" : "call" })
-            }
+            className={`slab${busy ? " is-busy" : ""}`}
+            aria-label={callAll ? `All in ${fmt(me.stack)}` : `Call ${fmt(you.toCall)}`}
+            onClick={() => {
+              if (!busy) {
+                onAct("call", me.committed + you.toCall, { type: callAll ? "allIn" : "call" });
+              }
+            }}
           >
             <span className="pk__act-name">{callAll ? "All in" : "Call"}</span>
             <span className="pk__act-figure">{fmt(callAll ? me.stack : you.toCall)}</span>
@@ -165,7 +169,7 @@ export function OnTurn({
         {you.canRaise ? (
           <button
             type="button"
-            className="pk__act"
+            className="key"
             disabled={busy}
             aria-label={`${all ? "All in" : opening ? "Bet" : "Raise to"} ${fmt(
               all ? me.committed + me.stack : at,

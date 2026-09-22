@@ -70,16 +70,19 @@ describe("what you are offered", () => {
     expect(screen.getByRole("button", { name: "Raise to 200" })).toBeTruthy();
   });
 
-  it("does not dress the raise up as the button to press", () => {
+  it("lights the call, never the raise beside it", () => {
     /*
-     * A lit raise beside a plain call is the felt lobbying. The eye goes to
-     * the bright control and the press follows it, which is a table talking
-     * somebody into more money than they came to put in. Both are the
-     * player's decision and both look like one.
+     * F2 (the building's fittings spec) settles this the other way from how
+     * this table used to draw it: exactly one lit thing per state, so there
+     * is never a question which button is the obvious one. Raising is a
+     * second decision on top of the first, so it stays a plain key even
+     * though it sits right beside the slab.
      */
     acting({ toCall: 80, minRaiseTo: 200, maxRaiseTo: 2_000, canRaise: true }, { committed: 20 });
     const call = screen.getByRole("button", { name: "Call 80" });
     const raise = screen.getByRole("button", { name: "Raise to 200" });
-    expect(raise.className).toBe(call.className);
+    expect(call).toHaveClass("slab");
+    expect(raise).toHaveClass("key");
+    expect(document.querySelectorAll(".slab")).toHaveLength(1);
   });
 });

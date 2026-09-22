@@ -138,9 +138,10 @@ export function Actions({
     return (
       <div className="pk__controls">
         <div className="pk__acts">
+          {/* The only thing to press, so it is the row's one lit slab. */}
           <button
             type="button"
-            className="pk__act pk__act--go"
+            className="slab"
             disabled={table.busy}
             aria-label={`Sit down with ${compact(state.entry)}`}
             onClick={() => table.act({ type: "buyIn" })}
@@ -170,9 +171,10 @@ export function Actions({
     return (
       <div className="pk__controls">
         <div className="pk__acts">
+          {/* The only thing to press, so it is the row's one lit slab. */}
           <button
             type="button"
-            className="pk__act"
+            className="slab"
             disabled={table.busy}
             onClick={() => table.act({ type: "show" })}
           >
@@ -203,9 +205,10 @@ export function Actions({
             */}
           {state.canTakeOff ? (
             <div className="pk__acts">
+              {/* The only thing to press, so it is the row's one lit slab. */}
               <button
                 type="button"
-                className="pk__act"
+                className="slab"
                 disabled={table.busy}
                 aria-label={`Take ${fmt(me.stack)} off the table`}
                 onClick={() => table.act({ type: "cashOut" })}
@@ -225,13 +228,15 @@ export function Actions({
       );
     }
     return (
+      // Room left on the right for the taunt key a later task adds while
+      // somebody else is deciding — the row does not fill its own width.
       <div className="pk__controls">
-        <div className="pk__pre" role="group" aria-label="Decide in advance">
+        <div className="pk__pre lamps" role="group" aria-label="Decide in advance">
           {PRE_CHOICES.map(({ pre, label, hint }) => (
             <button
               key={pre}
               type="button"
-              className={`pk__prebtn${live === pre ? " pk__prebtn--on" : ""}`}
+              className="lamp lamp--word lamp--fit"
               aria-pressed={live === pre}
               title={hint}
               onClick={() => setArmed(live === pre ? null : { pre, street: state.street })}
