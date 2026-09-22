@@ -37,7 +37,7 @@ afterEach(async () => {
 /** The bank the wheel pays from, funded before anybody opens a table. */
 const BANK = 100_000;
 
-async function openTable(): Promise<Client> {
+async function openTable(forFun = false): Promise<Client> {
   const store = new MemoryStore();
   const player = await store.upsertDiscordUser({
     discordId: "d1",
@@ -69,7 +69,7 @@ async function openTable(): Promise<Client> {
   await new Promise<void>((resolve) => socket.on("connect", () => resolve()));
 
   await new Promise<void>((resolve) =>
-    socket.emit("lobby:create", { name: "Ada", game: "roulette", forFun: false }, () => resolve()),
+    socket.emit("lobby:create", { name: "Ada", game: "roulette", forFun }, () => resolve()),
   );
   return socket;
 }
@@ -80,5 +80,39 @@ describe("a fresh roulette table", () => {
     const first = socket.seen.find((state) => state.seats.length === 1);
     expect(first).toBeDefined();
     expect(first?.bank).toBe(BANK);
+  });
+});
+
+describe("the bots the lobby offers", () => {
+  /*
+   * The felt has always advertised bots at a for-fun wheel, and the button
+   * had nothing behind it: the server refuses `lobby:addBot` outright for a
+   * table whose class has no `addBot`, so every press came back "This game
+   * has no bots." Proven from here because that refusal lives here, not in
+   * the game.
+   */
+  it("seats one at a table playing for nothing", async () => {
+    const socket = await openTable(true);
+
+    socket.emit("lobby:addBot", { skill: "normal" });
+
+    const seated = await new Promise<Client["seen"][number]>((resolve) => {
+      socket.on("room:state", (state) => {
+        const view = state as unknown as Client["seen"][number];
+        if (view.seats.length === 2) {
+          resolve(view);
+        }
+      });
+    });
+    expect(seated.seats.some((seat) => (seat as { isBot: boolean }).isBot)).toBe(true);
+  });
+
+  it("refuses one at a table playing for chips", async () => {
+    const socket = await openTable();
+    const refusal = new Promise<string>((resolve) => socket.on("room:error", resolve));
+
+    socket.emit("lobby:addBot", { skill: "normal" });
+
+    expect(await refusal).toMatch(/playing for fun/i);
   });
 });

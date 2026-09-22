@@ -1,4 +1,5 @@
 import {
+  type BotSkill,
   Escrow,
   type Seat,
   type SeatIdentity,
@@ -277,6 +278,29 @@ export class Table {
     this.accounts.set(seat.id, { userId: identity?.userId ?? null, name: seat.name });
     // Back before their chips were handed back, so those chips are theirs to play again.
     this.leaving.delete(seat.id);
+    return seat;
+  }
+
+  /**
+   * A bot at the table, and only where a bot may stand.
+   *
+   * A bot has no account to take chips from and none to pay them to, so a spin
+   * won against one at a table playing for chips is chips out of thin air.
+   * Bots exist to make a for-fun cloth worth standing at on your own and for
+   * nothing else — the same rule the card tables keep, refused here rather
+   * than in the lobby that offers it, because a control a browser can see is a
+   * control a browser can send anyway.
+   *
+   * Noted in `accounts` like any other seat: it has no account, but the
+   * winners board reads the name from there, and a seat the record never heard
+   * about wins under no name at all.
+   */
+  addBot(id: string, name: string, skill: BotSkill): Seat {
+    if (!this.forFun) {
+      throw new TableError("Bots only sit at tables playing for fun.");
+    }
+    const seat = this.seating.addBot(id, name, skill);
+    this.accounts.set(seat.id, { userId: null, name: seat.name });
     return seat;
   }
 
