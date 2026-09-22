@@ -66,6 +66,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["games/baccarat/src/coup.ts", "games/baccarat/src/coup.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noShadowRestrictedNames": "off"
+          }
+        }
+      }
     }
   ]
 }

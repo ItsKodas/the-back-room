@@ -26,8 +26,8 @@ export interface Card {
  * How many decks go into the shoe.
  *
  * Eight, because that is what the real game's odds are quoted against, and the
- * tableau below is only worth its documented edge on the distribution it was
- * worked out on. It is shuffled every coup regardless, so this is a
+ * tableau in coup.ts is only worth its documented edge on the distribution it
+ * was worked out on. It is shuffled every coup regardless, so this is a
  * distribution rather than a shoe anybody could track.
  */
 export const DECKS = 8;
