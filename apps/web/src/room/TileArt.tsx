@@ -150,14 +150,14 @@ function MiniCard({
   const ink = red ? "#a8321f" : "#1b2028";
   return (
     <g className="art__bc-card" transform={`translate(${x} ${y}) rotate(${turn})`}>
-      <rect x="-19" y="-27" width="38" height="54" rx="5" fill="#f4f2ec" />
-      <rect x="-19" y="-27" width="38" height="54" rx="5" fill="none" stroke="#aab4c4" strokeWidth="1.2" />
+      <rect x="-15" y="-21" width="30" height="42" rx="4" fill="#f4f2ec" />
+      <rect x="-15" y="-21" width="30" height="42" rx="4" fill="none" stroke="#aab4c4" strokeWidth="1" />
       <text
-        x="-10"
-        y="-8"
+        x="-8"
+        y="-6"
         fontFamily="Georgia, serif"
         fontWeight="700"
-        fontSize="15"
+        fontSize="12"
         textAnchor="middle"
         fill={ink}
       >
@@ -180,17 +180,28 @@ function MiniCard({
  * Two `Piece` groups, one per hand, so a hand arrives and settles as one
  * thing rather than as two cards thrown independently — CLAUDE.md's own rule
  * that a piece of furniture gets one motion, not two fighting over it.
+ *
+ * The inner pair sits thirty units apart — one whole card's width, nose to
+ * nose — rather than the ten it first shipped with. `og.ts`'s own motif
+ * leaves its inner pair about a card's width apart too (70 of a 78-unit
+ * card, once its own slight tilt is folded in), and a gap much narrower than
+ * that is a gap a room tile cannot afford: there is no hover here to widen
+ * it later the way the pointer does on the felt, so whatever daylight is
+ * drawn is the only daylight this silhouette ever gets. Ten units of it
+ * read, at tile scale, as one cluster of four cards rather than two hands —
+ * indistinguishable from `CardsArt`'s own single overlapping pair, which is
+ * exactly the confusion this shape exists to rule out.
  */
 export function BaccaratArt() {
   return (
     <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
       <Piece n={1}>
-        <MiniCard x={54} y={108} turn={-14} rank="9" red />
-        <MiniCard x={76} y={92} turn={-6} rank="4" red={false} />
+        <MiniCard x={50} y={108} turn={-14} rank="9" red />
+        <MiniCard x={70} y={92} turn={-6} rank="4" red={false} />
       </Piece>
       <Piece n={2}>
-        <MiniCard x={146} y={108} turn={14} rank="9" red={false} />
-        <MiniCard x={124} y={92} turn={6} rank="2" red />
+        <MiniCard x={150} y={108} turn={14} rank="9" red={false} />
+        <MiniCard x={130} y={92} turn={6} rank="2" red />
       </Piece>
     </svg>
   );

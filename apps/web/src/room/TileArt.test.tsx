@@ -405,20 +405,51 @@ describe("the two hands in baccarat's corner", () => {
     }
   });
 
-  it("leaves a gap between the two hands, rather than fanning one pair in half", () => {
-    // The gap is the whole of the motif: two sides leaning in to compare, not
-    // a single hand split down the middle.
+  it("leaves real daylight between the innermost cards, not just between the hands' centres", () => {
+    /*
+     * A hand's own two cards overlap on purpose — that is what makes it read
+     * as a hand rather than two cards left lying apart. So the mean centre of
+     * each hand is the wrong thing to check a gap against: it stays wide even
+     * when the actual inner edges are a couple of units apart and the whole
+     * drawing reads as one cluster of four cards. What has to be measured is
+     * the true edge of the card closest to the middle on each side, rotation
+     * included — a tilted card's bounding box is wider than its own width,
+     * which is exactly what closed the gap this test used to pass on.
+     */
     const { container } = render(<BaccaratArt />);
-    const centerX = (hand: Element) => {
-      const xs = [...hand.querySelectorAll(".art__bc-card")].map((card) => {
-        const match = /translate\(([-\d.]+)/.exec(card.getAttribute("transform") ?? "");
-        return Number(match?.[1] ?? 0);
-      });
-      return xs.reduce((a, b) => a + b, 0) / xs.length;
+    const centerX = (card: Element) =>
+      Number(/translate\(([-\d.]+)/.exec(card.getAttribute("transform") ?? "")?.[1] ?? 0);
+    const innerHalfSpan = (card: Element): number => {
+      const degrees = Number(/rotate\(([-\d.]+)/.exec(card.getAttribute("transform") ?? "")?.[1] ?? 0);
+      const rect = card.querySelector("rect") as SVGRectElement;
+      const halfWidth = Number(rect.getAttribute("width")) / 2;
+      const halfHeight = Number(rect.getAttribute("height")) / 2;
+      const radians = (degrees * Math.PI) / 180;
+      // A rectangle turned by `degrees` reaches further along the x axis than
+      // its own width — each side contributes the slice of the other
+      // dimension its tilt swings into that axis.
+      return halfWidth * Math.abs(Math.cos(radians)) + halfHeight * Math.abs(Math.sin(radians));
     };
-    const [left, right] = [...container.querySelectorAll(".art__piece")].map(centerX);
-    expect(left as number).toBeLessThan(right as number);
-    expect((right as number) - (left as number)).toBeGreaterThan(30);
+
+    const [leftHand, rightHand] = [...container.querySelectorAll(".art__piece")];
+    const innermost = (hand: Element, pick: (a: number, b: number) => number) => {
+      const cards = [...hand.querySelectorAll(".art__bc-card")];
+      const x = cards.map(centerX);
+      const at = x[0] === pick(x[0] as number, x[1] as number) ? 0 : 1;
+      return cards[at] as Element;
+    };
+    // The left hand's inner card is its rightmost; the right hand's is its
+    // leftmost — "inner" means closest to the gap, not closest to zero.
+    const leftInner = innermost(leftHand as Element, Math.max);
+    const rightInner = innermost(rightHand as Element, Math.min);
+
+    const gap = (centerX(rightInner) - innerHalfSpan(rightInner)) - (centerX(leftInner) + innerHalfSpan(leftInner));
+    // og.ts's own motif leaves about a card's width of daylight between its
+    // inner pair (roughly 70 of a 78-unit card, tilt included) — this floor
+    // sits comfortably below that and comfortably above the few units the
+    // gap used to be, so it fails on the old cluster and passes on the shape
+    // this tile is meant to draw.
+    expect(gap).toBeGreaterThan(20);
   });
 });
 
