@@ -125,6 +125,77 @@ export function CardsArt() {
   );
 }
 
+/**
+ * A card at a fraction of `PlayingCard`'s size, for a corner that holds two
+ * hands rather than one.
+ *
+ * Not `PlayingCard` scaled down: that card carries a drawn pip as well as a
+ * rank, and at half the size the two crowd each other. Baccarat's hands are
+ * told apart by the gap between them, not by the pip, so this drops it and
+ * keeps the rank.
+ */
+function MiniCard({
+  x,
+  y,
+  turn,
+  rank,
+  red,
+}: {
+  x: number;
+  y: number;
+  turn: number;
+  rank: string;
+  red: boolean;
+}) {
+  const ink = red ? "#a8321f" : "#1b2028";
+  return (
+    <g className="art__bc-card" transform={`translate(${x} ${y}) rotate(${turn})`}>
+      <rect x="-19" y="-27" width="38" height="54" rx="5" fill="#f4f2ec" />
+      <rect x="-19" y="-27" width="38" height="54" rx="5" fill="none" stroke="#aab4c4" strokeWidth="1.2" />
+      <text
+        x="-10"
+        y="-8"
+        fontFamily="Georgia, serif"
+        fontWeight="700"
+        fontSize="15"
+        textAnchor="middle"
+        fill={ink}
+      >
+        {rank}
+      </text>
+    </g>
+  );
+}
+
+/**
+ * Two hands, facing each other across a gap.
+ *
+ * The same silhouette `og.ts` draws for the shared link card, at tile scale:
+ * two small pairs with daylight between them, each angled in toward the
+ * middle rather than away from it, so the two sides read as leaning in to
+ * compare rather than as one fanned hand split down the middle. That gap is
+ * the whole of what tells this tile from blackjack's own single angled hand —
+ * the only two games in the building dealing from the same deck.
+ *
+ * Two `Piece` groups, one per hand, so a hand arrives and settles as one
+ * thing rather than as two cards thrown independently — CLAUDE.md's own rule
+ * that a piece of furniture gets one motion, not two fighting over it.
+ */
+export function BaccaratArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      <Piece n={1}>
+        <MiniCard x={54} y={108} turn={-14} rank="9" red />
+        <MiniCard x={76} y={92} turn={-6} rank="4" red={false} />
+      </Piece>
+      <Piece n={2}>
+        <MiniCard x={146} y={108} turn={14} rank="9" red={false} />
+        <MiniCard x={124} y={92} turn={6} rank="2" red />
+      </Piece>
+    </svg>
+  );
+}
+
 /** A game with nothing of its own yet still gets a corner: a stack of chips. */
 /**
  * Three chips, face on, in three of the house's colours.
@@ -551,6 +622,9 @@ export function TileArt({ game }: { game: string }) {
   }
   if (game === "plinko") {
     return <PegsArt />;
+  }
+  if (game === "baccarat") {
+    return <BaccaratArt />;
   }
   return <ChipsArt />;
 }

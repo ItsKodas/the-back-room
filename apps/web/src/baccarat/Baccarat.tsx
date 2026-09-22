@@ -89,7 +89,13 @@ export function Baccarat() {
   }
 
   return (
-    <main className={state === null ? "play" : "play play--felt"}>
+    /*
+     * Just "play", not a variant like poker's or roulette's: baccarat.css
+     * caps its grid at the column's own width on purpose (three spots is
+     * plenty on a phone), so there is no wider felt for a "play--felt"
+     * modifier to unlock, and no stylesheet has ever defined one.
+     */
+    <main className="play">
       {table.error !== null ? <p className="play__error">{table.error}</p> : null}
 
       {/*

@@ -6,7 +6,7 @@ import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import { FACES } from "@backroom/game-slots";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CoinsArt, DuelArt, ReelsArt, TileArt, WheelArt } from "./TileArt.js";
+import { BaccaratArt, CoinsArt, DuelArt, ReelsArt, TileArt, WheelArt } from "./TileArt.js";
 
 describe("the furniture in a tile's corner", () => {
   it("gives the slot machine as many reels as the machine has", () => {
@@ -385,6 +385,40 @@ describe("the napkin in scribble's corner", () => {
     const { container } = render(<TileArt game="scribble" />);
     expect(container.querySelector(".art__napkin")).not.toBeNull();
     expect(container.querySelectorAll(".art__piece")).toHaveLength(0);
+  });
+});
+
+/*
+ * Baccarat's corner, in the same idiom as the shared link card: two hands
+ * facing each other rather than one hand held at an angle, which is what
+ * tells the two card games apart at a glance — the only pair in the building
+ * dealing from the same deck. `og.ts` draws the same silhouette for the link
+ * card, and this pins the room tile to it.
+ */
+describe("the two hands in baccarat's corner", () => {
+  it("draws two hands facing each other rather than the chips", () => {
+    const { container } = render(<TileArt game="baccarat" />);
+    const hands = container.querySelectorAll(".art__piece");
+    expect(hands).toHaveLength(2);
+    for (const hand of hands) {
+      expect(hand.querySelectorAll(".art__bc-card")).toHaveLength(2);
+    }
+  });
+
+  it("leaves a gap between the two hands, rather than fanning one pair in half", () => {
+    // The gap is the whole of the motif: two sides leaning in to compare, not
+    // a single hand split down the middle.
+    const { container } = render(<BaccaratArt />);
+    const centerX = (hand: Element) => {
+      const xs = [...hand.querySelectorAll(".art__bc-card")].map((card) => {
+        const match = /translate\(([-\d.]+)/.exec(card.getAttribute("transform") ?? "");
+        return Number(match?.[1] ?? 0);
+      });
+      return xs.reduce((a, b) => a + b, 0) / xs.length;
+    };
+    const [left, right] = [...container.querySelectorAll(".art__piece")].map(centerX);
+    expect(left as number).toBeLessThan(right as number);
+    expect((right as number) - (left as number)).toBeGreaterThan(30);
   });
 });
 
