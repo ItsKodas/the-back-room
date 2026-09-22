@@ -37,6 +37,26 @@ describe("one screen", () => {
     expect(die).toContain("var(--ld-die)");
   });
 
+  it("sizes its own padding and pips off --ld-die rather than a bare percentage", () => {
+    /*
+     * Percentage padding resolves against the CONTAINING BLOCK's inline size,
+     * not the die's own — so `.ld-die { padding: 12% }` sized itself off
+     * `.ld__hand`'s width rather than the die's, and every pip collapsed to
+     * zero the moment that row was wider than the die. Greed's `.die` sheet
+     * solved exactly this with `calc(var(--d) * ratio)`, which is immune to
+     * the parent's size because it never asks the containing block anything.
+     */
+    const die = bodyOf(".ld-die");
+    expect(die).toMatch(/padding:\s*calc\([^)]*var\(--ld-die\)/);
+    expect(die).not.toMatch(/padding:\s*\d+%/);
+
+    const pip = bodyOf(".ld-die__pip");
+    expect(pip).toMatch(/width:\s*calc\([^)]*var\(--ld-die\)/);
+    expect(pip).toMatch(/height:\s*calc\([^)]*var\(--ld-die\)/);
+    expect(pip).not.toMatch(/width:\s*\d+%/);
+    expect(pip).not.toMatch(/height:\s*\d+%/);
+  });
+
   it("makes .ld the container a table's own width is read from", () => {
     // A container cannot ask a container query about itself, so the container
     // has to sit on .ld and .ld__in stays a plain grid inside it — otherwise

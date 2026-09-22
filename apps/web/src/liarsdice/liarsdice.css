@@ -253,7 +253,15 @@
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   place-items: center;
-  padding: 12%;
+  /*
+   * calc() off --ld-die, not a percentage: percentage padding resolves
+   * against the CONTAINING BLOCK's inline size (here, .ld__hand's width,
+   * which can be several times the die's own), not the die's — which is how
+   * every face rendered blank, pips collapsed into a zero-width grid. Border
+   * radius is left as a percentage because that property is the one
+   * exception that resolves against the box's own dimensions.
+   */
+  padding: calc(var(--ld-die) * 0.12);
   border-radius: 18%;
   background: linear-gradient(160deg, #fbf3ea, #dccdc0);
   box-shadow: 0 2px 0 rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.7);
@@ -261,8 +269,10 @@
 }
 
 .ld-die__pip {
-  width: 22%;
-  height: 22%;
+  /* Same reasoning as the die's own padding above: sized off --ld-die so a
+     pip's size can never depend on anything outside the die that holds it. */
+  width: calc(var(--ld-die) * 0.17);
+  height: calc(var(--ld-die) * 0.17);
   border-radius: 50%;
   background: #2b1a12;
 }
@@ -323,8 +333,16 @@
   background: rgb(23 17 13 / 0.92);
   backdrop-filter: blur(2px);
   animation: ld-rise 220ms ease-out;
-  /* Ten hands have to fit the same box, so the reveal's own dice are small. */
-  --ld-die: clamp(16px, min(6cqi, 5cqh), 30px);
+  /*
+   * Ten hands have to fit the same box, so the reveal's own dice are small —
+   * but `.ld__shows` already scrolls (see below), so nothing forces them
+   * below a size a face is still legible at. Measured live at 375x560 with
+   * ten seats dealt in: the old 16px floor left a pip at 0.17 * 16 ~= 2.7px,
+   * six of which in one 16px face is not a face anybody could read. 24px
+   * puts a pip at ~4.1px — still small, but the smallest that reads as a
+   * dot rather than a smear at this table's proportions.
+   */
+  --ld-die: clamp(24px, min(6cqi, 5cqh), 30px);
 }
 
 .ld__tally {
