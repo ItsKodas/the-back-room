@@ -11,12 +11,15 @@ const NATURAL = coupFrom(shoe("4", "3", "5", "2"));
 const BOTH = coupFrom(shoe("2", "2", "3", "2", "6", "5"));
 /** Player 2+4 = 6 stands; banker 2+3 = 5 draws. Banker's third only. */
 const BANKER_ONLY = coupFrom(shoe("2", "2", "4", "3", "9"));
+/** Player 2+3 = 5 draws a 5; banker 3+4 = 7 stands. The player's third only. */
+const PLAYER_ONLY = coupFrom(shoe("2", "3", "3", "4", "5"));
 
 describe("the reveal schedule", () => {
   it("has one entry per card actually dealt", () => {
     expect(schedule(NATURAL).cards).toHaveLength(4);
     expect(schedule(BOTH).cards).toHaveLength(6);
     expect(schedule(BANKER_ONLY).cards).toHaveLength(5);
+    expect(schedule(PLAYER_ONLY).cards).toHaveLength(5);
   });
 
   it("deals the opening four alternately, player first", () => {
@@ -41,7 +44,7 @@ describe("the reveal schedule", () => {
   });
 
   it("never turns a card before it has been dealt", () => {
-    for (const coup of [NATURAL, BOTH, BANKER_ONLY]) {
+    for (const coup of [NATURAL, BOTH, BANKER_ONLY, PLAYER_ONLY]) {
       for (const one of schedule(coup).cards) {
         expect(one.turnAt).toBeGreaterThan(one.outAt);
       }
@@ -49,14 +52,14 @@ describe("the reveal schedule", () => {
   });
 
   it("deals every card in order", () => {
-    for (const coup of [NATURAL, BOTH, BANKER_ONLY]) {
+    for (const coup of [NATURAL, BOTH, BANKER_ONLY, PLAYER_ONLY]) {
       const out = schedule(coup).cards.map((one) => one.outAt);
       expect([...out].sort((a, b) => a - b), JSON.stringify(out)).toEqual(out);
     }
   });
 
   it("holds after the last card and then is over", () => {
-    for (const coup of [NATURAL, BOTH, BANKER_ONLY]) {
+    for (const coup of [NATURAL, BOTH, BANKER_ONLY, PLAYER_ONLY]) {
       const made = schedule(coup);
       const last = Math.max(...made.cards.map((one) => one.turnAt));
       expect(made.total).toBe(last + HOLD);
@@ -79,5 +82,19 @@ describe("the reveal schedule", () => {
     expect(alone?.side).toBe("banker");
     expect(after?.side).toBe("banker");
     expect(alone?.outAt).toBeLessThan(after?.outAt as number);
+  });
+
+  /*
+   * The shape where the player's third card is the last thing dealt. Its turn
+   * is what the hold runs from, which is the one case where the banker's pair
+   * is not the last thing to move before the coup settles.
+   */
+  it("holds from the player's third when the banker stands", () => {
+    const made = schedule(PLAYER_ONLY);
+    const third = made.cards.at(-1);
+    expect(third?.side).toBe("player");
+    expect(third?.index).toBe(2);
+    expect(made.total).toBe(third?.turnAt as number + HOLD);
+    expect(made.total).toBeLessThan(schedule(BOTH).total);
   });
 });
