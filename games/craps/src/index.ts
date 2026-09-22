@@ -10,3 +10,5 @@
 export type { Roll } from "./dice.js";
 export { FACES, isHard, OUTCOMES, roll, total } from "./dice.js";
 export { CRAPS } from "./listing.js";
+export type { Kind, Spot } from "./spots.js";
+export { oddsFor, POINTS, SPOTS, spotAt } from "./spots.js";
