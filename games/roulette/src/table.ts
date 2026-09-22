@@ -531,7 +531,11 @@ export class Table {
     if (pile === undefined) {
       return 0;
     }
-    const off = Math.min(pile.chips, Math.max(0, Math.floor(chips)));
+    // `Math.floor` of anything that is not a number is `NaN`, and `NaN` walks
+    // straight through both the `Math.min` below and the zero check under it
+    // onto the pile. The adapter asks the same question of the wire; this is
+    // the class refusing to be the one that lets it through.
+    const off = Number.isFinite(chips) ? Math.min(pile.chips, Math.max(0, Math.floor(chips))) : 0;
     if (off === 0) {
       return 0;
     }

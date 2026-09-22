@@ -1,3 +1,4 @@
+import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { TITLES } from "./hand.js";
 import { Table } from "./table.js";
@@ -179,6 +180,21 @@ describe("the betting", () => {
     const made = table([1_000, 1_000, 1_000]);
     made.deal();
     expect(() => made.act(made.toAct as string, "raise", 9_000)).toThrow(/cover/i);
+  });
+
+  it("refuses a raise to an amount that is not a number", () => {
+    /*
+     * The second lock on the same door. The adapter asks the question of the
+     * wire before anything reaches here, but every bound below is a
+     * comparison and a comparison against `NaN` is false — so `NaN` would
+     * reach `put`, come off a stack, and take every chip on the table with
+     * it. Refused here too, for whatever calls this next.
+     */
+    const made = table([1_000, 1_000, 1_000]);
+    made.deal();
+    const before = made.seats.map((seat) => seat.stack);
+    expect(() => made.act(made.toAct as string, "raise", Number.NaN)).toThrow(TableError);
+    expect(made.seats.map((seat) => seat.stack)).toEqual(before);
   });
 
   it("refuses a move out of turn", () => {
