@@ -116,6 +116,7 @@ export function Felt({
   table,
   state,
   seatId,
+  isHost = false,
   talkKey,
   rulesOpen = false,
   onToggleRules,
@@ -126,6 +127,13 @@ export function Felt({
   table: Table;
   state: TableView;
   seatId: string | null;
+  /**
+   * Whose table it is, computed once by the caller (the same way blackjack's
+   * parent computes it and threads it down) rather than worked out again
+   * here — one answer to who may see the host's key, not two that could
+   * disagree.
+   */
+  isHost?: boolean;
   /** The talk key, rendered into the felt's own corner rather than the bar. */
   talkKey?: ReactNode;
   /** Whether the "what beats what" sheet is open. */
@@ -138,10 +146,6 @@ export function Felt({
 }) {
   const intent = useIntent(state, seatId, table.error, table.errorKey);
   const me = state.seats.find((seat) => seat.id === seatId) ?? null;
-  // Whose table it is, so the key that opens it is offered to them alone —
-  // the server would refuse anybody else's "table" message regardless, but
-  // hiding the control is the courtesy this building always pairs with that.
-  const isHost = seatId !== null && state.hostId === seatId;
 
   /*
    * Your seat at the bottom, everybody else round from it in dealing order.

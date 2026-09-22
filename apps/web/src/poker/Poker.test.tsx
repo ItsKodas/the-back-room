@@ -523,6 +523,20 @@ describe("what's behind the felt's own keys", () => {
     expect(screen.getByRole("button", { name: /easy/i })).toBeInTheDocument();
   });
 
+  it("offers no bots at a table already full to its own ceiling, not the building's", () => {
+    /*
+     * A six-seat table, filled to six, not the building's ten — the sheet
+     * used to gate bots on the building's own ceiling regardless of what the
+     * host actually chose, which offered "Add a player" at a table with
+     * nowhere for one to sit and threw once pressed.
+     */
+    const seats = Array.from({ length: 6 }, (_, at) => seat({ id: `s${at + 1}`, name: `P${at + 1}` }));
+    show(socket(dealt({ hostId: "s1", forFun: true, maxSeats: 6, seats })));
+    fireEvent.click(screen.getByRole("button", { name: /^table$/i }));
+    expect(screen.getByText("6 of 6 seated")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /easy/i })).toBeNull();
+  });
+
   it("puts what beats what behind the question key", () => {
     show(socket(dealt()));
     fireEvent.click(screen.getByRole("button", { name: /what beats what/i }));

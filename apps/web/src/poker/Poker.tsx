@@ -116,6 +116,10 @@ export function Poker() {
 
   // The felt, as against the lobby and setup, which are pages and get a strip.
   const atTable = table.taken === null && state !== null;
+  // Computed once, here, rather than separately in Felt — the same way
+  // blackjack's parent computes it once and threads it down — so the host
+  // key and the sheet it opens can never disagree about whose table it is.
+  const isHost = state !== null && seatId !== null && state.hostId === seatId;
 
   return (
     // Wider only at the felt: the screen before it is the building's width.
@@ -138,6 +142,7 @@ export function Poker() {
             table={table}
             state={state}
             seatId={seatId}
+            isHost={isHost}
             talkKey={<TalkKey open={talk.open} unread={talk.unread} onToggle={toggleTalk} />}
             rulesOpen={sheet === "rules"}
             onToggleRules={() => toggleSheet("rules")}
@@ -145,7 +150,7 @@ export function Poker() {
             hostOpen={sheet === "table"}
             onToggleHost={() => toggleSheet("table")}
           />
-          {state.hostId === seatId && seatId !== null ? (
+          {isHost ? (
             <PokerSheet
               open={sheet === "table"}
               onClose={closeSheet}
@@ -153,6 +158,7 @@ export function Poker() {
               listed={table.listed}
               forFun={state.forFun}
               seated={state.seats.length}
+              maxSeats={state.maxSeats}
               onListed={table.setListed}
               onBot={table.addBot}
             />

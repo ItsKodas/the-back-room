@@ -1,4 +1,3 @@
-import { POKER } from "@backroom/game-poker";
 import type { BotSkill } from "@backroom/shared";
 import { Seg } from "../fittings/Seg.js";
 import { Sheet } from "../table/Sheet.js";
@@ -13,6 +12,8 @@ export interface PokerSheetProps {
   forFun: boolean;
   /** How many are sitting at the table now. */
   seated: number;
+  /** The host's own ceiling for this table, not the building's — from `state.maxSeats`. */
+  maxSeats: number;
   onListed: (listed: boolean) => void;
   onBot: (skill: BotSkill) => void;
 }
@@ -39,6 +40,7 @@ export function PokerSheet({
   listed,
   forFun,
   seated,
+  maxSeats,
   onListed,
   onBot,
 }: PokerSheetProps) {
@@ -53,15 +55,8 @@ export function PokerSheet({
     >
       <div className="pk__field">
         <p className="label">Seats</p>
-        {/*
-         * Not "of the maximum the host chose" — a poker table's view carries
-         * no such field, and a number this sheet cannot get right is worse
-         * than none (never invent a fact). The building's own ceiling for
-         * the game is the one true thing to measure against, and it is the
-         * same ten the felt already holds bots to.
-         */}
         <p className="pk__seats-count">
-          {seated} of {POKER.maxSeats} seated
+          {seated} of {maxSeats} seated
         </p>
       </div>
       <div className="pk__field">
@@ -78,8 +73,9 @@ export function PokerSheet({
       </div>
       {/* Bots only ever sit at a table playing for nothing, because chips are
           only won from real people. The server refuses either way; this just
-          stops offering something that would be turned down. */}
-      {forFun && seated < POKER.maxSeats ? (
+          stops offering something that would be turned down — including at
+          this table's own ceiling, which may be well under the building's. */}
+      {forFun && seated < maxSeats ? (
         <div className="pk__field">
           <p className="label">Add a player</p>
           <div className="pk__sheet-bots">

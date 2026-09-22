@@ -193,6 +193,8 @@ export interface TableView {
   canTakeOff: boolean;
   /** Whose table it is, so the controls that are theirs are offered to them. */
   hostId: string | null;
+  /** How many seats the host opened this table with, not the building's own ceiling. */
+  maxSeats: number;
   code: string;
   street: Street;
   board: Card[];
@@ -702,6 +704,7 @@ export class Table implements PlayTable {
       canShow: forSeatId !== null && this.canShow(forSeatId),
       canTakeOff: forSeatId !== null && this.canTakeOff(forSeatId),
       hostId: this.hostId,
+      maxSeats: this.maxSeats,
       code: this.code,
       street: this.street,
       board: this.board,

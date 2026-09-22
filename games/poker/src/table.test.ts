@@ -15,7 +15,7 @@ import { Table } from "./table.js";
  */
 
 /** A table with known players and a shuffle that cannot surprise anybody. */
-function table(stacks: number[], seed = 1): Table {
+function table(stacks: number[], seed = 1, maxSeats = 10): Table {
   /*
    * A fixed sequence rather than Math.random, so a test that fails fails for
    * everybody. Which cards come out is not what these tests are about — but a
@@ -26,7 +26,7 @@ function table(stacks: number[], seed = 1): Table {
     at = (at * 1103515245 + 12345) % 2147483648;
     return at / 2147483648;
   };
-  const made = new Table("TEST", random, 50, 100, 10);
+  const made = new Table("TEST", random, 50, 100, maxSeats);
   stacks.forEach((stack, index) => {
     made.join(`s${index}`, `P${index}`, {
       userId: `u${index}`,
@@ -597,5 +597,16 @@ describe("eventSeq", () => {
     made.view(made.seats[0].id);
     made.view(made.seats[0].id);
     expect(made.view(made.seats[0].id).eventSeq).toBe(at);
+  });
+});
+
+describe("maxSeats", () => {
+  it("carries the host's own ceiling, not the building's", () => {
+    // A six-seat table, not the ten the building allows — the view has to
+    // say which one this host actually chose, or a client gating bots on it
+    // (poker's own PokerSheet does) offers a full table one more seat than
+    // exists.
+    const made = table([1_000, 1_000], 1, 6);
+    expect(made.view(made.seats[0].id).maxSeats).toBe(6);
   });
 });

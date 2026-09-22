@@ -45,6 +45,7 @@ export const view = (over: Partial<TableView> = {}): TableView => ({
   canShow: false,
   canTakeOff: false,
   hostId: null,
+  maxSeats: 10,
   ...over,
 });
 
