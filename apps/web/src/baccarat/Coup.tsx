@@ -97,8 +97,27 @@ function Place({ slot, deal }: { slot: Shown["player"][number]; deal: number }):
   // time this unmounts.
   const [open, setOpen] = useState(slot?.turned === true);
 
+  /*
+   * What actually identifies this slot, as opposed to the object `shownAt`
+   * happened to wrap it in.
+   *
+   * `useReveal` calls `shownAt` fresh on every animation frame, so the real
+   * caller hands this component a brand-new `slot` object roughly every
+   * 16ms even when nothing about the deal has changed. Depending on that
+   * object below would restart the fold timer on every one of those frames
+   * — long before its 120ms could ever elapse — and no card would visibly
+   * turn until the frames stopped coming. `turned`, `rank` and `suit` are
+   * the only things about a slot that ever change, and a card's rank and
+   * suit never do once it has been dealt into this slot, so together they
+   * are stable across the churn in exactly the way the object is not.
+   */
+  const turned = slot?.turned === true;
+  const rank = slot?.card.rank;
+  const suit = slot?.card.suit;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rank and suit are not read in the body, but naming this slot rather than merely its turned state is the whole fix — see the comment above.
   useEffect(() => {
-    if (slot === null || !slot.turned || open) {
+    if (!turned || open) {
       return;
     }
     setFolding(true);
@@ -107,7 +126,7 @@ function Place({ slot, deal }: { slot: Shown["player"][number]; deal: number }):
       setOpen(true);
     }, FOLD_MS);
     return () => window.clearTimeout(timer);
-  }, [slot, open]);
+  }, [turned, rank, suit, open]);
 
   if (slot === null) {
     return <FaceDown deal={deal} />;

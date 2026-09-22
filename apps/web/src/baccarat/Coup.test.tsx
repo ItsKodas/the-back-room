@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { Card as CardData, Rank, Suit } from "@backroom/game-baccarat";
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { Coup } from "./Coup.js";
 import type { Shown } from "./reveal.js";
 
@@ -66,5 +66,40 @@ describe("a coup on the felt", () => {
     rerender(<Coup shown={both} outcome="player" />);
     expect(container.querySelector(".bc__hand--player.bc__hand--won")).not.toBeNull();
     expect(container.querySelector(".bc__hand--banker.bc__hand--won")).toBeNull();
+  });
+
+  /*
+   * useReveal calls shownAt fresh on every requestAnimationFrame, which
+   * means the real caller never hands Coup the same object twice — every
+   * prop is a brand-new Shown, with brand-new arrays and brand-new slot
+   * objects, even when nothing about the deal has actually changed. An
+   * effect that keys its fold timer on that object's identity restarts the
+   * timer on every one of those frames and the timer never survives long
+   * enough to fire, so nothing ever visibly turns over during a real deal.
+   */
+  it("turns a card over as the deal goes on, even though a fresh Shown arrives every frame", () => {
+    vi.useFakeTimers();
+    try {
+      const facedown = (): Shown => shown({ player: [{ card: card("7"), turned: false }] });
+      // Same values, but shownAt would never hand back this exact object —
+      // a new one every call is the whole point of the reproduction.
+      const faceup = (): Shown => shown({ player: [{ card: card("7"), turned: true }] });
+
+      const { container, rerender } = render(<Coup shown={facedown()} outcome={null} />);
+      expect(container.querySelector('[aria-label="7 of spades"]')).toBeNull();
+
+      // The RAF loop's own cadence: a fresh, structurally identical Shown
+      // roughly every 16ms, well inside the fold's own 120ms.
+      for (let waited = 0; waited < 200; waited += 16) {
+        rerender(<Coup shown={faceup()} outcome={null} />);
+        act(() => {
+          vi.advanceTimersByTime(16);
+        });
+      }
+
+      expect(container.querySelector('[aria-label="7 of spades"]')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
