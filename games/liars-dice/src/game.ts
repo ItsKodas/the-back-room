@@ -98,6 +98,12 @@ export class Game {
     return this.dice.get(seatId) ?? 0;
   }
 
+  /**
+   * Rounds this player completed still holding a die — not rounds dealt
+   * into, which would count the round that took somebody's last die the same
+   * as it counts the winner's, and would give a seat knocked out in round one
+   * credit for a round it never survived.
+   */
   survivedBy(seatId: string): number {
     return this.survived.get(seatId) ?? 0;
   }
@@ -154,6 +160,18 @@ export class Game {
     }
     for (const loser of out.losers) {
       this.dice.set(loser, Math.max(0, this.diceFor(loser) - 1));
+    }
+    /*
+     * Survived, not dealt into: credited only now that this round's losses
+     * have actually landed, and only to whoever is still holding a die. A
+     * seat this call just knocked out was in the round but did not survive
+     * it, so it gets nothing here — which is what keeps it from tying the
+     * eventual winner on a count of rounds merely dealt.
+     */
+    for (const player of this.round.order) {
+      if (this.diceFor(player) > 0) {
+        this.survived.set(player, this.survivedBy(player) + 1);
+      }
     }
     /*
      * Who opens next. Whoever lost the die, which is the player with the most
@@ -216,7 +234,6 @@ export class Game {
         hand.push(this.roll());
       }
       hands.set(seatId, hand);
-      this.survived.set(seatId, this.survivedBy(seatId) + 1);
     }
     return new Round([...live], hands, this.nextLive(this.opener, live));
   }

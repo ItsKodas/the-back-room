@@ -166,7 +166,42 @@ describe("what the record keeps", () => {
     expect(one.exactsBy("c")).toBe(1);
     // Nine fives on the table, so five was not exact.
     expect(one.hitsBy("c")).toBe(0);
+    // Nobody was knocked out by this round, so all three completed it.
     expect(one.survivedBy("a")).toBe(1);
+    expect(one.survivedBy("b")).toBe(1);
+    expect(one.survivedBy("c")).toBe(1);
+  });
+
+  it("does not credit a round to the seat it just knocked out of the game", () => {
+    // One die each: whoever loses this call is out before the round they
+    // were dealt into ever finished for them.
+    const one = game(["a", "b"], 1);
+    one.raise("a", { count: 2, face: 5 });
+    one.call("b", "liar");
+    expect(one.diceFor("b")).toBe(0);
+    expect(one.survivedBy("a")).toBe(1);
+    expect(one.survivedBy("b")).toBe(0);
+  });
+
+  it("does not tie a seat knocked out in the final round with the winner", () => {
+    const one = game(["a", "b"], 2);
+    // Round 1: four fives on the table and a's bid says so — true, so b's
+    // liar call is wrong and costs b, not a.
+    one.raise("a", { count: 4, face: 5 });
+    one.call("b", "liar");
+    expect(one.diceFor("b")).toBe(1);
+    // Round 2: b opens (having just lost a die) and lies about a face that
+    // is not on the table at all, so a's liar call is right and costs b —
+    // this time b's last die.
+    one.nextRound();
+    one.raise("b", { count: 1, face: 6 });
+    one.call("a", "liar");
+    expect(one.diceFor("b")).toBe(0);
+    expect(one.over).toBe(true);
+    // a played and survived two rounds; b was knocked out partway through
+    // the second, so b only ever finished the first.
+    expect(one.survivedBy("a")).toBe(2);
+    expect(one.survivedBy("b")).toBe(1);
   });
 
   it("keeps a board of what happened", () => {

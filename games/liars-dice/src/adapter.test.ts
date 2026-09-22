@@ -616,7 +616,10 @@ describe("paying out", () => {
      * The whole payload, not just the call count. `add` and `max` are
      * Record<string, number>, so a typo'd stat key is a silent loss of
      * somebody's history that typecheck cannot see: three rounds, a bid from
-     * the opener and a call from the other every time.
+     * the opener and a call from the other every time. `a` opens and loses
+     * every one of them, so the third round is the one that takes a's last
+     * die — a did not survive that one, only the two before it, while b's
+     * dice were never touched and b finished all three.
      */
     expect(bank.deps.record.mock.calls).toEqual([
       [
@@ -625,7 +628,7 @@ describe("paying out", () => {
           shared: { rounds: 1, roundsWon: 0, chipsWon: -500, chipsStaked: 500 },
           game: "liars-dice",
           add: { games: 1, bids: 3, calls: 0, exacts: 0, exactsHit: 0 },
-          max: { pot: 1_000, rounds: 3 },
+          max: { pot: 1_000, rounds: 2 },
         },
       ],
       [
@@ -651,7 +654,7 @@ describe("paying out", () => {
     // A game nobody paid into and nobody took out of: the nets have to cancel.
     expect(history.players.reduce((total, one) => total + one.net, 0)).toBe(0);
     expect(history.players).toEqual([
-      { userId: "a", name: "a", score: 3, isBot: false, net: -500 },
+      { userId: "a", name: "a", score: 2, isBot: false, net: -500 },
       { userId: "b", name: "b", score: 3, isBot: false, net: 500 },
     ]);
   });
