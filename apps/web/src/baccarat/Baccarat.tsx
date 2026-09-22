@@ -21,6 +21,7 @@ import { shownAt as fullyRevealed, useReveal } from "./reveal.js";
 import { useCoupSound } from "./useCoupSound.js";
 import { Winners } from "./Winners.js";
 import "@backroom/game-baccarat/theme.css";
+import "./baccarat.css";
 
 /**
  * The baccarat table, wired up.
