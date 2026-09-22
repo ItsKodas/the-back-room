@@ -15,3 +15,15 @@ export { oddsFor, POINTS, SPOTS, spotAt } from "./spots.js";
 export { CHIPS, HORN_STEP, MIN_CHIP } from "./bank.js";
 export type { Hand, Ratio } from "./resolve.js";
 export { after, back, decided, maxOdds, multiplier, nextPoint, ratioOf, sleeps } from "./resolve.js";
+export type { Bet } from "./bank.js";
+export {
+  FUN_BANK,
+  FUN_PURSE,
+  headroom,
+  needed,
+  OFF_ORDER,
+  owed,
+  staked,
+  STAKE_DIVISOR,
+  working,
+} from "./bank.js";
