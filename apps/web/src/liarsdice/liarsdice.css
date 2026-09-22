@@ -1,4 +1,778 @@
-/* The Liar's Dice table. Written in full in the layout commit. */
+/*
+ * The Liar's Dice table.
+ *
+ * Ten seats is what this sheet is for. Everything below is an answer to "how
+ * does a table with thirty dice on it fit a 375px phone without scrolling":
+ * the seats become plates with pips instead of hands, the dice size themselves
+ * off the space that is left, and the one thing you act on is under a thumb.
+ *
+ * Imported by LiarsDice.tsx. The classes are all `ld`-prefixed because
+ * game.css is global and carries several pages — `.lobby` was fixed twice from
+ * both ends before that lesson stuck.
+ */
+
+/* ------------------------------------------------------------ the window */
+
+/*
+ * The container a table's own width is read from. A container cannot ask a
+ * container query about itself, so this cannot live on the grid it measures —
+ * `.ld__in` below is a plain grid inside it, and the desk breakpoint near the
+ * bottom of this sheet queries `ld` from there, a real descendant.
+ */
+.ld {
+  container: ld / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+/*
+ * Three rows, and only the middle one flexes: the rail and the controls take
+ * the height they need and the felt takes what is left. `minmax(0, 1fr)` and
+ * not `1fr`, or a tall child pushes the row past the window instead of
+ * scrolling inside it.
+ */
+.ld__in {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  min-height: 0;
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+}
+
+/*
+ * The felt is a size container, so every piece on it can be sized from both
+ * the width and the height actually available. A short phone in Safari has
+ * about 200px here and a desk has 600; the dice shrink rather than the
+ * controls going under the fold.
+ *
+ * Named `ld-felt`, not `ld`: `.ld` above is also a container, and two nested
+ * containers sharing one name would make this one win for its own
+ * descendants whenever anything here asked `@container ld` — which is not
+ * what the desk breakpoint on `.ld__in` means.
+ */
+.ld__play {
+  container: ld-felt / size;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--gr-color-felt-lit), var(--gr-color-felt) 60%),
+    var(--gr-color-felt-deep);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), var(--gr-sink);
+  /*
+   * The one place a die's size is set. On the container, never on the die —
+   * a piece that declares the same custom property on itself beats the one it
+   * inherits, which is how every Greed die was once a fixed 56px.
+   */
+  --ld-die: clamp(22px, min(11cqi, 13cqh), 56px);
+}
+
+/* --------------------------------------------------------------- the rail */
+
+.ld__rail {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ld__seat {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas: "face dice" "face name";
+  align-items: center;
+  gap: 0 0.35rem;
+  padding: 0.25rem 0.45rem 0.25rem 0.25rem;
+  border: 1px solid var(--gr-color-smoke);
+  border-radius: 999px;
+  background: var(--gr-color-slate);
+  transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.ld__face {
+  grid-area: face;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.ld__dice {
+  grid-area: dice;
+}
+
+.ld__name {
+  grid-area: name;
+  max-width: 7ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: var(--gr-color-ink-dim);
+}
+
+/*
+ * Ten names at 375px is a wall of ellipses, so only the seat to act and your
+ * own are shown. Taken off the screen rather than out of the markup: a screen
+ * reader still reads every seat, which is the whole point of T1.
+ */
+.ld__name--quiet {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+/* The pips are decoration; this is the version that is read out. */
+.ld__count,
+.ld__state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Whose turn it is, in the room's own light. */
+.ld__seat.is-turn {
+  border-color: var(--gr-color-neon);
+  box-shadow: 0 0 0 1px var(--gr-color-neon), 0 0 14px -2px var(--gr-color-neon);
+}
+
+/* Your own, outlined the way the leaderboard outlines you. */
+.ld__seat.is-you {
+  border-color: var(--gr-color-chip-dim);
+}
+
+/* Dimmed, never hidden. The state itself is said above. */
+.ld__seat.is-out,
+.ld__seat.is-gone,
+.ld__seat.is-waiting,
+.ld__seat.is-short {
+  opacity: 0.45;
+}
+
+.ld__seat.is-ready {
+  border-color: var(--gr-color-good);
+}
+
+/* A bot at a for-fun seat: quieter, never louder — no colour of its own. */
+.ld__seat.is-bot .ld__face {
+  opacity: 0.8;
+  filter: saturate(0.6);
+}
+
+/* ------------------------------------------------------------- the readout */
+
+.ld__readout {
+  position: relative;
+  width: 100%;
+  max-width: 28rem;
+  overflow: hidden;
+  text-align: center;
+}
+
+/*
+ * The turn draining along the top edge. One element scaled rather than a width
+ * animated, so it is a transform and never touches layout.
+ */
+.ld__clock {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 3px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--gr-color-neon), var(--gr-color-neon-hi));
+  transition: transform 500ms linear;
+}
+
+.ld__figure {
+  font-size: clamp(1.4rem, min(9cqi, 7cqh), 2.6rem);
+  line-height: 1.05;
+}
+
+.ld__figure--good {
+  color: var(--gr-color-good);
+}
+
+.ld__figure--bad {
+  color: var(--gr-color-bad);
+}
+
+/* Chips, so gold, and lit the way the jackpot is — F3, gold only on chips. */
+.ld__figure--chips {
+  color: var(--gr-color-chip-hi);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--gr-color-chip) 70%, transparent),
+    0 0 24px color-mix(in srgb, var(--gr-color-chip) 35%, transparent);
+}
+
+.ld__stats {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0.4rem 0 0;
+}
+
+.ld__stat {
+  display: grid;
+  gap: 0.1rem;
+  justify-items: center;
+}
+
+.ld__quiet {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- the dice */
+
+.ld__hand {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ld-die {
+  width: var(--ld-die);
+  height: var(--ld-die);
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  place-items: center;
+  padding: 12%;
+  border-radius: 18%;
+  background: linear-gradient(160deg, #fbf3ea, #dccdc0);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.7);
+  animation: ld-land 320ms cubic-bezier(0.2, 1.3, 0.35, 1) backwards;
+}
+
+.ld-die__pip {
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: #2b1a12;
+}
+
+/* A cup nobody has looked under. Not a guessed face — no face at all. */
+.ld-die--down {
+  background: linear-gradient(160deg, var(--gr-color-smoke-lit), var(--gr-color-smoke));
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.ld-die--matched {
+  box-shadow: 0 0 0 2px var(--gr-color-neon), 0 0 16px -3px var(--gr-color-neon-hi);
+  animation: ld-turn 340ms cubic-bezier(0.2, 1.3, 0.35, 1) backwards;
+}
+
+/* One motion, once: the die that just left somebody's hand. */
+.ld-die--dying {
+  animation: ld-lost 420ms ease-in forwards;
+}
+
+@keyframes ld-land {
+  from {
+    transform: translateY(-40%) rotate(-12deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes ld-turn {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes ld-lost {
+  to {
+    transform: translateY(45%) scale(0.7);
+    opacity: 0;
+  }
+}
+
+/* -------------------------------------------------------------- the reveal */
+
+.ld__reveal {
+  position: absolute;
+  inset: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: rgb(23 17 13 / 0.92);
+  backdrop-filter: blur(2px);
+  animation: ld-rise 220ms ease-out;
+  /* Ten hands have to fit the same box, so the reveal's own dice are small. */
+  --ld-die: clamp(16px, min(6cqi, 5cqh), 30px);
+}
+
+.ld__tally {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.ld__tally-count {
+  font-size: clamp(1.6rem, 10cqi, 2.8rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.ld__tally-count--good {
+  color: var(--gr-color-good);
+}
+
+.ld__tally-count--bad {
+  color: var(--gr-color-bad);
+}
+
+.ld__shows {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.ld__shown {
+  display: grid;
+  grid-template-columns: minmax(4rem, 7rem) 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ld__shown-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.ld__shown.is-loser {
+  color: var(--gr-color-bad);
+}
+
+/* The die lost to the round, an outcome, so it takes the bad colour — F3. */
+.tag.ld__lost {
+  color: var(--gr-color-bad);
+}
+
+.tag.ld__lost::before {
+  background: var(--gr-color-bad);
+}
+
+/* The dice in a reveal are small: ten hands have to fit the same box. */
+.ld__reveal .ld__hand {
+  justify-content: flex-start;
+}
+
+@keyframes ld-rise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------ the controls */
+
+.ld__controls {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ld__builder {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.ld__faces {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.3rem;
+}
+
+.ld__face-lamp {
+  min-height: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ld__stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.ld__amount {
+  min-width: 2.5ch;
+  text-align: center;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-ink-lit);
+}
+
+/*
+ * The bottom row: secondary keys on the left, the one lit thing on the right,
+ * where a thumb already is. `.ld__help`, `.ld__liar` and `.ld__exact` are all
+ * direct children here and take their sizing from `.ld__keys > *` below and
+ * their look from the shared `.key`; nothing about this table changes either.
+ */
+.ld__keys {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  min-height: 54px;
+}
+
+.ld__keys > * {
+  min-height: 54px;
+}
+
+.ld__go {
+  margin-inline-start: auto;
+  flex: 1 1 auto;
+  max-width: 62%;
+}
+
+/*
+ * The go slab doesn't pair `is-busy` with `:disabled` the way the other
+ * tables' mains do — it stays pressable while a call is in flight — so the
+ * shared `.slab.is-busy:disabled` rule in fittings.css never matches here.
+ * This is the same "lit, pulsing faster" look without requiring :disabled.
+ */
+.ld__go.is-busy::before {
+  animation-duration: 1.4s;
+}
+
+.ld__waiting {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--gr-color-ink-dim);
+}
+
+/* ------------------------------------------------------- the side column */
+
+/*
+ * A phone sees none of these: the rules are behind the `?` key and the rounds
+ * and activity are behind the talk key's second tab. They come back when the
+ * table itself is wide enough, which is the table's width and not the
+ * window's — a table in a narrow column on a wide screen is still narrow.
+ */
+.ld__side-rules,
+.ld__side-board,
+.ld__side-activity {
+  display: none;
+}
+
+.ld__panel-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+@container ld (min-width: 760px) {
+  .ld__in {
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    grid-template-areas:
+      "rail    rules"
+      "play    board"
+      "controls activity";
+  }
+
+  .ld__rail {
+    grid-area: rail;
+  }
+
+  .ld__play {
+    grid-area: play;
+  }
+
+  .ld__controls {
+    grid-area: controls;
+  }
+
+  .ld__side-rules {
+    grid-area: rules;
+    display: block;
+  }
+
+  .ld__side-board {
+    grid-area: board;
+    display: block;
+    min-height: 0;
+  }
+
+  .ld__side-activity {
+    grid-area: activity;
+    display: block;
+    min-height: 0;
+  }
+
+  /* Room for a name under every plate once there is room for one. */
+  .ld__name--quiet {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+  }
+
+  .ld__state {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+  }
+}
+
+/* ---------------------------------------------------------------- the board */
+
+.ld__rows {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.ld__row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto minmax(0, 6rem);
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 6px;
+  background: var(--gr-color-slate);
+  font-size: 0.75rem;
+}
+
+.ld__row--exact {
+  border-inline-start: 2px solid var(--gr-color-neon);
+}
+
+.ld__row-round {
+  color: var(--gr-color-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ld__row-bid {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ld__row-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.ld__row-count.is-good {
+  color: var(--gr-color-good);
+}
+
+.ld__row-count.is-bad {
+  color: var(--gr-color-bad);
+}
+
+.ld__row-cost {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--gr-color-ink-dim);
+}
+
+/* ---------------------------------------------------------------- the card */
+
+.ld__rules {
+  display: grid;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.ld__rules-lead,
+.ld__rules-wild,
+.ld__rules-foot {
+  margin: 0;
+  color: var(--gr-color-ink-dim);
+}
+
+.ld__rules-wild strong {
+  color: var(--gr-color-ink-lit);
+}
+
+.ld__moves {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+}
+
+.ld__moves dt {
+  color: var(--gr-color-neon-hi);
+}
+
+.ld__moves dd {
+  margin: 0;
+  color: var(--gr-color-ink-dim);
+}
+
+.ld__ruleset {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ld__rule {
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  background: var(--gr-color-slate);
+  color: var(--gr-color-ink-dim);
+}
+
+/* The row that applies to the bid actually on the table. */
+.ld__rule--on {
+  background: var(--gr-color-smoke-lit);
+  color: var(--gr-color-ink-lit);
+  box-shadow: inset 0 0 0 1px var(--gr-color-neon-dim);
+}
+
+/* --------------------------------------------------------------- the sheet */
+
+.ld__scrim {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: rgb(11 8 6 / 0.6);
+}
+
+.ld__sheet {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: var(--gr-color-slate);
+  box-shadow: var(--gr-lift);
+}
+
+.ld__sheet--felt {
+  inset: 0.5rem;
+}
+
+.ld__sheet--page {
+  inset-inline: 0.75rem;
+  inset-block-end: 0.75rem;
+}
+
+.ld__sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ld__sheet-title {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.ld__sheet-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------- the lobby */
+
 .ld__pick {
-  margin-block: 0.5rem;
+  margin-block: 0.4rem;
+}
+
+/* ---------------------------------------------------------- scrolling bars */
+
+/*
+ * `.ld__rows` and `.ld__sheet-body` already carry the shared `table-scroll`
+ * class, which wears the room's bar from table.css. `.ld__shows` (the reveal
+ * list) is the one scrolling box here without it, so it is the one this sheet
+ * has to dress — and Chrome lets the standard properties win and draws its
+ * own bar with arrows, so those go behind an @supports.
+ */
+.ld__shows::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ld__shows::-webkit-scrollbar-track {
+  background: var(--gr-color-shadow);
+  border-radius: 999px;
+}
+
+.ld__shows::-webkit-scrollbar-thumb {
+  background: var(--gr-color-smoke-lit);
+  border-radius: 999px;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .ld__shows {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gr-color-smoke-lit) var(--gr-color-shadow);
+  }
+}
+
+/* -------------------------------------------------------- the off switches */
+
+/*
+ * Every keyframe in this sheet, off. The felt still says everything it needs
+ * to: a die is still there, the count is still the count, the reveal is still
+ * over the felt — they simply arrive rather than travel.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ld-die,
+  .ld-die--matched,
+  .ld-die--dying,
+  .ld__reveal {
+    animation: none;
+  }
+
+  .ld-die--dying {
+    opacity: 0.3;
+  }
+
+  .ld__clock,
+  .ld__seat {
+    transition: none;
+  }
 }
