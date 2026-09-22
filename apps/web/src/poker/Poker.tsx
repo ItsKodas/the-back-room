@@ -3,13 +3,15 @@ import { blindsFor, BUY_IN, STAKES } from "@backroom/game-poker";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Chat } from "../game/Chat.js";
 import { compact } from "../game/money.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
 import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
+import { ActivityLog, useActivity } from "../table/Activity.js";
+import { Refusal } from "../table/Refusal.js";
 import { TableSetup } from "../table/TableSetup.js";
+import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Felt, fmt } from "./Felt.js";
 import type { Table } from "./Felt.js";
@@ -71,15 +73,31 @@ export function Poker() {
     }
   }, [state, urlCode, navigate]);
 
+  const talk = useTalk(table.chat, seatId);
+  // Kept from the first line the table says, so nothing is lost while talk is
+  // shut; the counter tells "Ada raised to 200" twice from one broadcast sent
+  // twice.
+  const activity = useActivity(
+    state === null ? null : { code: state.code, text: state.lastEvent, seq: state.eventSeq },
+  );
+  const log = <ActivityLog entries={activity} />;
+
   if (raw.length > 0 && !looksLikeCode) {
     return <p className="not-found">No table with that code.</p>;
   }
 
+  // The felt, as against the lobby and setup, which are pages and get a strip.
+  const atTable = table.taken === null && state !== null;
+
   return (
     // Wider only at the felt: the screen before it is the building's width.
     <main className={state === null ? "play" : "play play--poker"}>
-      {table.error !== null ? <p className="play__error">{table.error}</p> : null}
-      {state?.lastEvent != null ? <p className="play__event">{state.lastEvent}</p> : null}
+      {/* At the table a refusal takes the middle of the board; on a page it stays a strip. */}
+      {atTable ? (
+        <Refusal message={table.error} id={table.errorKey} />
+      ) : table.error !== null ? (
+        <p className="play__error">{table.error}</p>
+      ) : null}
 
       {table.taken !== null ? (
         <Taken message={table.taken} onRetry={table.retry} />
@@ -87,8 +105,20 @@ export function Poker() {
         <Sit table={table} invited={urlCode} account={account} />
       ) : (
         <>
-          <Felt table={table} state={state} seatId={seatId} />
-          <Chat log={table.chat} seatId={seatId} onSay={table.say} />
+          <Felt
+            table={table}
+            state={state}
+            seatId={seatId}
+            talkKey={<TalkKey open={talk.open} unread={talk.unread} onToggle={talk.toggle} />}
+          />
+          <TalkSheet
+            open={talk.open}
+            onClose={talk.close}
+            log={table.chat}
+            seatId={seatId}
+            onSay={table.say}
+            activity={log}
+          />
         </>
       )}
     </main>

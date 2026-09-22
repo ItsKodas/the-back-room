@@ -1,4 +1,5 @@
 import type { TableView } from "@backroom/game-poker";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../blackjack/Cards.js";
 import { ChipStack } from "../chips/ChipStack.js";
@@ -111,10 +112,13 @@ export function Felt({
   table,
   state,
   seatId,
+  talkKey,
 }: {
   table: Table;
   state: TableView;
   seatId: string | null;
+  /** The talk key, rendered into the felt's own corner rather than the bar. */
+  talkKey?: ReactNode;
 }) {
   const intent = useIntent(state, seatId, table.error, table.errorKey);
   const me = state.seats.find((seat) => seat.id === seatId) ?? null;
@@ -193,6 +197,8 @@ export function Felt({
         >
           ?
         </button>
+
+        {talkKey !== undefined ? <div className="table-talk-corner">{talkKey}</div> : null}
 
         <div className="pk__middle">
           <p className="pk__pot">

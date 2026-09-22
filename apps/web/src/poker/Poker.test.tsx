@@ -1,9 +1,25 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-poker";
-import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Account } from "../game/useAccount.js";
+import { useAccount } from "../game/useAccount.js";
+import type { TableSocketHook } from "../table/useTableSocket.js";
+import { useTableSocket } from "../table/useTableSocket.js";
 import { Felt } from "./Felt.js";
+import { Poker } from "./Poker.js";
 import { seat, stub, view } from "./fixtures.js";
+
+vi.mock("../table/useTableSocket.js", () => ({ useTableSocket: vi.fn() }));
+vi.mock("../game/useAccount.js", () => ({ useAccount: vi.fn() }));
+vi.mock("../nav/NavContext.js", () => ({ useNav: vi.fn() }));
+vi.mock("../game/audio.js", async (original) => ({
+  ...(await original<typeof import("../game/audio.js")>()),
+  play: vi.fn(),
+  preload: vi.fn(async () => {}),
+  unlock: vi.fn(),
+}));
 
 /**
  * The felt, given a table.
@@ -309,5 +325,114 @@ describe("one winner at a time", () => {
       />,
     );
     expect(container.querySelector(".pk__seat--won .pk__says")?.textContent).toContain("a flush");
+  });
+});
+
+/*
+ * The page around the felt: talk kept off it until asked for, what the table
+ * said kept as a log rather than flashed, and a refusal taking the middle of
+ * the board instead of a strip above it.
+ *
+ * Rendered as the whole page rather than the felt alone, because none of this
+ * is the felt's to know — talk being shut, an unread count, a refusal in the
+ * middle rather than a strip are all decisions `Poker` makes around it.
+ */
+describe("the page around the felt", () => {
+  const account: Account = {
+    profile: {
+      id: "u1",
+      name: "Ada",
+      avatar: null,
+      accentColor: null,
+      chips: 12_400,
+      stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+      byGame: {},
+    },
+    available: true,
+    loading: false,
+    admin: false,
+    refresh: vi.fn(),
+    setChips: vi.fn(),
+    signOut: vi.fn(),
+  };
+
+  function socket(
+    state: TableView | null,
+    over: Partial<TableSocketHook<TableView>> = {},
+  ): TableSocketHook<TableView> {
+    return { ...stub(), state, seatId: "s1", ...over };
+  }
+
+  function tree() {
+    return (
+      <MemoryRouter initialEntries={["/poker/ABCDE"]}>
+        <Routes>
+          <Route path="/poker/:code" element={<Poker />} />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  function show(hook: TableSocketHook<TableView>) {
+    vi.mocked(useTableSocket).mockReturnValue(hook as TableSocketHook<unknown>);
+    return render(tree());
+  }
+
+  beforeEach(() => {
+    vi.mocked(useAccount).mockReturnValue(account);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  beforeAll(() => {
+    // jsdom lays nothing out, so it has no scrolling to do.
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  const dealt = (over: Partial<TableView> = {}) =>
+    view({ seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })], ...over });
+
+  it("keeps talk off the page until it is asked for", () => {
+    show(socket(dealt()));
+    expect(screen.queryByRole("region", { name: /table talk/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /table talk/i })).toBeInTheDocument();
+  });
+
+  it("counts what somebody else said while talk was shut", () => {
+    const { rerender } = show(socket(dealt(), { chat: [] }));
+
+    vi.mocked(useTableSocket).mockReturnValue(
+      socket(dealt(), {
+        chat: [{ seatId: "other", name: "Ines", text: "nice hand", at: 1 }],
+      }) as TableSocketHook<unknown>,
+    );
+    rerender(tree());
+
+    expect(screen.getByRole("button", { name: /table talk, 1 unread/i })).toBeInTheDocument();
+  });
+
+  it("keeps what the table said as a log rather than flashing it", () => {
+    const { rerender } = show(socket(dealt({ lastEvent: "Ines raised to 200", eventSeq: 1 })));
+
+    vi.mocked(useTableSocket).mockReturnValue(
+      socket(dealt({ lastEvent: "Tam folded", eventSeq: 2 })) as TableSocketHook<unknown>,
+    );
+    rerender(tree());
+
+    fireEvent.click(screen.getByRole("button", { name: /table talk/i }));
+    // The shared sheet's tabs are a segmented toggle rather than ARIA tabs, so
+    // this is asked for the way the sheet actually names it.
+    fireEvent.click(screen.getByRole("button", { name: "Activity" }));
+
+    expect(screen.getByText("Ines raised to 200")).toBeInTheDocument();
+    expect(screen.getByText("Tam folded")).toBeInTheDocument();
+  });
+
+  it("puts a refusal over the cloth rather than in a strip", () => {
+    const { container } = show(socket(dealt(), { error: "Not your turn", errorKey: 1 }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Not your turn");
+    expect(container.querySelector(".play__error")).toBeNull();
   });
 });
