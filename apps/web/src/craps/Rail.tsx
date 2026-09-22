@@ -5,10 +5,13 @@ import { DieFace } from "./Dice.js";
 /**
  * The furniture round the felt: the puck, and the two boards.
  *
- * The boards answer different questions and so sit side by side, the way
- * roulette's do. One says what the dice have been doing; the other says what
- * that has been worth to the people standing at the table, which is the half
- * of the evening a strip of numbers cannot show.
+ * The boards answer different questions. One says what the dice have been
+ * doing; the other says what that has been worth to the people standing at the
+ * table, which is the half of the evening a strip of numbers cannot show.
+ *
+ * Stacked rather than side by side, the way roulette's are and for the reason
+ * `.cr__boards` gives: two strips of small type abreast compete for the same
+ * glance, and on a phone one of them would be four characters wide.
  */
 
 const fmt = (n: number) => n.toLocaleString("en-US");

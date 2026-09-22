@@ -189,6 +189,16 @@ export const BOXES: readonly string[] = WIDE.boxes.map((one) => one.id);
  * there is nothing to price odds against before the shooter has one. A
  * travelled come or don't-come bet needs no point of the table's, because its
  * own number is what the odds are priced against.
+ *
+ * One number box can be holding both sides at once — a come bet and a don't
+ * come bet can both have travelled to the six — and one press cannot mean two
+ * things, so the light side wins. Said out loud rather than left to the order
+ * of two `if`s, because it is a decision about somebody's money: a seat
+ * holding both has hedged to roughly a standstill, and the light side is the
+ * one odds are *free* on, where laying the dark side costs more than it can
+ * return. Backing the light one is the press nearly anybody meant. A seat that
+ * genuinely wants the other must take the come bet down first, and the felt
+ * has no third box to offer them instead.
  */
 export function oddsSpotFor(
   boxId: string,
@@ -202,6 +212,8 @@ export function oddsSpotFor(
   }
   if (NUMBER_BOXES.includes(boxId)) {
     const number = boxId.slice("place:".length);
+    // The light side first, deliberately. See the note above: a box holding
+    // both is one press that could mean two things, and this is the answer.
     if (has(`come:${number}`)) return oddsFor(`come:${number}`);
     if (has(`dontcome:${number}`)) return oddsFor(`dontcome:${number}`);
   }

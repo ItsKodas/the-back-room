@@ -16,13 +16,15 @@ import { describe, expect, it } from "vitest";
  * neither of those repeats its keyframe's name inside the media query.
  *
  * File location modelled on `plinko/plinko.css.test.ts` instead — this sheet
- * lives beside its test the same way that one does — but not that file's own
- * "is actually loaded" check: `craps.css` is a genuine orphan a later task
- * wires in (see the comment at the top of it), so asserting an import here
- * would fail for a reason that has nothing to do with reduced motion.
+ * lives beside its test the same way that one does — and now that `Craps.tsx`
+ * exists, so is that file's "is actually loaded" check. It was left out while
+ * this sheet was still an orphan nothing imported; CLAUDE.md's housekeeping
+ * rule asks for exactly it, and a stylesheet nothing loads is one whose every
+ * rule is silently dead.
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const css = readFileSync(join(here, "craps.css"), "utf8");
+const page = readFileSync(join(here, "Craps.tsx"), "utf8");
 
 /** The selectors of every rule that starts one of this room's animations. */
 function animated(): string[] {
@@ -45,6 +47,15 @@ const reducedAt = css.indexOf("@media (prefers-reduced-motion: reduce)");
 const reduced = css.slice(reducedAt);
 
 describe("the cloth's stylesheet", () => {
+  it("is actually loaded", () => {
+    // An orphan sheet is silently dead; this repo has had several. `Craps.tsx`
+    // is the only page that imports it, and the theme it is painted from
+    // travels with it — a felt drawn in the building's blue is this same
+    // mistake one file along.
+    expect(page).toContain('import "./craps.css"');
+    expect(page).toContain('import "@backroom/game-craps/theme.css"');
+  });
+
   it("has a reduced-motion block at all", () => {
     expect(reducedAt).toBeGreaterThan(-1);
   });
