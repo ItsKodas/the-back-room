@@ -37,3 +37,4 @@ export type { BoardRow } from "./game.js";
 export { Game } from "./game.js";
 export type { Phase, ResolutionView, SeatView, TableView } from "./table.js";
 export { Table } from "./table.js";
+export { liarsDiceAdapter } from "./adapter.js";
