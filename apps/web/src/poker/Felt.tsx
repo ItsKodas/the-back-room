@@ -1,12 +1,15 @@
 import type { TableView } from "@backroom/game-poker";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { TableIcon } from "../blackjack/Icons.js";
 import { Card } from "../blackjack/Cards.js";
 import { ChipStack } from "../chips/ChipStack.js";
+import { Sheet } from "../table/Sheet.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Actions } from "./Controls.js";
+import { POKER_SHEET_ID } from "./PokerSheet.js";
 import { Readout, readoutFor } from "./Readout.js";
-import { Rankings } from "./Rankings.js";
+import { Rankings, RULES_SHEET_ID } from "./Rankings.js";
 import { Seat } from "./Seat.js";
 import { useIntent } from "./useIntent.js";
 
@@ -114,15 +117,31 @@ export function Felt({
   state,
   seatId,
   talkKey,
+  rulesOpen = false,
+  onToggleRules,
+  onCloseRules,
+  hostOpen = false,
+  onToggleHost,
 }: {
   table: Table;
   state: TableView;
   seatId: string | null;
   /** The talk key, rendered into the felt's own corner rather than the bar. */
   talkKey?: ReactNode;
+  /** Whether the "what beats what" sheet is open. */
+  rulesOpen?: boolean;
+  onToggleRules?: () => void;
+  onCloseRules?: () => void;
+  /** Whether the host's table sheet is open — only its key lives here. */
+  hostOpen?: boolean;
+  onToggleHost?: () => void;
 }) {
   const intent = useIntent(state, seatId, table.error, table.errorKey);
   const me = state.seats.find((seat) => seat.id === seatId) ?? null;
+  // Whose table it is, so the key that opens it is offered to them alone —
+  // the server would refuse anybody else's "table" message regardless, but
+  // hiding the control is the courtesy this building always pairs with that.
+  const isHost = seatId !== null && state.hostId === seatId;
 
   /*
    * Your seat at the bottom, everybody else round from it in dealing order.
@@ -179,8 +198,6 @@ export function Felt({
     return new Set(cards.map(nameOf));
   }, [state.you, state.seats, seatId]);
 
-  const [helping, setHelping] = useState(false);
-
   return (
     <div className="pk">
       {/*
@@ -195,18 +212,38 @@ export function Felt({
       <div className="pk__table">
         <div className="pk__felt" />
 
-        {/* Above the felt rather than in the room's own bar: what beats what is
-            a fact about this game, and the bar belongs to the building. */}
-        <button
-          type="button"
-          className="pk__helpbtn"
-          data-quiet
-          aria-label="What beats what"
-          title="What beats what"
-          onClick={() => setHelping(true)}
-        >
-          ?
-        </button>
+        {/*
+          * The other corner from talk: what beats what is a fact about this
+          * game rather than the building's, so it lives on the table rather
+          * than the room's own bar. The host's key sits beside it and only
+          * the host ever sees it — the courtesy the bare `.pk__bots` row used
+          * to pay for itself, now paid by the key that opens the sheet
+          * `.pk__bots` moved into.
+          */}
+        <div className="pk__corner">
+          <button
+            type="button"
+            className="key key--icon pk__help"
+            aria-label="What beats what"
+            aria-controls={RULES_SHEET_ID}
+            aria-expanded={rulesOpen}
+            onClick={onToggleRules}
+          >
+            ?
+          </button>
+          {isHost ? (
+            <button
+              type="button"
+              className="key key--icon pk__host"
+              aria-label="Table"
+              aria-controls={POKER_SHEET_ID}
+              aria-expanded={hostOpen}
+              onClick={onToggleHost}
+            >
+              <TableIcon />
+            </button>
+          ) : null}
+        </div>
 
         {talkKey !== undefined ? <div className="table-talk-corner">{talkKey}</div> : null}
 
@@ -397,6 +434,18 @@ export function Felt({
             </span>
           ) : null;
         })}
+
+        {/* Over the felt alone, not the whole page — same reason blackjack's
+            equivalent sheet lives inside its own felt rather than beside it. */}
+        <Sheet
+          id={RULES_SHEET_ID}
+          label="What beats what"
+          open={rulesOpen}
+          onClose={() => onCloseRules?.()}
+          className="sheet--felt"
+        >
+          <Rankings />
+        </Sheet>
       </div>
 
       {/*
@@ -473,29 +522,15 @@ export function Felt({
         ) : null}
 
         <Actions table={table} state={state} me={me} intent={intent} />
-        {/*
-          * Only at a table playing for nothing, and only for whoever opened it.
-          * The server refuses it anywhere else whatever the browser shows —
-          * hiding a control is a courtesy, refusing the message is the rule.
-          */}
-        {state.forFun && state.hostId === seatId ? (
-          <div className="pk__bots">
-            <span className="pk__bots-label">Deal somebody in</span>
-            {(["easy", "normal", "hard"] as const).map((skill) => (
-              <button
-                key={skill}
-                type="button"
-                className="pk__bot"
-                disabled={table.busy || state.seats.length >= 10}
-                onClick={() => table.addBot(skill)}
-              >
-                {skill}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
-      <Rankings open={helping} onClose={() => setHelping(false)} />
+
+      {/* The side column's own copy, standing rather than behind a key — a
+          desk has the room for it, and the key that would open the same
+          sheet is hidden there so there is only ever one way to reach it. */}
+      <aside className="pk__rules" aria-label="What beats what">
+        <h2 className="pk__panel-title">What beats what</h2>
+        <Rankings />
+      </aside>
     </div>
   );
 }

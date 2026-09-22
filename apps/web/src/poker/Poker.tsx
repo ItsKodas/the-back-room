@@ -17,6 +17,7 @@ import { useTableKeys } from "../table/useTableKeys.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Felt, fmt } from "./Felt.js";
 import type { Table } from "./Felt.js";
+import { PokerSheet } from "./PokerSheet.js";
 import { useTableSound } from "./useTableSound.js";
 import "@backroom/game-blackjack/theme.css";
 import "./poker.css";
@@ -87,6 +88,20 @@ export function Poker() {
   }, [state, urlCode, navigate]);
 
   const talk = useTalk(table.chat, seatId);
+  // Which felt- or page-level sheet is open, if either. Talk lives in its own
+  // state above rather than here, so opening a sheet has to reach over and
+  // close it too — three dialogs claiming one rectangle must not stack a
+  // second scrim on top of the first.
+  const [sheet, setSheet] = useState<"rules" | "table" | null>(null);
+  const closeSheet = useCallback(() => setSheet(null), []);
+  const toggleSheet = (which: "rules" | "table") => {
+    talk.close();
+    setSheet((was) => (was === which ? null : which));
+  };
+  const toggleTalk = () => {
+    setSheet(null);
+    talk.toggle();
+  };
   // Kept from the first line the table says, so nothing is lost while talk is
   // shut; the counter tells "Ada raised to 200" twice from one broadcast sent
   // twice.
@@ -123,8 +138,25 @@ export function Poker() {
             table={table}
             state={state}
             seatId={seatId}
-            talkKey={<TalkKey open={talk.open} unread={talk.unread} onToggle={talk.toggle} />}
+            talkKey={<TalkKey open={talk.open} unread={talk.unread} onToggle={toggleTalk} />}
+            rulesOpen={sheet === "rules"}
+            onToggleRules={() => toggleSheet("rules")}
+            onCloseRules={closeSheet}
+            hostOpen={sheet === "table"}
+            onToggleHost={() => toggleSheet("table")}
           />
+          {state.hostId === seatId && seatId !== null ? (
+            <PokerSheet
+              open={sheet === "table"}
+              onClose={closeSheet}
+              code={state.code}
+              listed={table.listed}
+              forFun={state.forFun}
+              seated={state.seats.length}
+              onListed={table.setListed}
+              onBot={table.addBot}
+            />
+          ) : null}
           <TalkSheet
             open={talk.open}
             onClose={talk.close}

@@ -468,51 +468,6 @@
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
 }
 
-/*
- * Dealing bots in, which only ever appears at a table playing for nothing.
- * Under the controls rather than among them: it is a thing you do to the
- * table, not a move in the hand.
- */
-.pk__bots {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.pk__bots-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--gr-color-ink-faint);
-}
-
-.pk__bot {
-  padding: 6px 14px;
-  /* Thumb-sized: this sits under a felt that gets played on a phone. */
-  min-height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: 12px;
-  text-transform: capitalize;
-  cursor: pointer;
-}
-
-.pk__bot:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.1);
-  color: var(--gr-color-ink);
-}
-
-.pk__bot:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 /** Who you are actually playing, said on the seat rather than guessed at. */
 .pk__bot-mark {
   margin-left: 5px;
@@ -1326,95 +1281,31 @@
 /* ------------------------------------------------------ what beats what */
 
 /*
- * A question mark on the rail.
+ * The ? and Table keys, the other corner from talk.
  *
- * Sat on the table itself because what beats what is a fact about this game,
- * and the room's own bar along the top belongs to the building. Small, because
- * anybody who needs it will look for it and everybody else should not have to
- * look at it.
+ * What beats what is a fact about this game rather than the building's, so it
+ * sits on the table with the host's own key beside it rather than in the
+ * room's own bar along the top. Sized to match `.table-talk-corner`'s own
+ * `.talk-key`, opposite it.
  */
-.pk__helpbtn {
+.pk__corner {
   position: absolute;
   top: 6px;
-  right: 10px;
+  right: 6px;
   z-index: 2;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid rgb(255 255 255 / 0.22);
-  background: rgb(0 0 0 / 0.4);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-base);
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.pk__helpbtn:hover {
-  background: rgb(0 0 0 / 0.6);
-  color: var(--gr-color-ink);
-  border-color: rgb(255 255 255 / 0.4);
-}
-
-.pk__help {
-  width: min(720px, calc(100vw - 24px));
-  max-height: min(86vh, 900px);
-  padding: 0;
-  border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-md, 12px);
-  background: var(--gr-color-slate, #171f2a);
-  color: var(--gr-color-ink);
-  overflow: hidden;
-}
-
-/*
- * The box takes focus when it opens, which paints a ring round the whole
- * dialog. Dropped here and only here: the ring belongs on the things inside it
- * that can be pressed, and they keep theirs.
- */
-.pk__help:focus,
-.pk__help:focus-visible {
-  outline: none;
-}
-
-.pk__help::backdrop {
-  background: rgb(0 0 0 / 0.66);
-}
-
-.pk__help-inner {
-  max-height: inherit;
-  overflow-y: auto;
-  padding: var(--gr-space-4);
-}
-
-.pk__help-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gr-space-3);
-  margin-bottom: var(--gr-space-3);
+  gap: 6px;
 }
 
-.pk__help-title {
-  margin: 0;
-  font-size: var(--gr-text-lg);
+.pk__corner .key {
+  width: 36px;
+  min-height: 36px;
+  font-weight: 600;
 }
 
-.pk__help-shut {
-  min-height: 40px;
-  padding: 0 var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
-  font: inherit;
-  cursor: pointer;
-}
-
-.pk__help-shut:hover {
-  background: rgb(255 255 255 / 0.1);
-}
+/* A CSS hook only: `.key key--icon` already draws the button, and the desk
+   breakpoint further down uses this class alone to hide it once the card is
+   standing in the side column and the key would only open a second copy. */
 
 .pk__ranks {
   margin: 0;
@@ -1482,6 +1373,51 @@
   margin: var(--gr-space-4) 0 0;
   font-size: var(--gr-text-sm);
   color: var(--gr-color-ink-dim);
+}
+
+/* --------------------------------------------------------- the host's table */
+
+/* Sheet.tsx and its rules are the building's, in table/table.css. */
+
+.pk__field {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.pk__seats-count {
+  margin: 0;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-ink);
+}
+
+/*
+ * Dealing bots in, which only ever appears at a table playing for nothing
+ * and only in the host's own sheet — it is a thing you do to the table, not
+ * a move in the hand.
+ */
+.pk__sheet-bots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+/* Titles the desk-side rules panel. */
+.pk__panel-title {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+/* The side column's panel only exists at a desk; a phone reaches the same
+   content through the ? key instead. */
+.pk__rules {
+  grid-area: rules;
+  display: none;
 }
 
 /* ------------------------------------------------------- choosing stakes */
@@ -2032,6 +1968,32 @@
        rows is invalid and the whole declaration is dropped. */
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     grid-template-areas: "felt read" "felt rules" "felt activity" "felt controls";
+  }
+
+  /* The side column's own standing copy of the rules — the "rules" area this
+     grid has named since the row above existed. Capped and scrolling rather
+     than left to its natural height: ten ranked hands with cards are taller
+     than blackjack's plain rows of pay lines, and an `auto` grid row sizes to
+     its content whatever that costs the row below it. */
+  .pk__rules {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    max-height: 46vh;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgb(0 0 0 / 0.26);
+    box-shadow:
+      inset 0 5px 10px rgb(0 0 0 / 0.42),
+      0 1px 0 rgb(255 255 255 / 0.05);
+    overflow-y: auto;
+  }
+
+  /* Standing in the side column now, so the key would only open a second
+     copy of the same sheet. */
+  .pk__corner .pk__help {
+    display: none;
   }
 }
 

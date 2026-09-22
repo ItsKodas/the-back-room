@@ -439,3 +439,114 @@ describe("the page around the felt", () => {
     expect(container.querySelector(".play__error")).toBeNull();
   });
 });
+
+/*
+ * The rules card and the host's table, behind keys on the felt.
+ *
+ * Both are dialogs competing for the same rectangle talk already claims, so
+ * these also cover the one-scrim rule: whichever opens has to close whatever
+ * was already up rather than stacking a second backdrop on top of it.
+ */
+describe("what's behind the felt's own keys", () => {
+  const account: Account = {
+    profile: {
+      id: "u1",
+      name: "Ada",
+      avatar: null,
+      accentColor: null,
+      chips: 12_400,
+      stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+      byGame: {},
+    },
+    available: true,
+    loading: false,
+    admin: false,
+    refresh: vi.fn(),
+    setChips: vi.fn(),
+    signOut: vi.fn(),
+  };
+
+  function socket(
+    state: TableView | null,
+    over: Partial<TableSocketHook<TableView>> = {},
+  ): TableSocketHook<TableView> {
+    return { ...stub(), state, seatId: "s1", ...over };
+  }
+
+  function tree() {
+    return (
+      <MemoryRouter initialEntries={["/poker/ABCDE"]}>
+        <Routes>
+          <Route path="/poker/:code" element={<Poker />} />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  function show(hook: TableSocketHook<TableView>) {
+    vi.mocked(useTableSocket).mockReturnValue(hook as TableSocketHook<unknown>);
+    return render(tree());
+  }
+
+  beforeEach(() => {
+    vi.mocked(useAccount).mockReturnValue(account);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const dealt = (over: Partial<TableView> = {}) =>
+    view({ seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })], ...over });
+
+  it("offers the host the table behind a key, and nobody else", () => {
+    show(socket(dealt({ hostId: "s1" })));
+    expect(screen.getByRole("button", { name: /^table$/i })).toBeInTheDocument();
+    // The bots row that used to sit bare on the page is gone from the markup.
+    expect(document.querySelector(".pk__bots")).toBeNull();
+  });
+
+  it("shows no table key to somebody who is not the host", () => {
+    show(socket(dealt({ hostId: "s2" })));
+    expect(screen.queryByRole("button", { name: /^table$/i })).toBeNull();
+  });
+
+  it("offers bots only where the server would allow them", () => {
+    show(socket(dealt({ hostId: "s1", forFun: false })));
+    fireEvent.click(screen.getByRole("button", { name: /^table$/i }));
+    expect(screen.queryByRole("button", { name: /easy/i })).toBeNull();
+  });
+
+  it("offers bots to the host at a table playing for fun", () => {
+    show(socket(dealt({ hostId: "s1", forFun: true })));
+    fireEvent.click(screen.getByRole("button", { name: /^table$/i }));
+    expect(screen.getByRole("button", { name: /easy/i })).toBeInTheDocument();
+  });
+
+  it("puts what beats what behind the question key", () => {
+    show(socket(dealt()));
+    fireEvent.click(screen.getByRole("button", { name: /what beats what/i }));
+    expect(screen.getByRole("dialog", { name: /what beats what/i })).toBeInTheDocument();
+  });
+
+  it("closes talk when the rules sheet opens, rather than stacking a second scrim", () => {
+    const { container } = show(socket(dealt()));
+    fireEvent.click(screen.getByRole("button", { name: /table talk/i }));
+    expect(screen.getByRole("dialog", { name: /table talk/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /what beats what/i }));
+    expect(screen.queryByRole("dialog", { name: /table talk/i })).toBeNull();
+    expect(screen.getByRole("dialog", { name: /what beats what/i })).toBeInTheDocument();
+    expect(container.querySelectorAll(".talk__scrim, .sheet__scrim")).toHaveLength(1);
+  });
+
+  it("closes the rules sheet when the host's table opens", () => {
+    show(socket(dealt({ hostId: "s1" })));
+    fireEvent.click(screen.getByRole("button", { name: /what beats what/i }));
+    expect(screen.getByRole("dialog", { name: /what beats what/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^table$/i }));
+    expect(screen.queryByRole("dialog", { name: /what beats what/i })).toBeNull();
+    expect(screen.getByRole("dialog", { name: /^table/i })).toBeInTheDocument();
+  });
+});
