@@ -57,19 +57,21 @@ export const FACES: Record<number, Face> = {
 export const PLAIN: Face = { body: "#3b4250", trim: "#e6ebf2", spots: 6 };
 
 /**
- * What can be pushed onto the felt, largest first.
+ * What a stake is drawn out of, largest first.
  *
- * The twenty-five is missing on purpose, and it is the only one that is: a
- * table's maximum is ten thousand, so a single press of that plate would stake
- * more than the house allows and the chip would spend its life disabled. Five
- * thousand is exactly half the maximum, so two of them make it.
+ * The twenty-five is missing on purpose and it is the only one that is: this
+ * is the ladder a pile is built from, and a stack of plates reads better when
+ * the largest one is not so large that most stacks are a single chip.
  *
- * The cage still counts a balance on the full LADDER below, the way a real one
- * holds plates nobody bets directly.
+ * Not what a player may press — see LADDER, which is the whole set and is what
+ * the blackjack tray offers. The twenty-five used to be missing from that too,
+ * because a table's maximum was a flat ten thousand and the plate would have
+ * spent its life disabled. The maximum comes from the bank now, and on an
+ * evening with a bank behind it the plate is pressable.
  */
 export const MINTED = [5000, 1000, 500, 250, 100];
 
-/** Every denomination, for showing what somebody has rather than what they bet. */
+/** Every denomination: what a felt offers, and what a balance is counted in. */
 export const LADDER = [25000, 5000, 1000, 500, 250, 100];
 
 /** A point on a circle, with zero at the top rather than at three o'clock. */

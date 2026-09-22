@@ -45,28 +45,102 @@ describe("the controls while betting", () => {
     expect(ready?.textContent).toContain("cards out 0:20");
   });
 
-  it("stack a chip onto the stake already shown, and take the lot back", () => {
+  it("set the stake from a key rather than adding to it, and take the lot back", () => {
     const state = view({ seats: [seat("a", "Ada", { bet: 500 }), seat("b", "Bo")] });
     const { props } = controls({ state, me: state.seats[0] ?? null, mine: 500 });
-    fireEvent.click(screen.getByRole("button", { name: "Add 100" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Bet 1,000" }));
     fireEvent.click(screen.getByRole("button", { name: "Take it back" }));
-    expect(vi.mocked(props.onStake).mock.calls).toEqual([[600], [0]]);
+    // A thousand, not fifteen hundred: a key is the stake, not another chip on it.
+    expect(vi.mocked(props.onStake).mock.calls).toEqual([[1_000], [0]]);
   });
 
-  it("say on a chip why it cannot be added", () => {
-    const state = view({ seats: [seat("a", "Ada", { bet: 9_500 }), seat("b", "Bo")] });
-    controls({ state, me: state.seats[0] ?? null, mine: 9_500 });
-    const over = screen.getByRole("button", { name: "1,000 more is past the 10,000 limit" }) as HTMLButtonElement;
+  it("light the key the stake is sitting on", () => {
+    const state = view({ seats: [seat("a", "Ada", { bet: 1_000 }), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null, mine: 1_000 });
+    expect(screen.getByRole("radio", { name: "Bet 1,000" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Bet 500" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("say on a key that the bank is what stops it", () => {
+    const state = view({ maxBet: 1_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null });
+    const over = screen.getByRole("radio", { name: "5,000 is past what the bank covers (1,000)" }) as HTMLButtonElement;
     expect(over.disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Add 500" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("radio", { name: "Bet 1,000" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("take nothing more at last call, and say so on the slab", () => {
+  it("say on a key when it is the balance that stops it", () => {
+    const state = view({ maxBet: 100_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null, chips: 600 });
+    const over = screen.getByRole("radio", { name: "You do not have 1,000 to bet" }) as HTMLButtonElement;
+    expect(over.disabled).toBe(true);
+  });
+
+  it("offer a key the bank can cover past the old flat ten thousand", () => {
+    const state = view({ maxBet: 50_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null, chips: 100_000 });
+    expect((screen.getByRole("radio", { name: "Bet 25,000" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("let chips come off at last call but nothing more go on", () => {
+    const state = view({ seats: [seat("a", "Ada", { bet: 1_000 }), seat("b", "Bo")] });
+    const { props } = controls({ state, me: state.seats[0] ?? null, mine: 1_000, left: 3 });
+    expect((screen.getByRole("radio", { name: "Last call: 5,000 cannot go on now" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Bet 500" }));
+    expect(vi.mocked(props.onStake).mock.calls).toEqual([[500]]);
+  });
+
+  it("say last call on the slab", () => {
     const { container } = controls({ left: 3 });
-    const chips = [...container.querySelectorAll<HTMLButtonElement>(".bj__chip")];
-    expect(chips).toHaveLength(5);
-    expect(chips.every((chip) => chip.disabled)).toBe(true);
     expect(slabs(container)[0]?.textContent).toContain("last call 0:03");
+  });
+
+  it("take a figure of your own that no key carries", () => {
+    const state = view({ maxBet: 50_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    const { props } = controls({ state, me: state.seats[0] ?? null, chips: 100_000 });
+    const box = screen.getByRole("textbox", { name: "Custom bet" });
+    fireEvent.change(box, { target: { value: "3200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bet it" }));
+    expect(vi.mocked(props.onStake).mock.calls).toEqual([[3_200]]);
+  });
+
+  it("bet nothing on a keystroke, only on the press", () => {
+    const state = view({ maxBet: 50_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    const { props } = controls({ state, me: state.seats[0] ?? null, chips: 100_000 });
+    // Typing three thousand goes through a three and a thirty on the way.
+    fireEvent.change(screen.getByRole("textbox", { name: "Custom bet" }), { target: { value: "3000" } });
+    expect(props.onStake).not.toHaveBeenCalled();
+  });
+
+  it("hold a figure of your own the way a key holds", () => {
+    const state = view({ maxBet: 50_000, seats: [seat("a", "Ada", { bet: 3_200 }), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null, mine: 3_200, chips: 100_000 });
+    expect(screen.getByRole("button", { name: "Held" })).toBeInTheDocument();
+  });
+
+  it("refuse a figure of your own the bank cannot cover", () => {
+    const state = view({ maxBet: 4_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    const { props } = controls({ state, me: state.seats[0] ?? null, chips: 100_000 });
+    fireEvent.change(screen.getByRole("textbox", { name: "Custom bet" }), { target: { value: "9000" } });
+    expect((screen.getByRole("button", { name: "Bet it" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(props.onStake).not.toHaveBeenCalled();
+  });
+
+  it("say what the box will take", () => {
+    const state = view({ maxBet: 50_000, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null, chips: 100_000 });
+    expect(screen.getByRole("textbox", { name: "Custom bet" })).toHaveAttribute("placeholder", "100 – 50,000");
+  });
+
+  it("say the bank is empty rather than offer a range that is not one", () => {
+    const state = view({ maxBet: 0, seats: [seat("a", "Ada"), seat("b", "Bo")] });
+    controls({ state, me: state.seats[0] ?? null });
+    expect(screen.getByRole("textbox", { name: "Custom bet" })).toHaveAttribute(
+      "placeholder",
+      "The bank cannot cover a hand yet",
+    );
   });
 
   it("hold Ready shut on a stake under the minimum, and say what the minimum is", () => {
