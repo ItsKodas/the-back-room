@@ -17,6 +17,7 @@ import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
+import { Seg } from "../fittings/Seg.js";
 import { TauntPicker } from "../taunt/TauntPicker.js";
 import { TauntStage } from "../taunt/TauntStage.js";
 import { Cloth } from "./Cloth.js";
@@ -528,7 +529,7 @@ function Seats({ state, seatId }: { state: TableView; seatId: string | null }) {
 
 /* ------------------------------------------------------------- the lobby */
 
-function Sit({
+export function Sit({
   table,
   invited,
   account,
@@ -557,24 +558,12 @@ function Sit({
          * different games to sit at — so it belongs to the host, with the rest
          * of the table's shape.
          */
-        <div className="stakes" role="radiogroup" aria-label="How long bets stay open">
-          <span className="stakes__label">Betting</span>
-          <div className="stakes__row">
-            {WINDOWS.map((level) => (
-              <button
-                key={level}
-                type="button"
-                role="radio"
-                aria-checked={window === level}
-                aria-label={`${level / 1000} seconds a spin`}
-                className={`stakes__pick${window === level ? " stakes__pick--on" : ""}`}
-                onClick={() => setWindow(level)}
-              >
-                <span className="stakes__cost">{level / 1000}s</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <Seg
+          label="Betting"
+          value={String(window)}
+          onChange={(value) => setWindow(Number(value))}
+          options={WINDOWS.map((level) => ({ value: String(level), text: `${level / 1000}s` }))}
+        />
       }
       note={({ forFun }) =>
         `You get a five-character code to share. The wheel comes round on its own every ${window / 1000} seconds${

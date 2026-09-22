@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-roulette";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { play } from "../game/audio.js";
 import type { Account } from "../game/useAccount.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
-import { Felt } from "./Roulette.js";
+import { Felt, Sit } from "./Roulette.js";
 
 /*
  * Sound is stubbed rather than let through, because letting it through costs
@@ -608,5 +608,19 @@ describe("the table's furniture", () => {
     // Both ways out, not just the one: a sheet tapped away has to hand the
     // keyboard back where Escape hands it back.
     expect(document.activeElement).toBe(key);
+  });
+});
+
+describe("the roulette lobby", () => {
+  beforeEach(() => {
+    // TableSetup's list of open tables polls this on mount; an empty answer
+    // keeps it quiet rather than leaving a fetch to nothing pending.
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ tables: [] }) })));
+  });
+
+  it("asks how long bets stay open with a Seg, not bespoke buttons", () => {
+    render(<Sit table={stub().table} invited="" account={account} />);
+    expect(screen.getByRole("group", { name: "Betting" })).toBeDefined();
+    expect(document.querySelector(".stakes__pick")).toBe(null);
   });
 });
