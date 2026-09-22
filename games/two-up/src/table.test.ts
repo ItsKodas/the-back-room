@@ -1,3 +1,4 @@
+import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { Table } from "./table.js";
 
@@ -329,5 +330,49 @@ describe("putting last round's chips down again", () => {
 
   it("tells a watcher nothing to repeat", () => {
     expect(played().view(null).canRepeat).toBe(false);
+  });
+});
+
+describe("sitting a bot down", () => {
+  /*
+   * A bot has no account to charge and none to pay, so a round won against one
+   * at a chips table is chips out of thin air. Both schools take bots at a
+   * for-fun table — the bot bets the casino cloth and contests a ring's centre
+   * and covers alike — and neither takes one anywhere else.
+   */
+  const schools = ["casino", "school"] as const;
+
+  for (const school of schools) {
+    it(`refuses one at a ${school} table playing for chips`, () => {
+      const table = seated(school);
+
+      expect(() => table.addBot("bot", "Cassie", "normal")).toThrow(TableError);
+      expect(() => table.addBot("bot", "Cassie", "normal")).toThrow(/playing for fun/i);
+      expect(table.seats.map((seat) => seat.id)).toEqual(["s0", "s1"]);
+    });
+
+    it(`seats one at a ${school} table playing for nothing`, () => {
+      const table = new Table("FUN0", 8, { school, forFun: true });
+      table.join("s0", "P0", null);
+
+      const bot = table.addBot("bot", "Cassie", "normal");
+
+      expect(bot.isBot).toBe(true);
+      expect(bot.skill).toBe("normal");
+      expect(table.purseFor(bot.id)).toBeGreaterThan(0);
+    });
+  }
+
+  it("does not let a bot be the company a ring is waiting for", () => {
+    /*
+     * A ring playing for chips needs a second *real* player, and `holding`
+     * already counts only those. The refusal above is what makes that true
+     * rather than merely tidy: a bot that could sit at a chips ring would be a
+     * table dealing to one person for real chips.
+     */
+    const table = seated("school", 1);
+    expect(table.holding).toBe(true);
+    expect(() => table.addBot("bot", "Cassie", "normal")).toThrow(TableError);
+    expect(table.holding).toBe(true);
   });
 });

@@ -403,3 +403,50 @@ describe("the winners a roulette table remembers", () => {
     expect(one.view("s1").winners).toEqual(one.winners);
   });
 });
+
+describe("sitting a bot down", () => {
+  it("refuses one at a table playing for chips", () => {
+    /*
+     * A bot has no account to charge and none to pay, so a spin won against
+     * one at a chips table is chips out of thin air. The lobby offers bots at
+     * a for-fun table and nowhere else; this is the rule behind that offer.
+     */
+    const { one } = table();
+
+    expect(() => one.addBot("bot", "Cassie", "normal")).toThrow(TableError);
+    expect(() => one.addBot("bot", "Cassie", "normal")).toThrow(/playing for fun/i);
+    expect(one.seats.map((seat) => seat.id)).toEqual(["s1"]);
+  });
+
+  it("seats one at a table playing for nothing", () => {
+    // The whole reason bots exist: a for-fun cloth worth standing at alone.
+    const one = new Table("FUN01", 6, { pick: () => 0 });
+    one.forFun = true;
+
+    const bot = one.addBot("bot", "Cassie", "normal");
+
+    expect(bot.isBot).toBe(true);
+    expect(bot.skill).toBe("normal");
+    expect(one.purseFor(bot.id)).toBeGreaterThan(0);
+  });
+
+  it("names a bot on the winners board like anybody else", () => {
+    /*
+     * The board copies the name down when the ball lands, from the table's own
+     * record of who was in the spin rather than from the seat — so a seat the
+     * record never heard about wins under no name at all. A for-fun cloth is
+     * the only place bots play, which makes it the only place that shows.
+     */
+    const one = new Table("FUN01", 6, { pick: () => 1 });
+    one.forFun = true;
+    const bot = one.addBot("bot", "Cassie", "normal");
+
+    one.place(bot.id, RED, 50);
+    one.closeBetting();
+    one.land();
+
+    expect(one.winners).toEqual([
+      { spin: 1, pocket: 32, seatId: "bot", name: "Cassie", up: 50 },
+    ]);
+  });
+});
