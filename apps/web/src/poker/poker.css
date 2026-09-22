@@ -2002,6 +2002,65 @@
 }
 
 /*
+ * The amount folds up on a phone, because otherwise it eats the table.
+ *
+ * Stacked — dial, slider, typed figure, five slice keys, each on its own
+ * line — the controls measured 323px of a 560px window on your turn. The
+ * felt is the only flexing row, so it took the difference and collapsed to
+ * 70px, and ten seats placed as percentages of 70px land on top of each
+ * other. Off turn the same table is 118px of controls and a 275px felt with
+ * nothing touching, which is what says the seats were never the problem.
+ *
+ * So the two single-line controls share a line: the dial is a figure with a
+ * step either side, the typed box is the same figure to type, and putting
+ * them side by side costs nothing but reads as one control, which is what
+ * they are. The slices stop wrapping to a second row — five keys across a
+ * phone is about 66px each, still a thumb.
+ *
+ * Kept after the radius block above, not merged into it: `felt.test.ts`
+ * reads `--across`/`--down` out of the FIRST `@container fit (max-width:
+ * 560px)` block in this sheet.
+ */
+@container fit (max-width: 560px) {
+  .pk__amount {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "dial typed"
+      "range range"
+      "slices slices";
+    gap: 6px;
+  }
+
+  .pk__dial {
+    grid-area: dial;
+  }
+
+  .pk__typed {
+    grid-area: typed;
+  }
+
+  .pk__range {
+    grid-area: range;
+    /* Still a bar you can hit with a thumb rather than a hairline, just not
+       the full 34px it takes when there is height going spare. */
+    height: 28px;
+  }
+
+  .pk__slices {
+    grid-area: slices;
+    flex-wrap: nowrap;
+  }
+
+  /* Five across a phone only fit if they are allowed to give up their own
+     content width; the labels are short enough to survive it. */
+  .pk__slices .key {
+    min-width: 0;
+    padding-inline: 4px;
+  }
+}
+
+/*
  * The readout, the rules and the log come out from behind their keys.
  *
  * Asked of `fit` — the container `.play--fit` already declares in table.css —
