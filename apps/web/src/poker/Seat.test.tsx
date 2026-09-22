@@ -2,7 +2,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Felt } from "./Felt.js";
-import { seat, stub, view } from "./fixtures.js";
+import { account, seat, stub, view } from "./fixtures.js";
+
+/** The one account every render below reads its balance from. */
+const ACCOUNT = account();
 
 describe("the felt", () => {
   it("renders a dealt hand without reaching for a field a poker seat has not got", () => {
@@ -29,6 +32,7 @@ describe("the felt", () => {
             seat({ id: "s2", name: "Bram", hole: [null, null] }),
           ],
         })}
+        account={ACCOUNT}
       />,
     );
 
@@ -55,6 +59,7 @@ describe("the felt", () => {
             seat({ id: "s2", name: "Bram", hole: [null, null] }),
           ],
         })}
+        account={ACCOUNT}
       />,
     );
 
@@ -83,7 +88,7 @@ describe("the felt", () => {
       seat({ id: "s3", name: "Cass" }),
     ];
     const { container } = render(
-      <Felt table={table} seatId="s3" state={view({ seats })} />,
+      <Felt table={table} seatId="s3" state={view({ seats })} account={ACCOUNT} />,
     );
 
     const names = [...container.querySelectorAll(".pk__seat .pk__name")].map(
@@ -108,6 +113,7 @@ describe("whose turn it is", () => {
           turnEndsAt: Date.now() + 20_000,
           seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })],
         })}
+        account={ACCOUNT}
       />,
     );
     const rings = container.querySelectorAll(".turn-ring");
@@ -133,6 +139,7 @@ describe("whose turn it is", () => {
           turnMs: 30_000,
           seats: [seat({ id: "s1", name: "Ada" })],
         })}
+        account={ACCOUNT}
       />,
     );
     const ring = container.querySelector(".turn-ring") as HTMLElement;
@@ -150,6 +157,7 @@ describe("whose turn it is", () => {
         table={table}
         seatId="s1"
         state={view({ street: "waiting", toAct: null, seats: [seat({ id: "s1", name: "Ada" })] })}
+        account={ACCOUNT}
       />,
     );
     expect(container.querySelectorAll(".turn-ring")).toHaveLength(0);

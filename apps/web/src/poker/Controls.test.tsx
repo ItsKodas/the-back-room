@@ -1,32 +1,15 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-poker";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef } from "react";
-import { describe, expect, it, vi } from "vitest";
-import type { Account } from "../game/useAccount.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableKeys } from "../table/useTableKeys.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import { Actions } from "./Controls.js";
-import { seat, stub, view } from "./fixtures.js";
+import { account, seat, stub, view } from "./fixtures.js";
 
 /** The one account every render below reads its balance from. */
-const ACCOUNT: Account = {
-  profile: {
-    id: "u1",
-    name: "Ada",
-    avatar: null,
-    accentColor: null,
-    chips: 12_400,
-    stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
-    byGame: {},
-  },
-  available: true,
-  loading: false,
-  admin: false,
-  refresh: vi.fn(),
-  setChips: vi.fn(),
-  signOut: vi.fn(),
-};
+const ACCOUNT = account();
 
 /*
  * The fittings the controls are built from, checked the way the reference
@@ -159,6 +142,101 @@ describe("the fittings", () => {
     const cashOut = screen.getByRole("button", { name: /off the table/i });
     expect(cashOut).toHaveClass("is-busy");
     expect(cashOut).not.toBeDisabled();
+  });
+});
+
+/*
+ * The taunt key itself — not what it does when pressed (Blackjack.tsx's
+ * identical wiring and TauntPicker.test.tsx already cover that), but where it
+ * is and is not offered (K5). `fetch` is stubbed with a real emote for every
+ * test here: unstubbed, `useEmotes()` resolves to an empty catalogue in this
+ * environment (there is no server to answer it), and an empty catalogue is a
+ * picker that renders nothing regardless of which branch is showing — a
+ * false "not offered" that would pass whether the branch logic is right or
+ * not. Stubbing it is what makes an absence assertion mean something.
+ */
+describe("the taunt key", () => {
+  const MINE = seat({
+    id: "s1",
+    name: "Ada",
+    hole: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "diamonds" },
+    ],
+  });
+  const OTHER = seat({ id: "s2", name: "Bram" });
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          emotes: [
+            { id: "e1", name: "Slow clap", cost: 50, image: "/api/emotes/e1/image", sound: null },
+          ],
+        }),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("appears while somebody else decides and you are still in the hand", async () => {
+    const table = stub();
+    render(
+      <Actions
+        table={table}
+        state={view({ toAct: "s2", street: "flop", seats: [MINE, OTHER] })}
+        me={MINE}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    // Async: the key only appears once useEmotes()'s stubbed fetch resolves.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Taunt" })).toBeTruthy());
+  });
+
+  it("does not appear on your own turn", () => {
+    const table = stub();
+    render(
+      <Actions
+        table={table}
+        state={view({
+          toAct: "s1",
+          street: "flop",
+          you: { toCall: 200, minRaiseTo: 220, maxRaiseTo: 2_000, canRaise: true },
+          seats: [MINE, OTHER],
+        })}
+        me={MINE}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    // The on-turn branch never mounts TauntPicker at all, so this is true
+    // from the first render — nothing here waits on the stubbed fetch.
+    expect(screen.getByRole("button", { name: /call 200/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Taunt" })).toBeNull();
+  });
+
+  it("does not appear once you have folded out of the hand", () => {
+    const table = stub();
+    const folded = { ...MINE, folded: true };
+    render(
+      <Actions
+        table={table}
+        state={view({ toAct: "s2", street: "flop", seats: [folded, OTHER] })}
+        me={folded}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    // Confirms the not-in-hand branch is the one showing (no lamps either),
+    // same as "offers nothing to somebody who has folded" below.
+    expect(screen.queryByRole("button", { name: "Call any" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Taunt" })).toBeNull();
   });
 });
 

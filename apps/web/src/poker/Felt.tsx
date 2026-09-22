@@ -16,21 +16,6 @@ import { useIntent } from "./useIntent.js";
 
 export type Table = TableSocketHook<TableView>;
 
-/*
- * Nobody signed in and nothing loading, for a caller that has no account to
- * hand down — every test that renders the felt without a hand in the taunt
- * picker, mostly. A real page always has a real one from `useAccount()`.
- */
-const GUEST_ACCOUNT: Account = {
-  profile: null,
-  available: false,
-  loading: false,
-  admin: false,
-  refresh: () => undefined,
-  setChips: () => undefined,
-  signOut: () => undefined,
-};
-
 export const fmt = (n: number) => n.toLocaleString("en-US");
 
 /** The five places a board card goes, in the order they are dealt. */
@@ -139,7 +124,7 @@ export function Felt({
   onCloseRules,
   hostOpen = false,
   onToggleHost,
-  account = GUEST_ACCOUNT,
+  account,
 }: {
   table: Table;
   state: TableView;
@@ -162,10 +147,11 @@ export function Felt({
   onToggleHost?: () => void;
   /**
    * The one account the corner balance reads from, for the taunt key's own
-   * cost and refund. Optional because most of this file's tests have no
-   * taunt to throw; `Poker.tsx` always has a real one to hand down.
+   * cost and refund. Required rather than defaulted to a guest stand-in — a
+   * caller that forgot to pass one is a plumbing bug, and it should fail to
+   * compile rather than quietly render as an ordinary guest.
    */
-  account?: Account;
+  account: Account;
 }) {
   const intent = useIntent(state, seatId, table.error, table.errorKey);
   const me = state.seats.find((seat) => seat.id === seatId) ?? null;

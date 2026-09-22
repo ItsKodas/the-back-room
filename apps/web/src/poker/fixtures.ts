@@ -1,5 +1,6 @@
 import type { SeatView, TableView } from "@backroom/game-poker";
 import { vi } from "vitest";
+import type { Account } from "../game/useAccount.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 
 export const seat = (over: Partial<SeatView> & { id: string; name: string }): SeatView => ({
@@ -47,6 +48,31 @@ export const view = (over: Partial<TableView> = {}): TableView => ({
   canTakeOff: false,
   hostId: null,
   maxSeats: 10,
+  ...over,
+});
+
+/**
+ * A signed-in account, for anything that needs one to render but is not
+ * testing the account itself — `Felt`/`Actions` now require one (the taunt
+ * key's cost and refund read straight off it), and this is the one shared
+ * shape rather than each test file repeating its own literal.
+ */
+export const account = (over: Partial<Account> = {}): Account => ({
+  profile: {
+    id: "u1",
+    name: "Ada",
+    avatar: null,
+    accentColor: null,
+    chips: 12_400,
+    stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+    byGame: {},
+  },
+  available: true,
+  loading: false,
+  admin: false,
+  refresh: vi.fn(),
+  setChips: vi.fn(),
+  signOut: vi.fn(),
   ...over,
 });
 

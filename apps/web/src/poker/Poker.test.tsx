@@ -9,7 +9,10 @@ import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Felt } from "./Felt.js";
 import { Poker } from "./Poker.js";
-import { seat, stub, view } from "./fixtures.js";
+import { account as accountFixture, seat, stub, view } from "./fixtures.js";
+
+/** The one account every bare `<Felt>` render below reads its balance from. */
+const ACCOUNT = accountFixture();
 
 vi.mock("../table/useTableSocket.js", () => ({ useTableSocket: vi.fn() }));
 vi.mock("../game/useAccount.js", () => ({ useAccount: vi.fn() }));
@@ -54,6 +57,7 @@ describe("when the pot is won", () => {
           [{ pot: 0, seatId: "s1", name: "Ada", chips: 1_240, said: "aces and kings" }],
           [mine, seat({ id: "s2", name: "Bram" })],
         )}
+        account={ACCOUNT}
       />,
     );
 
@@ -83,6 +87,7 @@ describe("when the pot is won", () => {
           ],
           [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })],
         )}
+        account={ACCOUNT}
       />,
     );
 
@@ -100,6 +105,7 @@ describe("when the pot is won", () => {
         table={table}
         seatId="s1"
         state={view({ street: "flop", seats: [seat({ id: "s1", name: "Ada" })] })}
+        account={ACCOUNT}
       />,
     );
     expect(container.querySelectorAll(".pk__sweep")).toHaveLength(0);
@@ -116,6 +122,7 @@ describe("when the pot is won", () => {
           [{ pot: 0, seatId: "s1", name: "Ada", chips: 400, said: null }],
           [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })],
         )}
+        account={ACCOUNT}
       />,
     );
     const won = container.querySelectorAll(".pk__seat--won");
@@ -134,6 +141,7 @@ describe("when the pot is won", () => {
           [{ pot: 0, seatId: "gone", name: "Ada", chips: 400, said: null }],
           [seat({ id: "s2", name: "Bram" })],
         )}
+        account={ACCOUNT}
       />,
     );
     expect(container.querySelectorAll(".pk__sweep")).toHaveLength(0);
@@ -164,6 +172,7 @@ describe("chips going in and out", () => {
             seat({ id: "s3", name: "Cass" }),
           ],
         })}
+        account={ACCOUNT}
       />,
     );
     // Two out, one with nothing in front of them.
@@ -179,9 +188,9 @@ describe("chips going in and out", () => {
     const at = (chips: number) =>
       view({ street: "flop", seats: [seat({ id: "s1", name: "Ada", committed: chips })] });
 
-    const shown = render(<Felt table={table} seatId="s1" state={at(100)} />);
+    const shown = render(<Felt table={table} seatId="s1" state={at(100)} account={ACCOUNT} />);
     const first = shown.container.querySelector(".pk__bet");
-    shown.rerender(<Felt table={table} seatId="s1" state={at(300)} />);
+    shown.rerender(<Felt table={table} seatId="s1" state={at(300)} account={ACCOUNT} />);
     const second = shown.container.querySelector(".pk__bet");
 
     expect(second).not.toBe(first);
@@ -203,6 +212,7 @@ describe("chips going in and out", () => {
           ],
           seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })],
         })}
+        account={ACCOUNT}
       />,
     );
     expect(container.querySelectorAll(".pk__gather")).toHaveLength(2);
@@ -220,6 +230,7 @@ describe("chips going in and out", () => {
           swept: [{ pot: 0, seatId: "gone", chips: 100 }],
           seats: [seat({ id: "s1", name: "Ada" })],
         })}
+        account={ACCOUNT}
       />,
     );
     expect(container.querySelectorAll(".pk__gather")).toHaveLength(0);
@@ -249,7 +260,7 @@ describe("one winner at a time", () => {
 
   it("announces the main pot first, and only the main pot", () => {
     const table = stub();
-    const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} />);
+    const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} account={ACCOUNT} />);
 
     const said = container.querySelector(".pk__won")?.textContent ?? "";
     expect(said).toContain("Ada");
@@ -260,7 +271,7 @@ describe("one winner at a time", () => {
 
   it("gives the moment to one seat at a time", () => {
     const table = stub();
-    const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} />);
+    const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} account={ACCOUNT} />);
     const lit = [...container.querySelectorAll(".pk__seat--spotlit")];
     expect(lit).toHaveLength(1);
     expect(lit[0]?.querySelector(".pk__name")?.textContent).toBe("Ada");
@@ -270,7 +281,7 @@ describe("one winner at a time", () => {
     vi.useFakeTimers();
     try {
       const table = stub();
-      const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} />);
+      const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} account={ACCOUNT} />);
       expect(container.querySelector(".pk__won")?.textContent).toContain("Ada");
 
       await act(async () => {
@@ -296,7 +307,7 @@ describe("one winner at a time", () => {
     vi.useFakeTimers();
     try {
       const table = stub();
-      const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} />);
+      const { container } = render(<Felt table={table} seatId="s1" state={twoPots()} account={ACCOUNT} />);
       await act(async () => {
         vi.advanceTimersByTime(30_000);
       });
@@ -322,6 +333,7 @@ describe("one winner at a time", () => {
           ],
           seats: [seat({ id: "s1", name: "Ada" })],
         })}
+        account={ACCOUNT}
       />,
     );
     expect(container.querySelector(".pk__seat--won .pk__says")?.textContent).toContain("a flush");
@@ -338,23 +350,7 @@ describe("one winner at a time", () => {
  * middle rather than a strip are all decisions `Poker` makes around it.
  */
 describe("the page around the felt", () => {
-  const account: Account = {
-    profile: {
-      id: "u1",
-      name: "Ada",
-      avatar: null,
-      accentColor: null,
-      chips: 12_400,
-      stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
-      byGame: {},
-    },
-    available: true,
-    loading: false,
-    admin: false,
-    refresh: vi.fn(),
-    setChips: vi.fn(),
-    signOut: vi.fn(),
-  };
+  const account: Account = accountFixture();
 
   function socket(
     state: TableView | null,
@@ -448,23 +444,7 @@ describe("the page around the felt", () => {
  * was already up rather than stacking a second backdrop on top of it.
  */
 describe("what's behind the felt's own keys", () => {
-  const account: Account = {
-    profile: {
-      id: "u1",
-      name: "Ada",
-      avatar: null,
-      accentColor: null,
-      chips: 12_400,
-      stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
-      byGame: {},
-    },
-    available: true,
-    loading: false,
-    admin: false,
-    refresh: vi.fn(),
-    setChips: vi.fn(),
-    signOut: vi.fn(),
-  };
+  const account: Account = accountFixture();
 
   function socket(
     state: TableView | null,
