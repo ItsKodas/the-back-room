@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-roulette";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { play } from "../game/audio.js";
+import type { Account } from "../game/useAccount.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { Felt } from "./Roulette.js";
 
@@ -28,6 +29,9 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.mocked(play).mockClear();
+  // Only the taunt-key test stubs fetch, for the emote catalogue — restored
+  // here so a leftover stub can never reach a test that never asked for one.
+  vi.unstubAllGlobals();
 });
 
 /**
@@ -45,6 +49,7 @@ const seat = (over: Partial<SeatView> & { id: string; name: string }): SeatView 
   connected: true,
   waiting: false,
   isBot: false,
+  signedIn: true,
   avatar: null,
   accentColor: null,
   staked: 0,
@@ -76,6 +81,25 @@ const view = (over: Partial<TableView> = {}): TableView => ({
   ...over,
 });
 
+/** A signed-in player with chips to throw a taunt with. */
+const account: Account = {
+  profile: {
+    id: "s1",
+    name: "Ada",
+    avatar: null,
+    accentColor: null,
+    chips: 12_400,
+    stats: { rounds: 0, roundsWon: 0, chipsWon: 0, chipsStaked: 0 },
+    byGame: {},
+  },
+  available: true,
+  loading: false,
+  admin: false,
+  refresh: vi.fn(),
+  setChips: vi.fn(),
+  signOut: vi.fn(),
+};
+
 /**
  * The socket, as much of it as a felt touches.
  *
@@ -86,7 +110,16 @@ const view = (over: Partial<TableView> = {}): TableView => ({
 const stub = (over: Partial<TableSocketHook<TableView>> = {}) => {
   const act = vi.fn();
   return {
-    table: { act, busy: false, chat: [], say: vi.fn(), ...over } as unknown as TableSocketHook<TableView>,
+    table: {
+      act,
+      busy: false,
+      chat: [],
+      say: vi.fn(),
+      stakes: [],
+      landed: [],
+      taunt: vi.fn(),
+      ...over,
+    } as unknown as TableSocketHook<TableView>,
     act,
   };
 };
@@ -158,7 +191,7 @@ const bet = (reads: RegExp): HTMLButtonElement => {
 describe("the roulette felt", () => {
   it("takes a chip when the window is open", () => {
     const { table, act } = stub();
-    render(<Felt table={table} state={view()} seatId="s1" />);
+    render(<Felt table={table} state={view()} seatId="s1" account={account} />);
     fireEvent.click(bet(/^17, pays 35 to 1/));
     expect(act).toHaveBeenCalledWith(expect.objectContaining({ type: "place", spotId: "straight:17" }));
     // A chip landing makes a sound, and the sound is the press being answered
@@ -168,14 +201,14 @@ describe("the roulette felt", () => {
 
   it("takes nothing once the wheel is turning", () => {
     const { table, act } = stub();
-    render(<Felt table={table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" />);
+    render(<Felt table={table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" account={account} />);
     fireEvent.click(bet(/^17, pays 35 to 1/));
     expect(act).not.toHaveBeenCalled();
   });
 
   it("takes nothing at last call, so a late chip is never a race", () => {
     const { table, act } = stub();
-    render(<Felt table={table} state={view({ lastCall: true })} seatId="s1" />);
+    render(<Felt table={table} state={view({ lastCall: true })} seatId="s1" account={account} />);
     fireEvent.click(bet(/^17, pays 35 to 1/));
     expect(act).not.toHaveBeenCalled();
   });
@@ -186,11 +219,11 @@ describe("the roulette felt", () => {
      * needs it to roll the ball to the right place. A felt that passed it
      * straight through would light the winning square seconds early.
      */
-    const spinning = render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" />);
+    const spinning = render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" account={account} />);
     expect(spinning.container.querySelector(".rl__square--won")).toBeNull();
     cleanup();
 
-    const settled = render(<Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" />);
+    const settled = render(<Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" account={account} />);
     expect(settled.container.querySelector(".rl__square--won")).toBeTruthy();
   });
 
@@ -204,7 +237,7 @@ describe("the roulette felt", () => {
      * your bets, which is a different fact from where the ball went.
      */
     const spinning = render(
-      <Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" />,
+      <Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" account={account} />,
     );
     const caption = spinning.container.querySelector(".rl__covered");
     expect(caption, "the medallion has no caption at all").not.toBeNull();
@@ -213,7 +246,7 @@ describe("the roulette felt", () => {
     cleanup();
 
     const settled = render(
-      <Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" />,
+      <Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" account={account} />,
     );
     expect(settled.container.querySelector(".rl__covered")?.textContent).toBe("17");
   });
@@ -227,15 +260,15 @@ describe("the roulette felt", () => {
      */
     const on = () => document.querySelector(".rl__in")?.getAttribute("data-on") ?? null;
 
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(on()).toBe("cloth");
     cleanup();
 
-    render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" />);
+    render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" account={account} />);
     expect(on()).toBe("wheel");
     cleanup();
 
-    render(<Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" />);
+    render(<Felt table={stub().table} state={view({ phase: "settled", pocket: 17 })} seatId="s1" account={account} />);
     expect(on()).toBe("cloth");
   });
 
@@ -250,13 +283,13 @@ describe("the roulette felt", () => {
       you: seat({ id: "s1", name: "Ada", staked: 150 }),
       placed: [{ seatId: "s1", spotId: RED, chips: 150 }],
     });
-    render(<Felt table={table} state={down} seatId="s1" />);
+    render(<Felt table={table} state={down} seatId="s1" account={account} />);
     fireEvent.keyDown(window, { key: "c" });
     expect(act).toHaveBeenCalledWith({ type: "clear" });
     cleanup();
 
     const { table: empty, act: never } = stub();
-    render(<Felt table={empty} state={view()} seatId="s1" />);
+    render(<Felt table={empty} state={view()} seatId="s1" account={account} />);
     fireEvent.keyDown(window, { key: "u" });
     expect(never).not.toHaveBeenCalled();
   });
@@ -269,7 +302,7 @@ describe("the roulette felt", () => {
      * chip silently ignored, with the table looking perfectly normal.
      */
     const { table, act } = stub();
-    render(<Felt table={table} state={view({ bank: 0 })} seatId="s1" />);
+    render(<Felt table={table} state={view({ bank: 0 })} seatId="s1" account={account} />);
     fireEvent.click(bet(/^17, pays 35 to 1/));
     expect(act).not.toHaveBeenCalled();
     expect(said()).toMatch(/bank/i);
@@ -278,7 +311,7 @@ describe("the roulette felt", () => {
   it("says the bank is empty before anybody presses anything", () => {
     // A table that cannot take a bet should say so while you are still
     // deciding, not once you have tried and been ignored.
-    render(<Felt table={stub().table} state={view({ bank: 0 })} seatId="s1" />);
+    render(<Felt table={stub().table} state={view({ bank: 0 })} seatId="s1" account={account} />);
     expect(said()).toMatch(/nothing to play for yet/i);
   });
 
@@ -286,7 +319,7 @@ describe("the roulette felt", () => {
     // A watcher's own next press is sitting down, and they should not do
     // that blind. said() only reaches a seated player, so this is the one
     // place left that can tell somebody who hasn't sat down yet.
-    render(<Felt table={stub().table} state={view({ bank: 0, you: null })} seatId={null} />);
+    render(<Felt table={stub().table} state={view({ bank: 0, you: null })} seatId={null} account={account} />);
     expect(screen.getByRole("status").textContent).toMatch(/nothing to play for yet/i);
   });
 
@@ -294,7 +327,7 @@ describe("the roulette felt", () => {
     // 3,500 covers exactly 100 straight up, so a 500 chip is too big for it
     // and the player is told the number rather than left guessing.
     const { table, act } = stub();
-    render(<Felt table={table} state={view({ bank: 3_500 })} seatId="s1" />);
+    render(<Felt table={table} state={view({ bank: 3_500 })} seatId="s1" account={account} />);
     fireEvent.click(keys().getByRole("radio", { name: "Bet with 500" }));
     fireEvent.click(bet(/^17, pays 35 to 1/));
     expect(act).not.toHaveBeenCalled();
@@ -303,13 +336,13 @@ describe("the roulette felt", () => {
 
   it("takes the chip when the bank can cover it", () => {
     const { table, act } = stub();
-    render(<Felt table={table} state={view({ bank: 3_500 })} seatId="s1" />);
+    render(<Felt table={table} state={view({ bank: 3_500 })} seatId="s1" account={account} />);
     fireEvent.click(bet(/^17, pays 35 to 1/));
     expect(act).toHaveBeenCalled();
   });
 
   it("offers a watcher no controls at all", () => {
-    render(<Felt table={stub().table} state={view({ you: null })} seatId={null} />);
+    render(<Felt table={stub().table} state={view({ you: null })} seatId={null} account={account} />);
     // The whole keys panel rather than one of its buttons: a watcher handed
     // the tray but not the acts is still being handed controls. Which is also
     // the cheap way to ask — an absence asked by role names all 157 bets on
@@ -319,15 +352,15 @@ describe("the roulette felt", () => {
   });
 
   it("says what the table is doing", () => {
-    const open = render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    const open = render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(open.container.textContent).toContain("Place your bets");
     cleanup();
 
-    const last = render(<Felt table={stub().table} state={view({ lastCall: true })} seatId="s1" />);
+    const last = render(<Felt table={stub().table} state={view({ lastCall: true })} seatId="s1" account={account} />);
     expect(last.container.textContent).toContain("Last call");
     cleanup();
 
-    const turning = render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 3 })} seatId="s1" />);
+    const turning = render(<Felt table={stub().table} state={view({ phase: "spinning", pocket: 3 })} seatId="s1" account={account} />);
     expect(turning.container.textContent).toContain("No more bets");
   });
 
@@ -341,14 +374,14 @@ describe("the roulette felt", () => {
         { seatId: "s2", name: "Bram", back: 0, staked: 100 },
       ],
     });
-    render(<Felt table={stub().table} state={state} seatId="s1" />);
+    render(<Felt table={stub().table} state={state} seatId="s1" account={account} />);
     expect(screen.getByText("+200")).toBeTruthy();
     expect(screen.getByText("-100")).toBeTruthy();
   });
 
   it("greys the tray down to what a play purse can afford", () => {
     const state = view({ forFun: true, you: seat({ id: "s1", name: "Ada", purse: 60 }) });
-    render(<Felt table={stub().table} state={state} seatId="s1" />);
+    render(<Felt table={stub().table} state={state} seatId="s1" account={account} />);
     expect((keys().getByRole("radio", { name: "Bet with 25" }) as HTMLButtonElement).disabled).toBe(false);
     expect((keys().getByRole("radio", { name: "Bet with 500" }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -360,7 +393,7 @@ describe("the roulette felt", () => {
      * what a screen reader says out loud. Written once, so what it looks like
      * and what it reads as cannot drift. Poker's felt learned this as "Call80".
      */
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(keys().getByRole("button", { name: "Put last round's chips down again" })).toBeTruthy();
     expect(keys().getByRole("button", { name: "Undo the last chip you put down" })).toBeTruthy();
     expect(
@@ -369,13 +402,13 @@ describe("the roulette felt", () => {
   });
 
   it("will not offer to repeat a round that never happened", () => {
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(
       (keys().getByRole("button", { name: /^Put last round/ }) as HTMLButtonElement).disabled,
     ).toBe(true);
     cleanup();
 
-    render(<Felt table={stub().table} state={view({ canRepeat: true })} seatId="s1" />);
+    render(<Felt table={stub().table} state={view({ canRepeat: true })} seatId="s1" account={account} />);
     expect(
       (keys().getByRole("button", { name: /^Put last round/ }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -397,6 +430,7 @@ describe("the roulette felt", () => {
           ],
         })}
         seatId="s1"
+        account={account}
       />,
     );
     const board = screen.getByLabelText("Recent winners, oldest first");
@@ -409,17 +443,17 @@ describe("the roulette felt", () => {
   it("has no winners' board before anybody has won", () => {
     // An empty board is a heading over nothing. A table nobody has been paid
     // at yet says so by having no board rather than by having a blank one.
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(screen.queryByLabelText("Recent winners, oldest first")).toBeNull();
   });
 
   it("has nothing to undo before anything is down", () => {
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect((keys().getByRole("button", { name: /^Undo the last chip/ }) as HTMLButtonElement).disabled).toBe(true);
     cleanup();
 
     const down = view({ you: seat({ id: "s1", name: "Ada", staked: 150 }), placed: [{ seatId: "s1", spotId: RED, chips: 150 }] });
-    render(<Felt table={stub().table} state={down} seatId="s1" />);
+    render(<Felt table={stub().table} state={down} seatId="s1" account={account} />);
     expect((keys().getByRole("button", { name: /^Undo the last chip/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -433,7 +467,7 @@ describe("the roulette felt", () => {
      * grows a label of its own, this fails and says why, rather than every
      * question above quietly going wide again.
      */
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(document.querySelectorAll("button").length).toBeGreaterThan(150);
     expect(keys().getAllByRole("button").length).toBeLessThan(20);
     // The licence for `bet`: a reach button reads out as the words it holds,
@@ -452,6 +486,29 @@ describe("the roulette felt", () => {
     expect(reachable).toBeGreaterThan(150);
     expect(bets().getAllByRole("button")).toHaveLength(reachable);
   });
+
+  it("offers a taunt while the wheel is turning, and not while you are betting (K5)", async () => {
+    // A spin is the one stretch of a round with nothing to do — the picker
+    // needs the emote catalogue, which is its own fetch off the mount effect.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          emotes: [{ id: "e1", name: "Smug", cost: 250, image: "/x", sound: null }],
+        }),
+      })),
+    );
+
+    const spinning = render(
+      <Felt table={stub().table} state={view({ phase: "spinning", pocket: 17 })} seatId="s1" account={account} />,
+    );
+    await waitFor(() => expect(keys().queryByRole("button", { name: /taunt/i })).not.toBeNull());
+    spinning.unmount();
+
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
+    expect(keys().queryByRole("button", { name: /taunt/i })).toBeNull();
+  });
 });
 
 /*
@@ -462,7 +519,7 @@ describe("the roulette felt", () => {
  */
 describe("the table's furniture", () => {
   it("opens talk rather than pushing it onto the page (C1)", () => {
-    const { container } = render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    const { container } = render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     // Nothing inline: the only way to talk is to open it.
     expect(container.querySelector(".chat")).toBeNull();
     expect(corner().getByRole("button", { name: "Table talk" })).toBeTruthy();
@@ -476,12 +533,12 @@ describe("the table's furniture", () => {
      * says one — your own line is not news to you.
      */
     const state = view();
-    const { rerender } = render(<Felt table={stub().table} state={state} seatId="s1" />);
+    const { rerender } = render(<Felt table={stub().table} state={state} seatId="s1" account={account} />);
     const chat = [
       { seatId: "s2", name: "Bram", text: "evening", at: 1 },
       { seatId: "s1", name: "Ada", text: "hello", at: 2 },
     ];
-    rerender(<Felt table={stub({ chat }).table} state={state} seatId="s1" />);
+    rerender(<Felt table={stub({ chat }).table} state={state} seatId="s1" account={account} />);
     expect(corner().getByRole("button", { name: "Table talk, 1 unread" })).toBeTruthy();
   });
 
@@ -492,7 +549,7 @@ describe("the table's furniture", () => {
      * board stays where it can be glanced at without opening anything.
      */
     const { container } = render(
-      <Felt table={stub().table} state={view({ history: [17, 0, 32] })} seatId="s1" />,
+      <Felt table={stub().table} state={view({ history: [17, 0, 32] })} seatId="s1" account={account} />,
     );
     const board = container.querySelector(".rl__in > .rl__history");
     expect(board).not.toBeNull();
@@ -502,10 +559,10 @@ describe("the table's furniture", () => {
   it("keeps what the table has said, rather than one line that flashes", () => {
     const { table } = stub();
     const { rerender } = render(
-      <Felt table={table} state={view({ lastEvent: "Bram sat down.", eventSeq: 1 })} seatId="s1" />,
+      <Felt table={table} state={view({ lastEvent: "Bram sat down.", eventSeq: 1 })} seatId="s1" account={account} />,
     );
     rerender(
-      <Felt table={table} state={view({ lastEvent: "17. Bram is up 350.", eventSeq: 2 })} seatId="s1" />,
+      <Felt table={table} state={view({ lastEvent: "17. Bram is up 350.", eventSeq: 2 })} seatId="s1" account={account} />,
     );
 
     fireEvent.click(corner().getByRole("button", { name: /^Table talk/ }));
@@ -516,7 +573,7 @@ describe("the table's furniture", () => {
   });
 
   it("never stands talk and what it pays on the same rectangle at once", () => {
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     fireEvent.click(corner().getByRole("button", { name: "What it pays" }));
     expect(document.querySelector(".rl__pays")).not.toBeNull();
 
@@ -535,7 +592,7 @@ describe("the table's furniture", () => {
      * the keyboard half of it is the worse half: a sheet that goes without
      * handing focus back leaves the tab order standing on nothing.
      */
-    render(<Felt table={stub().table} state={view()} seatId="s1" />);
+    render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     const key = corner().getByRole("button", { name: "What it pays" });
 
     fireEvent.click(key);

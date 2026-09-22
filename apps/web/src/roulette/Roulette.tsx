@@ -17,6 +17,8 @@ import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
+import { TauntPicker } from "../taunt/TauntPicker.js";
+import { TauntStage } from "../taunt/TauntStage.js";
 import { Cloth } from "./Cloth.js";
 import { Controls } from "./Controls.js";
 import { History } from "./History.js";
@@ -115,7 +117,11 @@ export function Roulette() {
       ) : state === null ? (
         <Sit table={table} invited={urlCode} account={account} />
       ) : (
-        <Felt table={table} state={state} seatId={seatId} />
+        <>
+          <Felt table={table} state={state} seatId={seatId} account={account} />
+          {/* Over the felt, because a taunt belongs to the table and not to the cloth. */}
+          <TauntStage landed={table.landed} />
+        </>
       )}
     </main>
   );
@@ -138,10 +144,12 @@ export function Felt({
   table,
   state,
   seatId,
+  account,
 }: {
   table: Table;
   state: TableView;
   seatId: string | null;
+  account: Account;
 }) {
   const [chip, setChip] = useState<number>(CHIPS[CHIPS.length - 1]);
 
@@ -209,6 +217,25 @@ export function Felt({
 
   const mine = state.you;
   const canBet = state.phase === "betting" && !state.lastCall && mine !== null;
+
+  /* While the ball is rolling, which is the one stretch of a round with
+     nothing to do. On the right, so its panel opens on screen. */
+  const taunt =
+    state.phase === "spinning" ? (
+      <TauntPicker
+        seats={state.seats.map((seat) => ({
+          id: seat.id,
+          name: seat.name,
+          isBot: seat.isBot,
+          signedIn: seat.signedIn,
+        }))}
+        seatId={seatId}
+        chips={account.profile?.chips ?? null}
+        stakes={table.stakes}
+        onThrow={(emote, at) => table.taunt(emote.id, at)}
+        openClassName="key"
+      />
+    ) : null;
 
   /*
    * The best the bank can do anywhere on the cloth, which is what the custom
@@ -385,6 +412,7 @@ export function Felt({
             onRepeat={() => table.act({ type: "repeat" })}
             onUndo={() => table.act({ type: "undo" })}
             onClear={() => table.act({ type: "clear" })}
+            taunt={taunt}
           />
         )}
 

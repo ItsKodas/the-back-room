@@ -1069,6 +1069,16 @@
   color: var(--gr-color-ink-faint);
 }
 
+/*
+ * The taunt key stands beside the three acts while the wheel is turning, so
+ * it takes their height rather than the shorter one `.key` gives everything
+ * else — a fourth button a visible size smaller than its row would read as
+ * an afterthought.
+ */
+.rl__acts .taunt-picker__open {
+  min-height: 52px;
+}
+
 .rl__note {
   margin: 0;
   text-align: center;
