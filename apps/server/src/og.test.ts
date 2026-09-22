@@ -10,7 +10,7 @@ import { SLOTS } from "@backroom/game-slots";
 import { TIPS } from "@backroom/game-tips";
 import { describe, expect, it } from "vitest";
 import type { CardSpec } from "./og.js";
-import { Avatars, Cards, cardSvg, fit, MOTIFS } from "./og.js";
+import { Avatars, Cards, cardSvg, fit, Kept, MOTIFS } from "./og.js";
 
 const FONTS = join(dirname(fileURLToPath(import.meta.url)), "../assets/fonts");
 
@@ -194,7 +194,72 @@ describe("fitting a line", () => {
   });
 });
 
-describe("drawing it for real", () => {
+describe("keeping a few of something", () => {
+  /*
+   * The bound the two caches share, asked about directly. It used to be
+   * proved through `Cards`, which meant a rasterized card per entry — half a
+   * second of native rendering on an idle machine and several times that on a
+   * busy one, against a five-second budget. The property is a Map's, so it is
+   * tested where it lives and answers instantly.
+   */
+  it("holds everything up to the number it was given room for", () => {
+    const kept = new Kept<string>(4);
+    for (const key of ["a", "b", "c", "d"]) {
+      kept.set(key, key);
+    }
+
+    expect(["a", "b", "c", "d"].map((key) => kept.get(key))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("pushes out the one that went in first", () => {
+    const kept = new Kept<string>(3);
+    for (const key of ["a", "b", "c", "d"]) {
+      kept.set(key, key);
+    }
+
+    expect(kept.get("a")).toBeUndefined();
+    expect(["b", "c", "d"].map((key) => kept.get(key))).toEqual(["b", "c", "d"]);
+  });
+
+  it("does not let a read keep something's place", () => {
+    // Oldest out rather than least recently used, on purpose: asking for `a`
+    // is not what saves it.
+    const kept = new Kept<string>(2);
+    kept.set("a", "one");
+    kept.set("b", "two");
+    expect(kept.get("a")).toBe("one");
+
+    kept.set("c", "three");
+
+    expect(kept.get("a")).toBeUndefined();
+  });
+
+  it("does not drop a stranger to overwrite something it already holds", () => {
+    const kept = new Kept<string>(2);
+    kept.set("a", "one");
+    kept.set("b", "two");
+
+    kept.set("b", "again");
+
+    // Writing `b` a second time takes `b`'s place, not the room's last seat.
+    // Neither caller here writes a key it already holds, but a bound that
+    // quietly shrinks under a plain overwrite is a trap for the one that does.
+    expect(kept.get("a")).toBe("one");
+    expect(kept.get("b")).toBe("again");
+  });
+});
+
+/*
+ * The only tests in here that go through the rasterizer, and they are budgeted
+ * for it. A card is a 1200x630 raster with two Gaussian blurs over it — about
+ * 60ms of native, event-loop-blocking work on an idle machine, and several
+ * times that when the machine is cold or busy with the rest of the suite.
+ * Under the five-second default that vitest gives a unit test, drawing a
+ * handful of cards was close enough to the ceiling to go over it perhaps one
+ * run in four. Nothing here is asserted any less firmly; the clock just
+ * matches the work.
+ */
+describe("drawing it for real", { timeout: 30_000 }, () => {
   it("renders a PNG with the fonts that ship beside it", () => {
     /*
      * The one test that goes all the way through the rasterizer. It is here
@@ -219,13 +284,14 @@ describe("drawing it for real", () => {
   });
 
   it("does not grow without limit", () => {
-    const cards = new Cards(FONTS, 4);
+    // Room for one, so the bound is proved with three drawn cards rather than
+    // seven. What eviction does in general is settled above, where asking
+    // costs nothing.
+    const cards = new Cards(FONTS, 1);
     const first = cards.png(table);
-    for (let seats = 0; seats <= 5; seats += 1) {
-      cards.png({ ...table, players: Array.from({ length: seats }, () => null) });
-    }
+    cards.png({ ...table, players: [null, null] });
 
-    // Pushed out by the ones after it, and drawn again rather than kept.
+    // Pushed out by the one after it, and drawn again rather than kept.
     expect(cards.png(table)).not.toBe(first);
   });
 });

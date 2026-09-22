@@ -601,6 +601,50 @@ export function fontPaths(root: string): string[] {
 }
 
 /**
+ * A few of something, the one that went in first out when the room runs out.
+ *
+ * Both caches below want exactly this and neither wants a dependency for it.
+ * A Map keeps insertion order, which is the whole trick.
+ *
+ * Deliberately oldest-out rather than least-recently-used. These hold a burst
+ * — a link pasted in a busy channel, a table whose seats are filling — and
+ * over a burst the entry that went in first is the one least likely to be
+ * wanted again. Keeping a hit's place would cost a delete and a set on the
+ * path that every hit takes, which is the path worth protecting.
+ *
+ * Pulled out of the two classes that had it so the bound can be checked
+ * without drawing anything. Proving eviction through `Cards` meant rasterizing
+ * a card per entry, and a test that spends a second of native rendering to
+ * assert a property of a Map is a test that fails when the machine is busy.
+ */
+export class Kept<T> {
+  private readonly held = new Map<string, T>();
+  /** Small on purpose: this is a cache for a burst, not a store. */
+  private readonly most: number;
+
+  constructor(most: number) {
+    this.most = most;
+  }
+
+  get(key: string): T | undefined {
+    return this.held.get(key);
+  }
+
+  set(key: string, value: T): void {
+    // Only a new key can push one out. Setting a key already held keeps its
+    // place, so counting it against the bound would drop a good entry and
+    // leave this holding fewer than it was given room for.
+    if (!this.held.has(key) && this.held.size >= this.most) {
+      const oldest = this.held.keys().next();
+      if (!oldest.done) {
+        this.held.delete(oldest.value);
+      }
+    }
+    this.held.set(key, value);
+  }
+}
+
+/**
  * One drawn card, kept for a moment.
  *
  * An unfurler is not one request. A link pasted in a busy Discord fans out to
@@ -610,14 +654,12 @@ export function fontPaths(root: string): string[] {
  * does.
  */
 export class Cards {
-  private readonly drawn = new Map<string, Buffer>();
+  private readonly drawn: Kept<Buffer>;
   private readonly fonts: string[];
-  /** Small on purpose: this is a cache for a burst, not a store. */
-  private readonly most: number;
 
   constructor(fontRoot: string, most = 64) {
     this.fonts = fontPaths(fontRoot);
-    this.most = most;
+    this.drawn = new Kept(most);
   }
 
   png(spec: CardSpec): Buffer {
@@ -641,13 +683,6 @@ export class Cards {
         .render()
         .asPng(),
     );
-    // Oldest out first. A Map keeps insertion order, which is the whole trick.
-    if (this.drawn.size >= this.most) {
-      const oldest = this.drawn.keys().next();
-      if (!oldest.done) {
-        this.drawn.delete(oldest.value);
-      }
-    }
     this.drawn.set(key, made);
     return made;
   }
@@ -680,11 +715,10 @@ export class Avatars {
    * Holding the fetch itself means the second caller waits on the first one's
    * request instead of starting its own.
    */
-  private readonly held = new Map<string, Promise<string | null>>();
-  private readonly most: number;
+  private readonly held: Kept<Promise<string | null>>;
 
   constructor(most = 256) {
-    this.most = most;
+    this.held = new Kept(most);
   }
 
   /** One picture as a data URI, or null if there isn't one to be had. */
@@ -700,12 +734,6 @@ export class Avatars {
     // Started and remembered in the same breath, before anything is awaited,
     // so nothing can slip between the miss and the entry.
     const coming = this.fetched(url);
-    if (this.held.size >= this.most) {
-      const oldest = this.held.keys().next();
-      if (!oldest.done) {
-        this.held.delete(oldest.value);
-      }
-    }
     this.held.set(url, coming);
     return coming;
   }
