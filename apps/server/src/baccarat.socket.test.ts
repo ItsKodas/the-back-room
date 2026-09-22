@@ -1,7 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { MemoryStore } from "@backroom/economy";
 import type { TableView } from "@backroom/game-baccarat";
-import { WINDOWS } from "@backroom/game-baccarat";
 import type { ClientToServer, ServerToClient } from "@backroom/shared";
 import type { Socket } from "socket.io-client";
 import { io as connect } from "socket.io-client";
@@ -128,7 +127,7 @@ function refusal(socket: Client, ms = 2000): Promise<string> {
  * join as somebody real rather than as a ghost reclaiming the host's own seat.
  */
 async function openTable(
-  options: { bank?: number; forFun?: boolean; window?: number } = {},
+  options: { bank?: number; forFun?: boolean; windowMs?: number } = {},
 ): Promise<{ store: MemoryStore; port: number; userId: string; host: Client }> {
   const store = new MemoryStore();
   const player = await store.upsertDiscordUser({
@@ -153,6 +152,10 @@ async function openTable(
     auth: null,
     serveClient: false,
     botDelayMs: 5,
+    // The server's own fallback window, not something a client can ask for —
+    // `create` only reaches for it when a host's own request is absent or not
+    // one of `WINDOWS`, which nothing below ever sends.
+    ...(options.windowMs === undefined ? {} : { baccaratWindowMs: options.windowMs }),
     identify,
     identifyRequest: () => player.id,
   });
@@ -163,12 +166,7 @@ async function openTable(
   await new Promise<void>((resolve) =>
     host.emit(
       "lobby:create",
-      {
-        name: "Ada",
-        game: "baccarat",
-        forFun: options.forFun ?? false,
-        ...(options.window === undefined ? {} : { window: options.window }),
-      },
+      { name: "Ada", game: "baccarat", forFun: options.forFun ?? false },
       () => resolve(),
     ),
   );
@@ -222,35 +220,30 @@ describe("a chip placed on the cloth", () => {
 });
 
 describe("the window's own clock", () => {
-  it(
-    "shuts an empty cloth without dealing, and opens a fresh window",
-    async () => {
-      /*
-       * The shortest window the table will actually run — anything else the
-       * client asks for is ignored in favour of it, per games/baccarat's own
-       * `create()` — so this is as fast as the real clock gets without a
-       * table calling `closeBetting()` for itself, which the games/baccarat
-       * suite already covers directly.
-       */
-      const { host } = await openTable({ window: WINDOWS[0] });
-      const opened = await stateWhere(host, (state) => state.seats.length === 1);
-      expect(opened.phase).toBe("betting");
-      expect(opened.coup).toBeNull();
+  it("shuts an empty cloth without dealing, and opens a fresh window", async () => {
+    /*
+     * The real `WINDOWS` never run shorter than fifteen seconds, which a host
+     * picks from and `create` validates a client's request against — neither
+     * of which this test is exercising. `baccaratWindowMs` is the server's
+     * own fallback for exactly this: a seam to hurry the table's real clock,
+     * never a value a client can ask for.
+     */
+    const { host } = await openTable({ windowMs: 200 });
+    const opened = await stateWhere(host, (state) => state.seats.length === 1);
+    expect(opened.phase).toBe("betting");
+    expect(opened.coup).toBeNull();
 
-      // Nothing is ever staked here, so the next betting window this table
-      // opens is the window's own clock speaking, not a coup being dealt.
-      const reopened = await stateWhere(
-        host,
-        (state) => state.phase === "betting" && (state.deadline ?? 0) > (opened.deadline ?? 0),
-        WINDOWS[0] + 5_000,
-      );
+    // Nothing is ever staked here, so the next betting window this table
+    // opens is the window's own clock speaking, not a coup being dealt.
+    const reopened = await stateWhere(
+      host,
+      (state) => state.phase === "betting" && (state.deadline ?? 0) > (opened.deadline ?? 0),
+    );
 
-      expect(reopened.coup).toBeNull();
-      expect(reopened.history).toHaveLength(0);
-      expect(reopened.placed).toHaveLength(0);
-    },
-    WINDOWS[0] + 10_000,
-  );
+    expect(reopened.coup).toBeNull();
+    expect(reopened.history).toHaveLength(0);
+    expect(reopened.placed).toHaveLength(0);
+  });
 });
 
 describe("chips are only won from real people", () => {

@@ -182,6 +182,17 @@ export interface BackRoomServerOptions {
    * the window itself, so a test hurrying a table has to turn this down too.
    */
   lastCallMs?: number;
+  /**
+   * The betting window a baccarat table opens with, when nobody at the door
+   * asked for one of its own.
+   *
+   * The same seam as `bettingMs`, for a table whose window is otherwise
+   * chosen from `WINDOWS` and never shorter than fifteen seconds — a test
+   * hurrying it needs this, and a client asking for one does not get it:
+   * `create` still validates a client's own request against `WINDOWS` first,
+   * and only falls back to this when that request is absent or invalid.
+   */
+  baccaratWindowMs?: number;
   /** How long a dropped player keeps their seat. */
   reconnectGraceMs?: number;
   /** How long an abandoned table survives. */
@@ -332,6 +343,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     settleMs,
     turnMs,
     lastCallMs,
+    baccaratWindowMs,
     reconnectGraceMs = 90_000,
     emptyRoomTtlMs = 5 * 60 * 1000,
     clientOrigin = "http://localhost:5173",
@@ -1070,6 +1082,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         random: spinRandom,
         /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
         bank: baccaratBank,
+        ...(baccaratWindowMs === undefined ? {} : { window: baccaratWindowMs }),
       }) as GameAdapter<PlayTable>,
     ],
   ]);
