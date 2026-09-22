@@ -771,6 +771,20 @@
   padding: var(--gr-space-3) var(--gr-space-4) 0;
 }
 
+/*
+ * And it is in the tab or it is in the side column, never both.
+ *
+ * One board drawn twice is two lists of the same name for a screen reader to
+ * walk, so the tab's copy goes at exactly the width the column comes back at —
+ * `display: none`, which takes it out of the tree rather than only out of
+ * sight. The two thresholds are one decision; see `.rl__in .rl__boards`.
+ */
+@container rl (min-width: 760px) {
+  .talk__activity .rl__winners {
+    display: none;
+  }
+}
+
 .rl__won {
   display: flex;
   align-items: center;
@@ -1218,17 +1232,22 @@
  * The numbers are a row of their own and an `auto` one: twelve pockets at
  * 22px is a strip that fits across a 375px phone without wrapping, and it is
  * the one record a roulette player reads without being asked to open anything.
+ *
+ * There is no row for the winners' board here at all, rather than a row with a
+ * hidden board in it: a named track whose only item is `display: none` is
+ * nothing on screen and two row-gaps in the arithmetic, and the row those
+ * pixels come out of is the stage's. The board's row arrives with the board,
+ * at 760.
  */
 .rl__in {
   height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(84px, 24cqw, 112px);
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   grid-template-areas:
     "standing wheel"
     "history  history"
     "stage    stage"
-    "boards   boards"
     "controls controls"
     "seats    seats";
   /* The stage is the one row that is meant to flex, so a phone short on height
@@ -1295,12 +1314,26 @@
  * rather than pushing the wheel above it off the top.
  */
 .rl__in .rl__boards {
-  grid-area: boards;
   display: none;
 }
 
+/* Where there is room for it, the board and the row it stands in arrive
+   together — the same width the talk sheet's copy of it leaves at, so the two
+   can never both be on the table or both be off it. */
 @container rl (min-width: 760px) {
+  .rl__in {
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "standing wheel"
+      "history  history"
+      "stage    stage"
+      "boards   boards"
+      "controls controls"
+      "seats    seats";
+  }
+
   .rl__in .rl__boards {
+    grid-area: boards;
     display: grid;
     gap: var(--gr-space-3);
     justify-items: center;

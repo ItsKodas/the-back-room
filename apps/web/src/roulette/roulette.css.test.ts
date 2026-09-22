@@ -59,8 +59,68 @@ describe("the Roulette table's stylesheet", () => {
   });
 
   it("gives a refusal the middle of the board at the table, and a strip on a page (N1, N5)", () => {
-    // Mid-hand, a strip above the felt is a strip nobody reads.
+    /*
+     * Both halves, because they are one decision. Mid-hand a strip above the
+     * felt is a strip nobody reads, so a refusal takes the middle of the
+     * board; on setup or a table that turned you away there is nothing to
+     * cover and nothing on a clock, and it stays the strip it was (N5). A
+     * table-shaped refusal everywhere would blur a page over itself.
+     */
     expect(page).toContain("<Refusal");
+    expect(page).toContain('className="play__error"');
+  });
+
+  it("keeps what it pays above everything the cloth stacks under it", () => {
+    /*
+     * `.rl__stage` is a size container and so a stacking context of its own,
+     * but `.rl__cloth` inside it is `position: relative` with no z-index —
+     * which leaves the chip piles, the aim marker and a reach button wearing
+     * the keyboard's ring stacking against the stage itself rather than
+     * against the cloth. The sheet shipped under all three, so a table with
+     * chips on it showed them floating over its payout list.
+     *
+     * Asked as numbers rather than as one number written down, so the next
+     * layer somebody adds to the cloth has to come in under the sheet or say
+     * here why it does not.
+     */
+    const depth = (selector: string) =>
+      Number(/z-index:\s*(-?\d+)/.exec(rule(selector))?.[1] ?? Number.NaN);
+
+    const sheet = depth(".rl__pays");
+    expect(sheet, "what it pays declares no z-index at all").not.toBeNaN();
+    for (const selector of [".rl__pile", ".rl__aim", ".rl__reach button:focus-visible"]) {
+      const layer = depth(selector);
+      expect(layer, `${selector} declares no z-index at all`).not.toBeNaN();
+      expect(sheet, `${selector} stacks over the payout sheet`).toBeGreaterThan(layer);
+    }
+  });
+
+  it("draws the winners' board once, in the sheet or in the column (A3)", () => {
+    /*
+     * A phone reads the board in talk's activity tab and a desk reads it in
+     * the side column, and the width that gives it to one has to be the width
+     * that takes it from the other. Drawn twice it is two lists of the same
+     * name for a screen reader to walk; drawn nowhere it is a table that
+     * stopped saying who it has been paying.
+     */
+    const queries = [...css.matchAll(/@container rl \(min-width:\s*(\d+)px\)\s*\{/g)].map((match) => {
+      let depth = 1;
+      let at = (match.index ?? 0) + match[0].length;
+      const from = at;
+      while (at < css.length && depth > 0) {
+        if (css[at] === "{") depth += 1;
+        if (css[at] === "}") depth -= 1;
+        at += 1;
+      }
+      return { width: Number(match[1]), body: css.slice(from, at - 1) };
+    });
+
+    const column = queries.find((one) => /\.rl__in \.rl__boards \{[^}]*display:\s*grid/.test(one.body));
+    const sheet = queries.find((one) =>
+      /\.talk__activity \.rl__winners \{[^}]*display:\s*none/.test(one.body),
+    );
+    expect(column?.width, "no width brings the board out into the column").toBeGreaterThan(0);
+    expect(sheet?.width, "the sheet's copy of the board never leaves").toBe(column?.width);
   });
 
   it("sizes the stage from the space it has, not from the viewport (L3)", () => {

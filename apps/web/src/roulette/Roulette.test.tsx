@@ -548,5 +548,8 @@ describe("the table's furniture", () => {
     expect(scrim, "what it pays has no scrim to tap off").not.toBeNull();
     fireEvent.click(scrim as Element);
     expect(document.querySelector(".rl__pays")).toBeNull();
+    // Both ways out, not just the one: a sheet tapped away has to hand the
+    // keyboard back where Escape hands it back.
+    expect(document.activeElement).toBe(key);
   });
 });
