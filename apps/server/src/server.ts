@@ -1077,9 +1077,13 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
          * recover Math.random's state — and then the next number is not a
          * question.
          *
-         * A face at a time rather than a scaled total: rejection-sampled and
-         * so uniform over six, which scaling a float is not, and a single
-         * draw over the eleven sums would make the seven as likely as the two.
+         * A face at a time rather than a single draw over the eleven sums,
+         * which would make the seven as likely as the two.
+         *
+         * Scaled rather than rejection-sampled, exactly as the wheel scales
+         * its thirty-seven pockets. Six does not divide 2^32, so four of the
+         * faces carry one outcome more than the other two — about a part in a
+         * billion, on a draw that is cryptographic either way.
          */
         pick: (faces: number) => Math.floor(spinRandom() * faces),
         ...(crapsWindow === undefined ? {} : { window: crapsWindow }),

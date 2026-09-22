@@ -214,8 +214,9 @@ over seven chips for every six and keeps the six on the cloth, so `mult` is
 merely conservative, and it has a consequence worth writing down: a place bet
 of `x` needs only `x/6` of bank behind it, because its own stake is already in
 there. Each hit walks the bank down by `x/6` rather than by the whole payout.
-Six hits at the cap and the bank is flat — which is the rule below, arriving
-exactly when the arithmetic says it should.
+At the cap `x` is six times the bank, so `x/6` is the bank entire and a single
+hit flattens it; it takes six hits to do that from a sixth of the cap. Either
+way the rule below arrives exactly when the arithmetic says it should.
 
 This cap is **exact for the roll in front of it and makes no promise about the
 next one**. It cannot: a place bet's liability is a geometric tail, and a cap

@@ -74,7 +74,7 @@ one that holds back the least — the machine keeps a tenth of what goes through
 it and a blackjack table about a two-hundredth, with the wheel, the coin and
 the board each keeping a hold of their own in between and craps holding back
 about a seventieth on the line and a good deal more in the middle, sitting it
-between the wheel and the machine — so one bank would be the machine quietly
+between the card table and the wheel — so one bank would be the machine quietly
 funding the rest of the floor. A seventh game would have to earn all of this
 the same way.
 
@@ -185,9 +185,10 @@ apps/web           react client
 ## Housekeeping
 
 - `npm test`, `npm run typecheck`, `npm run lint` all have to be clean.
-- Use `biome format --write <paths>` on the files you touched. **Not**
-  `biome check --write` across the repo — it applies an import-ordering assist
-  this project deliberately leaves off, and rewrites dozens of untouched files.
+- **The formatter is off** — `biome.json` sets `formatter.enabled: false`, so
+  `biome format --write` does nothing and `biome check --write` rewrites dozens
+  of untouched files with an assist this project deliberately leaves off.
+  `npm run lint` is the gate.
 - **Check a stylesheet is imported before adding to it.** There have been
   orphan `.css` files in this repo that nothing loads; rules added to one are
   silently dead. `grep` for the filename first.

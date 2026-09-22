@@ -28,8 +28,11 @@ export interface Hand {
  * A price, as a fraction.
  *
  * Not a number, and that is the whole of why money in this package is exact.
- * `30 * (7 / 6)` is 35.000000000000004 in IEEE754, so a float here would make
- * the tray's central claim — that every denomination pays every bet in whole
+ * `90 * (7 / 5)` is 125.99999999999999 in IEEE754 and `210 * (7 / 6)` is
+ * 245.00000000000003 — a place five of ninety and a place six of two hundred
+ * and ten, both of them piles this tray builds and this cloth prices, and
+ * piles accumulate, so neither is a corner. A float here would make the
+ * tray's central claim — that every denomination pays every bet in whole
  * chips — false in fact while looking true on paper. `back` multiplies first
  * and divides second, where the numerator is an exact integer and the
  * denominator divides it, so the answer is exactly right rather than nearly.
@@ -207,9 +210,11 @@ function prop(id: string, t: number): Ratio {
   if (id === "anycraps") return CRAPS_NUMBERS.has(t) ? [8, 1] : NOTHING;
   if (id === "horn") {
     // A quarter of the chips on each of the four, so a hit pays its own price
-    // on a quarter and the other three quarters are gone. The quarter is in
-    // the denominator rather than worked out first, which is what keeps a
-    // horn of sixty paying 465 and not 464.9999999999999.
+    // on a quarter and the other three quarters are gone. The quarter goes in
+    // the denominator for consistency with every other price on this cloth
+    // rather than to rescue this one — four is exactly representable, so all
+    // three orderings pay a horn of sixty the same 465. Keeping it a ratio is
+    // what leaves `back` as the only place chips and a price ever meet.
     if (t === 2 || t === 12) return [31, 4];
     if (t === 3 || t === 11) return [16, 4];
     return NOTHING;

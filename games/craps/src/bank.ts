@@ -201,10 +201,17 @@ export function headroom(bank: number, bets: readonly Bet[], hand: Hand, spot: S
 /**
  * The order bets are taken off in when the bank cannot carry them all.
  *
- * Biggest promise first, so the cheapest promise to keep is the last one
- * broken. The line is last and in practice unreachable: getting there means
- * the bank is destitute, and the alternative to turning a contract off is
- * failing to pay a winner, which is worse.
+ * The edged bets first and the fair ones last, and a contract last of all.
+ * The one-roll middle goes, then the hardways, then the field and the numbers
+ * — every one of them a bet the house holds something back on — and only then
+ * the odds, which carry no edge at all and are the player's fair share of the
+ * cloth. The line is last and in practice unreachable: getting there means the
+ * bank is destitute, and the alternative to turning a contract off is failing
+ * to pay a winner, which is worse.
+ *
+ * Deliberately not by the size of the promise. That question is settled inside
+ * a kind rather than between kinds — see the tie-break in {@link working},
+ * where two bets of the same sort go in the order of what they would cost.
  */
 export const OFF_ORDER: readonly Kind[] = [
   "prop",
