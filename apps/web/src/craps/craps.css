@@ -823,6 +823,15 @@
  * off bet gets a word instead of a tint.
  */
 .cr__box[data-point="true"] {
+  /*
+   * The badge's own size, named here rather than typed twice: the label
+   * below has to clear this exact number, and a margin computed from it
+   * cannot drift out of sync with it the way two separately typed pixel
+   * figures could.
+   */
+  --cr-point-font: 8px;
+  --cr-point-pad-v: 1px;
+  --cr-point-top: 2px;
   box-shadow:
     inset 0 0 0 2px var(--gr-color-neon-hi),
     0 0 14px color-mix(in srgb, var(--gr-color-neon-hi) 55%, transparent);
@@ -831,25 +840,52 @@
 .cr__box[data-point="true"]::after {
   content: "Point";
   position: absolute;
-  top: 2px;
+  top: var(--cr-point-top);
   /*
-   * Left, not right. The label above is "Place N", centred as one line, so
-   * its number sits toward the right edge of the box — exactly where a
-   * top-right badge would sit on top of it. The number is the one character
-   * on this box that matters, so the badge goes over "Place"'s own initial
-   * on the left instead, where covering a letter costs nothing a player
-   * needs.
+   * Left, not right. The label below is "Place N", centred as one line, so
+   * its number sits toward the right edge of the box. Putting the badge on
+   * the left instead of the right means that if the label ever gets narrow
+   * enough to sit on the badge's own line again, it is "Place"'s own initial
+   * under it and not the number — the one character on this box that
+   * matters. The real fix is the label's own margin below, which gives the
+   * badge a line of its own; this is only the fallback if that ever fails.
    */
   left: 2px;
-  padding: 1px 5px;
+  padding: var(--cr-point-pad-v) 5px;
   border-radius: 999px;
   background: var(--gr-color-neon-hi);
   color: var(--gr-color-night);
-  font-size: 8px;
+  font-size: var(--cr-point-font);
+  line-height: 1;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   pointer-events: none;
+}
+
+/*
+ * Down a line when the point is on. A hundred-odd pixel place box at 375 has
+ * no width to spare beside a centred "Place N" — fitting the badge next to
+ * it either clips the label or sits back on top of the number, which is the
+ * bug this rule exists to fix. So the two take a line each instead: the
+ * badge's line-box height (its font-size at `line-height: 1`, plus its own
+ * top and bottom padding) plus its `top` offset plus two pixels of daylight,
+ * computed rather than typed so it cannot quietly drift from the badge's own
+ * numbers above.
+ *
+ * There is room for it: the first chip stack this box can hold — a travelled
+ * come or don't-come bet — centres at 34% of the box (`.cr__stack[data-slot]`
+ * below), and every place box that can carry the point is 6 grid rows tall,
+ * 165.5px at 375 per `layout.test.ts`'s own gutter arithmetic (the tall
+ * cloth's 331px, divided into its 12 columns, times 6) — so 34% is 56px down.
+ * The label's own font at that box width is a shade over 12px (11cqw of
+ * 110px), so it clears the badge's 14px margin by about 27px on one line and
+ * roughly 41px even if "Place N" wraps to two — nowhere near the come stack.
+ */
+.cr__box[data-point="true"] .cr__box-label {
+  margin-top: calc(
+    var(--cr-point-top) + var(--cr-point-font) + (var(--cr-point-pad-v) * 2) + 2px
+  );
 }
 
 /*
