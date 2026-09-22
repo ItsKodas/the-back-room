@@ -96,6 +96,8 @@ export interface SeatView {
   connected: boolean;
   waiting: boolean;
   isBot: boolean;
+  /** Whether there is an account behind this seat, so a taunt's chips can reach it. */
+  signedIn: boolean;
   avatar: string | null;
   accentColor: number | null;
   /** What this seat has on the cloth this spin. */
@@ -143,6 +145,13 @@ export interface TableView {
   hostId: string | null;
   watching: number;
   lastEvent: string | null;
+  /**
+   * How many things the table has said. Only ever counts up.
+   *
+   * What tells the same words twice running apart from one broadcast sent
+   * twice — the activity log keys on it (A4 in the table requirements).
+   */
+  eventSeq: number;
   window: number;
 }
 
@@ -220,6 +229,7 @@ export class Table {
   funBank = FUN_BANK;
   window: number = WINDOWS[1];
   lastEvent: string | null = null;
+  eventSeq = 0;
 
   constructor(
     code: string,
@@ -278,6 +288,7 @@ export class Table {
     this.accounts.set(seat.id, { userId: identity?.userId ?? null, name: seat.name });
     // Back before their chips were handed back, so those chips are theirs to play again.
     this.leaving.delete(seat.id);
+    this.say(`${seat.name} sat down.`);
     return seat;
   }
 
@@ -313,6 +324,8 @@ export class Table {
    * period did the same.
    */
   removeSeat(seatId: string): void {
+    // Before the seat is gone, since it is the only place left to read the name from.
+    const name = this.seats.find((seat) => seat.id === seatId)?.name ?? "";
     this.seating.remove(seatId);
     this.previous.delete(seatId);
     /*
@@ -325,6 +338,8 @@ export class Table {
     if (this.phase === "betting") {
       this.leaving.add(seatId);
     }
+    // Said either way: chips still riding is still somebody leaving.
+    this.say(`${name} left.`);
   }
   disconnect(seatId: string): void {
     this.seating.disconnect(seatId);
@@ -345,6 +360,18 @@ export class Table {
       throw new TableError("You are not at this table.");
     }
     return seat;
+  }
+
+  /**
+   * Says what just happened.
+   *
+   * The only place lastEvent is set, so the counter cannot be forgotten at one
+   * of the places the table talks. Copied in shape from Blackjack's, which
+   * learned this the same way.
+   */
+  private say(text: string): void {
+    this.lastEvent = text;
+    this.eventSeq += 1;
   }
 
   // ----------------------------------------------------------- the chips
@@ -560,7 +587,7 @@ export class Table {
     this.pocket = spin(this.pick);
     this.phase = "spinning";
     this.deadline = Date.now() + SPIN_MS;
-    this.lastEvent = "No more bets.";
+    this.say("No more bets.");
   }
 
   /** The ball drops, and the cloth is settled. */
@@ -613,7 +640,20 @@ export class Table {
 
     this.phase = "settled";
     this.deadline = Date.now() + SETTLE_MS;
-    this.lastEvent = `${this.pocket}`;
+    // The pocket is the line the felt reads when it settles, so it goes first.
+    this.say(`${this.pocket}`);
+
+    const won = [...(this.paid?.entries() ?? [])].filter(([, one]) => one.back > one.staked);
+    if (won.length > 0) {
+      this.say(
+        won
+          .map(([seatId, one]) => {
+            const name = this.seats.find((seat) => seat.id === seatId)?.name ?? "";
+            return `${name} +${(one.back - one.staked).toLocaleString("en-US")}`;
+          })
+          .join(", "),
+      );
+    }
   }
 
   /** The cloth is swept and the next window opens. */
@@ -644,6 +684,7 @@ export class Table {
       connected: seat.connected,
       waiting: seat.waiting,
       isBot: seat.isBot,
+      signedIn: seat.userId !== null,
       avatar: seat.avatar,
       accentColor: seat.accentColor,
       staked: this.staked(seat.id),
@@ -678,6 +719,7 @@ export class Table {
       hostId: this.hostId,
       watching: this.watching,
       lastEvent: this.lastEvent,
+      eventSeq: this.eventSeq,
       window: this.window,
     };
   }

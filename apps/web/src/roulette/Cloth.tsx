@@ -1,3 +1,4 @@
+import type { Kind } from "@backroom/game-roulette";
 import { colourOf, pays, spotAt } from "@backroom/game-roulette";
 import { useEffect, useRef, useState } from "react";
 import { ChipStack } from "../chips/ChipStack.js";
@@ -28,6 +29,15 @@ import { ANCHORS, BOXES, HEIGHT, SQUARES, WIDTH, boxOf, nearest } from "./layout
  */
 export const TURNS_AT = 560;
 
+/**
+ * How long a press has to be held before it means "take this back".
+ *
+ * Long enough not to catch a firm tap, short enough that somebody who meant it
+ * is not left wondering. The same threshold a browser uses to raise its own
+ * context menu on touch, which is the gesture this replaces.
+ */
+export const HOLD_MS = 500;
+
 export interface Placed {
   seatId: string;
   spotId: string;
@@ -42,6 +52,7 @@ export function Cloth({
   disabled = false,
   landed,
   portrait,
+  onAim,
 }: {
   placed: readonly Placed[];
   /** Which seat is yours, so your chips can be told from everybody else's. */
@@ -71,9 +82,49 @@ export function Cloth({
   landed?: number | null;
   /** Forces the orientation. Left off, the cloth works it out for itself. */
   portrait?: boolean;
+  /** What the cloth is currently aimed at, so a payout sheet can light its row. */
+  onAim?: (kind: Kind | null) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  const [aiming, setAiming] = useState<string | null>(null);
+
+  /*
+   * The press in progress: which pointer owns it, what it is aimed at, and
+   * whether it has been held long enough to mean a take-back.
+   *
+   * One object rather than three states, because they change together and a
+   * render that had the new spot and the old "held" would name one bet and
+   * take back another.
+   *
+   * `pointerId` is carried so a second finger can never step into a press
+   * that is not its own — every handler below checks it before touching
+   * `press`. A second pointer going down while one is already live is
+   * ignored outright rather than taking over: this is a betting surface, and
+   * a resting thumb silently stealing or corrupting the bet a pointing
+   * finger is naming is worse than the second finger simply doing nothing.
+   */
+  const [press, setPress] = useState<{
+    pointerId: number;
+    spotId: string | null;
+    held: boolean;
+  } | null>(null);
+  /* Hover, which is a desk's way of asking the same question and costs nothing. */
+  const [hovered, setHovered] = useState<string | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const endPress = () => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+    setPress(null);
+  };
+
+  useEffect(
+    () => () => {
+      if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+    },
+    [],
+  );
 
   /*
    * Which way round the cloth goes, decided by the cloth from its own width.
@@ -162,7 +213,20 @@ export function Cloth({
     });
   }
 
-  const aimed = aiming === null ? null : spotAt(aiming);
+  const showing = press?.spotId ?? hovered;
+  const aimed = showing === null ? null : spotAt(showing);
+  const taking = press?.held === true;
+
+  /*
+   * Reported from an effect rather than during render, so a parent's setter
+   * is never called while React is still deciding what this render looks
+   * like — that is the render loop an earlier task in this plan lost time
+   * chasing. The caller must pass a stable handler (a useState setter, not an
+   * inline arrow) or this fires every render regardless.
+   */
+  useEffect(() => {
+    onAim?.(aimed?.kind ?? null);
+  }, [aimed, onAim]);
 
   return (
     <div
@@ -183,21 +247,70 @@ export function Cloth({
       aria-label="The betting cloth"
       ref={box}
       style={{ aspectRatio: sideways ? `${HEIGHT} / ${WIDTH}` : `${WIDTH} / ${HEIGHT}` }}
-      onPointerMove={(event) => setAiming(spotUnder(event))}
-      onPointerLeave={() => setAiming(null)}
       onPointerDown={(event) => {
         /*
-         * Only the primary button places. Without this a right-click puts a
-         * chip down on the way to taking one off, and the pile never shrinks.
+         * Only the primary button aims. A right-click is on its way to a
+         * context menu, and without this it puts a chip down on the way to
+         * taking one off — the pile never shrinks.
          */
         if (disabled || event.button !== 0) {
           return;
         }
+        // A press already owns the cloth: see the comment on `press` for why
+        // a second finger is ignored rather than taking over.
+        if (press !== null) {
+          return;
+        }
+        // Capture, so a finger that slides off an element inside the cloth
+        // keeps reporting to the cloth. The opposite of Plinko's drop key,
+        // which refuses capture because sliding off is its escape — here
+        // sliding is how you aim, and lifting outside is the escape.
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setPress({ pointerId: event.pointerId, spotId: spotUnder(event), held: false });
+        holdTimer.current = setTimeout(() => {
+          setPress((was) => (was === null ? null : { ...was, held: true }));
+        }, HOLD_MS);
+      }}
+      onPointerMove={(event) => {
+        if (press === null) {
+          setHovered(spotUnder(event));
+          return;
+        }
+        if (event.pointerId !== press.pointerId) {
+          return;
+        }
         const spot = spotUnder(event);
-        if (spot !== null) {
-          onPlace?.(spot);
+        setPress((was) => (was === null || was.spotId === spot ? was : { ...was, spotId: spot }));
+      }}
+      onPointerUp={(event) => {
+        if (press === null || event.pointerId !== press.pointerId) {
+          return;
+        }
+        const { spotId, held } = press;
+        endPress();
+        // The betting window can shut while a finger is still down — the
+        // table's own clock, not this pointer, decides that. The aim and
+        // ghost already vanish under `disabled` below; this is what stops
+        // the lift itself from placing or taking back anything once shut.
+        if (disabled) {
+          return;
+        }
+        // Lifted off the cloth entirely: the way out of a press you did not mean.
+        if (spotId === null || spotUnder(event) === null) {
+          return;
+        }
+        if (held) {
+          onTake?.(spotId);
+        } else {
+          onPlace?.(spotId);
         }
       }}
+      onPointerCancel={(event) => {
+        if (press !== null && event.pointerId === press.pointerId) {
+          endPress();
+        }
+      }}
+      onPointerLeave={() => setHovered(null)}
       onContextMenu={(event) => {
         // The browser's own menu is never what somebody wants over a chip.
         event.preventDefault();
@@ -242,9 +355,23 @@ export function Cloth({
        * see the bet you are about to make, named, before you make it.
        */}
       {aimed === null || disabled ? null : (
-        <div className="rl__aim" style={placeAt(...aimAt(aimed.id))}>
-          <span className="rl__aim-name">{aimed.label}</span>
+        <div
+          className={`rl__aim${taking ? " rl__aim--taking" : ""}`}
+          style={placeAt(...aimAt(aimed.id))}
+        >
+          <span className="rl__aim-name">
+            {taking ? "Release to take it back" : `${aimed.label}, pays ${pays(aimed)} to 1`}
+          </span>
         </div>
+      )}
+
+      {/*
+       * Where the chip a press is naming would land. Under the name rather
+       * than instead of it — the name says what the bet is and this says
+       * where it goes, and a press wants both before it costs anything.
+       */}
+      {press?.spotId == null || disabled ? null : (
+        <div className="rl__ghost" style={placeAt(...aimAt(press.spotId))} aria-hidden="true" />
       )}
 
       {/* The chips. */}

@@ -1,8 +1,9 @@
 import type { ChatMessage } from "@backroom/shared";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Seg } from "../fittings/Seg.js";
 import { Chat } from "../game/Chat.js";
+import { useSheetDismiss } from "./useSheetDismiss.js";
 import "./table.css";
 
 const SHEET_ID = "table-talk";
@@ -96,27 +97,12 @@ export function TalkSheet({
   /** The table's activity log, as the sheet's second tab. */
   activity?: ReactNode;
 }) {
-  const panel = useRef<HTMLDivElement | null>(null);
+  // Escape, and focus back on the key that opened it — shared with every other
+  // sheet laid over a table, so two of them on one rectangle cannot dismiss
+  // differently. See useSheetDismiss.
+  const panel = useSheetDismiss({ open, onClose, id: SHEET_ID });
   // Talk first: it is what the key on the bar is named for and counts.
   const [tab, setTab] = useState<"talk" | "activity">("talk");
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    panel.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      // Back to the key that opened it, so a keyboard is not left nowhere.
-      document.querySelector<HTMLElement>(`[aria-controls="${SHEET_ID}"]`)?.focus();
-    };
-  }, [open, onClose]);
 
   if (!open) {
     return null;
