@@ -453,7 +453,16 @@
   min-height: 54px;
 }
 
-.ld__keys > * {
+/*
+ * `.ld__keys > *` would tie the fittings' own `.key`/`.slab` rules on
+ * specificity — one selector each — and lose that tie to whichever sheet a
+ * bundler happens to emit second (here, fittings.css, so every key rendered
+ * at the fitting's bare 48px and missed K1's 52px floor). Naming the classes
+ * gives this rule two selectors' worth of specificity, so it wins outright
+ * regardless of load order. The taunt key is named on its own because it sits
+ * one level deeper, inside taunt-picker's own wrapper div.
+ */
+.ld__keys > .key, .ld__keys > .slab, .ld__keys .taunt-picker__open {
   min-height: 54px;
 }
 

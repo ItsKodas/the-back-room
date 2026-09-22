@@ -108,6 +108,18 @@ describe("the controls", () => {
   it("puts the lit slab last, on the right", () => {
     expect(bodyOf(".ld__go")).toContain("margin-inline-start: auto");
   });
+
+  it("names the keys themselves, not just the row, so the fitting's own 48px floor can never win the tie", () => {
+    /*
+     * `.ld__keys > *` and the fittings' `.key`/`.slab` rules are both one
+     * selector deep — a tie a browser breaks by sheet order, and this sheet
+     * loses that tie to fittings.css. Naming the actual classes gives this
+     * rule two selectors' worth of specificity, which wins outright and stops
+     * K1 depending on which sheet a bundler happens to emit second.
+     */
+    const body = bodyOf(".ld__keys > .key, .ld__keys > .slab, .ld__keys .taunt-picker__open");
+    expect(body).toMatch(/min-height:\s*5[2-9]px|min-height:\s*[6-9]\dpx/);
+  });
 });
 
 describe("motion has an off switch", () => {
