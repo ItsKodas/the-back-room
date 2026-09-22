@@ -19,14 +19,6 @@ function covers(chip: number, reach: Reach): boolean {
   );
 }
 
-/** Why a held custom figure was let go — the same shape Slots' betSaid gives it. */
-function releasedSaid(chip: number, reach: Reach): string {
-  if (reach.purse !== null && chip > reach.purse) {
-    return `Your ${exact(chip)} chip was released: more than your ${exact(reach.purse)}.`;
-  }
-  return `Your ${exact(chip)} chip was released: the bank covers ${exact(reach.most)} on the best spot now.`;
-}
-
 /**
  * What you are betting with, and what you can do about what you have already
  * bet.
@@ -98,6 +90,18 @@ export function Controls({
     setDraft("");
     onChip(CHIPS.find((value) => covers(value, reach)) ?? MIN_CHIP);
   }, [holding, chip, reach, onChip]);
+
+  /*
+   * A release is about the window it happened in. Left standing it would come
+   * back up when the next one opened, explaining a chip the player let go of
+   * two spins ago — and `said` is already silent through a spin, so without
+   * this the line would go quiet and then speak again by itself.
+   */
+  useEffect(() => {
+    if (!betting) {
+      setReleased(null);
+    }
+  }, [betting]);
 
   const betOwn = () => {
     if (busy || typed === null || !covers(typed, reach)) {
@@ -231,9 +235,7 @@ export function Controls({
         for the same reason.
       */}
       <p className="rl__said" aria-live="polite">
-        {released === null
-          ? said({ reach, chip, typed, holding, refused, betting })
-          : releasedSaid(released, reach)}
+        {said({ reach, chip, typed, holding, refused, released, betting })}
       </p>
     </div>
   );

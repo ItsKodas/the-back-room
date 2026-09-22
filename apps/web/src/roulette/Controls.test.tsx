@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Controls, readChip } from "./Controls.js";
@@ -125,6 +126,62 @@ describe("the custom bet", () => {
     expect(screen.getByRole("button", { name: "Bet it" })).toBeDefined();
     expect(said()).toMatch(/released/i);
     expect(said()).toContain("1,250");
+  });
+
+  /*
+   * The release is one more message on the one line, so it takes its turn in
+   * the same order as the rest. It used to be rendered instead of that line
+   * rather than inside it, which put it above every rule said() documents as
+   * winning — and an empty bank losing to anything is the regression this
+   * table has already had once.
+   */
+  const releaseHeld = (rerender: (ui: ReactElement) => void) => {
+    fireEvent.change(screen.getByLabelText("Custom chip"), { target: { value: "1250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bet it" }));
+    rerender(<Harness reach={{ most: 1_000, purse: 50_000, bank: 2_000_000 }} />);
+    expect(said()).toMatch(/released/i);
+  };
+
+  it("lets an empty bank outrank the release, because it is the reason for it", () => {
+    const { rerender } = render(<Harness />);
+    fireEvent.change(screen.getByLabelText("Custom chip"), { target: { value: "1250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bet it" }));
+
+    // The bank empties under the held figure. That lets it go *and* is the
+    // whole reason it went, so the line owes the player the reason.
+    rerender(<Harness reach={{ most: 0, purse: 50_000, bank: 0 }} />);
+    expect(said()).toMatch(/bank is empty/i);
+  });
+
+  it("lets a fresh refusal outrank the release, so a dead press still says why", () => {
+    const { rerender } = render(<Harness />);
+    releaseHeld(rerender);
+
+    // Now a chip the felt refuses before it sends it. With the release sitting
+    // over the line the press says nothing new, which is the broken button the
+    // refusal exists to prevent.
+    rerender(
+      <Harness
+        reach={{ most: 1_000, purse: 50_000, bank: 2_000_000 }}
+        refused="The bank covers 400 on that at the moment."
+      />,
+    );
+    expect(said()).toContain("400");
+  });
+
+  it("does not leave the release up through the spin, or bring it back after", () => {
+    const { rerender } = render(<Harness />);
+    releaseHeld(rerender);
+
+    // No more bets: nothing here is actionable, and a line that stays up
+    // through a spin reads as a complaint about the spin.
+    rerender(<Harness reach={{ most: 1_000, purse: 50_000, bank: 2_000_000 }} betting={false} />);
+    expect(said()).toBe("");
+
+    // And the window reopening is a new window. The release was about the old
+    // one, and a player who has moved on is not told about it again.
+    rerender(<Harness reach={{ most: 1_000, purse: 50_000, bank: 2_000_000 }} />);
+    expect(said()).toBe("");
   });
 });
 

@@ -23,11 +23,28 @@ export interface Reach {
   bank: number;
 }
 
+/**
+ * Why a held custom figure was let go — the same shape Slots' betSaid gives it.
+ *
+ * Here rather than in Controls because it is one of the messages on this line,
+ * and the whole point of this file is that they are ordered in one place. It
+ * was rendered past `said` for a while, which put it above every rule below —
+ * including the empty bank, which is the one message this table has already
+ * had to win an argument about.
+ */
+function releasedSaid(chip: number, reach: Reach): string {
+  if (reach.purse !== null && chip > reach.purse) {
+    return `Your ${exact(chip)} chip was released: more than your ${exact(reach.purse)}.`;
+  }
+  return `Your ${exact(chip)} chip was released: the bank covers ${exact(reach.most)} on the best spot now.`;
+}
+
 export function said({
   reach,
   typed,
   holding,
   refused,
+  released = null,
   betting,
 }: {
   reach: Reach;
@@ -35,6 +52,8 @@ export function said({
   typed: number | null;
   holding: boolean;
   refused: string | null;
+  /** A custom figure the box let go of, if one is still worth explaining. */
+  released?: number | null;
   betting: boolean;
 }): string {
   // The wheel is turning. Nothing here is actionable, and a line that stays up
@@ -54,6 +73,20 @@ export function said({
 
   if (refused !== null) {
     return refused;
+  }
+
+  /*
+   * A figure the box let go of, under both of those.
+   *
+   * Under the empty bank because an empty bank is why it went, and under a
+   * refusal because a refusal is about the press just made and this is about
+   * one made a moment ago — a player whose new chip is being turned away needs
+   * to hear that, not to be told again about the old one. Above what follows
+   * because those are complaints about a figure still in the box, and the
+   * release emptied it.
+   */
+  if (released !== null) {
+    return releasedSaid(released, reach);
   }
 
   // A figure already on is not a figure to complain about, however it compares
