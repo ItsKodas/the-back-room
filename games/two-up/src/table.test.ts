@@ -294,3 +294,40 @@ describe("the view", () => {
     expect(table.view(null).faces).not.toBeNull();
   });
 });
+
+describe("putting last round's chips down again", () => {
+  /* One round played through to a result, so there is a last round at all. */
+  const played = () => {
+    const table = seated("casino");
+    table.place("s0", "heads", 100);
+    table.closeBetting();
+    table.boxerThrows(() => 0.1);
+    table.land();
+    table.read(() => 0.1);
+    table.beginRound();
+    return table;
+  };
+
+  it("tells a seat that has a round behind it", () => {
+    expect(played().view("s0").canRepeat).toBe(true);
+  });
+
+  it("tells a seat that has not put anything down yet", () => {
+    /*
+     * A button offered against nothing is a button that lies about what it
+     * will do — the same reason the wheel carries this flag rather than
+     * letting the felt guess from a cloth it cannot see the history of.
+     */
+    expect(seated("casino").view("s0").canRepeat).toBe(false);
+  });
+
+  it("tells a seat that sat down after the round it would repeat", () => {
+    const table = played();
+    table.join("s9", "P9", { userId: "u9", avatar: null, accentColor: null });
+    expect(table.view("s9").canRepeat).toBe(false);
+  });
+
+  it("tells a watcher nothing to repeat", () => {
+    expect(played().view(null).canRepeat).toBe(false);
+  });
+});
