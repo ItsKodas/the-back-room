@@ -403,3 +403,59 @@ describe("the winners a roulette table remembers", () => {
     expect(one.view("s1").winners).toEqual(one.winners);
   });
 });
+
+/*
+ * What the table says happened.
+ *
+ * A for-fun table throughout: it is the only kind that will seat a guest
+ * (`join(..., null)`), and these tests are about the counter and the
+ * wording, not about anybody's account.
+ */
+describe("what the table says happened", () => {
+  const funTable = () => {
+    const one = new Table("AAAAA", 6, { pick: () => 0 });
+    one.forFun = true;
+    return one;
+  };
+
+  it("counts every line, so the same words twice are two events", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    const first = one.view("a").eventSeq;
+    one.join("b", "Bo", null);
+    const second = one.view("a").eventSeq;
+    expect(second).toBeGreaterThan(first);
+    expect(one.view("a").lastEvent).toContain("Bo");
+  });
+
+  it("says who left", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    one.join("b", "Bo", null);
+    const before = one.view("a").eventSeq;
+    one.removeSeat("b");
+    expect(one.view("a").lastEvent).toContain("Bo");
+    expect(one.view("a").eventSeq).toBeGreaterThan(before);
+  });
+
+  it("never counts backwards across a spin", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    // The "Odd" even-money bet — id verified against spots.ts, not guessed.
+    one.place("a", "even:1-3-5-7-9-11-13-15-17-19-21-23-25-27-29-31-33-35", 100);
+    const seen: number[] = [one.view("a").eventSeq];
+    one.closeBetting();
+    seen.push(one.view("a").eventSeq);
+    one.land();
+    seen.push(one.view("a").eventSeq);
+    one.beginBetting();
+    seen.push(one.view("a").eventSeq);
+    expect(seen).toEqual([...seen].sort((x, y) => x - y));
+  });
+
+  it("says which seats a taunt could reach", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    expect(one.view("a").seats[0]?.signedIn).toBe(false);
+  });
+});
