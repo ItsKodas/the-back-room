@@ -154,7 +154,7 @@ function Shape({
             type="button"
             role="radio"
             aria-checked={stake === level}
-            className={`lamp lamp--chips${stake === level ? " lamp--fit" : ""}`}
+            className="lamp lamp--chips"
             onClick={() => onStake(level)}
           >
             {fmt(level)}
@@ -168,7 +168,7 @@ function Shape({
             type="button"
             role="radio"
             aria-checked={dice === level}
-            className={`lamp lamp--word${dice === level ? " lamp--fit" : ""}`}
+            className="lamp lamp--word"
             onClick={() => onDice(level)}
           >
             {level} dice
