@@ -31,3 +31,5 @@ export {
   anteFor,
   diceFor,
 } from "./listing.js";
+export type { Call, Resolution, RevealedHand } from "./round.js";
+export { Round } from "./round.js";
