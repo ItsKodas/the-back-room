@@ -1,3 +1,4 @@
+import { CRAPS } from "@backroom/game-craps";
 import { WHEEL, colourOf } from "@backroom/game-roulette";
 import { Resvg } from "@resvg/resvg-js";
 
@@ -383,6 +384,44 @@ function pegs(): string {
 }
 
 /**
+ * Two dice, turned against each other, in the table's own gold.
+ *
+ * Outline rather than the tile's filled ivory: this sits behind the type
+ * rather than beside it, and a pair of bright white squares this size would
+ * be a second headline instead of furniture. One colour draws the lot — the
+ * square and its pips both in the accent the table is lit by — the same
+ * colour `theme.css` paints the felt's own glow, read off `CRAPS.theme`
+ * rather than written out again here.
+ */
+function dice(cx: number, cy: number, size: number): string {
+  const accent = CRAPS.theme.accent;
+  const half = size / 2;
+  const corner = size * 0.16;
+  const dot = size * 0.07;
+  const spread = size * 0.24;
+
+  const one = (dx: number, dy: number, turn: number, spots: ReadonlyArray<[number, number]>): string =>
+    `<g transform="translate(${cx + dx} ${cy + dy}) rotate(${turn})">
+      <rect x="${-half}" y="${-half}" width="${size}" height="${size}" rx="${corner}" fill="none" stroke="${accent}" stroke-width="4"/>
+      ${spots.map(([sx, sy]) => `<circle cx="${sx}" cy="${sy}" r="${dot}" fill="${accent}"/>`).join("")}
+    </g>`;
+
+  return `<g>
+    ${one(-size * 0.42, -size * 0.26, -9, [
+      [-spread, -spread],
+      [spread, -spread],
+      [-spread, spread],
+      [spread, spread],
+    ])}
+    ${one(size * 0.4, size * 0.24, 13, [
+      [-spread, -spread],
+      [0, 0],
+      [spread, spread],
+    ])}
+  </g>`;
+}
+
+/**
  * The furniture each game keeps, by which game it is.
  *
  * A record rather than a run of ifs, so the set can be counted. A game that is
@@ -427,6 +466,7 @@ export const MOTIFS: Record<string, () => string> = {
   slots: cabinet,
   tips: jar,
   plinko: pegs,
+  craps: () => dice(1028, 318, 120),
 };
 
 /**
