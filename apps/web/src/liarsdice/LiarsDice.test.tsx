@@ -340,6 +340,18 @@ describe("the bot key", () => {
     expect(screen.queryByRole("button", { name: /bot/i })).not.toBeInTheDocument();
   });
 
+  it("is still offered with exactly one seat left", () => {
+    // The boundary a strict-than-necessary check (seats.length + 1 < maxSeats)
+    // would pass every other test here while quietly refusing to fill the
+    // last seat — one free seat has to be room enough on its own.
+    show(
+      socket(
+        view([seat({ id: "s0" }), seat({ id: "s1" })], { forFun: true, hostId: "s0", maxSeats: 3 }),
+      ),
+    );
+    expect(screen.getByRole("button", { name: /bot/i })).toBeInTheDocument();
+  });
+
   it("seats a bot at normal skill on the press", () => {
     const addBot = vi.fn();
     show(

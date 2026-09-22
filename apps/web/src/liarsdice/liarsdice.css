@@ -334,15 +334,15 @@
   backdrop-filter: blur(2px);
   animation: ld-rise 220ms ease-out;
   /*
-   * Ten hands have to fit the same box, so the reveal's own dice are small —
-   * but `.ld__shows` already scrolls (see below), so nothing forces them
-   * below a size a face is still legible at. Measured live at 375x560 with
-   * ten seats dealt in: the old 16px floor left a pip at 0.17 * 16 ~= 2.7px,
-   * six of which in one 16px face is not a face anybody could read. 24px
-   * puts a pip at ~4.1px — still small, but the smallest that reads as a
-   * dot rather than a smear at this table's proportions.
+   * `.ld__shows` already scrolls (see below), so nothing forces these dice
+   * below a size a face is still legible at — ten hands scroll either way,
+   * so there is no trade between "fits without scrolling" and "readable".
+   * Measured live at 375x560 with ten seats dealt in: 16px put a pip at
+   * ~2.7px (unreadable), 24px at ~4.1px (readable on inspection, not at a
+   * glance). 28px puts a pip at ~4.8px, which reads at a glance; the 36px
+   * ceiling keeps a two-handed reveal from turning into a wall of dice.
    */
-  --ld-die: clamp(24px, min(6cqi, 5cqh), 30px);
+  --ld-die: clamp(28px, min(7cqi, 6cqh), 36px);
 }
 
 .ld__tally {
