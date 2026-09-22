@@ -138,13 +138,21 @@ export function Actions({
     return (
       <div className="pk__controls">
         <div className="pk__acts">
-          {/* The only thing to press, so it is the row's one lit slab. */}
+          {/*
+           * The only thing to press, so it is the row's one lit slab — and
+           * F4 applies to it the same as it does to Check/Call: busy on the
+           * press, never disabled, so a second tap while the table has not
+           * yet answered is a no-op rather than a button that looks dead.
+           */}
           <button
             type="button"
-            className="slab"
-            disabled={table.busy}
+            className={`slab${table.busy ? " is-busy" : ""}`}
             aria-label={`Sit down with ${compact(state.entry)}`}
-            onClick={() => table.act({ type: "buyIn" })}
+            onClick={() => {
+              if (!table.busy) {
+                table.act({ type: "buyIn" });
+              }
+            }}
           >
             <span className="pk__act-name">Sit down with</span>
             <span className="pk__act-figure">{compact(state.entry)}</span>
@@ -171,12 +179,15 @@ export function Actions({
     return (
       <div className="pk__controls">
         <div className="pk__acts">
-          {/* The only thing to press, so it is the row's one lit slab. */}
+          {/* The only thing to press, so it is the row's one lit slab — busy, not disabled (F4). */}
           <button
             type="button"
-            className="slab"
-            disabled={table.busy}
-            onClick={() => table.act({ type: "show" })}
+            className={`slab${table.busy ? " is-busy" : ""}`}
+            onClick={() => {
+              if (!table.busy) {
+                table.act({ type: "show" });
+              }
+            }}
           >
             Show cards
           </button>
@@ -205,13 +216,16 @@ export function Actions({
             */}
           {state.canTakeOff ? (
             <div className="pk__acts">
-              {/* The only thing to press, so it is the row's one lit slab. */}
+              {/* The only thing to press, so it is the row's one lit slab — busy, not disabled (F4). */}
               <button
                 type="button"
-                className="slab"
-                disabled={table.busy}
+                className={`slab${table.busy ? " is-busy" : ""}`}
                 aria-label={`Take ${fmt(me.stack)} off the table`}
-                onClick={() => table.act({ type: "cashOut" })}
+                onClick={() => {
+                  if (!table.busy) {
+                    table.act({ type: "cashOut" });
+                  }
+                }}
               >
                 <span className="pk__act-name">Cash out</span>
                 <span className="pk__act-figure">{fmt(me.stack)}</span>

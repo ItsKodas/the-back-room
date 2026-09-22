@@ -76,6 +76,63 @@ describe("the fittings", () => {
     expect(document.querySelectorAll(".lamp").length).toBeGreaterThan(0);
     expect(document.querySelectorAll(".pk__prebtn")).toHaveLength(0);
   });
+
+  /*
+   * F4 binds every main action in this file, not only the on-turn Check/Call
+   * — buying in, showing cards and cashing out are each their row's sole
+   * slab too, so a press on any of them has to stay pressable rather than
+   * going dead while the table has not yet answered.
+   */
+  it("goes busy on the press rather than dead, buying in", () => {
+    const table = stub();
+    table.busy = true;
+    const mine = seat({ id: "s1", name: "Ada", stack: 0 });
+    render(
+      <Actions
+        table={table}
+        state={view({ street: "waiting", seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+      />,
+    );
+    const go = screen.getByRole("button", { name: /sit down/i });
+    expect(go).toHaveClass("is-busy");
+    expect(go).not.toBeDisabled();
+  });
+
+  it("goes busy on the press rather than dead, showing cards", () => {
+    const table = stub();
+    table.busy = true;
+    const mine = seat({ id: "s1", name: "Ada" });
+    render(
+      <Actions
+        table={table}
+        state={view({ canShow: true, seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+      />,
+    );
+    const show = screen.getByRole("button", { name: /show cards/i });
+    expect(show).toHaveClass("is-busy");
+    expect(show).not.toBeDisabled();
+  });
+
+  it("goes busy on the press rather than dead, cashing out", () => {
+    const table = stub();
+    table.busy = true;
+    const mine = seat({ id: "s1", name: "Ada" });
+    render(
+      <Actions
+        table={table}
+        state={view({ street: "waiting", canTakeOff: true, seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+      />,
+    );
+    const cashOut = screen.getByRole("button", { name: /off the table/i });
+    expect(cashOut).toHaveClass("is-busy");
+    expect(cashOut).not.toBeDisabled();
+  });
 });
 
 describe("what you are offered", () => {

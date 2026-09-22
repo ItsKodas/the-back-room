@@ -1162,6 +1162,10 @@
     0 0 0 var(--gr-color-neon-deep),
     0 2px 6px rgb(0 0 0 / 0.45),
     var(--gr-bezel);
+  /* The fitting's own held-down look pairs this flattened shadow with a
+     matching drop — :active and :disabled both carry it, and busy has to
+     copy it explicitly since it is neither. */
+  transform: translateY(var(--gr-press));
 }
 
 .pk__acts .slab.is-busy::before {

@@ -126,6 +126,14 @@ export function OnTurn({
         </div>
       ) : null}
 
+      {/*
+       * Fold, then Check/Call, then Raise — the order a poker player reads
+       * the row in, not K1's "lit action on the right". Moving the raise
+       * ahead of the call to satisfy that literally would put the button
+       * that can move a whole stack where a thumb expects "call" to be.
+       * K1's actual intent — main actions under the thumb, at least 52px —
+       * still holds; only the left-to-right position of the lit slab does not.
+       */}
       <div className="pk__acts">
         {/* Never the lit one: raising is a second decision, not the one this row is for. */}
         <button type="button" className="key" disabled={busy} onClick={() => onAct("fold", 0, { type: "fold" })}>
