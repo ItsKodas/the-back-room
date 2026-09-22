@@ -60,6 +60,16 @@ const stub = () => {
   };
 };
 
+/**
+ * The one line under the keys.
+ *
+ * Queried by class rather than by role: `.rl__said` carries aria-live, not
+ * role="status" — Standing already has the page's one status region, and a
+ * second would make the one that actually announces something impossible to
+ * ask for by role alone.
+ */
+const said = () => document.querySelector(".rl__said")?.textContent ?? null;
+
 describe("the roulette felt", () => {
   it("takes a chip when the window is open", () => {
     const { table, act } = stub();
@@ -107,14 +117,14 @@ describe("the roulette felt", () => {
     render(<Felt table={table} state={view({ bank: 0 })} seatId="s1" />);
     fireEvent.click(screen.getByRole("button", { name: /^17, pays 35 to 1/ }));
     expect(act).not.toHaveBeenCalled();
-    expect(screen.getByRole("status").textContent).toMatch(/bank/i);
+    expect(said()).toMatch(/bank/i);
   });
 
   it("says the bank is empty before anybody presses anything", () => {
     // A table that cannot take a bet should say so while you are still
     // deciding, not once you have tried and been ignored.
     render(<Felt table={stub().table} state={view({ bank: 0 })} seatId="s1" />);
-    expect(screen.getByRole("status").textContent).toMatch(/nothing to play for yet/i);
+    expect(said()).toMatch(/nothing to play for yet/i);
   });
 
   it("names the cap when the bank can cover something but not this", () => {
@@ -125,7 +135,7 @@ describe("the roulette felt", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Bet with 500" }));
     fireEvent.click(screen.getByRole("button", { name: /^17, pays 35 to 1/ }));
     expect(act).not.toHaveBeenCalled();
-    expect(screen.getByRole("status").textContent).toContain("100");
+    expect(said()).toContain("100");
   });
 
   it("takes the chip when the bank can cover it", () => {

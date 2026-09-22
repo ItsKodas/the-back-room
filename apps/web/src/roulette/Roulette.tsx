@@ -3,8 +3,8 @@ import { CHIPS, headroom, SPIN_MS, spotAt, toBets, WINDOWS } from "@backroom/gam
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Chip } from "../chips/Chip.js";
 import { Avatar } from "../game/Avatar.js";
+import { play } from "../game/audio.js";
 import { Chat } from "../game/Chat.js";
 import type { Account } from "../game/useAccount.js";
 import { useAccount } from "../game/useAccount.js";
@@ -15,7 +15,9 @@ import { TableSetup } from "../table/TableSetup.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Cloth } from "./Cloth.js";
+import { Controls } from "./Controls.js";
 import { History } from "./History.js";
+import { ANCHORS } from "./layout.js";
 import { Wheel } from "./Wheel.js";
 import { Winners } from "./Winners.js";
 import "@backroom/game-roulette/theme.css";
@@ -145,6 +147,21 @@ export function Felt({
   const mine = state.you;
   const canBet = state.phase === "betting" && !state.lastCall && mine !== null;
 
+  /*
+   * The best the bank can do anywhere on the cloth, which is what the custom
+   * box's range is quoted against. Shown, never enforced — the server checks
+   * the actual spot again on the way in, and that is the only number that can
+   * refuse anything.
+   */
+  const reach = useMemo(
+    () => ({
+      most: ANCHORS.reduce((best, one) => Math.max(best, room(one.spotId)), 0),
+      purse: mine?.purse ?? null,
+      bank: state.bank,
+    }),
+    [room, mine, state.bank],
+  );
+
   /* Which pockets your own chips cover, so the wheel can mark them. */
   const covered = useMemo(() => coveredBy(state, seatId), [state, seatId]);
 
@@ -172,12 +189,13 @@ export function Felt({
       return;
     }
     setRefused(null);
+    play("bet");
     table.act({ type: "place", spotId, chips: chip });
   };
 
   return (
     <section className="rl" data-game="roulette">
-      <Standing state={state} refused={refused} />
+      <Standing state={state} />
 
       <div className="rl__table">
         <div className="rl__wheel-holds">
@@ -212,7 +230,20 @@ export function Felt({
       {mine === null ? (
         <p className="rl__watching">{state.watching} watching. Take a seat to play.</p>
       ) : (
-        <Controls table={table} state={state} chip={chip} onChip={setChip} />
+        <Controls
+          chip={chip}
+          onChip={setChip}
+          reach={reach}
+          refused={refused}
+          open={canBet}
+          betting={state.phase === "betting"}
+          down={mine?.staked ?? 0}
+          canRepeat={state.canRepeat}
+          busy={table.busy}
+          onRepeat={() => table.act({ type: "repeat" })}
+          onUndo={() => table.act({ type: "undo" })}
+          onClear={() => table.act({ type: "clear" })}
+        />
       )}
 
       <Seats state={state} seatId={seatId} />
@@ -240,32 +271,8 @@ function coveredBy(state: TableView, seatId: string | null): Set<number> {
  * The one line everybody at the table reads. A betting window with no clock on
  * it is a window that shuts while somebody is still deciding.
  */
-function Standing({ state, refused }: { state: TableView; refused?: string | null }) {
+function Standing({ state }: { state: TableView }) {
   const left = useCountdown(state.deadline);
-
-  /*
-   * A bank with nothing in it is said before anybody presses anything.
-   *
-   * This table pays from chips other players staked, and a new one has none
-   * until an admin floats it — so "nothing can be bet here" is a fact about
-   * the table, not a refusal of your press, and it belongs on screen while
-   * you are still deciding rather than after you have tried.
-   */
-  if (state.phase === "betting" && state.bank <= 0) {
-    return (
-      <p className="rl__standing rl__standing--last" role="status">
-        The bank is empty — nothing to play for yet.
-      </p>
-    );
-  }
-
-  if (refused != null && state.phase === "betting") {
-    return (
-      <p className="rl__standing rl__standing--last" role="status">
-        {refused}
-      </p>
-    );
-  }
 
   if (state.phase === "spinning") {
     return <p className="rl__standing rl__standing--shut">No more bets.</p>;
@@ -282,101 +289,6 @@ function Standing({ state, refused }: { state: TableView; refused?: string | nul
       {state.lastCall ? "Last call" : "Place your bets"}
       {left === null ? "" : ` — ${left}s`}
     </p>
-  );
-}
-
-/** The tray, and the two ways to take a chip back. */
-function Controls({
-  table,
-  state,
-  chip,
-  onChip,
-}: {
-  table: Table;
-  state: TableView;
-  chip: number;
-  onChip: (value: number) => void;
-}) {
-  const open = state.phase === "betting" && !state.lastCall;
-  const down = state.you?.staked ?? 0;
-  const purse = state.you?.purse ?? null;
-
-  return (
-    <div className="rl__controls">
-      <div className="rl__tray" role="radiogroup" aria-label="What to bet with">
-        {CHIPS.map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={chip === value}
-            aria-label={`Bet with ${fmt(value)}`}
-            className={`rl__chip${chip === value ? " rl__chip--picked" : ""}`}
-            disabled={purse !== null && value > purse}
-            onClick={() => onChip(value)}
-          >
-            <Chip amount={value} />
-          </button>
-        ))}
-      </div>
-
-      {/*
-        Three buttons, all the same weight.
-
-        One of them spends money — "same again" puts a whole round back down —
-        and lighting it up the way a primary action is usually lit would be the
-        felt leaning on the player. The same reason poker's raise stopped being
-        the bright one.
-      */}
-      <div className="rl__acts">
-        <button
-          type="button"
-          className="rl__act"
-          /* Written out, not left to how the two spans happen to sit: a name
-             and a note with nothing between them read as one run-on word. */
-          aria-label="Put last round's chips down again"
-          disabled={!open || !state.canRepeat || table.busy}
-          onClick={() => table.act({ type: "repeat" })}
-        >
-          <span className="rl__act-name">Same again</span>
-          <span className="rl__act-note">Last round's chips</span>
-        </button>
-        <button
-          type="button"
-          className="rl__act"
-          aria-label="Undo the last chip you put down"
-          disabled={!open || down === 0 || table.busy}
-          onClick={() => table.act({ type: "undo" })}
-        >
-          <span className="rl__act-name">Undo</span>
-          <span className="rl__act-note">The last chip down</span>
-        </button>
-        <button
-          type="button"
-          className="rl__act"
-          aria-label="Take back everything you have on the cloth"
-          disabled={!open || down === 0 || table.busy}
-          onClick={() => table.act({ type: "clear" })}
-        >
-          <span className="rl__act-name">Clear</span>
-          <span className="rl__act-note">Everything you have on</span>
-        </button>
-      </div>
-
-      <p className="rl__note">
-        {down > 0 ? (
-          <>
-            <strong className="rl__note-figure">{fmt(down)}</strong> on the cloth.{" "}
-          </>
-        ) : null}
-        {purse === null ? null : (
-          <>
-            <strong className="rl__note-figure">{fmt(purse)}</strong> in play money left.{" "}
-          </>
-        )}
-        Right-click a chip, or press and hold, to take it back off.
-      </p>
-    </div>
   );
 }
 

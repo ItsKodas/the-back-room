@@ -864,22 +864,20 @@
   align-items: center;
 }
 
-.rl__chip {
-  background: none;
-  border: none;
-  /* Scales with the table rather than the page: a tray on a wide screen is a
-     row of targets, and there is no reason for them to stay small. */
+/*
+ * The chip keys sit on `.key` from the fittings for everything a pressable
+ * cap already has — background, border, radius, padding, font, hover and
+ * disabled. What is theirs alone is the round shape a chip needs and the
+ * dimming that says which one is not affordable right now.
+ */
+.key.rl__chip {
   width: clamp(38px, 5cqw, 62px);
+  min-height: 0;
   padding: 2px;
   border-radius: 50%;
-  cursor: pointer;
   line-height: 0;
   opacity: 0.55;
   transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.rl__chip:hover:not(:disabled) {
-  opacity: 0.85;
 }
 
 .rl__chip svg {
@@ -888,15 +886,14 @@
   display: block;
 }
 
-.rl__chip--picked {
+.key.rl__chip.rl__chip--picked {
   opacity: 1;
   transform: translateY(-3px);
   box-shadow: 0 0 0 2px var(--rl-brass-lit);
 }
 
-.rl__chip:disabled {
+.key.rl__chip:disabled {
   opacity: 0.2;
-  cursor: default;
 }
 
 /* The mockup's own control, for setting a spin going with nothing behind it. */
@@ -974,7 +971,8 @@
     align-items: center;
     gap: var(--gr-space-5);
   }
-  .rl__note {
+  .rl__note,
+  .rl__said {
     grid-column: 1 / -1;
   }
 }
@@ -987,38 +985,23 @@
 }
 
 /*
- * All three the same weight, deliberately.
+ * All three the same weight, deliberately, and the reason `.key` is left to
+ * light none of them: one of them spends money — "same again" puts a whole
+ * round back down — and lighting it up the way a primary action is usually
+ * lit would be the felt leaning on the player. Poker's raise stopped being
+ * the bright one for exactly this reason.
  *
- * One of them spends money — "same again" puts a whole round back down — and
- * lighting it the way a primary action is usually lit would be the felt
- * leaning on the player. Poker's raise stopped being the bright one for
- * exactly this reason.
+ * `.key` supplies the cap itself. What is added here is only the two-line
+ * stack a verb and its note need, and the extra room a button pressed
+ * against a closing window deserves.
  */
-.rl__act {
+.key.rl__act {
   /* Big enough for a thumb: these are pressed against a closing window. */
   min-height: 52px;
   min-width: 116px;
   padding: var(--gr-space-2) var(--gr-space-3);
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 2px;
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-
-.rl__act:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.11);
-}
-
-.rl__act:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 
 .rl__act-name {
@@ -1046,6 +1029,62 @@
   color: var(--gr-color-chip);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+/*
+ * A figure of your own, beside the keys it is an alternative to. The
+ * denominations were only ever a convenience — the bank takes any integer
+ * above the smallest chip — and this is the box that says so.
+ */
+.rl__own {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.rl__own-label {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.rl__own[data-held] .rl__own-label {
+  color: var(--gr-color-neon-hi);
+}
+
+/*
+ * --gr-color-well and --gr-color-edge, named in the brief, do not exist in
+ * packages/ui/src/tokens.css. This is the same recessed box slots.css builds
+ * its own custom-bet field from (.own), reused here rather than inventing a
+ * token pair for one input.
+ */
+.rl__own input {
+  width: 9ch;
+  min-height: 44px;
+  padding: 0 var(--gr-space-2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-color-chip);
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--gr-radius-sm);
+}
+
+.rl__own input:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+/* One line, always present, so nothing below it moves when it fills. */
+.rl__said {
+  min-height: 1.4em;
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-sm);
+  color: var(--gr-color-ink-dim);
 }
 
 /* ---------------------------------------------------------------- the seats */

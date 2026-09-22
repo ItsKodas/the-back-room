@@ -1,0 +1,123 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Controls, readChip } from "./Controls.js";
+
+afterEach(cleanup);
+
+const base = {
+  reach: { most: 10_000, purse: 50_000, bank: 2_000_000 },
+  refused: null,
+  open: true,
+  betting: true,
+  down: 0,
+  canRepeat: true,
+  busy: false,
+  onRepeat: () => {},
+  onUndo: () => {},
+  onClear: () => {},
+};
+
+function Harness(over: Partial<Parameters<typeof Controls>[0]> = {}) {
+  const [chip, setChip] = useState(100);
+  return <Controls {...base} chip={chip} onChip={setChip} {...over} />;
+}
+
+/** The one line under the keys — `.rl__said`, not a second `role="status"`. */
+function said(): string | null {
+  return document.querySelector(".rl__said")?.textContent ?? null;
+}
+
+describe("readChip", () => {
+  it("takes a figure with commas and rejects everything else", () => {
+    expect(readChip("1,250")).toBe(1250);
+    expect(readChip("")).toBe(null);
+    expect(readChip("abc")).toBe(null);
+  });
+});
+
+describe("the chip keys", () => {
+  it("is one named group with exactly one chip held", () => {
+    render(<Harness />);
+    const held = screen
+      .getAllByRole("radio")
+      .filter((b) => b.getAttribute("aria-checked") === "true");
+    expect(held).toHaveLength(1);
+  });
+
+  it("moves the hold to the chip pressed", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("radio", { name: "Bet with 500" }));
+    expect(screen.getByRole("radio", { name: "Bet with 500" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("darkens a chip the purse cannot cover, but never the one held", () => {
+    render(<Harness reach={{ most: 10_000, purse: 300, bank: 2_000_000 }} />);
+    expect(screen.getByRole("radio", { name: "Bet with 5,000" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Bet with 100" })).not.toBeDisabled();
+  });
+});
+
+describe("the custom bet", () => {
+  it("does not bet on a keystroke — typing 1000 goes through 1 and 10", () => {
+    const onChip = vi.fn();
+    render(<Harness onChip={onChip} />);
+    fireEvent.change(screen.getByLabelText("Custom chip"), { target: { value: "1000" } });
+    expect(onChip).not.toHaveBeenCalled();
+  });
+
+  it("puts the typed figure on when it is committed", () => {
+    render(<Harness />);
+    const box = screen.getByLabelText("Custom chip");
+    fireEvent.change(box, { target: { value: "1250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bet it" }));
+    expect(screen.getByRole("button", { name: "Held" })).toBeDefined();
+  });
+
+  it("commits on Enter too", () => {
+    render(<Harness />);
+    const box = screen.getByLabelText("Custom chip");
+    fireEvent.change(box, { target: { value: "1250" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(screen.getByRole("button", { name: "Held" })).toBeDefined();
+  });
+
+  it("will not commit a figure under the smallest chip", () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText("Custom chip"), { target: { value: "10" } });
+    expect(screen.getByRole("button", { name: "Bet it" })).toBeDisabled();
+    expect(said()).toContain("start at 25");
+  });
+
+  it("formats on blur", () => {
+    render(<Harness />);
+    const box = screen.getByLabelText("Custom chip") as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "1250" } });
+    fireEvent.blur(box);
+    expect(box.value).toBe("1,250");
+  });
+});
+
+describe("the three acts", () => {
+  it("are three keys of equal weight, and none of them is a slab", () => {
+    const { container } = render(<Harness />);
+    expect(container.querySelector(".slab")).toBe(null);
+    for (const name of ["Put last round's chips down again", "Undo the last chip you put down", "Take back everything you have on the cloth"]) {
+      expect(screen.getByRole("button", { name }).classList.contains("key")).toBe(true);
+    }
+  });
+
+  it("offers nothing to undo or clear with an empty cloth", () => {
+    render(<Harness down={0} />);
+    expect(screen.getByRole("button", { name: "Undo the last chip you put down" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Take back everything you have on the cloth" })).toBeDisabled();
+  });
+
+  it("declares its shortcuts on the buttons themselves", () => {
+    render(<Harness down={500} />);
+    expect(screen.getByRole("button", { name: "Put last round's chips down again" }).getAttribute("aria-keyshortcuts")).toBe("R");
+    expect(screen.getByRole("button", { name: "Undo the last chip you put down" }).getAttribute("aria-keyshortcuts")).toBe("U");
+    expect(screen.getByRole("button", { name: "Take back everything you have on the cloth" }).getAttribute("aria-keyshortcuts")).toBe("C");
+  });
+});
