@@ -192,10 +192,12 @@ export class Game {
    * rounds and nothing about the next deal follows from the last one.
    *
    * `order` is always table seat order restricted to who is left — never
-   * rotated to start at the opener — because `Round.toAct` is a plain mutable
-   * field and setting it directly is enough to make the turn start wherever it
-   * needs to; the round's own `next()` walks `order` as a circular list, so it
-   * rotates correctly whichever seat it starts from.
+   * rotated to start at the opener — so who goes round in what sequence stays
+   * separate from who starts, and it is what lets a `TableView.live` built
+   * from it match the seat rail. The opener is passed to `Round` itself
+   * rather than set on `toAct` afterwards, so a round is never even briefly
+   * open on the wrong seat, and `Round` is the one place that can refuse an
+   * opener who is not actually in it.
    */
   private deal(): Round {
     const live = this.live;
@@ -208,9 +210,7 @@ export class Game {
       hands.set(seatId, hand);
       this.survived.set(seatId, this.survivedBy(seatId) + 1);
     }
-    const round = new Round([...live], hands);
-    round.toAct = this.nextLive(this.opener, live);
-    return round;
+    return new Round([...live], hands, this.nextLive(this.opener, live));
   }
 
   /**

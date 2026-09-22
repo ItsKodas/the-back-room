@@ -1,3 +1,4 @@
+import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import type { Face } from "./bid.js";
 import { Round } from "./round.js";
@@ -57,6 +58,26 @@ describe("a round", () => {
   it("refuses a call before anything has been said", () => {
     const one = round();
     expect(() => one.call("a", "liar")).toThrow("nothing to call");
+  });
+
+  it("opens on a given opener rather than always the first seat", () => {
+    const one = new Round(
+      ["a", "b", "c"],
+      hands({ a: [5, 5, 2], b: [1, 6, 6], c: [3, 4, 5] }),
+      "b",
+    );
+    expect(one.toAct).toBe("b");
+  });
+
+  it("refuses an opener who is not in the order", () => {
+    expect(
+      () =>
+        new Round(
+          ["a", "b", "c"],
+          hands({ a: [5, 5, 2], b: [1, 6, 6], c: [3, 4, 5] }),
+          "nobody",
+        ),
+    ).toThrow(TableError);
   });
 });
 

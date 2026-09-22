@@ -51,13 +51,20 @@ export class Round {
 
   private readonly hands: ReadonlyMap<string, readonly Face[]>;
 
-  constructor(order: readonly string[], hands: ReadonlyMap<string, readonly Face[]>) {
+  constructor(
+    order: readonly string[],
+    hands: ReadonlyMap<string, readonly Face[]>,
+    opener?: string,
+  ) {
     if (order.length < 2) {
       throw new TableError("A round needs two people.");
     }
+    if (opener !== undefined && !order.includes(opener)) {
+      throw new TableError("The opener is not in this round.");
+    }
     this.order = [...order];
     this.hands = hands;
-    this.toAct = order[0] as string;
+    this.toAct = opener ?? (order[0] as string);
     let total = 0;
     for (const seatId of order) {
       total += hands.get(seatId)?.length ?? 0;
