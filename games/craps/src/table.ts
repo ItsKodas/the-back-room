@@ -216,6 +216,21 @@ export class Table {
   readonly leaving = new Set<string>();
 
   /**
+   * Odds that outlived the bet they were behind, waiting to go home.
+   *
+   * The bank may turn an `odds:*` bet off on the very roll that decides the
+   * point, and an off bet neither wins nor loses — so `after` is never asked
+   * about it and the line it was backing ends without it. Chips left there
+   * would be picked up by the next point: a bet nobody made, at a stake
+   * {@link check} would cap at nothing, outside the three-four-five the odds
+   * exist under. So {@link land} takes them off the cloth the moment their
+   * backing goes, and the adapter hands them back on its next broadcast the
+   * same way it hands back a take-back — the escrow and the bank are its
+   * business and not this class's.
+   */
+  returning: Placed[] = [];
+
+  /**
    * What the store's bank holds, for a table playing for chips.
    *
    * Kept by the adapter, because it is a question for the store and building a
@@ -653,7 +668,16 @@ export class Table {
     if (pile === undefined) {
       return 0;
     }
-    const off = Math.min(pile.chips, Math.max(0, Math.floor(chips)));
+    /*
+     * Down to a chip the tray could have built, and not merely to a whole
+     * number. `check` lets nothing on to a spot that is not a multiple of its
+     * step, so a take-back that left a remainder would leave a pile no player
+     * could have placed — and craps prices in sixths, so fifteen on the six
+     * owes 17.5 and the fraction goes on into the store. Every pile is a
+     * multiple of its own step, so taking the lot still takes the lot.
+     */
+    const step = spot?.id === "horn" ? HORN_STEP : MIN_CHIP;
+    const off = Math.min(pile.chips, Math.floor(Math.max(0, chips) / step) * step);
     if (off === 0) {
       return 0;
     }
@@ -818,6 +842,22 @@ export class Table {
     this.placed = result.cloth;
     const what = decided(hand, dice);
     this.point = nextPoint(hand, dice);
+
+    /*
+     * Odds with nothing left behind them, off the cloth before the next hand
+     * can adopt them — see {@link returning}. Asked after the point has moved,
+     * because "is there still a line bet behind this" is a question about the
+     * hand that starts now and not the one that just ended.
+     */
+    const stranded = this.placed.filter((one) => {
+      const spot = spotAt(one.spotId);
+      return spot !== null && spot.kind === "odds" && this.behind(one.seatId, spot) === null;
+    });
+    if (stranded.length > 0) {
+      this.placed = this.placed.filter((one) => !stranded.includes(one));
+      this.returning = [...this.returning, ...stranded];
+    }
+
     this.rolls += 1;
     this.history = [...this.history, { dice, point: hand.point, what }].slice(-HISTORY);
 
@@ -872,7 +912,8 @@ export class Table {
      * to forget who somebody was; having no chips left on the felt is.
      */
     const here = new Set(this.seats.map((seat) => seat.id));
-    const riding = new Set(this.placed.map((one) => one.seatId));
+    // Chips waiting to be handed back are still chips of theirs the table owes.
+    const riding = new Set([...this.placed, ...this.returning].map((one) => one.seatId));
     for (const seatId of [...this.accounts.keys()]) {
       if (!here.has(seatId) && !riding.has(seatId)) this.accounts.delete(seatId);
     }

@@ -189,6 +189,39 @@ describe("the only number a browser gets to choose is the one it staked", () => 
     expect(bank.held).toBe(1_000_000);
     expect(balances["u1"]).toBe(10_000);
   });
+
+  it("leaves a pile the tray could have built when a take-back is part of a chip", async () => {
+    /*
+     * The same class as the NaN above, and the reason craps has a tray of
+     * thirties at all. `check` demands multiples of MIN_CHIP on the way in;
+     * `take` only demanded a whole number, so forty-five off a sixty left
+     * fifteen on the six — and fifteen at seven to six is 17.5, a fraction of
+     * a chip that goes on to a raw `$inc` in the store. No felt sends
+     * forty-five, which is exactly why nothing caught it: the adapter is the
+     * validation point, and a number from a browser is a number a player
+     * chose.
+     */
+    const bank = bankOf(1_000_000);
+    const dice = aimed(3, 3);
+    const adapter = crapsAdapter({ bank, pick: dice.pick });
+    const table = adapter.create("AAAAA") as Table;
+    const seat = table.join("s1", "Ada", who("u1"));
+    const balances = { u1: 10_000 };
+    const d = deps(balances);
+
+    await adapter.act(table, seat.id, { type: "place", spotId: "pass", chips: MIN_CHIP }, d);
+    await throwOnce(adapter, table, d);
+    expect(table.point).toBe(6);
+
+    await adapter.act(table, seat.id, { type: "place", spotId: "place:6", chips: MIN_CHIP * 2 }, d);
+    await adapter.act(table, seat.id, { type: "take", spotId: "place:6", chips: MIN_CHIP * 1.5 }, d);
+    expect(table.onSpot(seat.id, "place:6")).toBe(MIN_CHIP);
+
+    // The six again: the place bet pays seven to six and stays where it is.
+    await throwOnce(adapter, table, d);
+    expect(Number.isInteger(balances["u1"])).toBe(true);
+    expect(Number.isInteger(bank.held)).toBe(true);
+  });
 });
 
 describe("every stake is in the bank before the dice decide anything", () => {
@@ -329,6 +362,49 @@ describe("the off rule is decided inside the bank's queue", () => {
     // And never once had to log a refusal, which is what "impossible" means.
     expect(refused).not.toHaveBeenCalled();
     refused.mockRestore();
+  });
+
+  it("hands back odds the bank turned off when the bet they backed ends", async () => {
+    /*
+     * The one thing an off bet cannot do is end, because `after` is never
+     * asked about it — so odds turned off on the very roll that decides the
+     * point outlive the line bet they were behind. The line is paid and swept
+     * and the odds stay on the cloth with nothing behind them, where the next
+     * point picks them up: a bet nobody made, at a stake `check` would cap at
+     * nothing, outside the three-four-five the odds exist under. Off means
+     * the chips were never at risk, so they are the player's and they go home.
+     */
+    const bank = bankOf(210);
+    const dice = aimed(3, 3);
+    const adapter = crapsAdapter({ bank, pick: dice.pick });
+    const table = adapter.create("AAAAA") as Table;
+    const seat = table.join("s1", "Ada", who("u1"));
+    const balances = { u1: 10_000 };
+    const d = deps(balances);
+
+    await adapter.act(table, seat.id, { type: "place", spotId: "pass", chips: 30 }, d);
+    await throwOnce(adapter, table, d);
+    expect(table.point).toBe(6);
+    // Five times the line, which is everything the table and the bank allow.
+    await adapter.act(table, seat.id, { type: "place", spotId: "odds:pass", chips: 150 }, d);
+    // And then the bank is lighter than it was when that was accepted.
+    bank.drain(110);
+
+    table.seal();
+    await adapter.payOut?.(table, d);
+    expect(table.offByBank).toEqual(["odds:pass"]);
+    table.land();
+    await adapter.settle(table, d);
+
+    // The six is made. The line is paid and gone, and the odds have nothing
+    // left to be behind.
+    expect(table.point).toBeNull();
+    expect(table.placed).toEqual([]);
+
+    await adapter.payOut?.(table, d);
+    expect(balances["u1"]).toBe(10_000 - 30 - 150 + 60 + 150);
+    expect(bank.held).toBe(70);
+    expect(table.escrow.heldBy("u1")).toBe(0);
   });
 });
 
@@ -961,3 +1037,4 @@ describe("the guards nothing reaches on a good day", () => {
     expect(table.worksFor(seat.id)).toBe(false);
   });
 });
+

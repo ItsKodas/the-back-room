@@ -101,6 +101,10 @@ export function crapsAdapter(
   /** What a void has closed the escrow on and not yet paid back out of the bank. */
   const refunding = new WeakMap<Table, number>();
 
+  /** Chips the table has lifted off the cloth and not yet handed back. */
+  const returning = (table: Table): number =>
+    table.returning.reduce((sum, one) => sum + one.chips, 0);
+
   const backOf = (roll: ReadonlyMap<string, { back: number }>): number => {
     let back = 0;
     for (const one of roll.values()) {
@@ -134,7 +138,7 @@ export function crapsAdapter(
     if (table.paid !== null && table.paid !== waiting?.roll && !paidOut.has(table.paid)) {
       total += backOf(table.paid);
     }
-    return total + owed(toBets(table.placed), table.hand);
+    return total + owed(toBets(table.placed), table.hand) + returning(table);
   };
 
   /**
@@ -189,11 +193,16 @@ export function crapsAdapter(
    * chips are in there too, and they are not this table's to promise. Only
    * a fact inside `serially`, where nothing else can move the bank between
    * reading it and a chip landing.
+   *
+   * Nor odds the table has taken off the cloth and this hook has not handed
+   * back yet. They have left the cloth so `staked` no longer counts them, and
+   * they are still in the bank — a figure that read them as free would offer
+   * somebody chips already spoken for.
    */
   const base = async (table: Table): Promise<number> => {
     const held = await holds(table);
     const elsewhere = ledger !== null && banked(table) ? ledger.owedElsewhere(table) : 0;
-    return held - staked(toBets(table.placed)) - elsewhere;
+    return held - staked(toBets(table.placed)) - returning(table) - elsewhere;
   };
 
   /**
@@ -560,6 +569,28 @@ export function crapsAdapter(
      */
     async payOut(table, deps) {
       let released = false;
+      /*
+       * Odds the bank turned off on the roll that ended the bet behind them,
+       * home to whoever put them up. The table has already taken them off the
+       * cloth, because a bet nobody can make must not survive to the next
+       * seal; what is left is the movement itself, which is a take-back and
+       * goes the way a take-back goes — out of the escrow, out of the bank,
+       * into the account.
+       *
+       * No cover check, and that is the difference from a take-back. These
+       * chips were off, so they were never in what `working` promised: the
+       * bank was asked to carry the cloth without them, and nothing on it is
+       * leaning on them. First, so everything below reads a bank with them
+       * already out of it.
+       */
+      if (table.returning.length > 0) {
+        await serially(table, async () => {
+          for (const one of table.returning.splice(0)) {
+            const seat = { id: one.seatId, userId: table.accountOf(one.seatId) };
+            await handBack(table, seat, one.chips, deps);
+          }
+        });
+      }
       /*
        * The dice, released inside the bank's own queue.
        *
