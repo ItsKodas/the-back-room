@@ -1,0 +1,12 @@
+/**
+ * Craps: two dice, a point to make, and a rail of people shouting.
+ *
+ * The sixth game in the building to pay from a bank, and the first whose bets
+ * outlive the roll that failed to resolve them — which is the one thing here
+ * the wheel had no need of, and the reason this package has a `resolve.ts` at
+ * all.
+ */
+
+export type { Roll } from "./dice.js";
+export { FACES, isHard, OUTCOMES, roll, total } from "./dice.js";
+export { CRAPS } from "./listing.js";

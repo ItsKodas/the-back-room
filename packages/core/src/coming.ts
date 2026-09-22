@@ -16,16 +16,16 @@ import type { GameListing } from "./catalogue.js";
  * Most of them will have to earn the same things Slots and Blackjack did
  * before they can take a chip: a bank players fill, a cap derived from its own
  * worst outcome, and a cryptographic source for whatever it turns over.
- * Roulette and Baccarat and Craps are house games, so none of those can be
- * built without that argument being made again. Liar's Dice is not — the stake
- * goes into a pot and one of the players takes it, so the chips never leave
- * the table and there is nothing for a bank to do.
+ * Roulette and Baccarat are house games, so neither can be built without that
+ * argument being made again. Liar's Dice is not — the stake goes into a pot
+ * and one of the players takes it, so the chips never leave the table and
+ * there is nothing for a bank to do.
  *
- * Poker, Death Rolling and Two-up were on this list and have been built. Two-up
- * had to make the bank argument twice over — once for a casino school paying
- * from its own bank, and once for a traditional school that needs no bank
- * because the chips never leave the ring. Their listings live in their own
- * packages now, beside the rules, the way the others do.
+ * Poker, Death Rolling, Two-up and Craps were on this list and have been
+ * built. Two-up had to make the bank argument twice over — once for a casino
+ * school paying from its own bank, and once for a traditional school that
+ * needs no bank because the chips never leave the ring. Their listings live in
+ * their own packages now, beside the rules, the way the others do.
  */
 export const COMING: readonly GameListing[] = [
   {
@@ -59,16 +59,5 @@ export const COMING: readonly GameListing[] = [
     open: false,
     mark: { text: "BACCARAT", accentAt: 0 },
     theme: { wall: "#12161c", felt: "#1b2a3d", accent: "#3d7ab8", accentHi: "#86c2ff" },
-  },
-  {
-    id: "craps",
-    name: "Craps",
-    blurb: "Two dice, a point to make, and a rail of people shouting.",
-    shape: "table",
-    minSeats: 1,
-    maxSeats: 8,
-    open: false,
-    mark: { text: "CRAPS", accentAt: 0 },
-    theme: { wall: "#1a1610", felt: "#33280f", accent: "#c08a1e", accentHi: "#ffd166" },
   },
 ];
