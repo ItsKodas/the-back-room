@@ -77,22 +77,31 @@ describe("the order underneath it", () => {
         all.push(bid(count, face));
       }
     }
+    // Collect violations rather than call expect() 180k times.
+    const violations: string[] = [];
     for (const a of all) {
       // Irreflexive: nothing beats itself.
-      expect(beats(a, a)).toBe(false);
+      if (beats(a, a)) {
+        violations.push(`${says(a)}: beats itself`);
+      }
       for (const b of all) {
         if (a.count === b.count && a.face === b.face) {
           continue;
         }
         const ab = beats(a, b);
         const ba = beats(b, a);
-        // Total and antisymmetric: of any two different bids, exactly one wins.
-        // Two bids of equal key would break this, and an equal key is what a
-        // face-only tie-break would produce for ones against a plain face.
-        expect(ab || ba).toBe(true);
-        expect(ab && ba).toBe(false);
+        // Antisymmetric and total: for any two different bids, exactly one
+        // beats the other. This protects the ordering across the ones/plain
+        // boundary, where a face-only comparison would invert the pair.
+        if (!(ab || ba)) {
+          violations.push(`${says(a)} vs ${says(b)}: neither beats the other`);
+        }
+        if (ab && ba) {
+          violations.push(`${says(a)} vs ${says(b)}: both beat each other`);
+        }
       }
     }
+    expect(violations).toEqual([]);
   });
 
   it("is transitive across the ones boundary", () => {
