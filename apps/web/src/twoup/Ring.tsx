@@ -1,5 +1,6 @@
 import type { BetOn, TableView } from "@backroom/game-two-up";
 import { FIVE_ODDS_PAYS } from "@backroom/game-two-up";
+import { useEffect, useRef } from "react";
 import { ChipStack } from "../chips/ChipStack.js";
 import { exact } from "../game/money.js";
 
@@ -187,6 +188,93 @@ function Kip({
   );
 }
 
+/**
+ * What is on a spot: the weight of it, and the number.
+ *
+ * The stack is drawn `aria-hidden` because it carries the amount in its own
+ * accessible name, and the figure beside it is that same amount again — two
+ * ways of saying one thing to somebody looking at the felt, but simply twice
+ * to somebody listening to it. The figure is the copy that stays, because it
+ * is the one that reads at eighteen pixels.
+ */
+function Pile({ chips }: { chips: number }) {
+  return (
+    <span className="tu__spot-stack">
+      <span aria-hidden="true">
+        <ChipStack amount={chips} width={18} most={4} tallest={3} />
+      </span>
+      <span className="tu__spot-mine">{exact(chips)}</span>
+    </span>
+  );
+}
+
+/** How long a side has to be held before a chip comes back off it. */
+export const HOLD_MS = 450;
+
+/**
+ * Press and hold to take a chip back off, which the rail has promised since
+ * this felt was built.
+ *
+ * Only right-click was ever wired, and a thumb has no right button — so on the
+ * device this table is most often played on, the instruction printed on the
+ * rail was simply false.
+ *
+ * The side that fired is remembered rather than a bare flag, because the same
+ * gesture goes on to send two more events that would each undo it: the click
+ * the pointer sends on the way up, and — on a touch screen — the browser's own
+ * `contextmenu`, which takes a chip back by the older route. Both are ignored
+ * for the side that was held, and only for that side, so a hold on heads
+ * cannot swallow a press on tails.
+ */
+function useHoldToTake(onTake: (on: BetOn) => void) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const took = useRef<BetOn | null>(null);
+
+  const stop = () => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  /*
+   * A felt that unmounts mid-hold — the round ends, the seat stands up —
+   * would otherwise take a chip off a table nobody is looking at.
+   *
+   * Written against the ref rather than returning `stop`, which is rebuilt
+   * every render: a cleanup that depended on it would tear down and set up
+   * again on each one, and one that ignored the dependency would be closing
+   * over a stale copy. The ref is the same object throughout, so neither
+   * applies.
+   */
+  useEffect(
+    () => () => {
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+      }
+    },
+    [],
+  );
+
+  return {
+    start(on: BetOn) {
+      stop();
+      // Cleared on every fresh press, so nothing a previous hold swallowed
+      // can reach across to the next one.
+      took.current = null;
+      timer.current = setTimeout(() => {
+        took.current = on;
+        onTake(on);
+      }, HOLD_MS);
+    },
+    stop,
+    /** Whether this side's chip already came off in the gesture still running. */
+    handled(on: BetOn) {
+      return took.current === on;
+    },
+  };
+}
+
 function CasinoSpots({
   mineOn,
   disabledFor,
@@ -198,6 +286,14 @@ function CasinoSpots({
   onPlace: (on: BetOn) => void;
   onTake: (on: BetOn) => void;
 }) {
+  const hold = useHoldToTake(onTake);
+  /*
+   * Heads and tails are the even-money pair and five odds is the long shot,
+   * so the felt draws them that way — the pair side by side, the long shot
+   * spanning underneath. One shape at every width, rather than three equal
+   * boxes that wrapped into two rows on a phone and orphaned five odds onto
+   * its own line looking like the main event.
+   */
   const sides: BetOn[] = ["heads", "tails", "fiveOdds"];
   return (
     <div className="tu__spots" role="group" aria-label="What to back">
@@ -205,24 +301,61 @@ function CasinoSpots({
         <button
           key={on}
           type="button"
-          className="tu__spot"
-          aria-label={CASINO_LABEL[on]}
+          className={`tu__spot tu__spot--${on}`}
+          /*
+           * What the side is, and what you have on it. An `aria-label`
+           * replaces everything inside the button, so a pile named only by
+           * the figure drawn in it is a pile nobody listening to this page
+           * ever hears about.
+           */
+          aria-label={
+            mineOn[on] > 0
+              ? `${CASINO_LABEL[on]}, ${exact(mineOn[on])} down`
+              : CASINO_LABEL[on]
+          }
           disabled={disabledFor(on)}
-          onClick={() => onPlace(on)}
+          onPointerDown={(event) => {
+            // Only the primary button holds. The right one is already the
+            // other way of taking a chip off, and would otherwise do both.
+            if (event.button === 0) {
+              hold.start(on);
+            }
+          }}
+          onPointerUp={hold.stop}
+          onPointerCancel={hold.stop}
+          // Sliding a thumb off is how you get out of a hold without lifting
+          // it, the same escape the board's drop key gives.
+          onPointerLeave={hold.stop}
+          onClick={() => {
+            if (!hold.handled(on)) {
+              onPlace(on);
+            }
+          }}
           onContextMenu={(event) => {
+            // The browser's own menu is never what somebody wants over a pile.
             event.preventDefault();
-            onTake(on);
+            if (!hold.handled(on)) {
+              onTake(on);
+            }
           }}
         >
           <span className="tu__spot-name">{CASINO_LABEL[on]}</span>
           <span className="tu__spot-pays">{CASINO_PAYS[on]}</span>
-          {mineOn[on] > 0 ? <span className="tu__spot-mine">{exact(mineOn[on])}</span> : null}
+          {mineOn[on] > 0 ? <Pile chips={mineOn[on]} /> : null}
         </button>
       ))}
     </div>
   );
 }
 
+/**
+ * The ring: what is up, what has been covered of it, and the one thing you
+ * may do about it.
+ *
+ * The same two-and-one shape the casino felt draws, so the page does not
+ * change silhouette when a table is opened under the other ruleset — a felt
+ * that rearranges itself between schools makes two games out of one table.
+ */
 function SchoolSpots({
   state,
   seatId,
@@ -243,34 +376,59 @@ function SchoolSpots({
   onCover: () => void;
 }) {
   const spinning = state.spinnerId === seatId;
+  /*
+   * The optimistic centre shows through here. Before the table has spoken
+   * `state.centre` is still null and the spinner's own pending figure is all
+   * there is — a stake is their own number, so it goes up on the press.
+   */
+  const up = state.centre?.chips ?? myCentre;
+  /*
+   * What the second box is for depends on which side of the centre you are.
+   * The spinner is watching the ring come in; the ring is watching its own
+   * stake go down.
+   */
+  const covered = state.centre === null ? 0 : state.centre.chips - state.uncovered;
+  const mine = spinning ? covered : myCover;
+
   return (
-    <div className="tu__spots" role="group" aria-label="The centre">
-      <div className="tu__centre">
-        <span className="tu__centre-label">Centre</span>
-        {state.centre !== null ? (
-          <ChipStack amount={state.centre.chips} width={22} most={4} tallest={3} />
-        ) : (
-          <span className="tu__centre-empty">Nothing up yet.</span>
-        )}
-        {canSetCentre ? (
-          <button type="button" className="tu__act" aria-label="Set the centre" onClick={onCentre}>
-            Set the centre
-          </button>
-        ) : null}
-        {myCentre > 0 ? <span className="tu__spot-mine">{exact(myCentre)}</span> : null}
+    <div className="tu__spots tu__spots--ring" role="group" aria-label="The centre">
+      <div className="tu__spot tu__spot--flat">
+        <span className="tu__spot-name">The centre</span>
+        {up > 0 ? <Pile chips={up} /> : <span className="tu__spot-pays">Nothing up yet</span>}
       </div>
 
-      {state.centre === null ? null : (
+      <div className="tu__spot tu__spot--flat">
+        <span className="tu__spot-name">{spinning ? "Covered" : "Your cover"}</span>
+        {mine > 0 ? (
+          <Pile chips={mine} />
+        ) : (
+          <span className="tu__spot-pays">{spinning ? "Nobody in yet" : "Nothing on"}</span>
+        )}
+      </div>
+
+      {canSetCentre ? (
         <button
           type="button"
-          className="tu__act"
-          aria-label="Cover the centre"
+          className="tu__spot tu__spot--wide"
+          aria-label="Set the centre"
+          onClick={onCentre}
+        >
+          <span className="tu__spot-name">Set the centre</span>
+          <span className="tu__spot-pays">What the ring has to match</span>
+        </button>
+      ) : state.centre === null ? null : (
+        <button
+          type="button"
+          className="tu__spot tu__spot--wide"
+          aria-label={`Cover the centre, ${exact(state.uncovered)} left`}
           disabled={!canCover}
           onClick={onCover}
         >
-          <span>Cover{myCover > 0 ? ` (${exact(myCover)} down)` : ""}</span>
-          <span className="tu__act-note">
-            {spinning ? "The spinner cannot cover their own centre." : `${exact(state.uncovered)} left`}
+          <span className="tu__spot-name">Cover</span>
+          <span className="tu__spot-pays">
+            {spinning
+              ? "The spinner cannot cover their own centre"
+              : `${exact(state.uncovered)} left`}
           </span>
         </button>
       )}

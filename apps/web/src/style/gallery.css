@@ -100,6 +100,8 @@
 }
 
 .tile__surface {
+  /* The surface itself, set on the element by TextureTiles. */
+  background-image: var(--tile-surface);
   height: 130px;
   border-radius: var(--gr-radius-sm);
   border: var(--gr-edge-hard);

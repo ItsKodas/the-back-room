@@ -285,11 +285,7 @@ describe("a roulette table's money", () => {
      */
     const game = rouletteAdapter({ pick: () => 0 });
     const table = game.create("ABCDE", { forFun: true }) as Table;
-    const seat = table.join("b1", "Bot", null);
-    seat.isBot = true;
-    seat.skill = "normal";
-    // A seat that sits down mid-window waits for the next one.
-    table.beginBetting();
+    table.addBot("b1", "Bot", "normal");
 
     const move = game.botMove?.(table) ?? null;
     expect(move).not.toBeNull();
@@ -306,10 +302,7 @@ describe("a roulette table's money", () => {
   it("gives a bot its chip back when the table refuses it", () => {
     const game = rouletteAdapter({ pick: () => 0 });
     const table = game.create("ABCDE", { forFun: true }) as Table;
-    const seat = table.join("b1", "Bot", null);
-    seat.isBot = true;
-    seat.skill = "normal";
-    table.beginBetting();
+    table.addBot("b1", "Bot", "normal");
 
     const move = game.botMove?.(table) ?? null;
     expect(move).not.toBeNull();

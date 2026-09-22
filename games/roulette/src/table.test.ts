@@ -403,3 +403,106 @@ describe("the winners a roulette table remembers", () => {
     expect(one.view("s1").winners).toEqual(one.winners);
   });
 });
+
+/*
+ * What the table says happened.
+ *
+ * A for-fun table throughout: it is the only kind that will seat a guest
+ * (`join(..., null)`), and these tests are about the counter and the
+ * wording, not about anybody's account.
+ */
+describe("what the table says happened", () => {
+  const funTable = () => {
+    const one = new Table("AAAAA", 6, { pick: () => 0 });
+    one.forFun = true;
+    return one;
+  };
+
+  it("counts every line, so the same words twice are two events", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    const first = one.view("a").eventSeq;
+    one.join("b", "Bo", null);
+    const second = one.view("a").eventSeq;
+    expect(second).toBeGreaterThan(first);
+    expect(one.view("a").lastEvent).toContain("Bo");
+  });
+
+  it("says who left", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    one.join("b", "Bo", null);
+    const before = one.view("a").eventSeq;
+    one.removeSeat("b");
+    expect(one.view("a").lastEvent).toContain("Bo");
+    expect(one.view("a").eventSeq).toBeGreaterThan(before);
+  });
+
+  it("never counts backwards across a spin", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    // The "Odd" even-money bet — id verified against spots.ts, not guessed.
+    one.place("a", "even:1-3-5-7-9-11-13-15-17-19-21-23-25-27-29-31-33-35", 100);
+    const seen: number[] = [one.view("a").eventSeq];
+    one.closeBetting();
+    seen.push(one.view("a").eventSeq);
+    one.land();
+    seen.push(one.view("a").eventSeq);
+    one.beginBetting();
+    seen.push(one.view("a").eventSeq);
+    expect(seen).toEqual([...seen].sort((x, y) => x - y));
+  });
+
+  it("says which seats a taunt could reach", () => {
+    const one = funTable();
+    one.join("a", "Ada", null);
+    expect(one.view("a").seats[0]?.signedIn).toBe(false);
+  });
+});
+
+describe("sitting a bot down", () => {
+  it("refuses one at a table playing for chips", () => {
+    /*
+     * A bot has no account to charge and none to pay, so a spin won against
+     * one at a chips table is chips out of thin air. The lobby offers bots at
+     * a for-fun table and nowhere else; this is the rule behind that offer.
+     */
+    const { one } = table();
+
+    expect(() => one.addBot("bot", "Cassie", "normal")).toThrow(TableError);
+    expect(() => one.addBot("bot", "Cassie", "normal")).toThrow(/playing for fun/i);
+    expect(one.seats.map((seat) => seat.id)).toEqual(["s1"]);
+  });
+
+  it("seats one at a table playing for nothing", () => {
+    // The whole reason bots exist: a for-fun cloth worth standing at alone.
+    const one = new Table("FUN01", 6, { pick: () => 0 });
+    one.forFun = true;
+
+    const bot = one.addBot("bot", "Cassie", "normal");
+
+    expect(bot.isBot).toBe(true);
+    expect(bot.skill).toBe("normal");
+    expect(one.purseFor(bot.id)).toBeGreaterThan(0);
+  });
+
+  it("names a bot on the winners board like anybody else", () => {
+    /*
+     * The board copies the name down when the ball lands, from the table's own
+     * record of who was in the spin rather than from the seat — so a seat the
+     * record never heard about wins under no name at all. A for-fun cloth is
+     * the only place bots play, which makes it the only place that shows.
+     */
+    const one = new Table("FUN01", 6, { pick: () => 1 });
+    one.forFun = true;
+    const bot = one.addBot("bot", "Cassie", "normal");
+
+    one.place(bot.id, RED, 50);
+    one.closeBetting();
+    one.land();
+
+    expect(one.winners).toEqual([
+      { spin: 1, pocket: 32, seatId: "bot", name: "Cassie", up: 50 },
+    ]);
+  });
+});

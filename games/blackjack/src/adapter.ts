@@ -510,8 +510,26 @@ export function blackjackAdapter(
         .map((seat) => seat.id);
     },
 
-    /** Bets owed back to somebody who stood up while the felt was still open. */
+    /**
+     * Bets owed back to somebody who stood up while the felt was still open —
+     * and, on the way past, what the bank holds.
+     *
+     * The felt is told the second so it can grey out a key the bank cannot
+     * cover, rather than letting somebody find the cap by being refused.
+     * Building a view is synchronous and what the bank holds is a question for
+     * the store, so this is where the figure can be asked for at all: it runs
+     * on every broadcast, which leaves the number one broadcast old. That
+     * costs nothing — every bet is checked against a fresh reading before a
+     * chip moves — and a new table gets its first reading before its first
+     * state, so a felt is never born saying the bank is empty.
+     *
+     * Less what the other tables on this bank could owe, for the same reason
+     * `act` subtracts it: the felt greys out exactly what the refusal would.
+     */
     async payOut(table, deps) {
+      if (bank !== null && banked(table)) {
+        table.bankHolds = (await bank.holds()) - (ledger?.owedElsewhere(table) ?? 0);
+      }
       if (table.escrow.due.length === 0) {
         return;
       }

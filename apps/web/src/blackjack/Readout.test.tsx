@@ -31,6 +31,16 @@ describe("the readout while betting", () => {
     expect(model.clock?.part).toBeCloseTo(0.467, 3);
   });
 
+  it("moves the table's top figure with the bank, because that is where it comes from", () => {
+    const model = readoutFor(input({ state: view({ maxBet: 50_000 }), mine: 500, left: 14 }));
+    expect(model.stats[1]).toEqual({ term: "Table", value: "100–50,000", chips: false });
+  });
+
+  it("says the bank is short rather than offer a range that is not one", () => {
+    const model = readoutFor(input({ state: view({ maxBet: 0 }), mine: 0, left: 14 }));
+    expect(model.stats[1]).toEqual({ term: "Table", value: "bank short", chips: false });
+  });
+
   it("says last call when it comes", () => {
     const model = readoutFor(input({ mine: 500, left: 3 }));
     expect(model.stats.at(-1)).toEqual({ term: "Last call", value: "0:03", chips: false });
