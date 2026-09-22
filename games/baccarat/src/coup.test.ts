@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Card, Rank } from "./cards.js";
-import { bankerDraws, coupFrom, deal, playerDraws, totalOf, valueOf } from "./coup.js";
+import { bankerDraws, coupFrom, deal, playerDraws, pointsOf, totalOf } from "./coup.js";
 
 /** A card of this rank, suit irrelevant — nothing in baccarat reads a suit. */
 const card = (rank: Rank): Card => ({ rank, suit: "spades" });
@@ -17,18 +17,18 @@ const shoe = (...ranks: Rank[]): Card[] => ranks.map(card);
 
 describe("what a card is worth", () => {
   it("counts the ace as one", () => {
-    expect(valueOf(card("A"))).toBe(1);
+    expect(pointsOf(card("A"))).toBe(1);
   });
 
   it("counts two through nine as themselves", () => {
     for (const rank of ["2", "3", "4", "5", "6", "7", "8", "9"] as Rank[]) {
-      expect(valueOf(card(rank)), rank).toBe(Number(rank));
+      expect(pointsOf(card(rank)), rank).toBe(Number(rank));
     }
   });
 
   it("counts the ten and the court as nothing", () => {
     for (const rank of ["10", "J", "Q", "K"] as Rank[]) {
-      expect(valueOf(card(rank)), rank).toBe(0);
+      expect(pointsOf(card(rank)), rank).toBe(0);
     }
   });
 

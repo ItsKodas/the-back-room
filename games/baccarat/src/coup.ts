@@ -18,7 +18,7 @@ export type Side = "player" | "banker";
 export type Outcome = "player" | "banker" | "tie";
 
 /** Ace is one, two through nine are themselves, ten and the court are nothing. */
-export function valueOf(card: Card): number {
+export function pointsOf(card: Card): number {
   if (card.rank === "A") {
     return 1;
   }
@@ -29,7 +29,7 @@ export function valueOf(card: Card): number {
 
 /** A hand's total, which never goes above nine. */
 export function totalOf(cards: readonly Card[]): number {
-  return cards.reduce((sum, card) => sum + valueOf(card), 0) % 10;
+  return cards.reduce((sum, card) => sum + pointsOf(card), 0) % 10;
 }
 
 /** The player draws on nought to five and stands on six and seven. */
@@ -107,7 +107,7 @@ export function coupFrom(cards: readonly Card[]): Coup {
   if (!natural && playerDraws(totalOf(playerCards))) {
     const drawn = next();
     playerCards.push(drawn);
-    playerThird = valueOf(drawn);
+    playerThird = pointsOf(drawn);
   }
   if (!natural && bankerDraws(totalOf(bankerCards), playerThird)) {
     bankerCards.push(next());
