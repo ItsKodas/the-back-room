@@ -186,6 +186,14 @@ export interface ClientToServer {
        * the host's. Snapped to a level the game offers.
        */
       ceiling?: number;
+      /**
+       * How many dice each player starts with, for a game that deals them.
+       *
+       * The same kind of decision as the seat count: it belongs to the host
+       * with the rest of the table's shape. Snapped to a level the game
+       * offers, which is where the real refusal lives.
+       */
+      dice?: number;
       scribble?: ScribbleSetup;
     },
     ack: (result: Ack) => void,

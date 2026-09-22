@@ -5,6 +5,7 @@ import { Blackjack } from "./blackjack/Blackjack.js";
 import { DeathRoll } from "./deathroll/DeathRoll.js";
 import { AccountProvider } from "./game/useAccount.js";
 import { Leaderboard } from "./leaderboard/Leaderboard.js";
+import { LiarsDice } from "./liarsdice/LiarsDice.js";
 import { Shell } from "./nav/Shell.js";
 import { Poker } from "./poker/Poker.js";
 import Plinko from "./plinko/Plinko.js";
@@ -50,6 +51,8 @@ export default function App() {
           <Route path="/blackjack/:code" element={<Blackjack />} />
           <Route path="/death-roll" element={<DeathRoll />} />
           <Route path="/death-roll/:code" element={<DeathRoll />} />
+          <Route path="/liars-dice" element={<LiarsDice />} />
+          <Route path="/liars-dice/:code" element={<LiarsDice />} />
           <Route path="/poker" element={<Poker />} />
           <Route path="/poker/:code" element={<Poker />} />
           <Route path="/plinko" element={<Plinko />} />
