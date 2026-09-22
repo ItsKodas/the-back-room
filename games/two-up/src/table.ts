@@ -120,6 +120,18 @@ export interface TableView {
   /** What the last round paid, by seat. */
   paid: readonly { seatId: string; name: string; back: number; staked: number }[];
   /**
+   * Whether this seat has a round behind it to put down again.
+   *
+   * The view's rather than the felt's, because the felt sees only the cloth as
+   * it stands now — last round's chips are off it by the time anybody could
+   * press the button. A control offered against nothing is a control that lies
+   * about what it will do, which is the same reason the wheel carries this.
+   *
+   * Casino school only: a ring's centre and covers are contested between two
+   * particular people and there is nothing to put back down on its own.
+   */
+  canRepeat: boolean;
+  /**
    * What the bank holds. For showing only — so a felt can grey out a side it
    * cannot cover. Every bet is checked again on the way in, because a number a
    * browser has been told is a number a browser can change.
@@ -1044,6 +1056,7 @@ export class Table {
       covers: this.covers,
       uncovered: this.centre === null ? 0 : uncovered(this.centre, this.covers),
       paid,
+      canRepeat: forSeatId !== null && this.lastRound(forSeatId).length > 0,
       bank: this.bank,
       seats,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,
