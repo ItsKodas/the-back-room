@@ -69,6 +69,22 @@ describe("the card a link unfurls into", () => {
     expect(svg).toMatch(/…<\/text>/);
   });
 
+  it("lights the sign from one set of words rather than five", () => {
+    /*
+     * Not a style note. The rasterizer shapes and outlines every `<text>` it
+     * is handed and reads a font file for each one, which is most of what it
+     * costs to draw a card — and the glow used to be five stacked copies of
+     * the same two words, so the sign alone was paying that five times over
+     * for a picture feMerge makes from one.
+     */
+    const svg = cardSvg(table);
+
+    expect((svg.match(/Back Room/g) ?? []).length).toBe(1);
+    // The same wash, stacked where stacking is free.
+    expect((svg.match(/<feMergeNode/g) ?? []).length).toBe(5);
+    expect(svg).toContain('flood-color="#2e7bff"');
+  });
+
   it("gives each game its own furniture", () => {
     // The picture should say which game before anybody reads a word of it.
     expect(cardSvg(table)).toContain("IBM Plex Sans");
@@ -251,13 +267,15 @@ describe("keeping a few of something", () => {
 
 /*
  * The only tests in here that go through the rasterizer, and they are budgeted
- * for it. A card is a 1200x630 raster with two Gaussian blurs over it — about
- * 60ms of native, event-loop-blocking work on an idle machine, and several
- * times that when the machine is cold or busy with the rest of the suite.
- * Under the five-second default that vitest gives a unit test, drawing a
- * handful of cards was close enough to the ceiling to go over it perhaps one
- * run in four. Nothing here is asserted any less firmly; the clock just
- * matches the work.
+ * for it. Nearly all of a card's time is resvg turning `<text>` into outlines:
+ * it reads a font file for every text element rather than once per document,
+ * so a card costs about ten file opens a line of type — tens of milliseconds
+ * of native, event-loop-blocking work on an idle machine, and several times
+ * that when the machine is cold, busy with the rest of the suite, or scanning
+ * every read. Under the five-second default that vitest gives a unit test,
+ * drawing a handful of cards was close enough to the ceiling to go over it
+ * perhaps one run in four. Nothing here is asserted any less firmly; the clock
+ * just matches the work.
  */
 describe("drawing it for real", { timeout: 30_000 }, () => {
   it("renders a PNG with the fonts that ship beside it", () => {
