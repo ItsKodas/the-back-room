@@ -99,13 +99,30 @@
   justify-content: center;
   gap: var(--gr-space-5);
   padding: var(--gr-space-2) 0 var(--gr-space-3);
+  /* Capped rather than left to stretch across a wide desk felt: two small
+     hands spread across nine hundred pixels would read as adrift on the
+     table, not as the thing you sit down to look at. */
+  max-width: 480px;
+  margin-inline: auto;
+  width: 100%;
 }
 
+/*
+ * Both hands share the row equally, and can shrink below their own content's
+ * width — the default `min-width: auto` on a flex item is exactly what let a
+ * three-card hand overflow the felt instead of respecting it, because a row
+ * of fixed-width cards has nothing smaller to shrink to on its own. `flex: 1
+ * 1 0` also means a hand's width comes from the row, not from how many cards
+ * it happens to hold, so Player drawing a third card while Banker draws none
+ * still leaves both boxes the same width.
+ */
 .bc__hand {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 0;
 }
 
 .bc__hand-label {
@@ -117,8 +134,16 @@
 }
 
 .bc__hand-cards {
+  /* Its own query container, and stretched to the full width `.bc__hand`'s
+     single column gives it — see the overlap rule below, which reads that
+     width back as 100cqi and needs it to be the row's fair share rather
+     than whatever the cards alone would ask for. */
+  container-type: inline-size;
   display: flex;
-  gap: 4px;
+  justify-content: center;
+  justify-self: stretch;
+  gap: 0;
+  min-width: 0;
   /*
    * Sized off the table's own inline size, the container `.bc` declares, so
    * one number covers a phone and a desk without a second breakpoint for the
@@ -128,6 +153,41 @@
   --card-w: clamp(42px, 15cqi, 84px);
   min-height: calc(var(--card-w) * 1.4);
   align-items: flex-start;
+}
+
+.bc__hand-cards .card + .card {
+  margin-left: 4px;
+}
+
+/*
+ * The worst case this table can deal: both hands draw a third card. That is
+ * an ordinary outcome, not an edge one — games/baccarat/src/schedule.test.ts
+ * covers it as one of four normal shapes — so it has to fit, not merely
+ * usually fit.
+ *
+ * The arithmetic at 375px, the width CLAUDE.md says to check: `.play`'s own
+ * 22px of padding each side (--gr-space-5) leaves `.bc` a 331px container.
+ * `.bc__table`'s 12px each side (--gr-space-3) leaves it 307px. `.bc__coup`'s
+ * 22px gap (--gr-space-5) between the two hands splits the rest into two
+ * 142.5px hands — and because `.bc__hand-cards` is stretched to fill that
+ * column rather than sized by its own cards (see above), 142.5px is also
+ * what 100cqi resolves to here, since this element is the query container.
+ * `--card-w` clamps to 15% of `.bc`'s 331px, about 49.7px. Three of those
+ * with a plain 4px gap would ask for about 157px against the 142.5px on
+ * offer — the sideways scroll this rule exists to rule out.
+ *
+ * Overlapped instead, the same way blackjack.css overlaps a dealt hand: the
+ * margin shrinks to exactly what the row actually has room for — solving
+ * (100cqi - card-w) / (places - 1) - card-w for two gaps at three
+ * places — floored at blackjack's own -0.82 * card-w so a narrower phone
+ * still shows a sliver of every card rather than stacking them flush, and
+ * ceilinged at the ordinary 4px gap so a hand with room to spare does not
+ * overlap when it does not need to. The corner index is what keeps an
+ * overlapped hand legible — see cards.css, and blackjack.css's own comment
+ * on the same point.
+ */
+.bc__hand-cards:has(> :nth-child(3)) .card + .card {
+  margin-left: clamp(calc(var(--card-w) * -0.82), calc((100cqi - var(--card-w)) / 2 - var(--card-w)), 4px);
 }
 
 .bc__hand-total {

@@ -85,6 +85,71 @@ describe("the baccarat table on a phone", () => {
   });
 });
 
+describe("the coup at its widest, on the narrowest phone", () => {
+  /*
+   * Both hands drawing a third card is an ordinary outcome — one of the four
+   * normal shapes games/baccarat/src/schedule.test.ts covers, not an edge —
+   * so six cards on the felt, three to a side, is the case that has to fit
+   * at 375px, not merely usually fit.
+   *
+   * This is arithmetic rather than a stylesheet-text match because the fix
+   * is a formula, not a fixed number: `.bc__hand-cards`'s overlap only
+   * exists at all once a hand has drawn a third card (`:has(> :nth-child(3))`),
+   * and how much of it there is depends on `--card-w`, which itself depends
+   * on the viewport. A test that merely grepped for "-3px" or some other
+   * single answer would pass today and say nothing about whether the next
+   * change to a clamp bound or a gap token still fits — so instead this
+   * reads the stylesheet's own numbers back out and redoes its sums, the way
+   * the brief's own instruction asks for when a rule cannot be pinned down
+   * to matched stylesheet text.
+   *
+   * The layout constants below (page padding, table padding, the coup's own
+   * gap) are the design tokens `.play`, `.bc__table` and `.bc__coup` are
+   * built from — --gr-space-5 is 22px and --gr-space-3 is 12px in
+   * packages/ui/src/tokens.css, guarded there by tokens.test.ts — so a
+   * change to either would be caught at its own source before it ever
+   * reached here.
+   */
+  const PAGE_WIDTH = 375;
+  const PLAY_PADDING = 22 * 2; // --gr-space-5, .play's own left and right padding
+  const TABLE_PADDING = 12 * 2; // --gr-space-3, .bc__table's left and right padding
+  const COUP_GAP = 22; // --gr-space-5, the gap between .bc__coup's two hands
+
+  const bcWidth = PAGE_WIDTH - PLAY_PADDING; // .bc, the container --card-w's own cqi reads
+  const tableWidth = bcWidth - TABLE_PADDING; // .bc__table's content box
+  const perHand = (tableWidth - COUP_GAP) / 2; // each .bc__hand-cards, once stretched to fill its column
+
+  it("fits three cards' worth of --card-w, read straight out of the stylesheet, inside one hand's own share of the felt", () => {
+    const base = ruleIn(css, ".bc__hand-cards");
+    const cardWClamp = base.match(/--card-w:\s*clamp\(([\d.]+)px,\s*([\d.]+)cqi,\s*([\d.]+)px\)/);
+    expect(cardWClamp, "the --card-w clamp on .bc__hand-cards").not.toBeNull();
+    const [, floorPx = "0", cqiPct = "0", ceilingPx = "0"] = cardWClamp ?? [];
+    const cardW = Math.min(Number(ceilingPx), Math.max(Number(floorPx), bcWidth * (Number(cqiPct) / 100)));
+
+    const overlap = ruleIn(css, ".bc__hand-cards:has(> :nth-child(3)) .card + .card");
+    expect(overlap, "the three-card overlap rule").not.toBe("");
+    const formula = overlap.match(
+      /clamp\(calc\(var\(--card-w\) \* (-?[\d.]+)\),\s*calc\(\(100cqi - var\(--card-w\)\) \/ (\d+) - var\(--card-w\)\),\s*([\d.]+)px\)/,
+    );
+    expect(formula, "the overlap's own clamp formula").not.toBeNull();
+    const [, floorMult = "0", divisor = "1", ceiling = "0"] = formula ?? [];
+
+    // 100cqi inside that rule is .bc__hand-cards's own resolved width, which
+    // is perHand because it is stretched to its column rather than sized by
+    // its cards — the thing the comment above .bc__hand-cards argues for.
+    const ideal = (perHand - cardW) / Number(divisor) - cardW;
+    const margin = Math.min(Number(ceiling), Math.max(Number(floorMult) * cardW, ideal));
+
+    const occupiedByThree = cardW + 2 * (cardW + margin);
+    expect(occupiedByThree).toBeLessThanOrEqual(perHand + 0.01);
+
+    // And the number this formula produces is a genuine overlap, not the
+    // ceiling doing nothing: proves the rule would actually have caught the
+    // regression it was written for, rather than passing by coincidence.
+    expect(margin).toBeLessThan(0);
+  });
+});
+
 describe("the motion", () => {
   /*
    * The brief's own version of this test only checks that the word
