@@ -40,6 +40,7 @@ export default defineConfig({
       "@backroom/shared",
       "@backroom/core",
       "@backroom/economy",
+      "@backroom/game-baccarat",
       "@backroom/game-blackjack",
       "@backroom/game-greed",
       "@backroom/game-plinko",
