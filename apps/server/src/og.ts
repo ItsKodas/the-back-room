@@ -601,6 +601,50 @@ export function fontPaths(root: string): string[] {
 }
 
 /**
+ * A few of something, the one that went in first out when the room runs out.
+ *
+ * Both caches below want exactly this and neither wants a dependency for it.
+ * A Map keeps insertion order, which is the whole trick.
+ *
+ * Deliberately oldest-out rather than least-recently-used. These hold a burst
+ * — a link pasted in a busy channel, a table whose seats are filling — and
+ * over a burst the entry that went in first is the one least likely to be
+ * wanted again. Keeping a hit's place would cost a delete and a set on the
+ * path that every hit takes, which is the path worth protecting.
+ *
+ * Pulled out of the two classes that had it so the bound can be checked
+ * without drawing anything. Proving eviction through `Cards` meant rasterizing
+ * a card per entry, and a test that spends a second of native rendering to
+ * assert a property of a Map is a test that fails when the machine is busy.
+ */
+export class Kept<T> {
+  private readonly held = new Map<string, T>();
+  /** Small on purpose: this is a cache for a burst, not a store. */
+  private readonly most: number;
+
+  constructor(most: number) {
+    this.most = most;
+  }
+
+  get(key: string): T | undefined {
+    return this.held.get(key);
+  }
+
+  set(key: string, value: T): void {
+    // Only a new key can push one out. Setting a key already held keeps its
+    // place, so counting it against the bound would drop a good entry and
+    // leave this holding fewer than it was given room for.
+    if (!this.held.has(key) && this.held.size >= this.most) {
+      const oldest = this.held.keys().next();
+      if (!oldest.done) {
+        this.held.delete(oldest.value);
+      }
+    }
+    this.held.set(key, value);
+  }
+}
+
+/**
  * One drawn card, kept for a moment.
  *
  * An unfurler is not one request. A link pasted in a busy Discord fans out to
@@ -610,14 +654,12 @@ export function fontPaths(root: string): string[] {
  * does.
  */
 export class Cards {
-  private readonly drawn = new Map<string, Buffer>();
+  private readonly drawn: Kept<Buffer>;
   private readonly fonts: string[];
-  /** Small on purpose: this is a cache for a burst, not a store. */
-  private readonly most: number;
 
   constructor(fontRoot: string, most = 64) {
     this.fonts = fontPaths(fontRoot);
-    this.most = most;
+    this.drawn = new Kept(most);
   }
 
   png(spec: CardSpec): Buffer {
@@ -641,13 +683,6 @@ export class Cards {
         .render()
         .asPng(),
     );
-    // Oldest out first. A Map keeps insertion order, which is the whole trick.
-    if (this.drawn.size >= this.most) {
-      const oldest = this.drawn.keys().next();
-      if (!oldest.done) {
-        this.drawn.delete(oldest.value);
-      }
-    }
     this.drawn.set(key, made);
     return made;
   }
@@ -671,11 +706,19 @@ const PICTURE_HOST = "https://cdn.discordapp.com/";
 const MOST_BYTES = 512 * 1024;
 
 export class Avatars {
-  private readonly held = new Map<string, string | null>();
-  private readonly most: number;
+  /**
+   * The request rather than its answer.
+   *
+   * A cache written only once the bytes land is empty for the whole of the
+   * burst it exists for: a table with one person's face in two seats asked
+   * twice, and two links to that table unfurled at once asked twice again.
+   * Holding the fetch itself means the second caller waits on the first one's
+   * request instead of starting its own.
+   */
+  private readonly held: Kept<Promise<string | null>>;
 
   constructor(most = 256) {
-    this.most = most;
+    this.held = new Kept(most);
   }
 
   /** One picture as a data URI, or null if there isn't one to be had. */
@@ -688,30 +731,34 @@ export class Avatars {
       return had;
     }
 
-    let picture: string | null = null;
+    // Started and remembered in the same breath, before anything is awaited,
+    // so nothing can slip between the miss and the entry.
+    const coming = this.fetched(url);
+    this.held.set(url, coming);
+    return coming;
+  }
+
+  /**
+   * The request itself, which never rejects.
+   *
+   * A failure resolves to null and is remembered as null, so a picture that
+   * is not coming is not asked for again on every unfurl of every link to
+   * that table.
+   */
+  private async fetched(url: string): Promise<string | null> {
     try {
       const answer = await fetch(url, { signal: AbortSignal.timeout(2500) });
       const type = answer.headers.get("content-type") ?? "";
       if (answer.ok && type.startsWith("image/")) {
         const bytes = Buffer.from(await answer.arrayBuffer());
         if (bytes.byteLength <= MOST_BYTES) {
-          picture = `data:${type};base64,${bytes.toString("base64")}`;
+          return `data:${type};base64,${bytes.toString("base64")}`;
         }
       }
     } catch {
       // Slow, refused, or gone. The seat gets a chip.
     }
-
-    // Remembered either way, so a picture that is not coming is not asked for
-    // again on every unfurl of every link to that table.
-    if (this.held.size >= this.most) {
-      const oldest = this.held.keys().next();
-      if (!oldest.done) {
-        this.held.delete(oldest.value);
-      }
-    }
-    this.held.set(url, picture);
-    return picture;
+    return null;
   }
 
   /** Every seat's picture, in order, fetched together. */

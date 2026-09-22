@@ -1,4 +1,5 @@
 import {
+  type BotSkill,
   Escrow,
   type Seat,
   type SeatIdentity,
@@ -119,6 +120,18 @@ export interface TableView {
   uncovered: number;
   /** What the last round paid, by seat. */
   paid: readonly { seatId: string; name: string; back: number; staked: number }[];
+  /**
+   * Whether this seat has a round behind it to put down again.
+   *
+   * The view's rather than the felt's, because the felt sees only the cloth as
+   * it stands now — last round's chips are off it by the time anybody could
+   * press the button. A control offered against nothing is a control that lies
+   * about what it will do, which is the same reason the wheel carries this.
+   *
+   * Casino school only: a ring's centre and covers are contested between two
+   * particular people and there is nothing to put back down on its own.
+   */
+  canRepeat: boolean;
   /**
    * What the bank holds. For showing only — so a felt can grey out a side it
    * cannot cover. Every bet is checked again on the way in, because a number a
@@ -276,6 +289,35 @@ export class Table {
     this.roomChanged();
     return seat;
   }
+
+  /**
+   * A bot at the table, and only where a bot may stand.
+   *
+   * A bot has no account to take chips from and none to pay them to, so a
+   * round won against one at a table playing for chips is chips out of thin
+   * air. Both schools take one at a for-fun table — the bot bets the casino
+   * cloth, and contests a ring's centre and covers, alike — and neither takes
+   * one anywhere else. Refused here rather than in the lobby that offers it,
+   * because a control a browser can see is a control a browser can send
+   * anyway.
+   *
+   * Through {@link roomChanged} like every other arrival, so a ring that was
+   * waiting for a centre still has somebody holding the kip. It cannot end a
+   * hold: `holding` counts real players and a bot is not one, which is the
+   * same rule said twice on purpose.
+   */
+  addBot(id: string, name: string, skill: BotSkill): Seat {
+    if (!this.forFun) {
+      throw new TableError("Bots only sit at tables playing for fun.");
+    }
+    const seat = this.seating.addBot(id, name, skill);
+    if (this.spinnerId === null) {
+      this.spinnerId = seat.id;
+    }
+    this.roomChanged();
+    return seat;
+  }
+
   removeSeat(seatId: string): void {
     this.seating.remove(seatId);
     /*
@@ -1044,6 +1086,7 @@ export class Table {
       covers: this.covers,
       uncovered: this.centre === null ? 0 : uncovered(this.centre, this.covers),
       paid,
+      canRepeat: forSeatId !== null && this.lastRound(forSeatId).length > 0,
       bank: this.bank,
       seats,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,

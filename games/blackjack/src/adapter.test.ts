@@ -837,3 +837,84 @@ describe("a blackjack table called off", () => {
     expect(read()).toBe(100_000);
   });
 });
+
+/*
+ * A felt can only grey out a key it cannot cover if it has been told what the
+ * bank holds, and building a view is synchronous while asking the store is
+ * not. So the figure arrives the way roulette's does: through `payOut`, which
+ * runs on every broadcast.
+ */
+describe("telling the felt what the bank holds", () => {
+  function vaultHolding(start: number) {
+    let held = start;
+    return {
+      async holds() {
+        return held;
+      },
+      async add(amount: number) {
+        held += amount;
+      },
+      async take(amount: number) {
+        if (amount > held) return false;
+        held -= amount;
+        return true;
+      },
+    };
+  }
+
+  it("reads the bank onto the table on every broadcast", async () => {
+    const game = blackjackAdapter({ bank: vaultHolding(200_000) });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const { deps } = ledger({ u1: 100_000 });
+
+    await game.payOut?.(table, deps);
+
+    // A quarter of it, which is what one seat's worst hand could take.
+    expect(table.view("a").maxBet).toBe(50_000);
+  });
+
+  it("counts a stake that has gone in, so the felt offers what the bet left", async () => {
+    const game = blackjackAdapter({ bank: vaultHolding(200_000) });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    table.join("b", "Bo", identity("u2"));
+    const { deps } = ledger({ u1: 100_000, u2: 100_000 });
+
+    await game.act(table, "b", { type: "bet", amount: 4_000 }, deps);
+    await game.payOut?.(table, deps);
+
+    /*
+     * Bo's four thousand is in the bank now and is the money Bo may have to be
+     * paid out of, so it buys Ada nothing: sixteen thousand of the bank is
+     * spoken for, and a quarter of what is left is hers.
+     */
+    expect(table.view("a").maxBet).toBe(46_000);
+  });
+
+  it("leaves a for-fun table alone, whose purse is the only thing it can run out of", async () => {
+    const game = blackjackAdapter({ bank: vaultHolding(200_000) });
+    const table = game.create("TEST1", { forFun: true });
+    table.join("a", "Ada", identity("u1"));
+    const { deps } = ledger({ u1: 100_000 });
+
+    await game.payOut?.(table, deps);
+
+    expect(table.view("a").maxBet).toBe(5_000);
+  });
+
+  it("offers a bet the felt was told it could make", async () => {
+    const game = blackjackAdapter({ bank: vaultHolding(200_000) });
+    const table = game.create("TEST1");
+    table.join("a", "Ada", identity("u1"));
+    const { deps } = ledger({ u1: 100_000 });
+    await game.payOut?.(table, deps);
+    const offered = table.view("a").maxBet;
+    expect(offered).toBeGreaterThan(0);
+
+    // Not refused: the figure on the key is the figure the bank will take.
+    await game.act(table, "a", { type: "bet", amount: offered }, deps);
+
+    expect(table.seats[0]?.hands[0]?.bet).toBe(offered);
+  });
+});

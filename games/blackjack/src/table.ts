@@ -1,5 +1,6 @@
 import type { BotSkill, Seat as TableSeat, SeatIdentity, TableStatus } from "@backroom/core";
 import { Escrow, MAX_SEATS, MIN_SEATS, Seating, TableError } from "@backroom/core";
+import { maxStakeAgainst } from "./bank.js";
 import type { Card } from "./cards.js";
 import { Shoe } from "./cards.js";
 import { isBlackjack, value } from "./hand.js";
@@ -138,6 +139,18 @@ export interface TableView {
     hidden: boolean;
   };
   minBet: number;
+  /**
+   * The most this seat could open a hand at.
+   *
+   * Per seat rather than per table, because it is worked out from the bank and
+   * from what everybody else already has on the felt — the same arithmetic the
+   * adapter refuses a bet with. There was a flat ten thousand here once, which
+   * was not a limit so much as a blindfold: a table with a hundred thousand
+   * behind it still said ten.
+   *
+   * For showing only. Every bet is checked again on the way in, because a
+   * number a browser has been told is a number a browser can change.
+   */
   maxBet: number;
   /** True when nothing at this table is played for real chips. */
   forFun: boolean;
@@ -168,7 +181,6 @@ export interface TableView {
 }
 
 const MIN_BET = 100;
-const MAX_BET = 10_000;
 /**
  * What a seat is handed at a for-fun table, and topped back up to when it runs
  * dry. There is nothing to protect here — the point of play money is that
@@ -427,6 +439,46 @@ export class Table {
   housed = false;
 
   /**
+   * What the store's bank holds, less what the other tables on it could owe.
+   *
+   * Kept by the adapter, because it is a question for the store and building a
+   * view is synchronous, so it is always one broadcast old. That costs nothing
+   * where it is used: a felt greying out a key it cannot cover is a courtesy,
+   * and the adapter asks the store again before a single chip moves.
+   *
+   * Never the rule. See {@link capFor}.
+   */
+  bankHolds = 0;
+
+  /**
+   * The most this seat could open a hand at.
+   *
+   * The adapter's arithmetic, run against a figure that is one broadcast old:
+   * what the bank holds, less every other seat's stake — those chips went into
+   * the bank as they landed and are the very ones those seats may have to be
+   * paid out of, so they buy this one nothing — and less whatever this seat
+   * already has down, because the answer is an opening bet rather than an
+   * addition to one.
+   *
+   * A for-fun table has no bank and nothing to protect: the purse is the only
+   * thing that can run out, and a stake already on the felt is still this
+   * player's, because changing a bet is not spending twice.
+   *
+   * For showing only, so a felt can grey out a key rather than let somebody
+   * find the cap by being refused.
+   */
+  capFor(seatId: string | null): number {
+    const seat = seatId === null ? undefined : (this.seating.find(seatId) as Seat | undefined);
+    const mine = seat === undefined ? 0 : staked(seat);
+    if (this.forFun) {
+      return seat === undefined ? 0 : seat.purse + mine;
+    }
+    const others = this.seats.filter((one) => one.id !== seat?.id).map((one) => staked(one));
+    const free = this.bankHolds - others.reduce((total, bet) => total + bet, 0) - mine;
+    return maxStakeAgainst(free, others);
+  }
+
+  /**
    * Whether this table is allowed to deal at all.
    *
    * A table playing for chips needs company, unless it has a bank behind it.
@@ -566,8 +618,15 @@ export class Table {
      * no amount that meant none.
      */
     const withdrawn = amount === 0;
-    if (!Number.isInteger(amount) || (!withdrawn && (amount < MIN_BET || amount > MAX_BET))) {
-      throw new TableError(`Bets are between ${MIN_BET} and ${MAX_BET}.`);
+    /*
+     * A floor and no ceiling. What the table can afford to be beaten by is a
+     * question for the bank, the bank lives in the store, and this class is
+     * deliberately synchronous — so the ceiling is the adapter's, asked fresh
+     * of the store every time. A second one here could only ever be a lower,
+     * blinder version of the same rule.
+     */
+    if (!Number.isInteger(amount) || (!withdrawn && amount < MIN_BET)) {
+      throw new TableError(`Bets start at ${MIN_BET}.`);
     }
     /*
      * At a for-fun table the purse is the only thing stopping a bet, because
@@ -1048,8 +1107,12 @@ export class Table {
    * out here rather than hidden in the browser, because a card that reaches
    * the client has been dealt to everybody whatever the markup says — which is
    * the entire reason the server learned to describe a table per seat.
+   *
+   * The seat is also what `maxBet` is about: what the bank can cover for one
+   * player depends on what everybody else already has on the felt, so it is a
+   * different figure in each chair.
    */
-  view(_forSeatId: string | null = null): TableView {
+  view(forSeatId: string | null = null): TableView {
     const hidden = this.phase === "betting" || this.phase === "playing";
     const shown = hidden ? this.dealer.slice(0, 1) : this.dealer;
     const current = this.currentSeat();
@@ -1066,7 +1129,7 @@ export class Table {
       turnEndsAt: this.turnEndsAt,
       turnMs: this.turnMs,
       minBet: MIN_BET,
-      maxBet: MAX_BET,
+      maxBet: this.capFor(forSeatId),
       forFun: this.forFun,
       deadline: this.deadline,
       bettingMs: this.bettingMs,

@@ -75,28 +75,60 @@ export function splitOffer(seat: SeatView, hand: HandView, available: number | n
 }
 
 /**
- * Why a chip cannot be added, or null when it can.
+ * The most this player could set a stake to, or null when the browser does not
+ * know.
  *
- * Said on the chip before the press, because each of these is something the
- * browser can already see. The server still refuses every one of them.
+ * Their chips and whatever is already on the felt, because a key replaces a
+ * stake rather than adding to it: moving your own five hundred onto the
+ * thousand is not spending fifteen hundred. Independent of the stake being
+ * shown for the same reason — what you can reach does not move while you are
+ * deciding where to put it.
  */
-export function chipRefusal(
+export function reachOf(state: TableView, me: SeatView, chips: number | null): number | null {
+  const base = state.forFun ? me.purse : chips;
+  return base === null ? null : base + me.bet;
+}
+
+/**
+ * Why this stake cannot be set, or null when it can.
+ *
+ * Said on the key before the press, because each of these is something the
+ * browser can already see. The server still refuses every one of them — and
+ * the ceiling in particular is a figure the table last told this browser,
+ * which is a figure this browser could change.
+ *
+ * Every refusal names the amount, so a row of keys refused for one reason
+ * still says which key is which.
+ */
+export function betRefusal(
   amount: number,
   shownStake: number,
+  min: number,
   max: number,
-  available: number | null,
+  reach: number | null,
   lastCall: boolean,
 ): string | null {
-  if (lastCall) {
-    return "Last call: chips can only come off now";
+  // Only chips going on. Taking them off is allowed to the last second: a
+  // misclick you cannot undo is worse than a hand you sat out.
+  if (lastCall && amount > shownStake) {
+    return `Last call: ${fmt(amount)} cannot go on now`;
   }
-  if (shownStake + amount > max) {
-    return `${fmt(amount)} more is past the ${fmt(max)} limit`;
+  if (amount < min) {
+    return `Bets start at ${fmt(min)}`;
   }
-  if (available !== null && amount > available) {
-    return `You do not have ${fmt(amount)} more to bet`;
+  if (amount > max) {
+    return `${fmt(amount)} is past what the bank covers (${fmt(max)})`;
+  }
+  if (reach !== null && amount > reach) {
+    return `You do not have ${fmt(amount)} to bet`;
   }
   return null;
+}
+
+/** A typed figure, read the way a felt writes one: commas welcome and ignored. */
+export function readBet(typed: string): number | null {
+  const digits = typed.replace(/[^\d]/g, "");
+  return digits === "" ? null : Number(digits);
 }
 
 /** The seat the turn goes to after the one acting, or null. */

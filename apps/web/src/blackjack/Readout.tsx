@@ -75,7 +75,16 @@ function betting(
     // Beside the stake, because deciding how much to put down is when it matters.
     stats.push({ term: "Balance", value: fmt(chips), chips: true });
   }
-  stats.push({ term: "Table", value: `${fmt(state.minBet)}–${fmt(state.maxBet)}`, chips: false });
+  /*
+   * The top figure is the bank's rather than the table's, so it moves through
+   * an evening — and can fall below the floor, at which point a range is not
+   * what it is and saying so is the honest line.
+   */
+  stats.push({
+    term: "Table",
+    value: state.maxBet < state.minBet ? "bank short" : `${fmt(state.minBet)}–${fmt(state.maxBet)}`,
+    chips: false,
+  });
   if (left !== null) {
     stats.push({ term: lastCall ? "Last call" : "Cards out", value: clockText(left), chips: false });
   }

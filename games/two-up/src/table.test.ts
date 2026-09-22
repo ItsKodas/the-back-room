@@ -1,3 +1,4 @@
+import { TableError } from "@backroom/core";
 import { describe, expect, it } from "vitest";
 import { Table } from "./table.js";
 
@@ -292,5 +293,86 @@ describe("the view", () => {
     table.boxerThrows(() => 0.1);
     expect(table.phase).toBe("spinning");
     expect(table.view(null).faces).not.toBeNull();
+  });
+});
+
+describe("putting last round's chips down again", () => {
+  /* One round played through to a result, so there is a last round at all. */
+  const played = () => {
+    const table = seated("casino");
+    table.place("s0", "heads", 100);
+    table.closeBetting();
+    table.boxerThrows(() => 0.1);
+    table.land();
+    table.read(() => 0.1);
+    table.beginRound();
+    return table;
+  };
+
+  it("tells a seat that has a round behind it", () => {
+    expect(played().view("s0").canRepeat).toBe(true);
+  });
+
+  it("tells a seat that has not put anything down yet", () => {
+    /*
+     * A button offered against nothing is a button that lies about what it
+     * will do — the same reason the wheel carries this flag rather than
+     * letting the felt guess from a cloth it cannot see the history of.
+     */
+    expect(seated("casino").view("s0").canRepeat).toBe(false);
+  });
+
+  it("tells a seat that sat down after the round it would repeat", () => {
+    const table = played();
+    table.join("s9", "P9", { userId: "u9", avatar: null, accentColor: null });
+    expect(table.view("s9").canRepeat).toBe(false);
+  });
+
+  it("tells a watcher nothing to repeat", () => {
+    expect(played().view(null).canRepeat).toBe(false);
+  });
+});
+
+describe("sitting a bot down", () => {
+  /*
+   * A bot has no account to charge and none to pay, so a round won against one
+   * at a chips table is chips out of thin air. Both schools take bots at a
+   * for-fun table — the bot bets the casino cloth and contests a ring's centre
+   * and covers alike — and neither takes one anywhere else.
+   */
+  const schools = ["casino", "school"] as const;
+
+  for (const school of schools) {
+    it(`refuses one at a ${school} table playing for chips`, () => {
+      const table = seated(school);
+
+      expect(() => table.addBot("bot", "Cassie", "normal")).toThrow(TableError);
+      expect(() => table.addBot("bot", "Cassie", "normal")).toThrow(/playing for fun/i);
+      expect(table.seats.map((seat) => seat.id)).toEqual(["s0", "s1"]);
+    });
+
+    it(`seats one at a ${school} table playing for nothing`, () => {
+      const table = new Table("FUN0", 8, { school, forFun: true });
+      table.join("s0", "P0", null);
+
+      const bot = table.addBot("bot", "Cassie", "normal");
+
+      expect(bot.isBot).toBe(true);
+      expect(bot.skill).toBe("normal");
+      expect(table.purseFor(bot.id)).toBeGreaterThan(0);
+    });
+  }
+
+  it("does not let a bot be the company a ring is waiting for", () => {
+    /*
+     * A ring playing for chips needs a second *real* player, and `holding`
+     * already counts only those. The refusal above is what makes that true
+     * rather than merely tidy: a bot that could sit at a chips ring would be a
+     * table dealing to one person for real chips.
+     */
+    const table = seated("school", 1);
+    expect(table.holding).toBe(true);
+    expect(() => table.addBot("bot", "Cassie", "normal")).toThrow(TableError);
+    expect(table.holding).toBe(true);
   });
 });

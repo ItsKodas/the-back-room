@@ -956,10 +956,18 @@
   display: none;
 }
 
-/* The chips, sunk into the panel above the keys that act on them. */
+/*
+ * The keys, sunk into the panel above the ones that act on them.
+ *
+ * A grid of six that share the width rather than a row of fixed plates: the
+ * whole ladder is on the felt now, and six plates at their desk size would run
+ * off the side of a phone. Columns shrink; nothing scrolls sideways.
+ */
 .well.bj__tray {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 52px));
   justify-content: space-between;
+  justify-items: center;
   gap: 4px;
   padding: 6px 8px;
 }
@@ -971,9 +979,9 @@
 .bj__chip {
   display: grid;
   place-items: center;
-  flex: 0 1 52px;
-  width: 52px;
-  height: 52px;
+  width: 100%;
+  max-width: 52px;
+  aspect-ratio: 1;
   min-width: 0;
   padding: 0;
   border: none;
@@ -984,6 +992,19 @@
   transition:
     transform 120ms cubic-bezier(0.2, 0.9, 0.25, 1),
     filter 120ms ease;
+}
+
+/*
+ * The one the stake is sitting on, lifted off the tray and left there.
+ *
+ * A key sets the stake rather than adding to it, so exactly one of these is
+ * ever the answer and the felt has to say which. Hover and press both outrank
+ * this, so a finger moving across the tray never has two transforms arguing
+ * over one plate.
+ */
+.bj__chip[aria-checked="true"] {
+  transform: translateY(-6px);
+  filter: drop-shadow(0 0 6px var(--gr-color-chip-hi));
 }
 
 .bj__chip .chip {
@@ -1014,6 +1035,88 @@
   opacity: 0.25;
   cursor: not-allowed;
   filter: grayscale(0.7);
+}
+
+/*
+ * A figure of your own, for the gaps between the plates.
+ *
+ * The box holds a number and the key beside it puts the number on, because
+ * nothing should be staked on a keystroke: typing three thousand goes through
+ * a three and a thirty on the way. Gold rather than the machine's neon, for
+ * the same reason a price on a key is gold — it is chips.
+ */
+.bj__own {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--gr-space-2);
+  padding: 4px 6px 6px var(--gr-space-3);
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--gr-radius-key);
+  background: rgb(0 0 0 / 0.3);
+  box-shadow: var(--gr-sink);
+  transition: border-color 160ms ease;
+}
+
+.bj__own:focus-within {
+  border-color: color-mix(in srgb, var(--gr-color-chip) 60%, transparent);
+}
+
+.bj__own[data-held] {
+  border-color: var(--gr-color-chip);
+}
+
+.bj__ownLabel {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+  white-space: nowrap;
+}
+
+.bj__own[data-held] .bj__ownLabel {
+  color: var(--gr-color-chip-hi);
+}
+
+.bj__ownField {
+  display: block;
+  min-width: 0;
+}
+
+/* Sixteen pixels, or iOS zooms the whole page the moment the box takes focus. */
+.bj__ownField input {
+  width: 100%;
+  min-width: 0;
+  /* Tall enough to be got at with a thumb, which is how this table is played. */
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--gr-color-ink-lit);
+  font-family: var(--gr-font-data);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj__ownField input::placeholder {
+  color: var(--gr-color-ink-faint);
+  font-weight: 500;
+}
+
+.bj__controls .bj__ownSet {
+  --gr-press: 4px;
+  width: auto;
+  min-width: 84px;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0 14px;
+  font-size: var(--gr-text-sm);
+  letter-spacing: 0.06em;
 }
 
 .bj__row {
@@ -1664,7 +1767,9 @@
   .bj__stamp,
   .bj__scrim,
   .bj__sheet,
+  .bj__own,
   .bj__chip,
+  .bj__chip[aria-checked="true"],
   .bj__chip:hover:not(:disabled),
   .bj__chip:active:not(:disabled),
   .bj-card,
