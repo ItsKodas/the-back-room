@@ -1,0 +1,279 @@
+/*
+ * Imported by Craps.tsx and nowhere else. This repo has had orphan
+ * stylesheets that nothing loaded, and rules added to one are silently dead —
+ * grep for the filename before adding to it.
+ */
+
+/*
+ * The cloth.
+ *
+ * A grid rather than absolute positioning, because every box on this table is
+ * a real button with a real bounding box — see the note at the top of
+ * Cloth.tsx. `gridTemplateColumns` and the aspect ratio are set inline, from
+ * the same units layout.ts hands the tests, so this file never carries a
+ * second copy of the geometry to drift out of step with it.
+ */
+.cr__cloth {
+  position: relative;
+  container-type: inline-size;
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  background: var(--gr-color-felt);
+  border: 2px solid var(--gr-color-neon-dim);
+  border-radius: var(--gr-radius-sm);
+  box-shadow: inset 0 0 40px rgb(0 0 0 / 0.4);
+  padding: 2px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.cr__cloth--shut {
+  filter: saturate(0.6) brightness(0.8);
+}
+
+/*
+ * One betting box, as a button.
+ *
+ * Filling its own grid cell rather than sizing to its label, so the felt is a
+ * single unbroken sheet of targets the way a printed one is — a button that
+ * shrank to its text would leave gaps between boxes nothing could be pressed
+ * on.
+ */
+.cr__box {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px;
+  background: color-mix(in srgb, var(--gr-color-felt-lit) 70%, transparent);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 2px;
+  color: var(--gr-color-ink);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 120ms ease;
+}
+
+.cr__box:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--gr-color-felt-lit) 90%, transparent);
+}
+
+.cr__box:disabled {
+  cursor: default;
+}
+
+.cr__box:focus-visible {
+  z-index: 4;
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: -3px;
+}
+
+/*
+ * The one-roll middle and the field read as their own busy district on a real
+ * table, printed rather than plain. Kept to the two boxes that are genuinely
+ * one shot each — the field is even money on five numbers and a real payout
+ * table would be its own task, so it stays undressed until it has one.
+ */
+.cr__box[data-kind="prop"] {
+  background: color-mix(in srgb, var(--gr-color-neon-deep) 22%, var(--gr-color-felt-lit));
+}
+
+.cr__box[data-kind="field"] {
+  background: color-mix(in srgb, var(--gr-color-air) 20%, var(--gr-color-felt-lit));
+}
+
+.cr__box-label {
+  margin-top: 1px;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  /* Scales with the box rather than the page, so one rule serves a full-width
+     pass line and a 3-unit prop box both. */
+  font-size: clamp(7px, 3.6cqw, 14px);
+  pointer-events: none;
+}
+
+/*
+ * The point.
+ *
+ * Glowing rather than gold: gold is spent on money everywhere in this
+ * building, and the point is a fact about what the table is doing, not an
+ * amount. A tag as well as the ring, because a colour that changes is a
+ * colour somebody has to already know the meaning of — the same reason an
+ * off bet gets a word instead of a tint.
+ */
+.cr__box[data-point="true"] {
+  box-shadow:
+    inset 0 0 0 2px var(--gr-color-neon-hi),
+    0 0 14px color-mix(in srgb, var(--gr-color-neon-hi) 55%, transparent);
+}
+
+.cr__box[data-point="true"]::after {
+  content: "Point";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--gr-color-neon-hi);
+  color: var(--gr-color-night);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+/*
+ * What odds could be laid behind, while odds mode is on.
+ *
+ * Dashed rather than solid, the same mark the wheel's own aim ring wears, for
+ * the same reason: this outlines a box a press would act on, not a fact about
+ * the table.
+ */
+.cr__box[data-odds="true"] {
+  outline: 2px dashed var(--gr-color-neon-hi);
+  outline-offset: -4px;
+}
+
+/*
+ * What the dice just made.
+ *
+ * Held back until `landedOn` arrives — see the prop's own comment in
+ * Cloth.tsx for why — so this is always the dice speaking, never a guess
+ * shown early. A short settle rather than a held glow, because the dice have
+ * already had their own animation; this only needs to say "that one".
+ */
+.cr__box[data-lit="true"] {
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 2px var(--gr-color-ink-lit),
+    0 0 16px rgb(255 255 255 / 0.55);
+  animation: cr-lit 420ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes cr-lit {
+  from {
+    transform: scale(0.92);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/*
+ * One stack of chips, in its slot.
+ *
+ * Five things can share a box — a place bet, a come bet, a don't-come bet and
+ * odds behind either — and a real table keeps each in a fixed corner for
+ * exactly the reason this does: two piles on one spot are not one pile, and
+ * stacking them on top of each other would make one of them uncountable.
+ */
+.cr__stack {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+.cr__stack[data-slot="flat"] {
+  left: 50%;
+  top: 64%;
+  z-index: 4;
+}
+
+.cr__stack[data-slot="come"] {
+  left: 26%;
+  top: 34%;
+}
+
+.cr__stack[data-slot="dontcome"] {
+  left: 74%;
+  top: 34%;
+}
+
+.cr__stack[data-slot="odds"] {
+  left: 26%;
+  top: 82%;
+}
+
+.cr__stack[data-slot="darkodds"] {
+  left: 74%;
+  top: 82%;
+}
+
+.cr__stack .stack {
+  width: clamp(14px, 6cqw, 26px);
+  height: auto;
+}
+
+/* Your own chips, picked out the same way every tray in the building does. */
+.cr__stack[data-mine="true"] {
+  filter: drop-shadow(0 0 4px var(--gr-color-chip));
+}
+
+/*
+ * A bet that is not this roll's business.
+ *
+ * A colour that merely changed would be a colour somebody has to already
+ * know the meaning of, so this says the word — and arrives rather than pops,
+ * the way anything else that just happened does in this building.
+ */
+.cr__off {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gr-color-ink-dim) 45%, var(--gr-color-shadow));
+  border: 1px solid color-mix(in srgb, var(--gr-color-ink-dim) 60%, transparent);
+  color: var(--gr-color-ink-lit);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  animation: cr-off-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/*
+ * Off because the bank could not carry it this roll, rather than because it
+ * is quietly sleeping through a come-out. The same word either way — see
+ * above — but a different reason is worth a different colour once you are
+ * close enough to look.
+ */
+.cr__off--bank {
+  background: color-mix(in srgb, var(--gr-color-bad) 55%, var(--gr-color-shadow));
+  border-color: color-mix(in srgb, var(--gr-color-bad) 70%, transparent);
+}
+
+@keyframes cr-off-in {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/*
+ * Every keyframe above has an off switch, and the felt still says everything
+ * it needs to without them: the point still glows, odds are still outlined,
+ * a winning box still lights and an off bet still wears its word — they
+ * simply arrive rather than travel.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cr__box[data-lit="true"],
+  .cr__off {
+    animation: none;
+  }
+}
