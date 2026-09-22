@@ -984,19 +984,24 @@
     align-items: center;
     gap: var(--gr-space-5);
   }
-  .rl__tray {
+  /* Scoped to the panel that declares the areas: this stylesheet is in the one
+     bundle the whole site loads, and the style gallery has an `.rl__tray` of
+     its own sitting straight inside `.rl` with no such grid around it. A bare
+     `.rl__tray { grid-area: tray }` is an invented area wherever else the
+     class turns up, which is the way `.lobby` has bled twice already. */
+  .rl__controls .rl__tray {
     grid-area: tray;
   }
-  .rl__acts {
+  .rl__controls .rl__acts {
     grid-area: acts;
   }
-  .rl__own {
+  .rl__controls .rl__own {
     grid-area: own;
   }
-  .rl__note {
+  .rl__controls .rl__note {
     grid-area: note;
   }
-  .rl__said {
+  .rl__controls .rl__said {
     grid-area: said;
   }
 }
