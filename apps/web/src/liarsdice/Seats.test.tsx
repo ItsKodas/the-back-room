@@ -53,6 +53,17 @@ describe("the rail", () => {
     );
   });
 
+  it("draws only as many pips as the table deals, at a three-dice table", () => {
+    const seats = [seat({ dice: 3 }), seat({ id: "s1", dice: 2 })];
+    const { container } = render(
+      <Seats state={view(seats, { startingDice: 3 })} seatId="s0" />,
+    );
+    // Three dice a hand here, not the five-dice default: a seat down to two
+    // of its three reads as short a die, never as already down to two of five.
+    expect(container.querySelectorAll(".ld__seat .pip")).toHaveLength(6);
+    expect(container.querySelectorAll(".ld__seat .pip--on")).toHaveLength(5);
+  });
+
   it("says a dice count to a screen reader, since the pips are decoration", () => {
     const { container } = render(<Seats state={view([seat({ dice: 3 })])} seatId="s0" />);
     expect(container.textContent).toContain("3 dice");

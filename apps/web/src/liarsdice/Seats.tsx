@@ -1,9 +1,6 @@
 import type { SeatView, TableView } from "@backroom/game-liars-dice";
 import { Avatar } from "../game/Avatar.js";
 
-/** The most pips a plate ever draws, so the empty ones say what was lost. */
-const PIPS = 5;
-
 /**
  * What a plate says about a seat, and how it is dressed.
  *
@@ -64,6 +61,10 @@ export function seatState(
  * the next deal, whoever just lost a die already has the lower `dice` count
  * while `hand` still shows the hand they were judged on, and the two can
  * disagree in length. The rail answers "how many are left", which is `dice`.
+ *
+ * The row is `state.startingDice` pips long, not a fixed five: at a
+ * three-dice table five would draw two pips nobody was ever dealt, and every
+ * seat would read as already down two dice from the moment the game opens.
  */
 export function Seats({ state, seatId }: { state: TableView; seatId: string | null }) {
   return (
@@ -80,7 +81,7 @@ export function Seats({ state, seatId }: { state: TableView; seatId: string | nu
               className="ld__face"
             />
             <span className="pips ld__dice" aria-hidden="true">
-              {Array.from({ length: PIPS }, (_, at) => (
+              {Array.from({ length: state.startingDice }, (_, at) => (
                 // A pip has no identity beyond its position in the row — the
                 // row's length never changes, so the index is stable.
                 // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity
