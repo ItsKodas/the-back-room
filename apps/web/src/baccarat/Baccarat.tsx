@@ -247,7 +247,36 @@ export function Felt({
       )}
 
       <Seats state={state} seatId={seatId} />
+      {state.forFun && mine !== null ? <Bots table={table} /> : null}
     </section>
+  );
+}
+
+/**
+ * Somebody to play, when there is nobody — the whole reason bots exist here.
+ *
+ * Only at a table playing for nothing, and only once you are actually
+ * seated: a bot fills a chair beside you, not a spot for somebody who has
+ * not sat down yet. The lobby already promises this ("you can deal bots
+ * in."); the server has always allowed it (`Table.addBot`), but nothing here
+ * ever called it.
+ */
+function Bots({ table }: { table: Table }) {
+  return (
+    <div className="bc__bots">
+      <span className="bc__bots-label">Deal somebody in</span>
+      {(["easy", "normal", "hard"] as const).map((skill) => (
+        <button
+          key={skill}
+          type="button"
+          className="bc__bot"
+          disabled={table.busy}
+          onClick={() => table.addBot(skill)}
+        >
+          {skill}
+        </button>
+      ))}
+    </div>
   );
 }
 

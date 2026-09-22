@@ -29,7 +29,7 @@
   container: bc / inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "standing" "table" "tray" "boards" "seats";
+  grid-template-areas: "standing" "table" "tray" "boards" "seats" "bots";
   gap: var(--gr-space-3);
   /* The felt itself never has to widen past its column — a phone that is
      handed a table 1600px on paper is the sideways scroll CLAUDE.md rules out. */
@@ -642,6 +642,54 @@
   color: var(--gr-color-bad);
 }
 
+/*
+ * Somebody to play, under the seats it fills. Its own row rather than
+ * anything among the controls: it is a thing you do to the table, not a bet
+ * on it, and the same reasoning death-roll's own `.dr__bots` uses.
+ */
+.bc__bots {
+  grid-area: bots;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gr-space-2);
+}
+
+.bc__bots-label {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+.bc__bot {
+  /* Thumb-sized, like every other control on a felt played on a phone. */
+  min-height: 44px;
+  padding: var(--gr-space-2) var(--gr-space-4);
+  border-radius: 999px;
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.28);
+  color: var(--gr-color-ink-dim);
+  font: inherit;
+  font-size: var(--gr-text-sm);
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.bc__bot:hover:not(:disabled) {
+  border-color: var(--gr-color-neon-dim);
+  color: var(--gr-color-ink);
+}
+
+.bc__bot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bc__bot:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
 /* --------------------------------------------------------------- the desk */
 
 /*
@@ -655,8 +703,8 @@
 @container bc (min-width: 760px) {
   .bc {
     grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-rows: auto auto auto auto;
-    grid-template-areas: "standing standing" "table tray" "table boards" "seats seats";
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-areas: "standing standing" "table tray" "table boards" "seats seats" "bots bots";
     gap: var(--gr-space-4) var(--gr-space-5);
   }
 

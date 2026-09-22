@@ -216,4 +216,31 @@ describe("the baccarat felt", () => {
     screen.getByRole("button", { name: /^Player, pays 1 to 1/ }).click();
     expect(act).not.toHaveBeenCalled();
   });
+
+  /*
+   * The lobby promises "you can deal bots in" for a for-fun table (the same
+   * copy roulette and poker carry), and the server fully supports it —
+   * `Table.addBot` in games/baccarat/src/table.ts, `botBet` in bot.ts, and
+   * `botMove` in adapter.ts all exist for exactly this. Nothing in this file
+   * ever called `table.addBot`, so the promise had no control behind it: a
+   * player at a for-fun table had no way to fill the empty seats.
+   */
+  it("lets a seated player deal a bot in at a table playing for fun", () => {
+    const { table } = stub();
+    const addBot = vi.fn();
+    (table as unknown as { addBot: typeof addBot }).addBot = addBot;
+    render(<Felt table={table} state={view({ forFun: true })} seatId="s1" />);
+    screen.getByRole("button", { name: /normal/i }).click();
+    expect(addBot).toHaveBeenCalledWith("normal");
+  });
+
+  it("does not offer to deal a bot in at a table playing for chips", () => {
+    render(<Felt table={stub().table} state={view({ forFun: false })} seatId="s1" />);
+    expect(screen.queryByText(/deal somebody in/i)).toBeNull();
+  });
+
+  it("offers a watcher no way to deal a bot in either", () => {
+    render(<Felt table={stub().table} state={view({ forFun: true, you: null })} seatId={null} />);
+    expect(screen.queryByText(/deal somebody in/i)).toBeNull();
+  });
 });
