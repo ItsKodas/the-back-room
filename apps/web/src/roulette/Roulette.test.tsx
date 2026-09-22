@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { SeatView, TableView } from "@backroom/game-roulette";
+import type { TauntAck } from "@backroom/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { play } from "../game/audio.js";
@@ -508,6 +509,69 @@ describe("the roulette felt", () => {
 
     render(<Felt table={stub().table} state={view()} seatId="s1" account={account} />);
     expect(keys().queryByRole("button", { name: /taunt/i })).toBeNull();
+  });
+
+  /*
+   * The two seats a throw needs: yourself, to press from, and somebody else
+   * signed in to aim at. `view()`'s own default has only the one seat.
+   */
+  const spinningWithTarget = view({
+    phase: "spinning",
+    pocket: 17,
+    seats: [seat({ id: "s1", name: "Ada" }), seat({ id: "s2", name: "Bram" })],
+  });
+
+  /* One emote, fetched once the picker mounts. */
+  const stubEmotes = () =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          emotes: [{ id: "e1", name: "Smug", cost: 250, image: "/x", sound: null }],
+        }),
+      })),
+    );
+
+  it("shows the taunt's cost leaving the corner on the press", async () => {
+    /*
+     * The cost is a number the player chose the moment they aimed it — the
+     * emote and its price are already in hand — so it is exactly the kind of
+     * fact the felt may show before the table has answered. Left to the
+     * round trip, a slow connection would show a balance that had not moved
+     * yet, on a press that plainly had.
+     */
+    stubEmotes();
+    const spent: Account = { ...account, setChips: vi.fn(), refresh: vi.fn() };
+    const { table } = stub();
+
+    render(<Felt table={table} state={spinningWithTarget} seatId="s1" account={spent} />);
+    fireEvent.click(await keys().findByRole("button", { name: /taunt/i }));
+    fireEvent.click(keys().getByRole("button", { name: /Smug/ }));
+    fireEvent.click(keys().getByRole("button", { name: /Bram/ }));
+
+    expect(spent.setChips).toHaveBeenCalledWith(12_400 - 250);
+  });
+
+  it("gives the early guess back when the table refuses the throw", async () => {
+    stubEmotes();
+    let respond: ((result: TauntAck) => void) | undefined;
+    const spent: Account = { ...account, setChips: vi.fn(), refresh: vi.fn() };
+    const { table } = stub({
+      taunt: vi.fn((_emoteId: string, _at: string, done?: (result: TauntAck) => void) => {
+        respond = done;
+      }),
+    });
+
+    render(<Felt table={table} state={spinningWithTarget} seatId="s1" account={spent} />);
+    fireEvent.click(await keys().findByRole("button", { name: /taunt/i }));
+    fireEvent.click(keys().getByRole("button", { name: /Smug/ }));
+    fireEvent.click(keys().getByRole("button", { name: /Bram/ }));
+
+    // The table answers no, so the guess the press made gets given back —
+    // the true figure fetched fresh rather than reconstructed by hand.
+    respond?.({ ok: false, error: "too costly" });
+    expect(spent.refresh).toHaveBeenCalled();
   });
 });
 

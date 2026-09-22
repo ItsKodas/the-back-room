@@ -233,7 +233,28 @@ export function Felt({
         seatId={seatId}
         chips={account.profile?.chips ?? null}
         stakes={table.stakes}
-        onThrow={(emote, at) => table.taunt(emote.id, at)}
+        onThrow={(emote, at) => {
+          /*
+           * The cost is a number the player already chose — the emote and
+           * its price are picked before this fires — so it leaves the
+           * corner on the press rather than waiting on a spin's round trip.
+           * A wheel is exactly the moment CLAUDE.md means by a bad
+           * connection: the ball is already in the air, and a figure that
+           * only catches up once the table answers reads as a press that
+           * did nothing.
+           */
+          if (account.profile !== null) {
+            account.setChips(account.profile.chips - emote.cost);
+          }
+          table.taunt(emote.id, at, (result) => {
+            if (result.ok) {
+              account.setChips(result.chips);
+            } else {
+              // Refused, so the guess the press made is given back.
+              account.refresh();
+            }
+          });
+        }}
         openClassName="key"
       />
     ) : null;
