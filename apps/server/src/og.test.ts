@@ -285,4 +285,57 @@ describe("fetching a face", () => {
     }
     expect(asked).toBe(0);
   });
+
+  it("fetches one picture once when two seats are wearing it", async () => {
+    /*
+     * Two seats at a table share a face more often than not — the same
+     * person's link unfurled twice, a table they are sitting at in two
+     * clients. The cache only helps if the second one waits on the first
+     * request rather than starting a second: a cache written after the answer
+     * lands is empty for exactly as long as the burst it exists for.
+     */
+    const avatars = new Avatars();
+    const url = "https://cdn.discordapp.com/avatars/1/abc.png";
+    let asked = 0;
+    let land: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      asked += 1;
+      await held;
+      return new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]), {
+        headers: { "content-type": "image/png" },
+      });
+    }) as typeof fetch;
+    try {
+      const both = avatars.all([url, url]);
+      land();
+      const [one, two] = await both;
+      expect(one).not.toBeNull();
+      expect(two).toBe(one);
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(asked).toBe(1);
+  });
+
+  it("remembers a picture that did not come, rather than asking for it again", async () => {
+    const avatars = new Avatars();
+    const url = "https://cdn.discordapp.com/avatars/2/gone.png";
+    let asked = 0;
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      asked += 1;
+      throw new Error("refused");
+    }) as typeof fetch;
+    try {
+      expect(await avatars.data(url)).toBeNull();
+      expect(await avatars.data(url)).toBeNull();
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(asked).toBe(1);
+  });
 });
