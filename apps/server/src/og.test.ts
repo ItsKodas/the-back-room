@@ -1,7 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameListing } from "@backroom/core";
-import { COMING } from "@backroom/core";
 import { BLACKJACK } from "@backroom/game-blackjack";
 import { CRAPS } from "@backroom/game-craps";
 import { GREED } from "@backroom/game-greed";
@@ -187,7 +186,24 @@ describe("the furniture on a game's card", () => {
      * a name on a door — so this pins that a coming-soon card renders, and that
      * it is not quietly claiming to be one of the games above.
      */
-    const soon = COMING[0] as GameListing;
+    /*
+     * Built here rather than taken from `COMING`, which is empty now that every
+     * game once on it has been built. The fallback it pins is not a fact about
+     * whichever game happens to be coming — it is what the card does for any id
+     * with no furniture behind it, and that has to keep working for the next
+     * sign somebody puts up.
+     */
+    const soon: GameListing = {
+      id: "not-a-game-yet",
+      name: "Not A Game Yet",
+      blurb: "A name on a door, and nothing behind it.",
+      shape: "table",
+      minSeats: 2,
+      maxSeats: 6,
+      open: false,
+      mark: { text: "NOT A GAME YET", accentAt: 0 },
+      theme: { wall: "#14161a", felt: "#1e2630", accent: "#5f7a99", accentHi: "#a8c4e0" },
+    };
     expect(Object.keys(MOTIFS)).not.toContain(soon.id);
     const card = banner(soon);
     // The house chip, drawn large, which is what "no furniture yet" looks like.

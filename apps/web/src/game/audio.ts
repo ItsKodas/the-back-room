@@ -52,6 +52,15 @@ export type Cue =
   | "sayFold"
   | "sayCall"
   | "sayRaise"
+  /*
+   * Naming a bid's count exactly right, at a dice table. The rarest and
+   * loudest press there is — it can end the game outright — and it is also
+   * the other side of "sayCall" used to call somebody a liar over the same
+   * bid: the two are one moment seen from opposite directions, so they
+   * cannot share a voice without telling half the table the wrong thing
+   * happened.
+   */
+  | "sayExact"
   | "sayAllIn"
   /* The pot going across the felt to whoever took it. */
   | "potPush"
@@ -932,6 +941,16 @@ export function play(
       // Putting it up, so the tone goes up with it.
       tone({ frequency: 520, duration: 0.09, type: "triangle", gain: 0.05 });
       tone({ frequency: 700, duration: 0.11, type: "triangle", gain: 0.05, delay: 0.07 });
+      break;
+    case "sayExact":
+      /*
+       * A two-tone rising figure, brighter and louder than sayRaise's rather
+       * than sayCall's single flat tone: this is the one call that can end
+       * the game on the spot, and it must read as unmistakably its own thing
+       * next to "somebody just called you a liar over this same bid".
+       */
+      tone({ frequency: 660, duration: 0.1, type: "triangle", gain: 0.09 });
+      tone({ frequency: 990, duration: 0.18, type: "triangle", gain: 0.09, delay: 0.07 });
       break;
     case "sayAllIn":
       // Everything, and the only one of these allowed to be a moment.

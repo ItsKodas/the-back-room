@@ -389,6 +389,13 @@ describe("the napkin in scribble's corner", () => {
   });
 });
 
+describe("the cup in Liar's Dice's corner", () => {
+  it("gives Liar's Dice a cup", () => {
+    const { container } = render(<TileArt game="liars-dice" />);
+    expect(container.querySelector(".art__cup")).not.toBe(null);
+  });
+});
+
 /*
  * Baccarat's corner, in the same idiom as the shared link card: two hands
  * facing each other rather than one hand held at an angle, which is what

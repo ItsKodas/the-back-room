@@ -32,5 +32,6 @@ export { COMING } from "./coming.js";
 export { BankLedger, ledgerOf } from "./ledger.js";
 export { Escrow } from "./escrow.js";
 export type { Stake } from "./escrow.js";
+export { Readiness } from "./ready.js";
 export { Taunts } from "./taunts.js";
 export type { Resolution, Taunt, TauntPayout } from "./taunts.js";

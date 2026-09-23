@@ -4,6 +4,7 @@ import { BLACKJACK } from "@backroom/game-blackjack";
 import { CRAPS } from "@backroom/game-craps";
 import { DEATH_ROLL } from "@backroom/game-death-roll";
 import { GREED } from "@backroom/game-greed";
+import { LIARS_DICE } from "@backroom/game-liars-dice";
 import { PLINKO } from "@backroom/game-plinko";
 import { POKER } from "@backroom/game-poker";
 import { ROULETTE } from "@backroom/game-roulette";
@@ -34,6 +35,7 @@ const BUILT = [
   PLINKO,
   CRAPS,
   BACCARAT,
+  LIARS_DICE,
 ];
 
 describe("the room's catalogue", () => {
