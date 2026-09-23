@@ -27,6 +27,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 /** The middle of a square, in client pixels, for the landscape cloth. */
@@ -184,6 +185,167 @@ describe("placing a chip", () => {
     fireEvent.pointerCancel(cloth, { ...TWO, pointerId: 2 });
     fireEvent.pointerUp(cloth, { ...ONE, button: 0, pointerId: 1 });
     expect(onPlace).toHaveBeenCalledWith("straight:1");
+  });
+});
+
+describe("pushing the cloth about", () => {
+  /** A touch, which is the only kind of pointer any of this answers to. */
+  const finger = (id: number, where: { clientX: number; clientY: number }) => ({
+    ...where,
+    button: 0,
+    pointerId: id,
+    pointerType: "touch",
+  });
+
+  /** Two fingers apart and then further apart: a pinch, as a browser sends one. */
+  function pinchOpen(cloth: Element) {
+    fireEvent.pointerDown(cloth, finger(1, at(6, 2)));
+    fireEvent.pointerDown(cloth, finger(2, at(8, 3)));
+    for (let step = 1; step <= 4; step += 1) {
+      fireEvent.pointerMove(cloth, finger(1, at(6 - step * 0.5, 2 - step * 0.2)));
+      fireEvent.pointerMove(cloth, finger(2, at(8 + step * 0.5, 3 + step * 0.2)));
+    }
+    fireEvent.pointerUp(cloth, finger(1, at(4, 1.2)));
+    fireEvent.pointerUp(cloth, finger(2, at(10, 3.8)));
+  }
+
+  it("gives the press up when a second finger arrives, and bets nothing", () => {
+    /*
+     * The rule the cloth has always had, kept: a resting thumb can never
+     * become the bet a pointing finger was naming. What is new is that the
+     * thumb is now the start of a pinch rather than nothing at all — so it
+     * ends the press rather than being ignored beside it, which is the
+     * stricter of the two and not the looser.
+     */
+    const onPlace = vi.fn();
+    const onTake = vi.fn();
+    draw({ onPlace, onTake });
+    const cloth = screen.getByRole("group", { name: "The betting cloth" });
+    pinchOpen(cloth);
+    expect(onPlace).not.toHaveBeenCalled();
+    expect(onTake).not.toHaveBeenCalled();
+  });
+
+  it("offers the way back only once there is board off screen", () => {
+    draw();
+    const cloth = screen.getByRole("group", { name: "The betting cloth" });
+    expect(screen.queryByRole("button", { name: "Whole board" })).toBeNull();
+    pinchOpen(cloth);
+    const back = screen.getByRole("button", { name: "Whole board" });
+    fireEvent.click(back);
+    expect(screen.queryByRole("button", { name: "Whole board" })).toBeNull();
+  });
+
+  it("moves the board rather than betting when a finger travels, once zoomed in", () => {
+    const onPlace = vi.fn();
+    draw({ onPlace });
+    const cloth = screen.getByRole("group", { name: "The betting cloth" });
+    pinchOpen(cloth);
+    onPlace.mockClear();
+
+    fireEvent.pointerDown(cloth, finger(1, ONE));
+    // Well past the ten pixels that separate a firm tap from a push.
+    fireEvent.pointerMove(cloth, finger(1, { clientX: ONE.clientX + 80, clientY: ONE.clientY }));
+    fireEvent.pointerUp(cloth, finger(1, { clientX: ONE.clientX + 80, clientY: ONE.clientY }));
+    expect(onPlace).not.toHaveBeenCalled();
+  });
+
+  it("still slides to re-aim while the whole board is on screen", () => {
+    /*
+     * At the whole-board zoom a drag would move nothing, so it is left doing
+     * what it has always done: your own finger covers the square you are
+     * choosing, and sliding is how you see past it before you commit.
+     */
+    const onPlace = vi.fn();
+    draw({ onPlace });
+    const cloth = screen.getByRole("group", { name: "The betting cloth" });
+    fireEvent.pointerDown(cloth, finger(1, ONE));
+    fireEvent.pointerMove(cloth, finger(1, TWO));
+    fireEvent.pointerUp(cloth, finger(1, TWO));
+    expect(onPlace).toHaveBeenCalledWith("straight:2");
+  });
+
+  it("counts two quick taps on one square as two chips, not a zoom", () => {
+    /*
+     * Every map double-taps to zoom and this one deliberately does not: two
+     * quick taps on the same square is how a pile gets built, and a gesture
+     * that swallowed the second would be the felt taking a bet away.
+     */
+    const onPlace = vi.fn();
+    draw({ onPlace });
+    const cloth = screen.getByRole("group", { name: "The betting cloth" });
+    for (const round of [0, 1]) {
+      void round;
+      fireEvent.pointerDown(cloth, finger(1, ONE));
+      fireEvent.pointerUp(cloth, finger(1, ONE));
+    }
+    expect(onPlace).toHaveBeenCalledTimes(2);
+    expect(onPlace).toHaveBeenNthCalledWith(2, "straight:1");
+    expect(screen.queryByRole("button", { name: "Whole board" })).toBeNull();
+  });
+});
+
+describe("which way round the cloth goes", () => {
+  /**
+   * A watcher that answers with the width of whatever element it was pointed
+   * at, which is the whole question here.
+   *
+   * Two rooms: a 700px box, and the 200px a turned cloth draws itself at
+   * inside one. Which number the cloth gets back is decided entirely by which
+   * element it chose to watch.
+   */
+  function stubRoom() {
+    class Room {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback(
+          [
+            {
+              contentRect: { width: target.classList.contains("rl__cloth") ? 200 : 700 },
+            } as ResizeObserverEntry,
+          ],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", Room);
+  }
+
+  it("asks the room it was given, not the cloth it last drew", () => {
+    /*
+     * A turned cloth is narrow by construction — it is five squares across
+     * where a laid-out one is fourteen. So a cloth that measures *itself* to
+     * decide which way round to go can never come back from being turned:
+     * one glance at a phone-width box and it is portrait for the rest of the
+     * session, on a 1440px desk included. That is not a hypothetical; it is
+     * what a wide desktop was shipping.
+     *
+     * The room is what decides, and a room does not change size when the
+     * cloth inside it turns.
+     */
+    stubRoom();
+    // No `portrait` prop: the point is the decision the cloth makes alone.
+    const { container } = render(<Cloth placed={[]} mine="you" />);
+    expect(container.querySelector(".rl__cloth")?.className).not.toContain("rl__cloth--portrait");
+  });
+
+  it("still turns when the room itself is narrow", () => {
+    class Narrow {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe() {
+        this.callback(
+          [{ contentRect: { width: 300 } } as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", Narrow);
+    const { container } = render(<Cloth placed={[]} mine="you" />);
+    expect(container.querySelector(".rl__cloth")?.className).toContain("rl__cloth--portrait");
   });
 });
 

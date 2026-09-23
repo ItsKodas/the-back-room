@@ -95,7 +95,7 @@ export function Roulette() {
   const atTable = table.taken === null && state !== null;
 
   return (
-    <main className={`play${atTable ? " play--fit" : ""}`}>
+    <main className={`play${atTable ? " play--fit play--roulette" : ""}`}>
       {/*
         At the table a refusal takes the middle of the board, because a strip
         above the felt is a strip nobody reads with a window closing on them.
@@ -385,7 +385,7 @@ export function Felt({
               ?
             </button>
           </div>
-          <div className="rl__cloth-holds table-scroll" {...shut}>
+          <div className="rl__cloth-holds" {...shut}>
             <Cloth
               placed={state.placed}
               mine={seatId}

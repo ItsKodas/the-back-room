@@ -151,19 +151,29 @@
 
 /*
  * A felt that widens once you are sitting at it takes the bar with it, so
- * the way out stays over the table's own edge. The width is poker's own, from
- * poker.css. The wheel had one here too, until it became a window and took the
- * building's width like every other table.
+ * the way out stays over the table's own edge. Each width is that table's
+ * own, from poker.css, craps.css and roulette.css, and each is written out
+ * rather than joined to the one above it: sharing a selector would move one
+ * when the other changed.
  */
 .shell__bar:has(+ .play--poker) {
   max-width: 1600px;
 }
 
-/* The pit widens too, and the figure is craps' own, from craps.css. Written
-   out rather than joined to poker's rule above: each is that table's own
-   width, and sharing a selector would move one when the other changed. */
 .shell__bar:has(+ .play--pit) {
   max-width: min(1560px, 96vw);
+}
+
+/*
+ * The wheel lost this when it became a window, on the argument that what
+ * decides how big a square is at a desk is how the stage divides its room up
+ * rather than how wide the document was allowed to grow. That was half right:
+ * the stage does the dividing, but it can only divide what it is given, and a
+ * thousand pixels on a 1600px monitor left a third of the window as margin
+ * and the cloth two hundred and thirty pixels tall. It has it back.
+ */
+.shell__bar:has(+ .play--roulette) {
+  max-width: 1560px;
 }
 
 .nav__mark {

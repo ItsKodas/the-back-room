@@ -143,10 +143,13 @@ export function Controls({
         ))}
       </div>
 
+      {/*
+        A figure of your own. No caps label over it any more: the field says
+        what it takes in its own placeholder, the key beside it says what
+        pressing it does, and the two of them together were costing a phone a
+        line of type it was paying for out of the board.
+      */}
       <div className="rl__own" data-held={ownHeld || undefined}>
-        <label className="rl__own-label" htmlFor={`${id}-own`}>
-          Custom chip
-        </label>
         <input
           id={`${id}-own`}
           type="text"
@@ -191,7 +194,7 @@ export function Controls({
           onClick={onRepeat}
         >
           <span className="rl__act-name">Same again</span>
-          <span className="rl__act-note">Last round's chips</span>
+          <span className="rl__act-note">Last round's</span>
         </button>
         <button
           type="button"
@@ -202,7 +205,7 @@ export function Controls({
           onClick={onUndo}
         >
           <span className="rl__act-name">Undo</span>
-          <span className="rl__act-note">The last chip down</span>
+          <span className="rl__act-note">The last chip</span>
         </button>
         <button
           type="button"
@@ -213,25 +216,33 @@ export function Controls({
           onClick={onClear}
         >
           <span className="rl__act-name">Clear</span>
-          <span className="rl__act-note">Everything you have on</span>
+          <span className="rl__act-note">Everything on</span>
         </button>
         {taunt}
       </div>
 
-      {/* What is down, and what is left — a standing fact, not news, so it
-          carries no aria-live of its own. */}
+      {/*
+        What is down, what is left, and how to take a chip back — a standing
+        fact, not news, so it carries no aria-live of its own.
+
+        One line rather than the two it used to run to on a phone. Separated
+        by middots because these are three facts of the same standing and not
+        a sentence, and the words themselves are cut to what they have to say:
+        a phone reading "in play money left" over two lines was spending the
+        board's pixels on grammar.
+      */}
       <p className="rl__note">
         {down > 0 ? (
           <>
-            <strong className="rl__note-figure">{exact(down)}</strong> on the cloth.{" "}
+            <strong className="rl__note-figure">{exact(down)}</strong> on the cloth{" · "}
           </>
         ) : null}
         {reach.purse === null ? null : (
           <>
-            <strong className="rl__note-figure">{exact(reach.purse)}</strong> in play money left.{" "}
+            <strong className="rl__note-figure">{exact(reach.purse)}</strong> left{" · "}
           </>
         )}
-        Right-click a chip, or press and hold, to take it back off.
+        hold a chip to take it back
       </p>
 
       {/*
