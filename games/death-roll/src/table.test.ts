@@ -29,6 +29,14 @@ describe("a table waiting for players", () => {
     expect(table.view("ada").waitingFor).toBeNull();
   });
 
+  it("names whoever opened it, so the felt knows whose controls are whose", () => {
+    // The host's controls are the host's — the felt cannot offer only them
+    // what it cannot tell apart from anybody else at the table.
+    const table = seated("ada", "bob");
+
+    expect(table.view("bob").hostId).toBe("ada");
+  });
+
   it("still needs players when the second one has left and their seat is only held", () => {
     // Ready is counted against connected seats, so a held leaver made the
     // felt read "1 of 1 ready" at a table that could never deal.
