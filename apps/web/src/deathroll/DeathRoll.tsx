@@ -136,7 +136,7 @@ export function Felt({
   return (
     <section className="dr" data-game="death-roll">
       <Seats state={state} seatId={seatId} />
-      <Bots table={table} state={state} />
+      <Bots table={table} state={state} seatId={seatId} />
 
       <div className="dr__stage">
         {/* Hidden from assistive tech only between games: once one is running
@@ -413,13 +413,19 @@ function Controls({
  * which is the whole reason bots exist in this building. Shown right under
  * the empty seats, because those are the seats it fills.
  *
- * Only at a table playing for nothing: chips are only won from real people,
- * and a bot has no account to take them from or pay them to. The table
- * refuses one either way — hiding the control is the courtesy, refusing the
- * message is the rule.
+ * Only at a table playing for nothing, and only for whoever opened it: chips
+ * are only won from real people and a bot has no account to take them from or
+ * pay them to, and who sits at the table is the host's decision like every
+ * other part of its shape. The table refuses one either way — hiding the
+ * control is the courtesy, refusing the message is the rule.
  */
-function Bots({ table, state }: { table: Table; state: TableView }) {
-  if (!state.forFun || state.seats.length >= state.maxSeats) {
+function Bots({
+  table,
+  state,
+  seatId,
+}: { table: Table; state: TableView; seatId: string | null }) {
+  const host = seatId !== null && state.hostId === seatId;
+  if (!host || !state.forFun || state.seats.length >= state.maxSeats) {
     return null;
   }
   return (

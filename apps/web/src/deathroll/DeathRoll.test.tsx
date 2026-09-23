@@ -59,6 +59,7 @@ const view = (over: Partial<TableView> = {}): TableView => ({
   readyCount: 0,
   waitingFor: null,
   lastEvent: null,
+  hostId: "s1",
   you: seat({ id: "s1", name: "Ada" }),
   ...over,
 });
@@ -181,6 +182,29 @@ describe("the death roll felt", () => {
     normal.click();
 
     expect(stubbed.addBot).toHaveBeenCalledWith("normal");
+  });
+
+  it("offers no bot to a player who did not open the table", () => {
+    /*
+     * The shape of the table is the host's decision, and the server refuses
+     * lobby:addBot from anybody else. A live control that would only ever
+     * bounce is the felt offering something it knows would be turned down.
+     */
+    const state = view({
+      forFun: true,
+      hostId: "s2",
+      phase: "waiting",
+      maxSeats: 6,
+      seats: [
+        seat({ id: "s1", name: "Ada", purse: 10_000 }),
+        seat({ id: "s2", name: "Bram", purse: 10_000 }),
+      ],
+      you: seat({ id: "s1", name: "Ada", purse: 10_000 }),
+    });
+    render(<Felt table={stub().table} state={state} seatId="s1" />);
+
+    expect(screen.queryByText(/deal somebody in/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /normal/i })).toBeNull();
   });
 
   it("offers no bot at a table playing for chips", () => {

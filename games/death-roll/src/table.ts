@@ -78,6 +78,8 @@ export interface TableView {
   /** Why the table cannot deal at all: fewer than two people sitting at it. */
   waitingFor: "players" | null;
   lastEvent: string | null;
+  /** Whose table it is, so the controls that are theirs are offered to them. */
+  hostId: string | null;
   /** This seat, or null for somebody only watching. */
   you: SeatView | null;
 }
@@ -554,6 +556,7 @@ export class Table implements PlayTable {
       // down to one connected player is waiting, not "1 of 1 ready".
       waitingFor: game === null && this.present().length < 2 ? "players" : null,
       lastEvent: this.lastEvent,
+      hostId: this.hostId,
       you: seats.find((seat) => seat.id === forSeatId) ?? null,
     };
   }
