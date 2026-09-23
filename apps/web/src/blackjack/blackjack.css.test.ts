@@ -16,6 +16,7 @@ function sheet(path: string): string {
 
 const css = sheet("src/blackjack/blackjack.css");
 const shared = sheet("src/table/table.css");
+const cards = sheet("src/cards/cards.css");
 
 /** The declarations of the first rule for exactly this selector, at any depth. */
 function ruleIn(text: string, selector: string): string {
@@ -84,7 +85,7 @@ describe("cards on the felt", () => {
     const wide = ruleIn(desk, ".bj__felt");
     expect(wide).toContain("--bj-card-dealer: clamp(48px, min(16cqi, 15cqh), 150px)");
     expect(wide).toContain("--bj-card-mine: clamp(48px, min(15cqi, 15cqh), 132px)");
-    expect(ruleIn(css, ".bj__seat--split")).toContain("--bj-card-w: clamp(26px, min(12cqi, 15cqh), 52px)");
+    expect(ruleIn(css, ".bj__seat--split")).toContain("--card-w: clamp(26px, min(12cqi, 15cqh), 52px)");
   });
 
   /*
@@ -100,7 +101,7 @@ describe("cards on the felt", () => {
     const other = ruleIn(desk, ".bj__seat--other");
     expect(other).toContain("flex: 0 0 var(--bj-plate)");
     expect(other).toContain("container-type: inline-size");
-    expect(ruleIn(desk, ".bj__seat--other > *")).toContain("--bj-card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px)");
+    expect(ruleIn(desk, ".bj__seat--other > *")).toContain("--card-w: clamp(26px, min(100cqi / 2.5, 13cqh), 100px)");
     // A second row is height the dealer and your own hand give up.
     const full = ruleIn(desk, ".bj__felt:has(.bj__seat--other:nth-child(6))");
     expect(full).toContain("--bj-card-dealer: clamp(48px, min(16cqi, 9cqh), 150px)");
@@ -122,7 +123,7 @@ describe("cards on the felt", () => {
     const onCard = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter(
         ([, selectors = "", body = ""]) =>
-          selectors.split(",").some((one) => /\.bj-card$/.test(one.trim())) && body.includes("--bj-card-w:"),
+          selectors.split(",").some((one) => /\.card$/.test(one.trim())) && body.includes("--card-w:"),
       )
       .map(([, selectors = ""]) => selectors.trim());
     expect(onCard).toEqual([]);
@@ -139,16 +140,17 @@ describe("cards on the felt", () => {
     expect(rule).not.toMatch(/overflow/);
     expect(rule).toContain("container-type: inline-size");
     expect(rule).toContain("min-width: 0");
-    expect(rule).toContain("flex: 0 1 calc(var(--bj-card-w) * (1 + (var(--bj-places, 1) - 1) * var(--bj-show)))");
-    expect(ruleIn(css, ".bj__seat .bj-hand .bj-card + .bj-card")).toContain(
-      "margin-left: clamp(var(--bj-card-w) * -0.82, (100cqi - var(--bj-card-w)) / (var(--bj-places, 2) - 1) - var(--bj-card-w), var(--bj-card-w) * (var(--bj-show) - 1))",
+    expect(rule).toContain("flex: 0 1 calc(var(--card-w) * (1 + (var(--bj-places, 1) - 1) * var(--bj-show)))");
+    expect(ruleIn(css, ".bj__seat .bj-hand .card + .card")).toContain(
+      "margin-left: clamp(var(--card-w) * -0.82, (100cqi - var(--card-w)) / (var(--bj-places, 2) - 1) - var(--card-w), var(--card-w) * (var(--bj-show) - 1))",
     );
     expect(css).not.toMatch(/\.bj[^{}]*\{[^}]*overflow-x: (auto|scroll)/);
   });
 
   it("are a length by the time they reach a hand, so a hand's own container units cannot resize them", () => {
+    // Registered in cards.css, the one place --card-w is declared a type at all.
     // Otherwise a width written in the felt's cqi would be measured against the hand.
-    expect(block(css, "@property --bj-card-w")).toContain('syntax: "<length>"');
+    expect(block(cards, "@property --card-w")).toContain('syntax: "<length>"');
   });
 
   it("overlap by 28% in a dealt hand and 42% in a split box when there is room, and never at the dealer's", () => {
@@ -160,7 +162,7 @@ describe("cards on the felt", () => {
      * routinely draws to four — so the shared -26px rule reaches the dealer's
      * cards unless a dealer-scoped rule of higher specificity resets it.
      */
-    expect(ruleIn(css, ".bj__dealer .bj-hand .bj-card + .bj-card")).toContain("margin-left: 0");
+    expect(ruleIn(css, ".bj__dealer .bj-hand .card + .card")).toContain("margin-left: 0");
   });
 });
 

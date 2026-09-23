@@ -26,6 +26,7 @@ import {
   PaylineOverlay,
   roomShow,
   SpinFeed,
+  SpinWall,
   winningCells,
   winningSpins,
 } from "./Slots.js";
@@ -1048,5 +1049,63 @@ describe("the wall either side", () => {
     const push = spun({ id: "push", stake: 2500, won: 2500 });
     const ahead = spun({ id: "ahead", stake: 2500, won: 2501 });
     expect(winningSpins([short, push, ahead]).map((one) => one.id)).toEqual(["ahead"]);
+  });
+});
+
+describe("the wall on a phone", () => {
+  const spun = (over: Partial<SpinNews>): SpinNews => ({
+    id: "one",
+    name: "Ada",
+    avatar: null,
+    stake: 2500,
+    won: 0,
+    jackpot: false,
+    at: 0,
+    ...over,
+  });
+
+  const lost = spun({ id: "lost", stake: 2500, won: 0 });
+  const ahead = spun({ id: "ahead", name: "Bo", stake: 2500, won: 9000 });
+
+  const wall = (news: SpinNews[]) => render(<SpinWall news={news} />).container;
+
+  it("carries both sides, so a desk still has a column either hand", () => {
+    const room = wall([lost, ahead]);
+    expect(room.querySelector(".feed--left")).not.toBeNull();
+    expect(room.querySelector(".feed--right")).not.toBeNull();
+  });
+
+  /*
+   * Everything, not the wins: a quiet machine whose one spin lost would open on
+   * an empty panel and read as a room with nobody in it.
+   */
+  it("opens on what the room is doing", () => {
+    expect(wall([lost]).querySelector(".wall")?.getAttribute("data-showing")).toBe("all");
+  });
+
+  it("swaps to what has paid when the other tab is pressed", () => {
+    const room = wall([lost, ahead]);
+    fireEvent.click(within(room).getByRole("button", { name: "Paying out" }));
+    expect(room.querySelector(".wall")?.getAttribute("data-showing")).toBe("wins");
+  });
+
+  it("says which of the two is being shown", () => {
+    const room = wall([lost, ahead]);
+    const wins = within(room).getByRole("button", { name: "Paying out" });
+    expect(wins.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(wins);
+    expect(wins.getAttribute("aria-pressed")).toBe("true");
+    expect(within(room).getByRole("button", { name: "At the machine" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+  });
+
+  /* The right-hand column is only ever the spins somebody came out ahead on. */
+  it("keeps the losses off the paying-out side", () => {
+    const room = wall([lost, ahead]);
+    const paying = room.querySelector(".feed--right");
+    expect(paying?.querySelectorAll(".feed__row")).toHaveLength(1);
+    expect(paying?.textContent).toContain("Bo");
+    expect(paying?.textContent).not.toContain("Ada");
   });
 });

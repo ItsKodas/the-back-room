@@ -1,3 +1,4 @@
+import { CRAPS } from "@backroom/game-craps";
 import { OPENING } from "@backroom/game-death-roll";
 import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import type { Face } from "@backroom/game-slots";
@@ -120,6 +121,148 @@ export function CardsArt() {
       </Piece>
       <Piece n={2}>
         <PlayingCard x={130} y={86} turn={9} rank="K" red />
+      </Piece>
+    </svg>
+  );
+}
+
+/**
+ * A card at a fraction of `PlayingCard`'s size, for a corner that holds two
+ * hands rather than one.
+ *
+ * Not `PlayingCard` scaled down: that card carries a drawn pip as well as a
+ * rank, and at half the size the two crowd each other. Baccarat's hands are
+ * told apart by the gap between them, not by the pip, so this drops it and
+ * keeps the rank.
+ */
+function MiniCard({
+  x,
+  y,
+  turn,
+  rank,
+  red,
+}: {
+  x: number;
+  y: number;
+  turn: number;
+  rank: string;
+  red: boolean;
+}) {
+  const ink = red ? "#a8321f" : "#1b2028";
+  return (
+    <g className="art__bc-card" transform={`translate(${x} ${y}) rotate(${turn})`}>
+      <rect x="-15" y="-21" width="30" height="42" rx="4" fill="#f4f2ec" />
+      <rect x="-15" y="-21" width="30" height="42" rx="4" fill="none" stroke="#aab4c4" strokeWidth="1" />
+      <text
+        x="-8"
+        y="-6"
+        fontFamily="Georgia, serif"
+        fontWeight="700"
+        fontSize="12"
+        textAnchor="middle"
+        fill={ink}
+      >
+        {rank}
+      </text>
+    </g>
+  );
+}
+
+/**
+ * A die with its pips lit in the table's own gold rather than greed's black.
+ *
+ * The same shape `Die` above draws — flat body, flat spots, no gradient — with
+ * one thing changed. Two dice reading identically to greed's would be a tile
+ * advertising the wrong table; the pip colour is the one thing at this size
+ * that tells a passer-by which room they are looking into.
+ */
+function CrapsDie({ x, y, turn, spots }: { x: number; y: number; turn: number; spots: [number, number][] }) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${turn})`}>
+      <rect x="-30" y="-30" width="60" height="60" rx="11" fill="#e8ecf3" />
+      <rect x="-30" y="-30" width="60" height="60" rx="11" fill="none" stroke="#aab4c4" strokeWidth="1.5" />
+      {spots.map(([sx, sy]) => (
+        <circle key={`${sx},${sy}`} cx={sx} cy={sy} r="5.2" fill={CRAPS.theme.accent} />
+      ))}
+    </g>
+  );
+}
+
+/**
+ * Two hands, facing each other across a gap.
+ *
+ * The same silhouette `og.ts` draws for the shared link card, at tile scale:
+ * two small pairs with daylight between them, each angled in toward the
+ * middle rather than away from it, so the two sides read as leaning in to
+ * compare rather than as one fanned hand split down the middle. That gap is
+ * the whole of what tells this tile from blackjack's own single angled hand —
+ * the only two games in the building dealing from the same deck.
+ *
+ * Two `Piece` groups, one per hand, so a hand arrives and settles as one
+ * thing rather than as two cards thrown independently — CLAUDE.md's own rule
+ * that a piece of furniture gets one motion, not two fighting over it.
+ *
+ * The inner pair sits thirty units apart — one whole card's width, nose to
+ * nose — rather than the ten it first shipped with. `og.ts`'s own motif
+ * leaves its inner pair about a card's width apart too (70 of a 78-unit
+ * card, once its own slight tilt is folded in), and a gap much narrower than
+ * that is a gap a room tile cannot afford: there is no hover here to widen
+ * it later the way the pointer does on the felt, so whatever daylight is
+ * drawn is the only daylight this silhouette ever gets. Ten units of it
+ * read, at tile scale, as one cluster of four cards rather than two hands —
+ * indistinguishable from `CardsArt`'s own single overlapping pair, which is
+ * exactly the confusion this shape exists to rule out.
+ */
+export function BaccaratArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      <Piece n={1}>
+        <MiniCard x={50} y={108} turn={-14} rank="9" red />
+        <MiniCard x={70} y={92} turn={-6} rank="4" red={false} />
+      </Piece>
+      <Piece n={2}>
+        <MiniCard x={150} y={108} turn={14} rank="9" red={false} />
+        <MiniCard x={130} y={92} turn={6} rank="2" red />
+      </Piece>
+    </svg>
+  );
+}
+
+/**
+ * Two dice, caught mid-tumble — a four and a three, the seven every table on
+ * the floor calls a natural.
+ *
+ * Two and not one: one die is greed's tile, and the whole of craps is what the
+ * pair adds up to. Turned against each other and close enough to overlap, the
+ * way a pair actually lands rather than the way two dice would be placed.
+ */
+export function CrapsArt() {
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      <Piece n={1}>
+        <CrapsDie
+          x={78}
+          y={100}
+          turn={-16}
+          spots={[
+            [-14, -14],
+            [14, -14],
+            [-14, 14],
+            [14, 14],
+          ]}
+        />
+      </Piece>
+      <Piece n={2}>
+        <CrapsDie
+          x={128}
+          y={74}
+          turn={14}
+          spots={[
+            [-14, -14],
+            [0, 0],
+            [14, 14],
+          ]}
+        />
       </Piece>
     </svg>
   );
@@ -591,6 +734,12 @@ export function TileArt({ game }: { game: string }) {
   }
   if (game === "plinko") {
     return <PegsArt />;
+  }
+  if (game === "craps") {
+    return <CrapsArt />;
+  }
+  if (game === "baccarat") {
+    return <BaccaratArt />;
   }
   return <ChipsArt />;
 }

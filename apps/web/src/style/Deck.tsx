@@ -1,6 +1,10 @@
-import type { Card as CardData, Rank, Suit } from "@backroom/game-blackjack";
-import { RANKS, SUITS } from "@backroom/game-blackjack";
-import { Card, FaceDown } from "../blackjack/Cards.js";
+import { Card, FaceDown } from "../cards/Cards.js";
+import type { Card as CardData, Rank, Suit } from "../cards/deck.js";
+import { RANKS, SUITS } from "../cards/deck.js";
+/*
+ * Only for `.bj-hand` — the hand itself is blackjack's own layout, and its
+ * cards below are the same shared deck Cards.tsx already draws and styles.
+ */
 import "../blackjack/blackjack.css";
 
 /**

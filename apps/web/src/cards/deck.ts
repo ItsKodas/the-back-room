@@ -1,4 +1,21 @@
-import type { Rank, Suit } from "@backroom/game-blackjack";
+/*
+ * A card's own vocabulary, declared here rather than borrowed from a game.
+ *
+ * Every game in the building that deals cards has its own Rank and Suit — the
+ * rules of twenty-one are blackjack's business and nine's are baccarat's — and
+ * they are all the same fifty-two shapes. Structural typing does the rest: a
+ * game's own Card satisfies this one without either knowing about the other.
+ */
+export const SUITS = ["spades", "hearts", "diamonds", "clubs"] as const;
+export type Suit = (typeof SUITS)[number];
+
+export const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const;
+export type Rank = (typeof RANKS)[number];
+
+export interface Card {
+  rank: Rank;
+  suit: Suit;
+}
 
 /**
  * Where everything on a playing card goes.

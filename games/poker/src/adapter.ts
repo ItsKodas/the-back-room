@@ -72,7 +72,16 @@ export function pokerAdapter(
     },
 
     async act(table, seatId, action, deps) {
-      const move = action as { type?: string; amount?: number };
+      const move = action as { type?: string; amount?: unknown };
+      /*
+       * A number off the wire is not a number until it has been asked. The
+       * socket envelope validates the action's `type` and passes every other
+       * field through as the client sent it, so this is where a raise becomes
+       * a figure. `Number("x")` is `NaN`, and every bound a raise is checked
+       * against is a comparison — all of which `NaN` walks past — so it would
+       * be subtracted from a stack and take every chip on the table with it.
+       */
+      const chipsOf = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) ? n : 0);
       const seat = table.seats.find((one) => one.id === seatId);
       if (seat === undefined) {
         throw new TableError("You are not at this table.");
@@ -137,7 +146,7 @@ export function pokerAdapter(
           table.act(seatId, move.type as Move);
           return;
         case "raise":
-          table.act(seatId, "raise", Number(move.amount));
+          table.act(seatId, "raise", chipsOf(move.amount));
           return;
         default:
           throw new TableError("That is not a move.");

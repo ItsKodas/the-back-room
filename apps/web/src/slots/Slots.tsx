@@ -1252,13 +1252,6 @@ export default function Slots() {
         />
       ) : (
         <div className="slots__floor">
-          <SpinFeed
-            title="At the machine"
-            empty="Nobody has pulled it yet."
-            news={news}
-            side="left"
-          />
-
           <div className="slots__cabinet" ref={cabinet}>
             {/* Behind the page rather than on the machine: the shells leave the
                 sides of the cabinet and burst out in the room either side of
@@ -1371,12 +1364,7 @@ export default function Slots() {
             </div>
           </div>
 
-          <SpinFeed
-            title="Paying out"
-            empty="No wins yet."
-            news={winningSpins(news)}
-            side="right"
-          />
+          <SpinWall news={news} />
         </div>
       )}
     </main>
@@ -1399,6 +1387,55 @@ export function cameOutAhead(spun: SpinNews): boolean {
 /** The right-hand column: the spins that actually left somebody up. */
 export function winningSpins(news: SpinNews[]): SpinNews[] {
   return news.filter(cameOutAhead);
+}
+
+/**
+ * The room, either side of the machine or under it.
+ *
+ * Both columns on a desk, where there is room beside the cabinet for them; one
+ * of the two on a phone, with a tab apiece. Which is a decision the stylesheet
+ * makes rather than this: on a wide screen the wrapper is `display: contents`
+ * and the two feeds drop straight back into the floor's grid, so wrapping them
+ * costs the layout nothing and there is no width being measured here to be
+ * wrong about on the first frame.
+ *
+ * It sits *after* the cabinet in the document, which is the whole point. A
+ * phone stacks in document order, and a column of other people's spins above
+ * the machine is a page that makes you scroll past the room to reach the
+ * thing you came to play.
+ *
+ * Plain buttons rather than a tablist: on a desk they are `display: none` and
+ * both columns are simply there, and a tab control with nothing tabbing is a
+ * promise to a screen reader that the page does not keep.
+ */
+export function SpinWall({ news }: { news: SpinNews[] }) {
+  const [showing, setShowing] = useState<"all" | "wins">("all");
+
+  return (
+    <div className="wall" data-showing={showing}>
+      <div className="wall__tabs">
+        <button
+          type="button"
+          className="wall__tab"
+          aria-pressed={showing === "all"}
+          onClick={() => setShowing("all")}
+        >
+          At the machine
+        </button>
+        <button
+          type="button"
+          className="wall__tab"
+          aria-pressed={showing === "wins"}
+          onClick={() => setShowing("wins")}
+        >
+          Paying out
+        </button>
+      </div>
+
+      <SpinFeed title="At the machine" empty="Nobody has pulled it yet." news={news} side="left" />
+      <SpinFeed title="Paying out" empty="No wins yet." news={winningSpins(news)} side="right" />
+    </div>
+  );
 }
 
 /**

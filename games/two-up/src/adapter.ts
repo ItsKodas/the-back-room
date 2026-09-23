@@ -417,7 +417,16 @@ export function twoUpAdapter(
     },
 
     async act(table, seatId, action, deps) {
-      const move = action as { type?: string; on?: unknown; chips?: number };
+      const move = action as { type?: string; on?: unknown; chips?: unknown };
+      /*
+       * A number off the wire is not a number until it has been asked. The
+       * socket envelope validates the action's `type` and passes every other
+       * field through as the client sent it, so this is where a chip count
+       * becomes one. Anything else is nothing: a `NaN` here lands on the
+       * cloth, and from there every `staked`, `owed` and `headroom` figure on
+       * it, the bank's own total, and the store.
+       */
+      const chipsOf = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) ? n : 0);
       const seat = table.seats.find((one) => one.id === seatId);
       if (seat === undefined) {
         throw new TableError("You are not at this table.");
@@ -442,7 +451,7 @@ export function twoUpAdapter(
                 throw new TableError("There is no such bet on this table.");
               }
               const on = move.on;
-              const chips = move.chips ?? 0;
+              const chips = chipsOf(move.chips);
 
               /*
                * What this side can still take, worked out across the whole
@@ -500,7 +509,7 @@ export function twoUpAdapter(
                 throw new TableError("There is no such bet on this table.");
               }
               const on = move.on;
-              await giveBack(table, seat, () => table.take(seatId, on, move.chips ?? 0), deps);
+              await giveBack(table, seat, () => table.take(seatId, on, chipsOf(move.chips)), deps);
               return;
             }
 
@@ -550,7 +559,7 @@ export function twoUpAdapter(
       switch (move.type) {
         case "centre":
         case "cover": {
-          const chips = move.chips ?? 0;
+          const chips = chipsOf(move.chips);
           /*
            * The one check that has to happen before any money moves rather
            * than after: `table.setCentre`/`table.cover` refuse a bad amount

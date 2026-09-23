@@ -1,6 +1,5 @@
-import { RANKS, SUITS } from "@backroom/game-blackjack";
 import { describe, expect, it } from "vitest";
-import { COURT_EMBLEM, COURTS, isCourt, pipsFor, SUIT_PATH } from "./deck.js";
+import { COURT_EMBLEM, COURTS, isCourt, pipsFor, RANKS, SUITS, SUIT_PATH } from "./deck.js";
 
 /**
  * The deck's geometry.

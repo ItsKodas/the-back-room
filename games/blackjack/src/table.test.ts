@@ -48,11 +48,10 @@ describe("taking a stake", () => {
     expect(() => table.join("a", "Ada")).toThrow(/sign in/i);
   });
 
-  it("keeps a bet inside the table limits", () => {
+  it("keeps a bet above the smallest chip on the felt", () => {
     const table = new Table("TEST1");
     seatOne(table);
     expect(() => table.bet("a", 50)).toThrow(TableError);
-    expect(() => table.bet("a", 50_000)).toThrow(TableError);
     table.bet("a", 500);
     expect(table.seats[0]?.hands[0]?.bet).toBe(500);
   });
@@ -678,3 +677,61 @@ describe("what the table says", () => {
   });
 });
 
+
+describe("what the felt may bet", () => {
+  it("takes a stake past the old flat ceiling", () => {
+    /*
+     * The table used to hold a limit of its own at ten thousand, which sat on
+     * top of the bank's and hid it: a felt with a hundred thousand behind it
+     * still said ten. What the bank can cover is a question for the store, so
+     * the only place that can ask it is the adapter — and a second ceiling
+     * here could only ever be lower than the real one.
+     */
+    const table = new Table("TEST1");
+    seatOne(table);
+    table.bet("a", 50_000);
+    expect(table.seats[0]?.hands[0]?.bet).toBe(50_000);
+  });
+
+  it("offers as much of the bank as one seat's worst hand could take", () => {
+    const table = new Table("TEST1");
+    seatOne(table);
+    table.bankHolds = 200_000;
+    // Four to one on today's rules: split, both doubled, both won.
+    expect(table.view("a").maxBet).toBe(50_000);
+  });
+
+  it("takes what the other seats could win off what is left for this one", () => {
+    const table = new Table("TEST1");
+    seatTwo(table);
+    table.bet("b", 4_000);
+    // What the store holds once Bo's stake has gone into it.
+    table.bankHolds = 44_000;
+    /*
+     * Bo's four thousand is in the bank and is exactly the money Bo may have
+     * to be paid out of, so it buys Ada nothing: sixteen thousand of headroom
+     * is spoken for, and a quarter of the rest is hers.
+     */
+    expect(table.view("a").maxBet).toBe(6_000);
+  });
+
+  it("offers nothing at all when the bank is empty", () => {
+    const table = new Table("TEST1");
+    seatOne(table);
+    expect(table.view("a").maxBet).toBe(0);
+  });
+
+  it("offers the purse at a for-fun table, which is all there is to lose", () => {
+    const table = new Table("TEST1", Math.random, true);
+    table.join("a", "Ada", { userId: "u1", avatar: null, accentColor: null });
+    expect(table.view("a").maxBet).toBe(5_000);
+  });
+
+  it("counts a for-fun stake already down as still the player's own", () => {
+    const table = new Table("TEST1", Math.random, true);
+    table.join("a", "Ada", { userId: "u1", avatar: null, accentColor: null });
+    table.bet("a", 2_000);
+    // Changing a bet is not spending twice, so the whole purse is still on offer.
+    expect(table.view("a").maxBet).toBe(5_000);
+  });
+});

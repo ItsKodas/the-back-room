@@ -1,6 +1,6 @@
-import type { Card as CardData } from "@backroom/game-blackjack";
 import { useEffect, useRef } from "react";
-import { Card } from "../blackjack/Cards.js";
+import { Card } from "../cards/Cards.js";
+import type { Card as CardData } from "../cards/deck.js";
 import { play } from "../game/audio.js";
 
 /**

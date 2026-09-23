@@ -1,5 +1,7 @@
 import { COMING } from "@backroom/core";
+import { BACCARAT } from "@backroom/game-baccarat";
 import { BLACKJACK } from "@backroom/game-blackjack";
+import { CRAPS } from "@backroom/game-craps";
 import { DEATH_ROLL } from "@backroom/game-death-roll";
 import { GREED } from "@backroom/game-greed";
 import { LIARS_DICE } from "@backroom/game-liars-dice";
@@ -22,7 +24,19 @@ import { describe, expect, it } from "vitest";
  *
  * Which is exactly what happened to roulette, and would have shipped.
  */
-const BUILT = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, DEATH_ROLL, TWO_UP, PLINKO, LIARS_DICE];
+const BUILT = [
+  GREED,
+  BLACKJACK,
+  SLOTS,
+  POKER,
+  ROULETTE,
+  DEATH_ROLL,
+  TWO_UP,
+  PLINKO,
+  CRAPS,
+  BACCARAT,
+  LIARS_DICE,
+];
 
 describe("the room's catalogue", () => {
   it("has no coming-soon sign left on a game that is built", () => {

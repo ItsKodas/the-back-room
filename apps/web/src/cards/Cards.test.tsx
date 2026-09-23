@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import type { Card as CardData } from "@backroom/game-blackjack";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Hand } from "./Cards.js";
+import type { Card as CardData } from "./deck.js";
 
 /**
  * A card asked for, and the card that comes back.
@@ -20,11 +20,11 @@ const king: CardData = { rank: "K", suit: "clubs" };
 
 /** Every card on screen, and how each one arrived. */
 function shown(container: HTMLElement): string[] {
-  return [...container.querySelectorAll(".bj-card")].map((card) => {
+  return [...container.querySelectorAll(".card")].map((card) => {
     const how = ["deal", "turn", "fold", "unfold"].find((name) =>
-      card.classList.contains(`bj-card--${name}`),
+      card.classList.contains(`card--${name}`),
     );
-    const face = card.classList.contains("bj-card--down") ? "back" : "face";
+    const face = card.classList.contains("card--down") ? "back" : "face";
     return `${face}:${how ?? "none"}`;
   });
 }

@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { ChipStack } from "../chips/ChipStack.js";
 import { Avatar } from "../game/Avatar.js";
 import { TurnRing } from "../game/TurnRing.js";
-import { Hand } from "./Cards.js";
+import { Hand } from "../cards/Cards.js";
 import type { HandView, SeatView, Tag } from "./hands.js";
 import { fmt, handTag, paidOut, seatTag } from "./hands.js";
 import { useBumped } from "./useIntent.js";

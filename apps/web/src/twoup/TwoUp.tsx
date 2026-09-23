@@ -4,7 +4,6 @@ import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Chip } from "../chips/Chip.js";
 import { Avatar } from "../game/Avatar.js";
 import { Chat } from "../game/Chat.js";
 import { exact } from "../game/money.js";
@@ -18,6 +17,7 @@ import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { Board } from "./Board.js";
 import { Coins } from "./Coin.js";
+import { Rail } from "./Rail.js";
 import { Ring } from "./Ring.js";
 import { easing, FLIGHT, landings, rattle } from "./toss.js";
 import { useCalledSound, useTossSound } from "./useTossSound.js";
@@ -232,12 +232,43 @@ export function Felt({
     return out;
   }, [state.placed, seatId, pending]);
 
-  const spotDisabled = useCallback((on: BetOn) => !canBet || chip > room(on), [canBet, chip, room]);
+  /*
+   * Dark only while the window itself is shut.
+   *
+   * A chip too big for what the bank can cover used to grey the side out as
+   * well, which made an unstaffed table look like a broken one: every press
+   * ignored, nothing said, everything else on the felt perfectly normal. A
+   * disabled control cannot explain itself, so the side stays live and
+   * refuses in words instead — the wheel has done it this way since it was
+   * built.
+   */
+  const spotDisabled = useCallback(() => !canBet, [canBet]);
+
+  /*
+   * Why the last press did nothing.
+   *
+   * The cap is the server's and it refuses in the same words, but the felt
+   * does not send a chip it already knows is too big — which is exactly how a
+   * press comes to do nothing at all and say nothing either.
+   */
+  const [refused, setRefused] = useState<string | null>(null);
 
   const onPlace = (on: BetOn) => {
-    if (spotDisabled(on)) {
+    if (spotDisabled()) {
       return;
     }
+    const most = room(on);
+    if (chip > most) {
+      // The server's own wording, from `adapter.ts` — one refusal in two
+      // voices is the felt and the table disagreeing about the same rule.
+      setRefused(
+        most === 0
+          ? "The bank cannot cover any more on that."
+          : `The bank covers ${exact(most)} on that at the moment.`,
+      );
+      return;
+    }
+    setRefused(null);
     setPending((current) => ({ ...current, [on]: (current[on] ?? 0) + chip }));
     table.act({ type: "place", on, chips: chip });
   };
@@ -301,7 +332,7 @@ export function Felt({
     // `.tu`'s own last child happens to end.
     <>
       <section className="tu" data-game="two-up">
-        <Standing state={state} seatId={seatId} />
+        <Standing state={state} seatId={seatId} refused={refused} />
 
         {/*
           The camera. `.tu__felt--away` is added and dropped by nothing but
@@ -387,7 +418,15 @@ function settledWord(state: TableView): string {
  * Silent while the ring is holding — `Ring` says why, and a second line
  * saying the same thing above it would be the page repeating itself.
  */
-function Standing({ state, seatId }: { state: TableView; seatId: string | null }) {
+function Standing({
+  state,
+  seatId,
+  refused,
+}: {
+  state: TableView;
+  seatId: string | null;
+  refused?: string | null;
+}) {
   const left = useCountdown(state.deadline);
 
   if (state.holding) {
@@ -404,6 +443,19 @@ function Standing({ state, seatId }: { state: TableView; seatId: string | null }
     return (
       <p className="tu__standing tu__standing--last" role="status">
         The bank is empty — nothing to play for yet.
+      </p>
+    );
+  }
+
+  /*
+   * Said in place of the clock rather than beside it. A refusal is the one
+   * thing that has to be read before the next press, and a second line under
+   * a countdown is a line nobody looks at mid-window.
+   */
+  if (refused != null && state.phase === "betting") {
+    return (
+      <p className="tu__standing tu__standing--last" role="status">
+        {refused}
       </p>
     );
   }
@@ -461,83 +513,6 @@ function Standing({ state, seatId }: { state: TableView; seatId: string | null }
     default:
       return null;
   }
-}
-
-/** The tray, and the two ways a casino stake comes back off the cloth. */
-function Rail({
-  table,
-  state,
-  chip,
-  onChip,
-}: {
-  table: Table;
-  state: TableView;
-  chip: number;
-  onChip: (value: number) => void;
-}) {
-  const purse = state.you?.purse ?? null;
-  const down = state.you?.staked ?? 0;
-  const open = state.school === "casino" && state.phase === "betting" && !state.lastCall;
-
-  return (
-    <div className="tu__rail">
-      <div className="tu__tray" role="radiogroup" aria-label="What to bet with">
-        {CHIPS.map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={chip === value}
-            aria-label={`Bet with ${exact(value)}`}
-            className={`tu__chip${chip === value ? " tu__chip--picked" : ""}`}
-            disabled={purse !== null && value > purse}
-            onClick={() => onChip(value)}
-          >
-            <Chip amount={value} />
-          </button>
-        ))}
-      </div>
-
-      {state.school === "casino" ? (
-        <div className="tu__acts">
-          <button
-            type="button"
-            className="tu__act"
-            aria-label="Undo the last chip you put down"
-            disabled={!open || down === 0 || table.busy}
-            onClick={() => table.act({ type: "undo" })}
-          >
-            <span className="tu__act-name">Undo</span>
-            <span className="tu__act-note">The last chip down</span>
-          </button>
-          <button
-            type="button"
-            className="tu__act"
-            aria-label="Take back everything you have on the cloth"
-            disabled={!open || down === 0 || table.busy}
-            onClick={() => table.act({ type: "clear" })}
-          >
-            <span className="tu__act-name">Clear</span>
-            <span className="tu__act-note">Everything you have on</span>
-          </button>
-        </div>
-      ) : null}
-
-      <p className="tu__note">
-        {down > 0 ? (
-          <>
-            <strong className="tu__note-figure">{exact(down)}</strong> on the cloth.{" "}
-          </>
-        ) : null}
-        {purse === null ? null : (
-          <>
-            <strong className="tu__note-figure">{exact(purse)}</strong> in play money left.{" "}
-          </>
-        )}
-        Right-click a side, or press and hold, to take a chip back off.
-      </p>
-    </div>
-  );
 }
 
 /** Everybody at the table, and what the last round did to them. */
