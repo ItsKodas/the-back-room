@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
+import "./table.css";
 
 /**
  * Something laid over the table on purpose: the rules card on a phone, the
@@ -22,7 +23,7 @@ export function Sheet({
   open: boolean;
   onClose: () => void;
   /** Over the felt only, or over the whole table. */
-  className: "bj__sheet--felt" | "bj__sheet--page";
+  className: "sheet--felt" | "sheet--page";
   children: ReactNode;
 }) {
   const panel = useRef<HTMLDivElement | null>(null);
@@ -57,10 +58,10 @@ export function Sheet({
 
   return (
     <>
-      <button type="button" className="bj__scrim" tabIndex={-1} aria-label={`Close ${label}`} onClick={onClose} />
-      <div id={id} className={`bj__sheet ${className}`} role="dialog" aria-label={label} ref={panel} tabIndex={-1}>
-        <div className="bj__sheet-head">
-          <h2 className="bj__sheet-title">{heading ?? label}</h2>
+      <button type="button" className="sheet__scrim" tabIndex={-1} aria-label={`Close ${label}`} onClick={onClose} />
+      <div id={id} className={`sheet ${className}`} role="dialog" aria-label={label} ref={panel} tabIndex={-1}>
+        <div className="sheet__head">
+          <h2 className="sheet__title">{heading ?? label}</h2>
           <button type="button" className="key key--icon" aria-label={`Close ${label}`} onClick={onClose}>
             <svg
               viewBox="0 0 24 24"
@@ -74,7 +75,7 @@ export function Sheet({
             </svg>
           </button>
         </div>
-        <div className="bj__sheet-body table-scroll">{children}</div>
+        <div className="sheet__body table-scroll">{children}</div>
       </div>
     </>
   );

@@ -1,0 +1,539 @@
+// @vitest-environment jsdom
+import type { SeatView, TableView } from "@backroom/game-poker";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useRef } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useTableKeys } from "../table/useTableKeys.js";
+import { Actions } from "./Controls.js";
+import { account, seat, stub, view } from "./fixtures.js";
+
+/** The one account every render below reads its balance from. */
+const ACCOUNT = account();
+
+/*
+ * The fittings the controls are built from, checked the way the reference
+ * table (Blackjack's Controls.tsx) checks its own: one lit slab per state,
+ * busy without being dead, and the pre-turn choices dressed as lamps rather
+ * than the bespoke pk__prebtn this table used to carry.
+ */
+describe("the fittings", () => {
+  const MINE = seat({
+    id: "s1",
+    name: "Ada",
+    hole: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "diamonds" },
+    ],
+  });
+  const OTHER = seat({ id: "s2", name: "Bram" });
+
+  function renderControls({ state, busy = false }: { state: TableView; busy?: boolean }) {
+    const table = stub();
+    table.busy = busy;
+    render(
+      <Actions
+        table={table}
+        state={state}
+        me={MINE}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+  }
+
+  /** The turn actually in front of you, with a raise on offer. */
+  function onYourTurn({ toCall, busy = false }: { toCall: number; busy?: boolean }) {
+    return {
+      busy,
+      state: view({
+        toAct: "s1",
+        street: "flop",
+        you: { toCall, minRaiseTo: toCall + 20, maxRaiseTo: 2_000, canRaise: true },
+        seats: [MINE, OTHER],
+      }),
+    };
+  }
+
+  /** Somebody else's turn, with Ada still in the hand to decide in advance about. */
+  function somebodyElseDeciding() {
+    return { state: view({ toAct: "s2", street: "flop", seats: [MINE, OTHER] }) };
+  }
+
+  it("lights exactly one action", () => {
+    renderControls(onYourTurn({ toCall: 200 }));
+    expect(document.querySelectorAll(".slab")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /call 200/i })).toHaveClass("slab");
+  });
+
+  it("lights check when checking is free", () => {
+    renderControls(onYourTurn({ toCall: 0 }));
+    expect(screen.getByRole("button", { name: /^check$/i })).toHaveClass("slab");
+  });
+
+  it("goes busy on the press rather than dead", () => {
+    renderControls(onYourTurn({ toCall: 200, busy: true }));
+    const call = screen.getByRole("button", { name: /call 200/i });
+    expect(call).toHaveClass("is-busy");
+    expect(call).not.toBeDisabled();
+  });
+
+  it("dresses the decide-in-advance group as lamps", () => {
+    renderControls(somebodyElseDeciding());
+    expect(document.querySelectorAll(".lamp").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".pk__prebtn")).toHaveLength(0);
+  });
+
+  /*
+   * F4 binds every main action in this file, not only the on-turn Check/Call
+   * — buying in, showing cards and cashing out are each their row's sole
+   * slab too, so a press on any of them has to stay pressable rather than
+   * going dead while the table has not yet answered.
+   */
+  it("goes busy on the press rather than dead, buying in", () => {
+    const table = stub();
+    table.busy = true;
+    const mine = seat({ id: "s1", name: "Ada", stack: 0 });
+    render(
+      <Actions
+        table={table}
+        state={view({ street: "waiting", seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    const go = screen.getByRole("button", { name: /sit down/i });
+    expect(go).toHaveClass("is-busy");
+    expect(go).not.toBeDisabled();
+  });
+
+  it("goes busy on the press rather than dead, showing cards", () => {
+    const table = stub();
+    table.busy = true;
+    const mine = seat({ id: "s1", name: "Ada" });
+    render(
+      <Actions
+        table={table}
+        state={view({ canShow: true, seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    const show = screen.getByRole("button", { name: /show cards/i });
+    expect(show).toHaveClass("is-busy");
+    expect(show).not.toBeDisabled();
+  });
+
+  it("goes busy on the press rather than dead, cashing out", () => {
+    const table = stub();
+    table.busy = true;
+    const mine = seat({ id: "s1", name: "Ada" });
+    render(
+      <Actions
+        table={table}
+        state={view({ street: "waiting", canTakeOff: true, seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    const cashOut = screen.getByRole("button", { name: /off the table/i });
+    expect(cashOut).toHaveClass("is-busy");
+    expect(cashOut).not.toBeDisabled();
+  });
+});
+
+/*
+ * The taunt key itself — not what it does when pressed (Blackjack.tsx's
+ * identical wiring and TauntPicker.test.tsx already cover that), but where it
+ * is and is not offered (K5). `fetch` is stubbed with a real emote for every
+ * test here: unstubbed, `useEmotes()` resolves to an empty catalogue in this
+ * environment (there is no server to answer it), and an empty catalogue is a
+ * picker that renders nothing regardless of which branch is showing — a
+ * false "not offered" that would pass whether the branch logic is right or
+ * not. Stubbing it is what makes an absence assertion mean something.
+ */
+describe("the taunt key", () => {
+  const MINE = seat({
+    id: "s1",
+    name: "Ada",
+    hole: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "diamonds" },
+    ],
+  });
+  const OTHER = seat({ id: "s2", name: "Bram" });
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          emotes: [
+            { id: "e1", name: "Slow clap", cost: 50, image: "/api/emotes/e1/image", sound: null },
+          ],
+        }),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("appears while somebody else decides and you are still in the hand", async () => {
+    const table = stub();
+    render(
+      <Actions
+        table={table}
+        state={view({ toAct: "s2", street: "flop", seats: [MINE, OTHER] })}
+        me={MINE}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    // Async: the key only appears once useEmotes()'s stubbed fetch resolves.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Taunt" })).toBeTruthy());
+  });
+
+  it("does not appear on your own turn", async () => {
+    const table = stub();
+    render(
+      <Actions
+        table={table}
+        state={view({
+          toAct: "s1",
+          street: "flop",
+          you: { toCall: 200, minRaiseTo: 220, maxRaiseTo: 2_000, canRaise: true },
+          seats: [MINE, OTHER],
+        })}
+        me={MINE}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    /*
+     * The same wait the positive test gives the stubbed fetch's two-stage
+     * `.then` chain, on an anchor this branch definitely renders — without
+     * it, "Taunt" being absent could just mean "hasn't loaded yet" rather
+     * than "not rendered here," which would pass whether this branch is
+     * right or wrong.
+     */
+    await waitFor(() => expect(screen.getByRole("button", { name: /call 200/i })).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Taunt" })).toBeNull();
+  });
+
+  it("does not appear once you have folded out of the hand", async () => {
+    const table = stub();
+    const folded = { ...MINE, folded: true };
+    render(
+      <Actions
+        table={table}
+        state={view({ toAct: "s2", street: "flop", seats: [folded, OTHER] })}
+        me={folded}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    // Same reasoning as above: wait out the stubbed fetch on an anchor this
+    // branch definitely renders before trusting the absence.
+    await waitFor(() => expect(screen.getByText(/waiting for the others/i)).toBeTruthy());
+    // Confirms the not-in-hand branch is the one showing (no lamps either),
+    // same as "offers nothing to somebody who has folded" below.
+    expect(screen.queryByRole("button", { name: "Call any" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Taunt" })).toBeNull();
+  });
+});
+
+describe("what you are offered", () => {
+  it("offers the buy-in, and only that, to somebody with nothing in front of them", () => {
+    const table = stub();
+    const mine = seat({ id: "s1", name: "Ada", stack: 0 });
+    render(
+      <Actions
+        table={table}
+        state={view({ street: "waiting", seats: [mine] })}
+        me={mine}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Sit down/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Fold" })).toBeNull();
+  });
+
+  it("gives somebody watching no controls at all", () => {
+    const table = stub();
+    render(
+      <Actions
+        table={table}
+        state={view()}
+        me={null}
+        intent={{ move: null, committed: null, send: vi.fn() }}
+        account={ACCOUNT}
+      />,
+    );
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getByText(/watching/i)).toBeTruthy();
+  });
+});
+
+describe("deciding before your turn", () => {
+  const idle = { move: null, committed: null, send: vi.fn() };
+
+  /** The bar while somebody else is thinking, and a way to hand the turn over. */
+  function waiting(mineOver: Partial<SeatView> = {}) {
+    const table = stub();
+    const mine = seat({
+      id: "s1",
+      name: "Ada",
+      hole: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "diamonds" },
+      ],
+      ...mineOver,
+    });
+    const at = (own: TableView["you"], toAct: string) =>
+      view({ toAct, you: own, street: "flop", seats: [mine, seat({ id: "s2", name: "Bram" })] });
+
+    const shown = render(
+      <Actions table={table} state={at(null, "s2")} me={mine} intent={idle}
+        account={ACCOUNT}
+      />,
+    );
+    const yourTurn = (own: NonNullable<TableView["you"]>) =>
+      shown.rerender(<Actions table={table} state={at(own, "s1")} me={mine} intent={idle}
+          account={ACCOUNT}
+        />);
+    return { table, yourTurn };
+  }
+
+  it("offers the choices while it is somebody else's turn", () => {
+    waiting();
+    for (const label of ["Fold", "Check / Fold", "Check", "Call any", "Bet pot"]) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+    }
+  });
+
+  it("offers nothing to somebody who has folded out of the hand", () => {
+    // Arming a move for a hand you are not in is arming nothing.
+    waiting({ folded: true });
+    expect(screen.queryByRole("button", { name: "Call any" })).toBeNull();
+  });
+
+  it("checks a free turn and folds one that costs something", () => {
+    const free = waiting();
+    fireEvent.click(screen.getByRole("button", { name: "Check / Fold" }));
+    free.yourTurn({ toCall: 0, minRaiseTo: 40, maxRaiseTo: 2_000, canRaise: true });
+    expect(free.table.sent).toEqual([{ type: "check" }]);
+
+    cleanup();
+
+    const owed = waiting();
+    fireEvent.click(screen.getByRole("button", { name: "Check / Fold" }));
+    owed.yourTurn({ toCall: 200, minRaiseTo: 400, maxRaiseTo: 2_000, canRaise: true });
+    expect(owed.table.sent).toEqual([{ type: "fold" }]);
+  });
+
+  it("drops an armed check rather than turning it into a call", () => {
+    /*
+     * The one that would cost somebody a stack. You arm a check, somebody bets
+     * behind you, and the nearest thing still legal is to call — which is a
+     * different decision, and nobody made it. So it lapses, and the turn goes
+     * back to the person whose turn it is.
+     */
+    const { table, yourTurn } = waiting();
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    yourTurn({ toCall: 600, minRaiseTo: 1_200, maxRaiseTo: 2_000, canRaise: true });
+
+    expect(table.sent).toEqual([]);
+    expect(screen.getByRole("button", { name: "Call 600" })).toBeTruthy();
+  });
+
+  it("calls whatever it has come to when that is what was asked for", () => {
+    const { table, yourTurn } = waiting();
+    fireEvent.click(screen.getByRole("button", { name: "Call any" }));
+    yourTurn({ toCall: 600, minRaiseTo: 1_200, maxRaiseTo: 2_000, canRaise: true });
+    expect(table.sent).toEqual([{ type: "call" }]);
+  });
+
+  it("un-arms when the same choice is pressed twice", () => {
+    const { table, yourTurn } = waiting();
+    const fold = screen.getByRole("button", { name: "Fold" });
+    fireEvent.click(fold);
+    fireEvent.click(fold);
+    yourTurn({ toCall: 200, minRaiseTo: 400, maxRaiseTo: 2_000, canRaise: true });
+    expect(table.sent).toEqual([]);
+  });
+
+  it("lets an arming lapse when the next card comes out", () => {
+    /*
+     * A pre-selection is about the decision in front of you. Once there is a
+     * new card there is a new decision, and a move chosen against the old one
+     * is not an answer to it.
+     */
+    const table = stub();
+    const mine = seat({
+      id: "s1",
+      name: "Ada",
+      hole: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "diamonds" },
+      ],
+    });
+    const at = (street: TableView["street"], own: TableView["you"], toAct: string) =>
+      view({ street, toAct, you: own, seats: [mine, seat({ id: "s2", name: "Bram" })] });
+
+    const shown = render(
+      <Actions table={table} state={at("flop", null, "s2")} me={mine} intent={idle}
+        account={ACCOUNT}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fold" }));
+    // The turn card, and now it is your go.
+    shown.rerender(
+      <Actions
+        table={table}
+        state={at("turn", { toCall: 0, minRaiseTo: 40, maxRaiseTo: 2_000, canRaise: true }, "s1")}
+        me={mine}
+        intent={idle}
+        account={ACCOUNT}
+      />,
+    );
+    expect(table.sent).toEqual([]);
+  });
+});
+
+/*
+ * Space/F/R, wired the way Poker.tsx actually wires them: a ref on the
+ * table's own root and `useTableKeys` bound to it. The hook's own machinery
+ * — modifiers, repeats, fields, dialogs, the held/pressed distinction — is
+ * `useTableKeys.test.tsx`'s job; this only checks poker binds the right
+ * button to the right key, and that Space follows the lit slab rather than a
+ * fixed one.
+ */
+describe("keyboard shortcuts", () => {
+  const MINE = seat({
+    id: "s1",
+    name: "Ada",
+    hole: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "diamonds" },
+    ],
+  });
+  const OTHER = seat({ id: "s2", name: "Bram" });
+
+  // No `handsOverSpace`: poker has no piece you click and then press Space at.
+  const POKER_KEYS = { " ": "Space", f: "F", r: "R" } as const;
+
+  /** What the last `renderTable` call's stub table was asked to send. */
+  let sent: Record<string, unknown>[] = [];
+
+  function Harness({ table, state }: { table: ReturnType<typeof stub>; state: TableView }) {
+    const root = useRef<HTMLDivElement | null>(null);
+    useTableKeys(root, POKER_KEYS);
+    return (
+      <div ref={root}>
+        <Actions
+          table={table}
+          state={state}
+          me={MINE}
+          intent={{ move: null, committed: null, send: vi.fn() }}
+          account={ACCOUNT}
+        />
+      </div>
+    );
+  }
+
+  function renderTable({ state, busy = false }: { state: TableView; busy?: boolean }) {
+    const table = stub();
+    table.busy = busy;
+    sent = table.sent;
+    render(<Harness table={table} state={state} />);
+  }
+
+  /** The turn actually in front of you. `at` pins the raise to a figure the test can name. */
+  function onYourTurn({ toCall, at, busy = false }: { toCall: number; at?: number; busy?: boolean }) {
+    return {
+      busy,
+      state: view({
+        toAct: "s1",
+        street: "flop",
+        you: { toCall, minRaiseTo: at ?? toCall + 20, maxRaiseTo: 2_000, canRaise: true },
+        seats: [MINE, OTHER],
+      }),
+    };
+  }
+
+  /** Somebody else's turn: nothing in the on-turn row exists to press. */
+  function somebodyElseDeciding() {
+    return { state: view({ toAct: "s2", street: "flop", seats: [MINE, OTHER] }) };
+  }
+
+  it("Space presses the lit action", () => {
+    renderTable(onYourTurn({ toCall: 200 }));
+    fireEvent.keyDown(window, { key: " " });
+    expect(sent).toEqual([{ type: "call" }]);
+  });
+
+  it("Space checks rather than calls once checking is free", () => {
+    // Proves Space follows the lit slab rather than a fixed one: the same
+    // key, a different button, because the felt is in a different state.
+    renderTable(onYourTurn({ toCall: 0 }));
+    fireEvent.keyDown(window, { key: " " });
+    expect(sent).toEqual([{ type: "check" }]);
+  });
+
+  it("F folds and R raises to what the amount shows", () => {
+    renderTable(onYourTurn({ toCall: 200, at: 600 }));
+    fireEvent.keyDown(window, { key: "r" });
+    expect(sent).toEqual([{ type: "raise", amount: 600 }]);
+    fireEvent.keyDown(window, { key: "f" });
+    expect(sent).toContainEqual({ type: "fold" });
+  });
+
+  it("does nothing while typing a raise", () => {
+    renderTable(onYourTurn({ toCall: 200 }));
+    screen.getByLabelText(/how much/i).focus();
+    fireEvent.keyDown(screen.getByLabelText(/how much/i), { key: "f" });
+    expect(sent).toEqual([]);
+  });
+
+  it("does nothing when the button it stands for could not be pressed", () => {
+    renderTable(somebodyElseDeciding());
+    fireEvent.keyDown(window, { key: " " });
+    expect(sent).toEqual([]);
+  });
+
+  it("F and R do nothing while it is somebody else's turn", () => {
+    // The pre-turn row has its own "Fold" lamp for arming a move in advance,
+    // but it does not carry aria-keyshortcuts — only the on-turn row's
+    // buttons do, so F and R are silent until the turn actually arrives.
+    renderTable(somebodyElseDeciding());
+    fireEvent.keyDown(window, { key: "f" });
+    fireEvent.keyDown(window, { key: "r" });
+    expect(sent).toEqual([]);
+  });
+
+  it("R does nothing when there is no raise to make", () => {
+    renderTable({
+      state: view({
+        toAct: "s1",
+        street: "flop",
+        you: { toCall: 200, minRaiseTo: 220, maxRaiseTo: 2_000, canRaise: false },
+        seats: [MINE, OTHER],
+      }),
+    });
+    fireEvent.keyDown(window, { key: "r" });
+    expect(sent).toEqual([]);
+  });
+
+  it("does nothing with a modifier held or on a repeat", () => {
+    renderTable(onYourTurn({ toCall: 200 }));
+    fireEvent.keyDown(window, { key: " ", ctrlKey: true });
+    fireEvent.keyDown(window, { key: " ", repeat: true });
+    expect(sent).toEqual([]);
+  });
+});

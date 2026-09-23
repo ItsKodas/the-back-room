@@ -194,6 +194,21 @@
 }
 
 /*
+ * A flex column with a real height, standing in for the fitted page's
+ * `.play--fit`. The felt (`.pk`, in poker.css) grows to fill whichever flex
+ * parent it is placed in with `flex: 1` — on the real table that parent is
+ * the page, and here on a plain scrolling gallery page it is this, so the
+ * one stylesheet that draws both still gets a height to measure itself
+ * against.
+ */
+.mock__felt {
+  display: flex;
+  flex-direction: column;
+  height: min(70dvh, 640px);
+  margin-bottom: var(--gr-space-4);
+}
+
+/*
  * Shown at the size it is actually played at. A symbol set judged at 120px
  * and shipped at 57 is a set nobody checked.
  */

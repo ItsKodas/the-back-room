@@ -35,98 +35,134 @@
   margin-inline: auto;
 }
 
+/*
+ * The felt is the one thing on this page that flexes.
+ *
+ * Three rows — a readout not yet built, the felt, the controls — and only the
+ * middle one has anywhere to give. That used to be a guess: `--spare: calc(100dvh
+ * - 470px)` counted the bar, the hand-reading pill and the controls by hand,
+ * and it was wrong twice, once when the pill was added and once when the
+ * controls grew a row. A `minmax(0, 1fr)` row needs no guess — it takes
+ * whatever the other two leave it, however tall they turn out to be, so a
+ * later row growing by a pixel is a pixel the felt gives up rather than a
+ * number this sheet has to be told about.
+ *
+ * The names are load-bearing, not decoration: the readout (a later task), the
+ * rules and activity panels at a desk, and the side column all place
+ * themselves by area, and an area nothing is placed into yet still has to
+ * exist — an unnamed one means an item aimed at it later is auto-placed
+ * instead, silently, and only on a phone.
+ *
+ * One column, `minmax(0, 1fr)` rather than a bare `1fr` for the same reason
+ * `.pk__rank` below already uses it: a bare `fr` track keeps its automatic
+ * min-content minimum, so a child that cannot shrink to fit would widen the
+ * column and take the whole page sideways with it (L6). Every child today
+ * already caps its own width (the felt at 100%, the reading pill and the
+ * controls at their own `min(…, 100%)`), but that is the content behaving,
+ * not the track being safe — the `minmax` is what actually stops it.
+ *
+ * `flex: 1` because `.play--fit` is a flex column and this is its one
+ * in-flow child (talk is a drawer, positioned out of it) — without growing,
+ * a flex item takes only the height its own content asks for, which for a
+ * grid of three rows two of which are still empty is nowhere near the page.
+ * `min-height: 0` lets it shrink below that content size in turn, which a
+ * flex item does not do on its own either.
+ */
 .pk {
-  container-type: inline-size;
-  margin-inline: auto;
-  /* Named once: the face and the clock drawn round it have to agree, and two
-     copies of the same clamp is two things to keep in step. */
-  --face: clamp(18px, 2.4cqw, 40px);
-  /*
-   * A name and a stack, which are one size for the same reason — they are read
-   * as one line about one person.
-   *
-   * The coefficient is what stops a desktop being handed the phone's floor. At
-   * 1.15cqw a 1080p felt landed on 11px exactly, so somebody at a full-sized
-   * monitor read the other nine seats at the size a phone reads them, beside a
-   * 23px face and a 41px card. It reaches its ceiling a little earlier now and
-   * sits there, which is what a legibility ceiling is for.
-   */
-  --seat-text: clamp(11px, 1.45cqw, 18px);
-  /*
-   * What the window has left for the felt, once everything that is not the
-   * felt has had its share: the bar and the last event above it, and the hand
-   * you are holding, the amount, the sizes and the three buttons below.
-   *
-   * `dvh` rather than `vh` because a phone's address bar is part of that
-   * budget. Measured with the hand-reading pill in place, because that is the
-   * tallest this page gets.
-   */
-  --spare: calc(100dvh - 470px);
-  /*
-   * The flattest a table is allowed to be, as a ratio.
-   *
-   * A real ten-handed table is about two to one across the rail, so this is
-   * the shape of a poker table rather than an arbitrary stop — a felt that
-   * reached it is not a compromise, it is furniture.
-   */
-  --flattest: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "read" "felt" "controls";
+  flex: 1;
+  min-height: 0;
+  gap: var(--gr-space-2);
+}
+
+/* ------------------------------------------------------------ the readout */
+
+/*
+ * The one figure this player is deciding about (T2): what it costs, big, with
+ * the pot and what is left beside it as one block, and the turn clock along
+ * the top edge. `.readout` is the building's own fitting for a panel with one
+ * figure on it; this only lays that figure out and adds the clock.
+ *
+ * Prefixed `pk__read-` rather than reusing `.pk__label`/`.pk__figure`/
+ * `.pk__note` — this table already has classes by those shorter names for the
+ * amount dial, and a readout borrowing them would inherit rules meant for a
+ * slider.
+ */
+.readout.pk__read {
+  grid-area: read;
+  position: relative;
+  /* Tighter than the fitting's own padding: this row takes its height out of
+     the auto track above the felt, and every pixel of it is a pixel the felt
+     (the one flexing row) does not get on a short phone. */
+  padding: 9px 14px 10px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.pk__read-big {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gr-space-2);
+}
+
+.pk__read-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-faint);
+}
+
+.pk__read-figure {
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--gr-color-ink-lit);
+}
+
+/* Chips, so gold — the one figure here that is ever allowed to be (F3). */
+.pk__read-figure--chips {
+  color: var(--gr-color-chip-hi);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--gr-color-chip) 55%, transparent),
+    0 0 22px color-mix(in srgb, var(--gr-color-chip) 25%, transparent);
+}
+
+.pk__read-note {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
 }
 
 /*
- * The felt takes the room it is in, and gives up its shape before its size.
+ * The turn clock, draining along the readout's top edge.
  *
- * The buttons are the one part of this screen somebody has to be able to
- * reach, so the felt can never be taller than the window has spare. It used to
- * pay for that in width: holding 16:10 whatever it cost, a 1080p window — 950
- * pixels of page, less the 470 that are not the table — drew a 768px felt
- * inside 1556px of room, and every card, name and chip on it is measured in
- * `cqw`, so the whole drawing came out at half the size of the screen it was
- * on. It looked right at 1440p only because the height budget there is
- * generous enough that 16:10 fills the page anyway, which is why it survived.
- *
- * So the felt takes the width, and lets the height cap flatten it instead. A
- * `max-height` on a box whose width is already settled takes height away
- * without taking width — the table stops being 16:10 and becomes the long oval
- * it is in a room, which is the honest way to spend a screen that is wide and
- * short. It stops at `--flattest`, and the width is capped there too so the
- * two halves of the same rule cannot disagree.
+ * A bar rather than `TurnRing`'s ring — a different shape for the same
+ * deadline — but the same arithmetic: `Readout` feeds it the fraction of a
+ * turn left from the same `useCountdown` the ring is built on, so there is
+ * one answer to "how long is left" rather than a second clock reimplementing
+ * it. Neon rather than gold: this is what is happening now, not a stake.
  */
-@media (min-width: 561px) {
-  .pk {
-    /*
-     * Floored above the width at which this felt becomes the phone one. That
-     * layout is square and stacks its controls taller, so shrinking a wide
-     * screen's table into it makes the very thing this cap exists to prevent:
-     * a short window would cross the breakpoint and push the buttons further
-     * off the bottom than leaving it alone would have.
-     */
-    max-width: max(580px, calc(var(--spare) * var(--flattest)));
-  }
+.pk__read-clock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--t);
+  height: 2px;
+  background: var(--gr-color-neon-hi);
+  box-shadow: 0 0 8px var(--gr-color-neon);
+  transition: width 1s linear;
 }
 
-/*
- * On the container rather than the viewport, because this is the exact
- * complement of the narrow felt below — that one is square on purpose, to give
- * ten seats somewhere to go, and a height cap would flatten it back into the
- * collisions it exists to avoid.
- *
- * Floored at the felt's own floor width over the flattest ratio, so that when
- * the felt is holding its 580px minimum on a very short window it holds a
- * table's shape with it rather than being squeezed into a letterbox.
- */
-@container (min-width: 561px) {
-  .pk__table {
-    /*
-     * Stated rather than left to `auto`, and this is the whole trick.
-     *
-     * An automatic width and an aspect ratio are two ways of saying the same
-     * size, so a cap on the height travels back through the ratio and takes
-     * the width with it — which is the shrinking this rule exists to stop. A
-     * width that is already settled has nowhere to travel to, so the cap can
-     * only do what it says: take height.
-     */
-    width: 100%;
-    max-height: max(calc(580px / var(--flattest)), var(--spare));
+@media (prefers-reduced-motion: reduce) {
+  .pk__read-clock {
+    /* Still says how much is left — the width itself — just not by easing
+       there from wherever it last was. */
+    transition: none;
   }
 }
 
@@ -143,6 +179,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* The row the name sits in is bounded too, or the name inside it has
+     nothing to ellipsise against. */
+  max-width: 100%;
+  min-width: 0;
   gap: 5px;
   min-width: 0;
 }
@@ -173,6 +213,16 @@
   flex-direction: column;
   line-height: 1.2;
   min-width: 0;
+  /*
+   * A seat is as wide as the seat, whatever it is called.
+   *
+   * `min-width: 0` lets this shrink but nothing stopped it growing, so a
+   * long name laid its whole line out at max-content: measured on a phone,
+   * "Skint Alice" made a 113px block inside a 48px seat, hanging 10px off
+   * the left of the window and across the seat next to it on the arc. The
+   * name already ellipsises; it just needed to be told how much room it has.
+   */
+  max-width: 100%;
   text-shadow:
     0 1px 3px rgb(0 0 0 / 0.9),
     0 0 10px rgb(0 0 0 / 0.6);
@@ -305,20 +355,22 @@
 /*
  * The chips scale with the felt too, for the same reason the cards do — and
  * because React sized them for the smallest table they appear on. Only the
- * width is given; the drawing's own viewBox takes care of the rest.
+ * width is given; the drawing's own viewBox takes care of the rest. The three
+ * sizes are `.pk__table`'s own custom properties, `--pile`/`--bet-chip`/
+ * `--pot-chip`, so a short felt shrinks them along with everything else.
  */
 .pk__pile .stack {
-  width: clamp(11px, 1.9cqw, 32px);
+  width: var(--pile);
   height: auto;
 }
 
 .pk__bet .stack {
-  width: clamp(16px, 2.6cqw, 44px);
+  width: var(--bet-chip);
   height: auto;
 }
 
 .pk__pot-chips .stack {
-  width: clamp(19px, 3.2cqw, 54px);
+  width: var(--pot-chip);
   height: auto;
 }
 
@@ -336,10 +388,36 @@
  * it, and the drawing was doing the pill's job anyway. What is left is what a
  * stake looks like on a table — a pile, and the figure under it.
  */
+/*
+ * Where round the ring, worked out once and shared by everything that sits
+ * on one: a seat, its stake, and the two chip animations that travel between
+ * a seat and the pot. All four are siblings under `.pk__table` rather than
+ * nested inside one another, so none of them can inherit `--angle` from
+ * another — each is handed its own `--seat`/`--of` instead, and this is the
+ * one place the formula that turns those into an angle is written.
+ */
+.pk__seat,
+.pk__bet,
+.pk__gather,
+.pk__sweep {
+  /*
+   * The whole ring at a desk: seat zero at the bottom and round from there.
+   * `--from` and `--span` are what a container query rewrites to open it
+   * into an arc, and `--out` is which of the two staggered rings the seat is
+   * on — nought at a desk, where one ring has room for everybody.
+   */
+  --from: 90deg;
+  --span: 360deg;
+  --out: 0;
+  --stagger: 1;
+  --angle: calc(var(--from) + (var(--seat) / var(--of)) * var(--span));
+  --reach: calc(1 + var(--out) * (var(--stagger) - 1));
+}
+
 .pk__bet {
   position: absolute;
-  left: calc(50% + var(--cos) * var(--bet-across));
-  top: calc(50% + var(--sin) * var(--bet-down));
+  left: calc(50% + cos(var(--angle)) * var(--bet-across));
+  top: calc(var(--ring-y, 50%) + sin(var(--angle)) * var(--bet-down));
   /* `--dodge` steps a seat above the middle out of the pot's column; it is
      zero for every seat that is already clear of it. */
   transform: translate(calc(-50% + var(--dodge, 0px)), -50%);
@@ -374,7 +452,7 @@
  * space between you and the board is the empty half of the felt.
  */
 .pk__bet--yours {
-  top: calc(50% + var(--sin) * 15%);
+  top: calc(50% + sin(var(--angle)) * 15%);
 }
 
 
@@ -419,51 +497,6 @@
   color: var(--gr-color-ink-faint);
   text-align: center;
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
-}
-
-/*
- * Dealing bots in, which only ever appears at a table playing for nothing.
- * Under the controls rather than among them: it is a thing you do to the
- * table, not a move in the hand.
- */
-.pk__bots {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.pk__bots-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--gr-color-ink-faint);
-}
-
-.pk__bot {
-  padding: 6px 14px;
-  /* Thumb-sized: this sits under a felt that gets played on a phone. */
-  min-height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: 12px;
-  text-transform: capitalize;
-  cursor: pointer;
-}
-
-.pk__bot:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.1);
-  color: var(--gr-color-ink);
-}
-
-.pk__bot:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 /** Who you are actually playing, said on the seat rather than guessed at. */
@@ -691,7 +724,7 @@
  *
  * Chips do not appear on a table, somebody pushes them out — so the marker
  * starts where its owner is sitting and travels in to the ring. Both ends are
- * the same `--cos`/`--sin` the seat and the ring are placed with, so the
+ * the same `--angle` the seat and the ring are placed with, so the
  * distance is right for every seat without any of them being special.
  *
  * The element is keyed on its amount, so a stake that grows is a new element
@@ -700,8 +733,8 @@
 @keyframes pk-bet-out {
   0% {
     transform: translate(
-        calc(-50% + var(--dodge, 0px) + var(--cos) * (var(--across) - var(--bet-across))),
-        calc(-50% + var(--sin) * (var(--down) - var(--bet-down)))
+        calc(-50% + var(--dodge, 0px) + cos(var(--angle)) * (var(--across) - var(--bet-across))),
+        calc(-50% + sin(var(--angle)) * (var(--down) - var(--bet-down)))
       )
       scale(0.86);
     opacity: 0;
@@ -725,8 +758,8 @@
  */
 .pk__gather {
   position: absolute;
-  left: calc(50% + var(--cos) * var(--bet-across));
-  top: calc(50% + var(--sin) * var(--bet-down));
+  left: calc(50% + cos(var(--angle)) * var(--bet-across));
+  top: calc(var(--ring-y, 50%) + sin(var(--angle)) * var(--bet-down));
   z-index: 5;
   pointer-events: none;
   animation: pk-gather 620ms cubic-bezier(0.4, 0, 0.3, 1) forwards;
@@ -742,8 +775,8 @@
   }
   100% {
     transform: translate(
-        calc(-50% - var(--cos) * var(--bet-across)),
-        calc(-50% - var(--sin) * var(--bet-down))
+        calc(-50% - cos(var(--angle)) * var(--bet-across)),
+        calc(-50% - sin(var(--angle)) * var(--bet-down))
       )
       scale(0.7);
     opacity: 0;
@@ -763,7 +796,7 @@
  * The pot going across to whoever won it.
  *
  * Starts in the middle, where the pot has been sitting all hand, and travels
- * out to the seat — the same `--cos`/`--sin` the seat is placed with, so it
+ * out to the seat — the same `--angle` the seat is placed with, so it
  * arrives on them rather than near them. That is the whole point: a number
  * changing in two places says the same thing, and says it to nobody who was
  * not already looking at both.
@@ -795,8 +828,8 @@
   }
   100% {
     transform: translate(
-        calc(-50% + var(--cos) * var(--across)),
-        calc(-50% + var(--sin) * var(--down))
+        calc(-50% + cos(var(--angle)) * var(--across)),
+        calc(-50% + sin(var(--angle)) * var(--down))
       )
       scale(0.85);
     opacity: 0;
@@ -901,6 +934,22 @@
 /* ---------------------------------------------------------- what you do */
 
 /*
+ * Everything under the felt — the hand you are holding, the buttons, the bots
+ * row — in the grid's "controls" area, as one item rather than three. A grid
+ * area holds one box; sharing it between several would size the row to the
+ * tallest of them and let the rest overlap it, which is exactly the "Bet pot"
+ * row landing on top of "Deal somebody in" rather than above it. A flex
+ * column inside keeps them stacked the way normal flow always did, including
+ * the reading pill's negative margin pulling it up over whatever is above it.
+ */
+.pk__below {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/*
  * The controls, under the table.
  *
  * One column: how much, then what to do with it. That order is deliberate —
@@ -937,28 +986,6 @@
   display: flex;
   align-items: stretch;
   gap: var(--gr-space-2);
-}
-
-.pk__step {
-  flex: 0 0 auto;
-  width: 44px;
-  min-height: 44px;
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
-  font-size: var(--gr-text-lg);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.pk__step:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.1);
-}
-
-.pk__step:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 
 .pk__figure {
@@ -1058,6 +1085,24 @@
 }
 
 /*
+ * The typed figure's well: tighter than a `.housing`'s, because this sits
+ * inside one control rather than holding a screen's worth of them.
+ */
+.pk__typed {
+  padding: var(--gr-space-2) var(--gr-space-3);
+  gap: 2px;
+}
+
+/* Chips (F3), lined up the way every other figure in this dial is. */
+.pk__typed-input {
+  text-align: center;
+  font-family: var(--gr-font-data);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--gr-color-chip);
+}
+
+/*
  * The sizes anybody actually bets.
  *
  * A pot-sized raise is the one every player already has a name for, and
@@ -1069,23 +1114,9 @@
   gap: 6px;
 }
 
-.pk__slice {
+/* Fills the row evenly, the way the bespoke pk__slice used to before it wore .key. */
+.pk__slices .key {
   flex: 1 1 auto;
-  min-height: 34px;
-  padding: 0 var(--gr-space-2);
-  border-radius: 999px;
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.04);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-xs);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.pk__slice:hover {
-  background: rgb(255 255 255 / 0.1);
-  color: var(--gr-color-ink);
 }
 
 /* -------------------------------------------------------- what to do */
@@ -1099,33 +1130,19 @@
 /*
  * Equal thirds, so the button under your thumb is the one you meant. Poker is
  * played fast and these three are pressed thousands of times; a fold that is
- * narrow because its word is short is a fold somebody hits by accident.
+ * narrow because its word is short is a fold somebody hits by accident. The
+ * fittings themselves stay generic — this is the poker-only part of their
+ * dress, the way blackjack.css sizes its own :is(.slab, .key) row.
  */
-.pk__act {
+.pk__acts :is(.slab, .key) {
   flex: 1 1 0;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
   min-height: 52px;
-  padding: 0 var(--gr-space-3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
+  padding-inline: var(--gr-space-3);
   font-size: var(--gr-text-sm);
-  cursor: pointer;
-}
-
-.pk__act:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.1);
-}
-
-.pk__act:disabled {
-  opacity: 0.4;
-  cursor: default;
+  line-height: 1.15;
 }
 
 .pk__act-name {
@@ -1141,29 +1158,32 @@
   line-height: 1.1;
 }
 
-.pk__act--fold {
-  color: var(--gr-color-ink-dim);
-}
-
 /*
- * The lit button, for a control that is the only thing to do.
+ * Busy, held down, without :disabled.
  *
- * Never on one of several moves. A raise drawn brighter than the call beside
- * it is the table lobbying: the eye lands on the lit control and the press
- * follows, and the difference is somebody's money. Calling and raising are
- * the player's decision, so they look identical and the felt keeps its
- * opinion to itself. Buying in has nothing to be pressed instead of.
+ * The fittings draw a busy slab's held-down look off `.slab.is-busy:disabled`
+ * — everywhere else, busy means inert too. Here it does not: F4 says busy is
+ * not dead, and a second press on Check or Call while the table has not yet
+ * answered is a no-op rather than a button a screen reader is told it cannot
+ * reach. So the same look is repeated without the `:disabled` guard.
  */
-.pk__act--go {
-  border-color: var(--gr-color-neon);
-  color: var(--gr-color-ink-lit);
-  /* Mixed from the token rather than written out, so it follows the room's
-     light instead of being a second opinion about what colour this is. */
-  background: color-mix(in srgb, var(--gr-color-neon) 14%, transparent);
+.pk__acts .slab.is-busy {
+  color: var(--gr-color-neon-core);
+  text-shadow:
+    0 0 10px rgb(255 255 255 / 0.4),
+    0 0 22px var(--gr-color-neon-hi);
+  box-shadow:
+    0 0 0 var(--gr-color-neon-deep),
+    0 2px 6px rgb(0 0 0 / 0.45),
+    var(--gr-bezel);
+  /* The fitting's own held-down look pairs this flattened shadow with a
+     matching drop — :active and :disabled both carry it, and busy has to
+     copy it explicitly since it is neither. */
+  transform: translateY(var(--gr-press));
 }
 
-.pk__act--go .pk__act-name {
-  color: var(--gr-color-ink-dim);
+.pk__acts .slab.is-busy::before {
+  animation-duration: 1.4s;
 }
 
 /*
@@ -1189,26 +1209,16 @@
   }
 }
 
-.pk__controls--yours .pk__act {
-  animation: pk-act-lit 900ms ease-out;
-}
-
-@keyframes pk-act-lit {
-  0% {
-    border-color: var(--gr-color-neon);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gr-color-neon) 55%, transparent);
-  }
-  35% {
-    box-shadow: 0 0 16px 2px color-mix(in srgb, var(--gr-color-neon) 45%, transparent);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-
+/*
+ * The per-button relit flash this used to carry on arrival is gone: the row
+ * now has an actual .slab, and a screen that is lit in exactly one place
+ * already says "this is on now" without a second animation racing the
+ * fittings' own — CLAUDE.md's one-motion-per-thing, applied to a button that
+ * would otherwise be animating two things (its own slab glow and a flash) at
+ * once.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .pk__controls--yours,
-  .pk__controls--yours .pk__act {
+  .pk__controls--yours {
     animation: none;
   }
 }
@@ -1231,31 +1241,27 @@
   width: 100%;
 }
 
-.pk__prebtn {
+/*
+ * The lamps and, beside them, the one key a taunt has room for while
+ * somebody else decides. The lamps keep first claim on the row — they are
+ * the decision that matters — and the key takes only what its own label
+ * needs, at the end where its panel opens leftward and stays on screen.
+ */
+.pk__pre-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gr-space-2);
+  width: 100%;
+}
+
+.pk__pre-row .pk__pre {
+  width: auto;
   flex: 1 1 auto;
-  min-height: 40px;
-  padding: 0 var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
-  border: 1px solid rgb(255 255 255 / 0.14);
-  background: rgb(255 255 255 / 0.03);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-xs);
-  white-space: nowrap;
-  cursor: pointer;
 }
 
-.pk__prebtn:hover {
-  background: rgb(255 255 255 / 0.08);
-  color: var(--gr-color-ink);
+.pk__pre-row .taunt-picker {
+  flex: 0 0 auto;
 }
-
-.pk__prebtn--on {
-  border-color: var(--gr-color-neon);
-  background: color-mix(in srgb, var(--gr-color-neon) 20%, transparent);
-  color: var(--gr-color-ink-lit);
-}
-
 
 /* ------------------------------------------------- what you are holding */
 
@@ -1338,95 +1344,31 @@
 /* ------------------------------------------------------ what beats what */
 
 /*
- * A question mark on the rail.
+ * The ? and Table keys, the other corner from talk.
  *
- * Sat on the table itself because what beats what is a fact about this game,
- * and the room's own bar along the top belongs to the building. Small, because
- * anybody who needs it will look for it and everybody else should not have to
- * look at it.
+ * What beats what is a fact about this game rather than the building's, so it
+ * sits on the table with the host's own key beside it rather than in the
+ * room's own bar along the top. Sized to match `.table-talk-corner`'s own
+ * `.talk-key`, opposite it.
  */
-.pk__helpbtn {
+.pk__corner {
   position: absolute;
   top: 6px;
-  right: 10px;
+  right: 6px;
   z-index: 2;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid rgb(255 255 255 / 0.22);
-  background: rgb(0 0 0 / 0.4);
-  color: var(--gr-color-ink-dim);
-  font: inherit;
-  font-size: var(--gr-text-base);
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.pk__helpbtn:hover {
-  background: rgb(0 0 0 / 0.6);
-  color: var(--gr-color-ink);
-  border-color: rgb(255 255 255 / 0.4);
-}
-
-.pk__help {
-  width: min(720px, calc(100vw - 24px));
-  max-height: min(86vh, 900px);
-  padding: 0;
-  border: var(--gr-edge-soft);
-  border-radius: var(--gr-radius-md, 12px);
-  background: var(--gr-color-slate, #171f2a);
-  color: var(--gr-color-ink);
-  overflow: hidden;
-}
-
-/*
- * The box takes focus when it opens, which paints a ring round the whole
- * dialog. Dropped here and only here: the ring belongs on the things inside it
- * that can be pressed, and they keep theirs.
- */
-.pk__help:focus,
-.pk__help:focus-visible {
-  outline: none;
-}
-
-.pk__help::backdrop {
-  background: rgb(0 0 0 / 0.66);
-}
-
-.pk__help-inner {
-  max-height: inherit;
-  overflow-y: auto;
-  padding: var(--gr-space-4);
-}
-
-.pk__help-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gr-space-3);
-  margin-bottom: var(--gr-space-3);
+  gap: 6px;
 }
 
-.pk__help-title {
-  margin: 0;
-  font-size: var(--gr-text-lg);
+.pk__corner .key {
+  width: 36px;
+  min-height: 36px;
+  font-weight: 600;
 }
 
-.pk__help-shut {
-  min-height: 40px;
-  padding: 0 var(--gr-space-3);
-  border-radius: var(--gr-radius-sm);
-  border: var(--gr-edge-soft);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--gr-color-ink);
-  font: inherit;
-  cursor: pointer;
-}
-
-.pk__help-shut:hover {
-  background: rgb(255 255 255 / 0.1);
-}
+/* A CSS hook only: `.key key--icon` already draws the button, and the desk
+   breakpoint further down uses this class alone to hide it once the card is
+   standing in the side column and the key would only open a second copy. */
 
 .pk__ranks {
   margin: 0;
@@ -1494,6 +1436,51 @@
   margin: var(--gr-space-4) 0 0;
   font-size: var(--gr-text-sm);
   color: var(--gr-color-ink-dim);
+}
+
+/* --------------------------------------------------------- the host's table */
+
+/* Sheet.tsx and its rules are the building's, in table/table.css. */
+
+.pk__field {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.pk__seats-count {
+  margin: 0;
+  font-family: var(--gr-font-data);
+  color: var(--gr-color-ink);
+}
+
+/*
+ * Dealing bots in, which only ever appears at a table playing for nothing
+ * and only in the host's own sheet — it is a thing you do to the table, not
+ * a move in the hand.
+ */
+.pk__sheet-bots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+/* Titles the desk-side rules panel. */
+.pk__panel-title {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+/* The side column's panel only exists at a desk; a phone reaches the same
+   content through the ? key instead. */
+.pk__rules {
+  grid-area: rules;
+  display: none;
 }
 
 /* ------------------------------------------------------- choosing stakes */
@@ -1569,8 +1556,26 @@
  * game is played on rather than one it borrows. The room's palette is smoke
  * and neon; a card table is oak, and a green cloth sitting straight on a dark
  * page reads as a shape rather than as furniture.
+ *
+ * A size container of its own — `pk`, distinct from the page's `fit` — so
+ * everything on the felt can be measured against both the room it actually has
+ * left and not merely the width the page happens to be. A phone that is short
+ * as well as narrow used to shrink nothing but the width term of every clamp
+ * below, so a squat window still drew full-height cards that shoved the
+ * controls off the bottom; sized against `min(cqi, cqh)` instead, the shorter
+ * axis wins and the cards give first.
+ *
+ * No `aspect-ratio` here any more: on one column the felt is simply whatever
+ * rectangle the flexing row gives it. Giving the table back its actual shape
+ * on a phone is arrangement work rather than sizing work, and it happens
+ * below, in the seats' own angle — a taller felt and a ring pulled in to suit
+ * it, not a ratio imposed on the container.
  */
 .pk__table {
+  grid-area: felt;
+  container: pk / size;
+  position: relative;
+  min-height: 0;
   /*
    * How far the ring of seats reaches.
    *
@@ -1598,8 +1603,49 @@
    */
   --bet-across: 25%;
   --bet-down: 18.5%;
-  position: relative;
-  aspect-ratio: 16 / 10;
+  /*
+   * The face beside a name, and the clock drawn round it — the two have to
+   * agree, and two copies of the same clamp is two things to keep in step.
+   * Set here, on the container, and read by every seat rather than declared
+   * again on one: a seat that fixed its own face size is a face that stops
+   * shrinking on a short phone while the cards around it still do.
+   */
+  --face: clamp(18px, min(2.4cqi, 1.9cqh), 40px);
+  /*
+   * A name and a stack, which are one size for the same reason — they are read
+   * as one line about one person.
+   *
+   * The coefficient is what stops a desktop being handed the phone's floor. At
+   * 1.15cqw a 1080p felt landed on 11px exactly, so somebody at a full-sized
+   * monitor read the other nine seats at the size a phone reads them, beside a
+   * 23px face and a 41px card. It reaches its ceiling a little earlier now and
+   * sits there, which is what a legibility ceiling is for.
+   */
+  --seat-text: clamp(11px, min(1.45cqi, 1.2cqh), 18px);
+  /*
+   * The chips, in the three places they pile up: beside a stack, out on a
+   * stake, and heaped in the pot. Each is its own size because they are read
+   * at different distances — the pot is the biggest pile on the table — but
+   * all three give up height before width for the same reason the cards do.
+   */
+  --pile: clamp(11px, min(1.9cqi, 1.5cqh), 32px);
+  --bet-chip: clamp(16px, min(2.6cqi, 2.1cqh), 44px);
+  --pot-chip: clamp(19px, min(3.2cqi, 2.6cqh), 54px);
+  /*
+   * How much of the table box the table itself takes.
+   *
+   * Nothing, at a desk: the timber fills the box and every seat is on the
+   * ring. On a phone the cloth stops short and the band underneath is where
+   * your own hand goes — so the timber has to stop with it, which is why it
+   * is drawn by a pseudo-element rather than by this box's own background.
+   */
+  --under: 0px;
+}
+
+.pk__table::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 var(--under) 0;
   border-radius: 46% / 48%;
   background:
     radial-gradient(120% 90% at 50% -10%, rgb(255 214 160 / 0.22) 0%, transparent 55%),
@@ -1624,7 +1670,7 @@
    * every percent of it taken back is a percent of cloth — which is where the
    * cards, the chips and the seats all have to fit.
    */
-  inset: 3.4% 2.6% 4%;
+  inset: 3.4% 2.6% calc(4% + var(--under));
   border-radius: 46% / 48%;
   background: radial-gradient(70% 70% at 50% 38%, #21523c 0%, #17392c 58%, #0d2119 100%);
   box-shadow:
@@ -1688,8 +1734,8 @@
  * reads as the wrong card moving.
  */
 /*
- * Everything on this felt is measured in `cqw` — hundredths of the table's own
- * width — rather than in pixels.
+ * Everything on this felt is measured in the felt's own container units
+ * rather than in pixels.
  *
  * The seats and the chips sit on rings given as percentages of the table, so a
  * card measured in pixels changes size relative to those rings at every screen
@@ -1698,18 +1744,24 @@
  * is chasing it. In the same units as the rings it simply cannot happen — the
  * whole felt is one drawing that gets bigger.
  *
+ * `min(cqi, cqh)` rather than `cqi` alone, so the height the felt actually has
+ * binds as readily as the width: a felt that is wide but short — the shape a
+ * phone gives it once the bar and the controls have taken their share — used
+ * to keep drawing full-width board cards until they ran the seats below them
+ * off the felt entirely.
+ *
  * Clamped at both ends. Below the floor a card stops being readable, and above
  * the ceiling a very wide monitor would deal playing cards the size of books.
  */
 .pk__gap {
-  width: clamp(44px, 6.2cqw, 104px);
+  width: clamp(44px, min(6.2cqi, 5cqh), 104px);
   aspect-ratio: 5 / 7;
   border-radius: 5px;
   border: 1px dashed rgb(255 255 255 / 0.1);
 }
 
 .pk__board .card {
-  width: clamp(44px, 6.2cqw, 104px);
+  width: clamp(44px, min(6.2cqi, 5cqh), 104px);
   height: auto;
 }
 
@@ -1726,8 +1778,15 @@
  */
 .pk__seat {
   position: absolute;
-  left: calc(50% + var(--cos) * var(--across));
-  top: calc(50% + var(--sin) * var(--down));
+  /*
+   * Counted from the bottom middle and going round, so seat zero is always
+   * you (`--angle` itself is declared once, above, shared with the stake and
+   * the two chip animations). A container query can rewrite this one
+   * declaration — opening the ring into a horseshoe on a phone — without
+   * anything upstream having to measure the felt or know it happened.
+   */
+  left: calc(50% + cos(var(--angle)) * var(--across) * var(--reach));
+  top: calc(var(--ring-y, 50%) + sin(var(--angle)) * var(--down) * var(--reach));
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
@@ -1744,7 +1803,7 @@
 }
 
 .pk__cards .card {
-  width: clamp(30px, 4.2cqw, 70px);
+  width: clamp(30px, min(4.2cqi, 3.4cqh), 70px);
   height: auto;
 }
 
@@ -1757,7 +1816,7 @@
  * one worth the room.
  */
 .pk__seat--you .pk__cards .card {
-  width: clamp(44px, 7cqw, 118px);
+  width: clamp(44px, min(7cqi, 5.6cqh), 118px);
 }
 
 .pk__seat--you .pk__name,
@@ -1843,55 +1902,174 @@
 }
 
 /*
- * A phone gets the same table, smaller.
+ * A phone gets the horseshoe; everything past it gets the oval.
  *
- * Everything that shrinks here is a size rather than an arrangement: the seats
- * stay where they are round the ellipse, because a second layout is a second
- * thing to get right and a table that rearranged itself would stop being the
- * same table.
+ * The felt now owns the whole window (a previous task), so a phone can afford
+ * to keep everybody's cards, faces, piles and stakes — they no longer have to
+ * be deleted to buy room the felt did not have. What a phone still cannot
+ * afford is the full ring: ten seats round a wide ellipse at this width
+ * collided, six overlapping pairs with the outermost hanging off the sides.
+ * So the ring opens at the bottom instead, where your own seat has somewhere
+ * to be and the other nine arc over the top.
  */
-@container (max-width: 560px) {
+@container pk (max-width: 560px) {
   /*
-   * Taller, because the seats need somewhere to go.
-   *
-   * Ten seats round a wide ellipse at this width collided: six overlapping
-   * pairs, and the outermost ones hanging off the sides of the page. A table
-   * nearer square has far more room down its sides, which is where the seats
-   * that were fighting each other end up.
+   * No `aspect-ratio` stated here — the felt is a grid item stretched to fill
+   * the row it is given on both axes, so a stated ratio on top of that has
+   * nothing left to resolve and would be dead weight (see the test that pins
+   * it). What actually makes a phone's table taller is `.pk__below`'s own
+   * height plus the flexing row's `min-height: 0`, which this block does not
+   * need to touch — and the radius that reaches into that extra height lives
+   * in the `fit`-keyed block just below, not here: a `pk`-size container
+   * cannot restyle the element that establishes it, so a redeclaration of
+   * `--across`/`--down` on `.pk__table` here would be dead code (confirmed
+   * empirically — see that block's own comment).
    */
-  .pk__table {
-    aspect-ratio: 1 / 1;
-    --across: 34%;
-    --down: 33%;
-    --bet-across: 23%;
-    --bet-down: 24%;
-  }
 
+  /*
+   * The ring opens at the bottom. Nine others over an arc from 150° to 390°,
+   * centred in it rather than pinned to its ends, so the shape degrades
+   * correctly as seats empty: at two seats the one opponent lands at the top,
+   * where an opponent belongs.
+   */
+  /*
+   * Nine plates on two rings, and the arithmetic is why.
+   *
+   * A plate wide enough to hold a name is 66px; nine of them want about
+   * 594px of arc and a phone's ring has about 505px. On one radius the only
+   * way they fit is to shrink until a name is two letters and an ellipsis,
+   * which is what this used to do. Pushed alternately out by a quarter, two
+   * neighbours can share an angle without sharing the screen — searched
+   * across radius, arc and stagger, 39% / 32% / 1.25 over 260° is the
+   * shallowest ring with no pair overlapping and nothing off the phone, on
+   * the 351×230 cloth a 375px phone gives.
+   *
+   * `--seat` counts from you at zero, so the opponents are one to nine and
+   * the arc is walked by `(seat - 0.5) / (of - 1)` — centred in it, so it
+   * degrades properly as seats empty.
+   */
   .pk__seat {
-    width: 64px;
-    gap: 2px;
+    --from: 130deg;
+    --span: 280deg;
+    --stagger: 1.1;
+    --angle: calc(var(--from) + ((var(--seat) - 0.5) / (var(--of) - 1)) * var(--span));
+    width: 66px;
+    gap: 1px;
   }
 
   /*
-   * Everybody else has their cards taken away.
+   * Two lines, not three: the name, then the stack and the stake beside it.
    *
-   * They are face down: two dark rectangles saying nothing, at a size where
-   * they say it illegibly. What a player needs from another seat on a phone is
-   * who it is, what they have left, and whether they are still in, so the
-   * cards give up their room to those. Your own hand keeps its own.
+   * A third line is 14px, and 14px is the difference between nine plates
+   * fitting the cloth's band and not. `bet` says which number is which, so
+   * the two can share a line without either being mistaken for the other.
    */
-  .pk__seat .pk__cards {
+  .pk__seat:not(.pk__seat--you) .pk__who {
+    flex-flow: row wrap;
+    justify-content: center;
+    gap: 0 4px;
+  }
+
+  .pk__seat:not(.pk__seat--you) .pk__name {
+    flex: 1 0 100%;
+  }
+
+  /*
+   * Two things that were sitting on top of the name at this size.
+   *
+   * The "bot" tag rides on the name's own line, so at 66px it pushed the
+   * name out from under itself and then clipped. Who is a bot is worth
+   * knowing but not worth the name — it goes, and the seat says it to a
+   * screen reader as it always did.
+   */
+  .pk__seat:not(.pk__seat--you) .pk__bot-mark {
     display: none;
   }
 
-  .pk__seat--acting .pk__cards,
-  .pk__seat--won .pk__cards {
-    display: flex;
+  /*
+   * And the blind mark was pinned 14px in from the plate's right edge, which
+   * on a 108px seat is clear of the name and on a 66px one is straight
+   * through it. Out at the corner it belongs to the plate rather than to any
+   * word in it.
+   */
+  .pk__seat:not(.pk__seat--you) .pk__mark {
+    top: -7px;
+    right: -6px;
+    min-width: 17px;
+    height: 17px;
+    font-size: 9px;
   }
 
-  .pk__cards .card {
-    width: 30px;
+  /* The stake and the chips in flight keep to the seat they belong to. */
+  .pk__bet,
+  .pk__gather,
+  .pk__sweep {
+    --from: 130deg;
+    --span: 280deg;
+    --angle: calc(var(--from) + ((var(--seat) - 0.5) / (var(--of) - 1)) * var(--span));
   }
+
+  /*
+   * Pulled in over its own cards rather than left floating above them, so a
+   * seat's spoken bubble no longer reaches into the seat above it on the
+   * arc — measured against `games/poker/src/table.ts`, `seat.spoke` is set
+   * on every fold, check, call, raise and all-in, so this is common rather
+   * than rare, and it was the difference between a clear horseshoe and one
+   * with two or three pairs of seats touching (see the radius block below).
+   */
+  .pk__bubble {
+    bottom: 60%;
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+
+  /*
+   * You come off the ring altogether.
+   *
+   * On the ring you were a tenth of it — the same 66px plate as everybody
+   * else, marooned in the empty bottom of an oval, with the one hand you
+   * actually have to read drawn at the size of a hand you do not. Under the
+   * cloth you get the whole width: cards at a size worth looking at, your
+   * stack beside them, and what you are holding under that.
+   */
+  .pk__seat--you {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    height: var(--under);
+    transform: none;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--gr-space-3);
+    padding: 0 var(--gr-space-2);
+    text-align: left;
+  }
+
+  .pk__seat--you .pk__who {
+    align-items: flex-start;
+    max-width: none;
+  }
+
+  .pk__seat--you .pk__wholine {
+    justify-content: flex-start;
+  }
+
+  /* Off the ring, so the ring's marks and bubbles have no seat to hang on. */
+  .pk__seat--you .pk__mark,
+  .pk__seat--you .pk__bubble {
+    position: static;
+    align-self: center;
+  }
+
+  /* Your own chips travel from the band under the cloth, not from the ring. */
+  .pk__gather--yours,
+  .pk__sweep--yours {
+    --angle: 90deg;
+  }
+
 
   /* Still the biggest thing on the table, because it is still the only hand
      anybody has to read. */
@@ -1919,6 +2097,11 @@
   }
 
   .pk__mark {
+    /* Closer over the seat than the oval's badge sits, so it adds only a
+       little to how far a seat's own box reaches upward — see the radius
+       block below, where every pixel of reach here is one the ring has to
+       be pulled in to clear. */
+    top: -1px;
     right: 2px;
     min-width: 17px;
     height: 17px;
@@ -1926,12 +2109,11 @@
   }
 
   /*
-   * The chips come off the cloth and into the seat.
-   *
-   * Three concentric rings do not fit across 375px: the board is most of the
-   * middle, the seats are most of the edge, and a ring of chips between them
-   * lands on one or the other whatever radius it is given. So the seat says
-   * the number instead, which needs no room of its own at all.
+   * The chip ring stays off the cloth. Three concentric rings do not fit
+   * across 375px: the board is most of the middle, the seats are most of the
+   * edge, and a ring of chips between them lands on one or the other whatever
+   * radius it is given. So the seat says the number instead, which needs no
+   * room of its own at all.
    */
   .pk__bet {
     display: none;
@@ -1942,32 +2124,245 @@
   }
 
   /*
-   * The piles go with them. A seat is 64px wide here and every pixel of it is
-   * doing something; chips beside the figure would push the name out of the
-   * seat to say a thing the figure already says.
-   */
-  .pk__pile,
-  .pk__pot-chips {
-    display: none;
-  }
-
-  /* A 64px seat has room for a name and a number. The face is the first thing
-     to go, because the name is the part that identifies somebody. */
-  .pk__seat:not(.pk__seat--you) .pk__face {
-    display: none;
-  }
-
-  /*
    * The pot-slice buttons wrap onto their own line rather than squeezing to
    * nothing. Five of them across 375px is about sixty pixels each, which is
    * under a thumb and over a word.
    */
-  .pk__slice {
+  .pk__slices .key {
     flex: 1 1 30%;
   }
 
-  .pk__prebtn {
+  .pk__pre .lamp {
     flex: 1 1 45%;
+  }
+}
+
+/*
+ * The ring, pulled in to suit a taller, narrower table.
+ *
+ * `.pk__table` cannot answer its own `pk` container's query: a size
+ * container cannot be restyled by a query of the container it establishes —
+ * confirmed empirically (an isolated `container-type: size` element given a
+ * trivially-true rule targeting itself, for even a harmless custom property,
+ * never applied, while the identical rule targeting a child did). Asked of
+ * `fit` instead, this reaches it: `.pk__table` is only `fit`'s descendant,
+ * not the container it establishes, so nothing stops `fit`'s query from
+ * restyling it — confirmed the same way, with `fit` in place of `pk`.
+ *
+ * `.pk__seat`, `.pk__bet`, `.pk__gather` and `.pk__sweep` need nothing of
+ * their own: all four already read `var(--across)` etc. by inheritance from
+ * `.pk__table`, so fixing it once here is what keeps the seats and the chips
+ * that travel to and from them agreeing on where the ring actually is,
+ * rather than a radius copied into each of them by hand.
+ *
+ * The values: measured in a live browser at the narrowest and shortest size
+ * this is checked at (375×560, a ~331×376 felt), with every non-`--you` seat
+ * carrying both a mark badge and a spoken bubble at once — stricter than any
+ * single hand can actually show (the button, small blind and big blind marks
+ * are three fixed seats, not nine), but the unconditional guarantee ("seats
+ * must not overlap") is for whichever three those happen to be, including
+ * the small blind and big blind sitting next to each other, which they
+ * always do; and `games/poker/src/table.ts` sets `seat.spoke` on every fold,
+ * check, call, raise and all-in, so a bubble on the seat beside a mark is
+ * ordinary, not a stress case. Neither sits in the seat's own flow (both are
+ * `position: absolute`), so the union of a seat's box with its own mark and
+ * bubble is what has to clear its neighbours' — a bare seat-to-seat check
+ * missed this: 49%/49% with an ordinary seat box cleared, but the mark and
+ * the bubble's own reach (see `.pk__mark` and `.pk__bubble` above) put pairs
+ * back into each other.
+ *
+ * Both were pulled in over their seat rather than left floating above it —
+ * the bubble's own text is still readable sat over the top of a face-down
+ * card, and the mark loses only a pixel or two of the ring it already draws
+ * round itself. That brought the tallest a seat's box (with its mark and its
+ * bubble) actually gets to 68px, down from 82px at the settings the seats
+ * were widened for. At 42%/43% nine boxes clear every pair over the 240°
+ * arc, and the worst corner — the topmost seat's mark, not its card — lands
+ * about 8px past the table's own edge, well inside the width of the rail
+ * itself, never off the table. `felt.test.ts` holds every number here to
+ * this exactly — it reads the radius back out of this block rather than
+ * copying it, and checks the same worst case, mark and bubble included, in
+ * pure arithmetic, with the same 8px margin and the same reasoning for it.
+ * (One seat, `games/poker`'s own mock data for an "all in" caption on the
+ * `/style` gallery only, briefly measured 101px tall and looked like the
+ * binding constraint; the real `Seat.tsx` has no such always-on label —
+ * `allIn` only recolours the stack figure — so it was discounted once
+ * found, and the numbers above reflect production seats.)
+ */
+@container fit (max-width: 560px) {
+  .pk__table {
+    /*
+     * The cloth stops, and the band under it is your hand's.
+     *
+     * Capped rather than a fraction, so a tall phone spends its extra height
+     * on the cloth and your cards instead of on a taller and taller empty
+     * strip — the ring is centred in whatever the cloth ends up being, and
+     * `--under` is what is left for you.
+     */
+    --under: clamp(84px, 26cqh, 104px);
+    --ring-y: calc((100% - var(--under)) / 2);
+    --across: 41.5%;
+    --down: 21.5%;
+    --bet-across: 28%;
+    --bet-down: 14%;
+  }
+}
+
+/*
+ * The amount folds up on a phone, because otherwise it eats the table.
+ *
+ * Stacked — dial, slider, typed figure, five slice keys, each on its own
+ * line — the controls measured 323px of a 560px window on your turn. The
+ * felt is the only flexing row, so it took the difference and collapsed to
+ * 70px, and ten seats placed as percentages of 70px land on top of each
+ * other. Off turn the same table is 118px of controls and a 275px felt with
+ * nothing touching, which is what says the seats were never the problem.
+ *
+ * So the two single-line controls share a line: the dial is a figure with a
+ * step either side, the typed box is the same figure to type, and putting
+ * them side by side costs nothing but reads as one control, which is what
+ * they are. The slices stop wrapping to a second row — five keys across a
+ * phone is about 66px each, still a thumb.
+ *
+ * Kept after the radius block above, not merged into it: `felt.test.ts`
+ * reads `--across`/`--down` out of the FIRST `@container fit (max-width:
+ * 560px)` block in this sheet.
+ */
+/*
+ * The key that opens the sizing controls is a phone's only. At a desk they
+ * are always drawn, so a key toggling something already visible would be a
+ * control that does nothing you can see.
+ */
+.pk__sizer {
+  display: none;
+  flex: 0 0 auto;
+}
+
+@container fit (max-width: 560px) {
+  .pk__sizer {
+    display: inline-flex;
+  }
+
+  /*
+   * Shut until asked for. Folding the dial and the slices onto single lines
+   * took the controls from 323px to 252px of a 560px window and the felt
+   * from 70px to 141px, which was better and still not a table: nine seats
+   * need vertical room to spread into, and at 141px there is none. Shut,
+   * the row is the three buttons and the felt has its 275px back — the size
+   * at which nothing overlaps, measured.
+   */
+  .pk__amount[data-open="false"] {
+    display: none;
+  }
+
+  /*
+   * Opened, it floats over the cloth rather than pushing it.
+   *
+   * Laid out in the flow it took its 178px back off the felt, which put the
+   * seats straight back where they started — four overlapping pairs at the
+   * moment the player is deciding how much to raise, which is the worst
+   * moment to have a table you cannot read. Over the cloth the felt keeps
+   * its 319px and its arrangement, so dismissing this puts nothing back: the
+   * table underneath never moved.
+   */
+  .pk__below {
+    position: relative;
+  }
+
+  .pk__amount[data-open="true"] {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Clear of the row it belongs to, which stays where the thumb left it.
+       `100%` is the top edge of that row; the gap lifts it off. */
+    bottom: calc(100% + var(--gr-space-2));
+    z-index: 3;
+    padding: var(--gr-space-2);
+    border: var(--gr-edge-soft);
+    border-radius: var(--gr-radius-cab);
+    background: color-mix(in srgb, var(--gr-color-slate) 94%, black);
+    box-shadow: 0 -10px 28px rgb(0 0 0 / 0.55);
+  }
+
+  .pk__amount {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "dial typed"
+      "range range"
+      "slices slices";
+    gap: 6px;
+  }
+
+  .pk__dial {
+    grid-area: dial;
+  }
+
+  .pk__typed {
+    grid-area: typed;
+  }
+
+  .pk__range {
+    grid-area: range;
+    /* Still a bar you can hit with a thumb rather than a hairline, just not
+       the full 34px it takes when there is height going spare. */
+    height: 28px;
+  }
+
+  .pk__slices {
+    grid-area: slices;
+    flex-wrap: nowrap;
+  }
+
+  /* Five across a phone only fit if they are allowed to give up their own
+     content width; the labels are short enough to survive it. */
+  .pk__slices .key {
+    min-width: 0;
+    padding-inline: 4px;
+  }
+}
+
+/*
+ * The readout, the rules and the log come out from behind their keys.
+ *
+ * Asked of `fit` — the container `.play--fit` already declares in table.css —
+ * because `.pk` is the felt's ancestor and cannot answer a query about the
+ * felt's own container. The felt's width is what this rule decides, so it
+ * cannot also be what decides it.
+ */
+@container fit (min-width: 1200px) {
+  .pk {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    /* Four areas need four rows: a template with more area rows than track
+       rows is invalid and the whole declaration is dropped. */
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "felt read" "felt rules" "felt activity" "felt controls";
+  }
+
+  /* The side column's own standing copy of the rules — the "rules" area this
+     grid has named since the row above existed. Capped and scrolling rather
+     than left to its natural height: ten ranked hands with cards are taller
+     than blackjack's plain rows of pay lines, and an `auto` grid row sizes to
+     its content whatever that costs the row below it. */
+  .pk__rules {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    max-height: 46vh;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgb(0 0 0 / 0.26);
+    box-shadow:
+      inset 0 5px 10px rgb(0 0 0 / 0.42),
+      0 1px 0 rgb(255 255 255 / 0.05);
+    overflow-y: auto;
+  }
+
+  /* Standing in the side column now, so the key would only open a second
+     copy of the same sheet. */
+  .pk__corner .pk__help {
+    display: none;
   }
 }
 

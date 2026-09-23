@@ -58,23 +58,14 @@
   transform: rotate(-2deg);
 }
 
-.play__error,
-.play__event {
+.play__error {
   margin: var(--gr-space-4) 0 0;
   padding: var(--gr-space-2) var(--gr-space-3);
   border-radius: var(--gr-radius-sm);
   font-size: var(--gr-text-sm);
-}
-
-.play__error {
   background: rgb(194 84 63 / 0.25);
   border: 1px solid var(--gr-color-bad);
   color: var(--gr-color-ink);
-}
-
-.play__event {
-  color: var(--gr-color-ink-dim);
-  border-left: 2px solid var(--gr-color-neon-dim);
 }
 
 /* =========================================================== the navigation

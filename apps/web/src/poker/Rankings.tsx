@@ -1,7 +1,5 @@
-import { useEffect, useRef } from "react";
 import { Card } from "../cards/Cards.js";
 import type { Card as CardData } from "../cards/deck.js";
-import { play } from "../game/audio.js";
 
 /**
  * What beats what, as the chart on the wall beside a table.
@@ -14,6 +12,8 @@ import { play } from "../game/audio.js";
  * Strongest first, because that is the question being asked. Anybody opening
  * this is looking at their own hand and wants to know what is above it.
  */
+
+export const RULES_SHEET_ID = "pk-rules";
 
 const suits = { s: "spades", h: "hearts", d: "diamonds", c: "clubs" } as const;
 
@@ -78,92 +78,43 @@ const RANKINGS: Array<{ title: string; note: string; cards: CardData[] }> = [
   },
 ];
 
-export function Rankings({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const box = useRef<HTMLDialogElement | null>(null);
-
-  /*
-   * A real dialog element, opened the way one is meant to be. It brings most of
-   * what a hand-rolled overlay has to be reminded of: the page behind stops
-   * taking the keyboard, focus goes in and comes back, and the backdrop is the
-   * browser's own. Escape it does not bring — see below.
-   */
-  useEffect(() => {
-    const dialog = box.current;
-    if (dialog === null) {
-      return;
-    }
-    // Sounded here rather than on the buttons: every way in and out ends as
-    // this effect, so there is one place for it and no way to miss one.
-    if (open && !dialog.open) {
-      dialog.showModal();
-      play("open");
-    } else if (!open && dialog.open) {
-      dialog.close();
-      play("close");
-    }
-  }, [open]);
-
+/**
+ * The chart itself, as content only.
+ *
+ * No dialog of its own any more — a native `<dialog>` here was one the
+ * building's own `useTableKeys` could not tell apart from an ordinary bit of
+ * the page (it looks for `[role="dialog"]`, a literal attribute a native
+ * dialog's implicit role does not satisfy), and jsdom cannot even open one
+ * (`showModal` is unimplemented), so it was never exercised by a test that
+ * actually opened it. The building's own `Sheet` gives it a real `role`,
+ * proper focus handling, and the felt-only or whole-page chrome around it —
+ * once behind a key on the phone, once as a standing panel at a desk.
+ */
+export function Rankings() {
   return (
-    <dialog
-      className="pk__help"
-      ref={box}
-      aria-label="What beats what"
-      /* Every way out goes through the same door as the button. */
-      onClose={onClose}
-      /*
-       * Escape, said out loud rather than left to the element.
-       *
-       * A modal dialog is supposed to close itself on Escape and this one does
-       * not — the key reaches the page and the dialog stays up. Whatever the
-       * reason, a way out that works is worth five lines: this is the only
-       * thing on the screen while it is open, and somebody who cannot get out
-       * of it cannot play.
-       */
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-      /* Clicking the backdrop, which is the dialog itself either side of the
-         box. The keyboard's way out is the line above, and the Close button. */
-      onClick={(event) => {
-        if (event.target === box.current) {
-          onClose();
-        }
-      }}
-    >
-      <div className="pk__help-inner">
-        <div className="pk__help-head">
-          <h2 className="pk__help-title">What beats what</h2>
-          <button type="button" className="pk__help-shut" data-quiet onClick={onClose}>
-            Close
-          </button>
-        </div>
+    <>
+      <ol className="pk__ranks">
+        {RANKINGS.map((rank, at) => (
+          <li className="pk__rank" key={rank.title}>
+            <span className="pk__rank-no">{at + 1}</span>
+            <div className="pk__rank-said">
+              <strong>{rank.title}</strong>
+              <span>{rank.note}</span>
+            </div>
+            <div className="pk__rank-cards">
+              {rank.cards.map((one) => (
+                <Card key={`${one.rank}${one.suit}`} card={one} />
+              ))}
+            </div>
+          </li>
+        ))}
+      </ol>
 
-        <ol className="pk__ranks">
-          {RANKINGS.map((rank, at) => (
-            <li className="pk__rank" key={rank.title}>
-              <span className="pk__rank-no">{at + 1}</span>
-              <div className="pk__rank-said">
-                <strong>{rank.title}</strong>
-                <span>{rank.note}</span>
-              </div>
-              <div className="pk__rank-cards">
-                {rank.cards.map((one) => (
-                  <Card key={`${one.rank}${one.suit}`} card={one} />
-                ))}
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        <p className="pk__help-note">
-          Every hand is the best five cards you can make from your two and the five on the table.
-          Where two people have the same hand, the higher cards in it win; where those are the same
-          too, the pot is split.
-        </p>
-      </div>
-    </dialog>
+      <p className="pk__help-note">
+        Every hand is the best five cards you can make from your two and the five on the table.
+        Where two people have the same hand, the higher cards in it win; where those are the same
+        too, the pot is split.
+      </p>
+    </>
   );
 }

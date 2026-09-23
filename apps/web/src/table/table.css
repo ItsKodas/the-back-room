@@ -1,10 +1,11 @@
 /*
  * What every table in the building has, whatever is played at it: the page
- * that is exactly the window, table talk, the activity log, a refusal over the
- * board, and the room's own scrollbars.
+ * that is exactly the window, table talk, a sheet laid over the table on
+ * purpose, the activity log, a refusal over the board, and the room's own
+ * scrollbars.
  *
- * Imported by TalkSheet.tsx, Activity.tsx and Refusal.tsx, which is what makes
- * it load. Every table page uses at least one of them.
+ * Imported by TalkSheet.tsx, Sheet.tsx, Activity.tsx and Refusal.tsx, which is
+ * what makes it load. Every table page uses at least one of them.
  */
 
 /* ------------------------------------------------------------ the window */
@@ -239,6 +240,13 @@
   .talk__scrim {
     background: rgb(0 0 0 / 0.2);
   }
+
+  /* A drawer from the right at a desk, as talk is. */
+  .sheet--page {
+    top: 0;
+    left: auto;
+    width: 380px;
+  }
 }
 
 @keyframes table-talk-in {
@@ -291,6 +299,98 @@
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
+}
+
+/* ------------------------------------------------------------- the sheet */
+
+/*
+ * Something laid over the table on purpose: the rules card on a phone, the
+ * host's settings. Sheet.tsx is the component; a table gets it over the felt
+ * alone or over the whole page, chosen by className.
+ */
+.sheet__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.45);
+  cursor: default;
+  animation: table-fade 200ms ease both;
+}
+
+.sheet {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgb(0 0 0 / 0.62);
+  border-radius: var(--gr-radius-cab);
+  background: linear-gradient(
+    180deg,
+    var(--gr-color-smoke-lit) 0%,
+    var(--gr-color-smoke) 10%,
+    var(--gr-color-slate) 50%,
+    color-mix(in srgb, var(--gr-color-slate) 55%, var(--gr-color-shadow)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 -18px 40px rgb(0 0 0 / 0.5);
+  animation: table-sheet-rise 300ms var(--gr-settle) both;
+}
+
+.sheet:focus {
+  outline: none;
+}
+
+@keyframes table-sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* The rules card, over the felt it describes. */
+.sheet--felt {
+  top: 0;
+}
+
+/* The host's settings: up from the bottom, stopping short of the readout. */
+.sheet--page {
+  top: max(120px, 28%);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gr-space-2);
+  padding: var(--gr-space-2) var(--gr-space-2) var(--gr-space-2) var(--gr-space-4);
+  border-bottom: 1px solid rgb(0 0 0 / 0.45);
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: var(--gr-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+.sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-4);
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
 }
 
 /* ---------------------------------------------------------- the activity */
@@ -504,6 +604,8 @@
 @media (prefers-reduced-motion: reduce) {
   .talk,
   .talk__scrim,
+  .sheet,
+  .sheet__scrim,
   .activity__line:last-child,
   .refusal__scrim,
   .refusal__card {

@@ -21,6 +21,14 @@
       "runtimeArgs": ["run", "dev:server"],
       "port": 3001,
       "autoPort": false
+    },
+    {
+      "// ": "A second built-and-served instance, for checking one worktree's felt while another worktree holds 3002.",
+      "name": "backroom-prod-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "-w", "@backroom/server", "--", "--port", "3007"],
+      "port": 3007,
+      "autoPort": false
     }
   ]
 }

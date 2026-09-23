@@ -118,6 +118,14 @@ export interface SeatView {
   allIn: boolean;
   /** Marked on the felt, so nobody wonders who they are playing. */
   isBot: boolean;
+  /**
+   * Playing from a profile rather than as a guest.
+   *
+   * Here because things outside the hand turn on it — a taunt is staked in
+   * real chips, so it can only be thrown at somebody with an account for them
+   * to reach. Mirrors blackjack's own `SeatView.signedIn`.
+   */
+  signedIn: boolean;
   /** The last thing they did, for the felt to say over their head. */
   spoke: { move: Move; said: string; at: number } | null;
   /**
@@ -193,6 +201,8 @@ export interface TableView {
   canTakeOff: boolean;
   /** Whose table it is, so the controls that are theirs are offered to them. */
   hostId: string | null;
+  /** How many seats the host opened this table with, not the building's own ceiling. */
+  maxSeats: number;
   code: string;
   street: Street;
   board: Card[];
@@ -222,6 +232,14 @@ export interface TableView {
   swept: Array<{ seatId: string; chips: number }>;
   sweptAt: number | null;
   lastEvent: string | null;
+  /**
+   * Moves on every time `lastEvent` does, even when the sentence repeats.
+   *
+   * "Ola checked" twice running is the commonest pair of lines at this table,
+   * and the two checks read identically once the text is all a client has —
+   * this is what tells one broadcast repeated from the same thing said twice.
+   */
+  eventSeq: number;
   watching: number;
   seats: SeatView[];
 }
@@ -288,6 +306,18 @@ export class Table implements PlayTable {
   swept: Array<{ seatId: string; chips: number }> = [];
   sweptAt: number | null = null;
   lastEvent: string | null = null;
+  eventSeq = 0;
+
+  /**
+   * Says what just happened.
+   *
+   * The only place lastEvent is set, so the counter cannot be forgotten at one
+   * of the fourteen places this table talks.
+   */
+  private say(text: string): void {
+    this.lastEvent = text;
+    this.eventSeq += 1;
+  }
 
   /**
    * What each account can claim from the chips on this table.
@@ -441,7 +471,7 @@ export class Table implements PlayTable {
      */
     const seat = this.seating.join(id, name, this.status, identity, !this.forFun) as Seat;
     this.blank(seat);
-    this.lastEvent = `${seat.name} sat down`;
+    this.say(`${seat.name} sat down`);
     return seat;
   }
 
@@ -462,7 +492,7 @@ export class Table implements PlayTable {
     // Straight to a stack, and the same one everybody else buys: nobody is
     // going to press sit-down for it.
     seat.stack = this.entry;
-    this.lastEvent = `${seat.name} sat down`;
+    this.say(`${seat.name} sat down`);
     return seat;
   }
 
@@ -506,7 +536,7 @@ export class Table implements PlayTable {
       throw new TableError("This table is closing.");
     }
     seat.stack += chips;
-    this.lastEvent = `${seat.name} sat down with ${chips.toLocaleString("en-US")}`;
+    this.say(`${seat.name} sat down with ${chips.toLocaleString("en-US")}`);
   }
 
   /**
@@ -552,7 +582,7 @@ export class Table implements PlayTable {
       this.escrow.refund(seat.userId, chips);
     }
     if (chips > 0) {
-      this.lastEvent = `${seat.name} took ${chips.toLocaleString("en-US")} off the table`;
+      this.say(`${seat.name} took ${chips.toLocaleString("en-US")} off the table`);
     }
     return chips;
   }
@@ -611,7 +641,7 @@ export class Table implements PlayTable {
       this.escrow.refund(gone.userId, left);
     }
     this.seating.remove(id);
-    this.lastEvent = `${gone.name} left`;
+    this.say(`${gone.name} left`);
     /*
      * Asked again, because the hand may only now be down to one player: the
      * seat that just went could have been the last one anybody was waiting on.
@@ -654,10 +684,10 @@ export class Table implements PlayTable {
     const cards = [...seat.hole, ...this.board];
     if (cards.length >= 5) {
       seat.showed = best(cards);
-      this.lastEvent = `${seat.name} showed ${describe(seat.showed)}`;
+      this.say(`${seat.name} showed ${describe(seat.showed)}`);
       return;
     }
-    this.lastEvent = `${seat.name} showed their hand`;
+    this.say(`${seat.name} showed their hand`);
   }
 
   /** Whether this seat has a hand it could turn over and has not. */
@@ -682,6 +712,7 @@ export class Table implements PlayTable {
       canShow: forSeatId !== null && this.canShow(forSeatId),
       canTakeOff: forSeatId !== null && this.canTakeOff(forSeatId),
       hostId: this.hostId,
+      maxSeats: this.maxSeats,
       code: this.code,
       street: this.street,
       board: this.board,
@@ -699,6 +730,7 @@ export class Table implements PlayTable {
       swept: this.swept,
       sweptAt: this.sweptAt,
       lastEvent: this.lastEvent,
+      eventSeq: this.eventSeq,
       watching: this.seating.watching,
       seats: this.seats.map((seat) => ({
         id: seat.id,
@@ -712,6 +744,7 @@ export class Table implements PlayTable {
         folded: seat.folded,
         allIn: seat.allIn,
         isBot: seat.isBot,
+        signedIn: seat.userId !== null,
         spoke: seat.spoke,
         /*
          * The whole reason a view is per-seat. Your own cards, and anybody
@@ -802,7 +835,7 @@ export class Table implements PlayTable {
       playing.length === 2
         ? (this.buttonSeat(playing)?.id ?? null)
         : (this.after(this.bigBlindSeat(playing)?.id ?? null, playing)?.id ?? null);
-    this.lastEvent = "Cards out";
+    this.say("Cards out");
   }
 
   /** Moves the button to the next seat that is playing. */
@@ -940,14 +973,14 @@ export class Table implements PlayTable {
     switch (move) {
       case "fold":
         seat.folded = true;
-        this.lastEvent = `${seat.name} folded`;
+        this.say(`${seat.name} folded`);
         seat.spoke = { move, said: "Fold", at: Date.now() };
         break;
       case "check":
         if (this.owed(seat) > 0) {
           throw new TableError("You cannot check for free.");
         }
-        this.lastEvent = `${seat.name} checked`;
+        this.say(`${seat.name} checked`);
         seat.spoke = { move, said: "Check", at: Date.now() };
         break;
       case "call": {
@@ -956,7 +989,7 @@ export class Table implements PlayTable {
           throw new TableError("There is nothing to call.");
         }
         this.put(seat, owed);
-        this.lastEvent = `${seat.name} called ${owed.toLocaleString("en-US")}`;
+        this.say(`${seat.name} called ${owed.toLocaleString("en-US")}`);
         seat.spoke = { move, said: `Call ${owed.toLocaleString("en-US")}`, at: Date.now() };
         break;
       }
@@ -966,7 +999,7 @@ export class Table implements PlayTable {
           throw new TableError("You have nothing left to put in.");
         }
         this.raiseBy(seat, all);
-        this.lastEvent = `${seat.name} is all in`;
+        this.say(`${seat.name} is all in`);
         seat.spoke = { move, said: "All in", at: Date.now() };
         break;
       }
@@ -996,7 +1029,7 @@ export class Table implements PlayTable {
           );
         }
         this.raiseBy(seat, more);
-        this.lastEvent = `${seat.name} raised to ${seat.committed.toLocaleString("en-US")}`;
+        this.say(`${seat.name} raised to ${seat.committed.toLocaleString("en-US")}`);
         seat.spoke = {
           move,
           /* A first bet is a bet; putting it up over somebody is a raise. */
@@ -1250,10 +1283,11 @@ export class Table implements PlayTable {
     }
 
     const first = this.paid[0];
-    this.lastEvent =
+    this.say(
       this.paid.length === 1 && first !== undefined
         ? `${first.name} won ${first.chips.toLocaleString("en-US")}${first.said === null ? "" : ` with ${first.said}`}`
-        : "Split pot";
+        : "Split pot",
+    );
     this.street = "showdown";
     this.toAct = null;
   }

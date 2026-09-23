@@ -10,8 +10,10 @@ import { useNav } from "../nav/NavContext.js";
 import { Taken } from "../net/Taken.js";
 import { ActivityLog, useActivity } from "../table/Activity.js";
 import { Refusal } from "../table/Refusal.js";
+import { Sheet } from "../table/Sheet.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
+import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTablePeek } from "../table/useTablePeek.js";
 import { useTableSocket } from "../table/useTableSocket.js";
@@ -23,9 +25,7 @@ import { DiscordIcon, TableIcon } from "./Icons.js";
 import { Moments } from "./Moments.js";
 import { Readout, readoutFor } from "./Readout.js";
 import { Dealer, Seats } from "./Seats.js";
-import { Sheet } from "./Sheet.js";
 import { TABLE_SHEET_ID, TableSheet } from "./TableSheet.js";
-import { useBlackjackKeys } from "./useBlackjackKeys.js";
 import { useCardSound } from "./useCardSound.js";
 import type { Move } from "./useIntent.js";
 import { useIntent } from "./useIntent.js";
@@ -33,6 +33,10 @@ import "@backroom/game-blackjack/theme.css";
 import "./blackjack.css";
 
 type Table = TableSocketHook<TableView>;
+
+// Module-level so the object identity is stable across renders — useTableKeys
+// re-binds its listeners whenever this reference changes.
+const KEYS = { " ": "Space", s: "S", d: "D", p: "P" } as const;
 
 export function Blackjack() {
   const navigate = useNavigate();
@@ -147,7 +151,8 @@ function BlackjackTable({
     talk.toggle();
   };
   const root = useRef<HTMLElement | null>(null);
-  useBlackjackKeys(root);
+  // Stacking chips and then pressing Space is the rhythm this table is played at.
+  useTableKeys(root, KEYS, { handsOverSpace: ".bj__chip" });
   const isHost = state.hostId === seatId && seatId !== null;
   const pays = paysFor(state, seatId, chips);
 
@@ -224,7 +229,7 @@ function BlackjackTable({
             label="How it pays"
             open={sheet === "pays"}
             onClose={closeSheet}
-            className="bj__sheet--felt"
+            className="sheet--felt"
           >
             <HowItPays pays={pays} />
           </Sheet>

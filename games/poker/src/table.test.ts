@@ -16,7 +16,7 @@ import { Table } from "./table.js";
  */
 
 /** A table with known players and a shuffle that cannot surprise anybody. */
-function table(stacks: number[], seed = 1): Table {
+function table(stacks: number[], seed = 1, maxSeats = 10): Table {
   /*
    * A fixed sequence rather than Math.random, so a test that fails fails for
    * everybody. Which cards come out is not what these tests are about — but a
@@ -27,7 +27,7 @@ function table(stacks: number[], seed = 1): Table {
     at = (at * 1103515245 + 12345) % 2147483648;
     return at / 2147483648;
   };
-  const made = new Table("TEST", random, 50, 100, 10);
+  const made = new Table("TEST", random, 50, 100, maxSeats);
   stacks.forEach((stack, index) => {
     made.join(`s${index}`, `P${index}`, {
       userId: `u${index}`,
@@ -381,6 +381,16 @@ describe("what a seat is told it may do", () => {
   });
 });
 
+describe("what a seat may see of another", () => {
+  it("says which seats are somebody with an account", () => {
+    // A bot is not a real person and a guest has no account, so neither can be
+    // either end of a stake — the server says so, and the view has to as well.
+    const made = table([1_000, 1_000]);
+    made.seats[1].userId = null;
+    expect(made.view(null).seats.map((seat) => seat.signedIn)).toEqual([true, false]);
+  });
+});
+
 describe("reading your own hand", () => {
   /*
    * The felt shows you what you are holding, and this is where that comes
@@ -571,5 +581,58 @@ describe("paying out a hand with a side pot", () => {
       made.act(seatId, made.owed(seat as never) > 0 ? "call" : "check");
     }
     expect(chips(made)).toBe(before);
+  });
+});
+
+describe("eventSeq", () => {
+  it("moves on for every action the table reports", () => {
+    const made = table([1_000, 1_000, 1_000]);
+    made.deal();
+    const before = made.view(made.seats[0].id).eventSeq;
+    made.act(made.toAct as string, "call");
+    const after = made.view(made.seats[0].id).eventSeq;
+    expect(after).toBe(before + 1);
+  });
+
+  it("moves on again for a second action of the same kind", () => {
+    const made = table([1_000, 1_000, 1_000]);
+    made.deal();
+    // Close the preflop betting so the flop deals: button calls, small blind
+    // calls, big blind checks it shut.
+    made.act(made.toAct as string, "call");
+    made.act(made.toAct as string, "call");
+    made.act(made.toAct as string, "check");
+    expect(made.street).toBe("flop");
+
+    const between = made.view(made.seats[0].id).eventSeq;
+    made.act(made.toAct as string, "check");
+    const afterFirstCheck = made.view(made.seats[0].id).eventSeq;
+    expect(afterFirstCheck).toBe(between + 1);
+
+    // Two checks in a row are two events. The counter is the only thing that
+    // can say so — the sentences differ only by a name, and may not differ at
+    // all once two players share one.
+    made.act(made.toAct as string, "check");
+    expect(made.view(made.seats[0].id).eventSeq).toBe(afterFirstCheck + 1);
+  });
+
+  it("does not move on when nothing happened", () => {
+    const made = table([1_000, 1_000]);
+    made.deal();
+    const at = made.view(made.seats[0].id).eventSeq;
+    made.view(made.seats[0].id);
+    made.view(made.seats[0].id);
+    expect(made.view(made.seats[0].id).eventSeq).toBe(at);
+  });
+});
+
+describe("maxSeats", () => {
+  it("carries the host's own ceiling, not the building's", () => {
+    // A six-seat table, not the ten the building allows — the view has to
+    // say which one this host actually chose, or a client gating bots on it
+    // (poker's own PokerSheet does) offers a full table one more seat than
+    // exists.
+    const made = table([1_000, 1_000], 1, 6);
+    expect(made.view(made.seats[0].id).maxSeats).toBe(6);
   });
 });
