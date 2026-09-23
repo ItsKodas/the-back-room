@@ -3,7 +3,6 @@ import type { SeatView, TableView } from "@backroom/game-poker";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TableKeys } from "../table/useTableKeys.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import { Actions } from "./Controls.js";
 import { account, seat, stub, view } from "./fixtures.js";
@@ -426,8 +425,8 @@ describe("keyboard shortcuts", () => {
   });
   const OTHER = seat({ id: "s2", name: "Bram" });
 
-  // No `holds`: poker has no piece you click and then press Space at.
-  const POKER_KEYS: TableKeys = { shortcuts: { " ": "Space", f: "F", r: "R" } };
+  // No `handsOverSpace`: poker has no piece you click and then press Space at.
+  const POKER_KEYS = { " ": "Space", f: "F", r: "R" } as const;
 
   /** What the last `renderTable` call's stub table was asked to send. */
   let sent: Record<string, unknown>[] = [];

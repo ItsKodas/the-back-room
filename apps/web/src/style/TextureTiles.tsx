@@ -1,4 +1,5 @@
 import { card, felt, glass, plaster, vignette } from "@backroom/ui";
+import type { CSSProperties } from "react";
 
 interface Tile {
   id: string;
@@ -31,7 +32,16 @@ export function TextureTiles() {
             <div
               className="tile__surface"
               data-testid={`texture-${tile.id}`}
-              style={{ backgroundImage: tile.background }}
+              /*
+               * Handed to the stylesheet rather than written straight into
+               * `background-image`, which is how every other computed value in
+               * here reaches CSS. A custom property is stored as written; a
+               * background-image is resolved and re-serialised on the way in,
+               * and resolving a gradient costs enough — superlinear in the
+               * length of the value, and each of these carries an encoded SVG —
+               * that six of them were most of what rendering the gallery took.
+               */
+              style={{ "--tile-surface": tile.background } as CSSProperties}
             />
             <span className="tile__name">{tile.name}</span>
             <span className="tile__note">{tile.note}</span>

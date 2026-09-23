@@ -12,7 +12,6 @@ import { ActivityLog, useActivity } from "../table/Activity.js";
 import { Refusal } from "../table/Refusal.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
-import type { TableKeys } from "../table/useTableKeys.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import { useTableSocket } from "../table/useTableSocket.js";
 import { TauntStage } from "../taunt/TauntStage.js";
@@ -27,7 +26,7 @@ import "./poker.css";
 // re-binds its listeners whenever this reference changes. No `holds`: poker
 // has no piece you click and then press Space at, the way blackjack's chip
 // tray works.
-const POKER_KEYS: TableKeys = { shortcuts: { " ": "Space", f: "F", r: "R" } };
+const POKER_KEYS = { " ": "Space", f: "F", r: "R" } as const;
 
 /**
  * The felt, wired up.

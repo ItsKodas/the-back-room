@@ -1,0 +1,45 @@
+/*
+ * The Liar's Dice room.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. So this repaints the surfaces and touches nothing that
+ * carries meaning — chip stays gold, good and bad stay what they are
+ * everywhere else.
+ *
+ * Brown leather and one ember bulb over it. Every other room in the building
+ * is lit blue, green, violet, teal, red, pink or grey; nothing is lit orange,
+ * and orange is what a single bulb over a card table in a back room actually
+ * looks like. It also reads as warm without reading as gold, which matters
+ * here more than usual: this felt is covered in chips figures, and the room
+ * must not compete with them.
+ */
+:root[data-game="liars-dice"],
+[data-game="liars-dice"] {
+  --gr-color-night: #17110d;
+  --gr-color-slate: #221812;
+  --gr-color-shadow: #0b0806;
+  --gr-color-smoke: #2b1f17;
+  --gr-color-smoke-lit: #3a2a1e;
+
+  /* The leather the cups go down on. */
+  --gr-color-felt: #2e1c14;
+  --gr-color-felt-lit: #3c2619;
+  --gr-color-felt-deep: #1f130d;
+
+  /* The bulb. */
+  --gr-color-neon-core: #fff3e8;
+  --gr-color-neon-hi: #ff9a63;
+  --gr-color-neon: #e2622c;
+  --gr-color-neon-dim: #8a3a17;
+  --gr-color-neon-deep: #b34a1f;
+
+  /* The air over the table takes its colour from the one thing lighting it. */
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  /* Ink warmed off the building's blue-white and onto the brown it sits on. */
+  --gr-color-ink: #f2e6dc;
+  --gr-color-ink-lit: #fff8f2;
+  --gr-color-ink-dim: #b3a096;
+  --gr-color-ink-faint: #7d6d64;
+}

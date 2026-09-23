@@ -1,0 +1,55 @@
+/*
+ * The baccarat room.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. So this repaints the surfaces and touches nothing that
+ * carries meaning — chip stays gold, good and bad stay what they are
+ * everywhere else.
+ *
+ * And it is blue, not green. Green is what a table you deal cards on looks
+ * like; this is the one card room in the building that is not a card room —
+ * there is no decision to read a felt for, only two hands turned over — so it
+ * is built as a high-limit room instead: a deep navy cloth under a cooler,
+ * stiller light than the card rooms sit in.
+ *
+ * The sign is relit rather than left at the building's own blue, the way the
+ * wheel's and the duel's are, but it stays inside the building's own colour
+ * rather than crossing into somebody else's — muted and deep where the
+ * building's tube is bright, which is the one light a quiet room can have
+ * without stopping being quiet.
+ */
+:root[data-game="baccarat"],
+[data-game="baccarat"] {
+  --gr-color-night: #12161c;
+  --gr-color-slate: #1a212c;
+  --gr-color-shadow: #090b0f;
+  --gr-color-smoke: #212a37;
+  --gr-color-smoke-lit: #2b3646;
+
+  /*
+   * The high-limit cloth: navy rather than green, and dark enough that the
+   * cards read as the brightest thing on it rather than the table competing
+   * with them.
+   */
+  --gr-color-felt: #1b2a3d;
+  --gr-color-felt-lit: #24374d;
+  --gr-color-felt-deep: #121f2d;
+
+  /*
+   * The sign, relit to a quieter blue than the building's own — deep enough
+   * that the room reads as still rather than lit for a crowd.
+   */
+  --gr-color-neon-core: #eef5ff;
+  --gr-color-neon-hi: #86c2ff;
+  --gr-color-neon: #3d7ab8;
+  --gr-color-neon-dim: #2a5580;
+  --gr-color-neon-deep: #1f4166;
+
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  --gr-color-ink: #dbe6f2;
+  --gr-color-ink-lit: #f0f6fc;
+  --gr-color-ink-dim: #8a9bb0;
+  --gr-color-ink-faint: #5c6b7d;
+}

@@ -152,3 +152,21 @@ describe("the staggered ring fits nine readable plates", () => {
     }
   });
 });
+
+/*
+ * Ten seats round the oval, at a desk — NOT COVERED HERE, and deliberately.
+ *
+ * Master grew a check for this while this branch was open (`fix(poker): ten
+ * seats at a desk actually clear each other`), and its own fix — taking the
+ * opponents' face-down cards away for every layout — is kept, in `poker.css`,
+ * with its reasoning intact. Its *test* could not be: it computed the table's
+ * size by resolving `.pk__table`'s `max-height: max(290px, 100dvh - 470px)`,
+ * and this branch deleted that cap. The felt is a grid row that flexes now, so
+ * its size is not a thing a stylesheet reader can work out on its own.
+ *
+ * What it needs is the same treatment the phone got above: the desk table's
+ * box measured in a live browser at each screen that matters, and the seat
+ * boxes computed from that. Until somebody does that, the desk oval has the
+ * fix but not the guard, and a radius or a seat size regressing there would
+ * go unnoticed.
+ */

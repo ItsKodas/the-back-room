@@ -22,15 +22,18 @@ COPY packages/rules/package.json packages/rules/
 COPY packages/shared/package.json packages/shared/
 COPY packages/ui/package.json packages/ui/
 COPY games/greed/package.json games/greed/
+COPY games/liars-dice/package.json games/liars-dice/
 COPY games/blackjack/package.json games/blackjack/
 COPY games/slots/package.json games/slots/
 COPY games/poker/package.json games/poker/
 COPY games/roulette/package.json games/roulette/
+COPY games/craps/package.json games/craps/
 COPY games/death-roll/package.json games/death-roll/
 COPY games/two-up/package.json games/two-up/
 COPY games/tips/package.json games/tips/
 COPY games/scribble/package.json games/scribble/
 COPY games/plinko/package.json games/plinko/
+COPY games/baccarat/package.json games/baccarat/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN npm ci
@@ -56,15 +59,18 @@ COPY packages/rules/package.json packages/rules/
 COPY packages/shared/package.json packages/shared/
 COPY packages/ui/package.json packages/ui/
 COPY games/greed/package.json games/greed/
+COPY games/liars-dice/package.json games/liars-dice/
 COPY games/blackjack/package.json games/blackjack/
 COPY games/slots/package.json games/slots/
 COPY games/poker/package.json games/poker/
 COPY games/roulette/package.json games/roulette/
+COPY games/craps/package.json games/craps/
 COPY games/death-roll/package.json games/death-roll/
 COPY games/two-up/package.json games/two-up/
 COPY games/tips/package.json games/tips/
 COPY games/scribble/package.json games/scribble/
 COPY games/plinko/package.json games/plinko/
+COPY games/baccarat/package.json games/baccarat/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev

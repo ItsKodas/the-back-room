@@ -2,7 +2,7 @@ import type { TableView } from "@backroom/game-poker";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { TableIcon } from "../blackjack/Icons.js";
-import { Card } from "../blackjack/Cards.js";
+import { Card } from "../cards/Cards.js";
 import { ChipStack } from "../chips/ChipStack.js";
 import type { Account } from "../game/useAccount.js";
 import { Sheet } from "../table/Sheet.js";

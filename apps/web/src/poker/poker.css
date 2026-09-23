@@ -270,15 +270,21 @@
  */
 .pk__mark {
   position: absolute;
-  top: -6px;
-  right: 14px;
-  min-width: 20px;
-  height: 20px;
+  /*
+   * Over the corner of the cards rather than above them, and small. It is
+   * `absolute`, so nothing measuring the seat counts it, and every pixel it
+   * reached upward was a pixel taken out of the seat above it on the ring —
+   * see "what an opponent's seat is allowed to be as tall as", below.
+   */
+  top: -1px;
+  right: 4px;
+  min-width: 17px;
+  height: 17px;
   padding: 0 4px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   background: #f2f0ea;
   color: #1b2028;
@@ -525,7 +531,17 @@
  */
 .pk__bubble {
   position: absolute;
-  bottom: calc(100% + 4px);
+  /*
+   * Over the seat rather than above it, and never wider than one. Like the
+   * mark, it is `absolute` and so uncounted by anything measuring a seat, and
+   * it was reaching a whole bubble's height into the seat above — see "what an
+   * opponent's seat is allowed to be as tall as", below. Its text still reads
+   * sat over a name.
+   */
+  bottom: 58%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   left: 50%;
   z-index: 4;
   padding: 3px 9px;
@@ -1409,7 +1425,7 @@
   gap: 3px;
 }
 
-.pk__rank-cards .bj-card {
+.pk__rank-cards .card {
   width: 34px;
   /* Still, in a list of fifty of them. The deal is an animation about a card
      arriving, and nothing here is arriving. */
@@ -1744,7 +1760,7 @@
   border: 1px dashed rgb(255 255 255 / 0.1);
 }
 
-.pk__board .bj-card {
+.pk__board .card {
   width: clamp(44px, min(6.2cqi, 5cqh), 104px);
   height: auto;
 }
@@ -1786,7 +1802,7 @@
   filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.55));
 }
 
-.pk__cards .bj-card {
+.pk__cards .card {
   width: clamp(30px, min(4.2cqi, 3.4cqh), 70px);
   height: auto;
 }
@@ -1799,13 +1815,90 @@
  * drawn a suit is a guess. It is also the seat you look at most, so it is the
  * one worth the room.
  */
-.pk__seat--you .pk__cards .bj-card {
+.pk__seat--you .pk__cards .card {
   width: clamp(44px, min(7cqi, 5.6cqh), 118px);
 }
 
 .pk__seat--you .pk__name,
 .pk__seat--you .pk__stack {
   font-size: var(--gr-text-md);
+}
+
+/*
+ * What an opponent's seat is allowed to be as tall as.
+ *
+ * The ring's vertical radius is `--down` per cent of the *table's* height, and
+ * the table's height is capped against the window's (`--spare`, above). A
+ * seat's own height is `cqw` — the container's *width*. Nothing ties those two
+ * together, so on a short wide window the ring flattens while the seats go on
+ * growing, and the two seats stacked down each side (162 and 198 degrees, and
+ * their mirror) run into each other. They are 0.198 of the table's height
+ * apart; at 1080p that is 95px, and a seat with two cards, a name and a stack
+ * was 113px before anything was said. Every screen in `felt.test.ts` had
+ * opponents overlapping, in the quietest state the table has.
+ *
+ * It looks like a bug about the spoken bubble, because the pairs that catch
+ * the eye only touch once a bubble adds its reach. The two that bind need
+ * nothing added at all, which is why removing the bubbles made it look fixed.
+ *
+ * Widening the ring cannot pay for this — a ten-seat ellipse with somebody at
+ * the bottom always has two pairs separated by height alone, and a radius big
+ * enough to part them puts the top seat off the table. So the seat gives up
+ * the room instead, and what it gives up is the part nobody reads.
+ */
+
+/*
+ * Nine face-down rectangles, at the size that costs the ring everything it
+ * needs. What a player wants off another seat is who it is, what they have
+ * left and whether they are still in — the back of a card says none of that.
+ * The phone layout worked this out first; this is the same decision at a desk,
+ * for the same reason, and without its two exceptions — see below for why
+ * those do not hold up once they are measured rather than reasoned about.
+ */
+.pk__seat:not(.pk__seat--you) .pk__cards {
+  display: none;
+}
+
+/*
+ * No exception for the acting seat or the winner, and that is deliberate.
+ *
+ * The phone layout has one — `.pk__seat--acting .pk__cards` below — and it was
+ * the obvious thing to copy here. It does not survive being measured. A seat
+ * that keeps its cards is a seat of the old height sitting in a ring sized for
+ * the new one, and there is no window tall enough to make that safe: a pot
+ * that splits between neighbours makes two of them tall at once, side by side,
+ * and at 1080p those two overlap by 22px. A height at which it did work would
+ * have to be taller than the screens most people play on, which is a rule that
+ * reads as working and is off everywhere it matters.
+ *
+ * The rule above is heavier than the phone's own exception, so this settles it
+ * for that layout too — where the same overlap is there today, on any acting
+ * seat and on any split pot, and was not introduced here.
+ *
+ * What is lost: the acting seat's two rectangles, face down, which said
+ * nothing — it is marked by its ring and its clock, which are what anybody
+ * reads. And a winner's hand at their seat, which the middle of the table and
+ * the seat's own caption both already say in words.
+ */
+
+/*
+ * The showdown caption, over the seat rather than under it.
+ *
+ * It arrives exactly when the felt is at its most crowded — every seat still
+ * carrying whatever it last said, because `spoke` is only cleared once the
+ * hand is finished — so a line of extra height here is the one the ring can
+ * least afford. Yours keeps its place in the flow: your seat has the room.
+ */
+.pk__seat:not(.pk__seat--you) .pk__says {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*
@@ -1971,45 +2064,16 @@
     align-self: center;
   }
 
-  /* The chip animations follow the seats they are aimed at, or they would
-     travel to where the oval used to put the horseshoe's seats. */
-  .pk__gather,
-  .pk__sweep {
-    --angle: calc(150deg + ((var(--seat) - 0.5) / (var(--of) - 1)) * 240deg);
-  }
-
+  /* Your own chips travel from the band under the cloth, not from the ring. */
   .pk__gather--yours,
   .pk__sweep--yours {
     --angle: 90deg;
   }
 
-  /*
-   * Everybody else gives up their cards again, and this time it is measured.
-   *
-   * They were taken away here once, then handed back when the felt took the
-   * whole window on the grounds that it could now afford them. It cannot.
-   * On a live ten-handed table at 375×560 the felt is 351×275, and an
-   * opponent's box is 72px tall once it carries its two cards (25px), its
-   * name and stack (32px) and — mid-hand, which is nearly always — a wager
-   * line (14px). Nine boxes of that height do not fit that arc at any
-   * radius: searched from 34% to 52% across and 34% to 56% down, every one
-   * either overlaps a neighbour or throws a seat off the table. At 48px,
-   * which is what is left once the cards go, they fit with 0.6px to spare.
-   *
-   * So the trade is the one the first version made, for the reason it gave:
-   * two dark rectangles at this size say only "still in", which the seat
-   * already says by not being dimmed, while who somebody is, what they have
-   * left and what they have put in are the things you actually read across a
-   * table. Your own hand keeps its own — it is the one nobody can play for
-   * you.
-   */
-  .pk__seat:not(.pk__seat--you) .pk__cards {
-    display: none;
-  }
 
   /* Still the biggest thing on the table, because it is still the only hand
      anybody has to read. */
-  .pk__seat--you .pk__cards .bj-card {
+  .pk__seat--you .pk__cards .card {
     width: 44px;
   }
 
@@ -2018,7 +2082,7 @@
     font-size: var(--gr-text-sm);
   }
 
-  .pk__board .bj-card,
+  .pk__board .card,
   .pk__gap {
     width: 36px;
   }
@@ -2335,7 +2399,7 @@
   display: contents;
 }
 
-.pk__using .bj-card {
+.pk__using .card {
   /* Lifted and lit. Both, because a lift alone is lost among cards that
      overlap and a glow alone is lost against a lit felt. */
   transform: translateY(-6px);
@@ -2351,18 +2415,18 @@
  * the five read as a hand rather than as five cards that happen to be brighter
  * — it is the difference between pointing and shouting.
  */
-.pk__spare .bj-card {
+.pk__spare .card {
   opacity: 0.62;
   transition: opacity 220ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pk__using .bj-card,
-  .pk__spare .bj-card {
+  .pk__using .card,
+  .pk__spare .card {
     transition: none;
   }
 
-  .pk__using .bj-card {
+  .pk__using .card {
     transform: none;
   }
 }

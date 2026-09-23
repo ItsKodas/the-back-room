@@ -63,16 +63,16 @@ describe("the felt", () => {
       />,
     );
 
-    const mine = container.querySelectorAll(".pk__seat--you .bj-card");
+    const mine = container.querySelectorAll(".pk__seat--you .card");
     expect(mine).toHaveLength(2);
-    expect([...mine].every((card) => card.classList.contains("bj-card--down"))).toBe(false);
+    expect([...mine].every((card) => card.classList.contains("card--down"))).toBe(false);
 
     // Bram's two, and both of them backs.
     const theirs = [...container.querySelectorAll(".pk__seat")]
       .filter((one) => !one.classList.contains("pk__seat--you"))
-      .flatMap((one) => [...one.querySelectorAll(".bj-card")]);
+      .flatMap((one) => [...one.querySelectorAll(".card")]);
     expect(theirs).toHaveLength(2);
-    expect(theirs.every((card) => card.classList.contains("bj-card--down"))).toBe(true);
+    expect(theirs.every((card) => card.classList.contains("card--down"))).toBe(true);
   });
 
   it("puts your own seat at the bottom whoever you are", () => {

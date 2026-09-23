@@ -1004,6 +1004,17 @@ export class Table implements PlayTable {
         break;
       }
       case "raise": {
+        /*
+         * Every bound below is a comparison, and a comparison against `NaN`
+         * is false — so an amount that is not a number walks past "more than
+         * a call", past "you cannot cover that" and past the minimum, and is
+         * subtracted from a stack. The adapter asks the same question of the
+         * wire; this is the class refusing to be the one that lets it
+         * through.
+         */
+        if (!Number.isFinite(amount)) {
+          throw new TableError("That is not an amount to raise to.");
+        }
         const was = this.highest;
         const more = Math.floor(amount) - seat.committed;
         if (more <= this.owed(seat)) {

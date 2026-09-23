@@ -13,7 +13,6 @@ import { Refusal } from "../table/Refusal.js";
 import { Sheet } from "../table/Sheet.js";
 import { TableSetup } from "../table/TableSetup.js";
 import { TalkKey, TalkSheet, useTalk } from "../table/TalkSheet.js";
-import type { TableKeys } from "../table/useTableKeys.js";
 import { useTableKeys } from "../table/useTableKeys.js";
 import type { TableSocketHook } from "../table/useTableSocket.js";
 import { useTablePeek } from "../table/useTablePeek.js";
@@ -37,7 +36,7 @@ type Table = TableSocketHook<TableView>;
 
 // Module-level so the object identity is stable across renders — useTableKeys
 // re-binds its listeners whenever this reference changes.
-const KEYS: TableKeys = { shortcuts: { " ": "Space", s: "S", d: "D", p: "P" }, holds: ".bj__chip" };
+const KEYS = { " ": "Space", s: "S", d: "D", p: "P" } as const;
 
 export function Blackjack() {
   const navigate = useNavigate();
@@ -152,7 +151,8 @@ function BlackjackTable({
     talk.toggle();
   };
   const root = useRef<HTMLElement | null>(null);
-  useTableKeys(root, KEYS);
+  // Stacking chips and then pressing Space is the rhythm this table is played at.
+  useTableKeys(root, KEYS, { handsOverSpace: ".bj__chip" });
   const isHost = state.hostId === seatId && seatId !== null;
   const pays = paysFor(state, seatId, chips);
 

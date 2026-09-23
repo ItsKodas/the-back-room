@@ -9,12 +9,19 @@ import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core"
 import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
+  BACCARAT,
+  baccaratAdapter,
+  STAKE_DIVISOR as BACCARAT_DIVISOR,
+} from "@backroom/game-baccarat";
+import {
   BLACKJACK,
   blackjackAdapter,
   maxStake as blackjackMaxStake,
 } from "@backroom/game-blackjack";
+import { CRAPS, crapsAdapter, STAKE_DIVISOR as CRAPS_DIVISOR } from "@backroom/game-craps";
 import { DEATH_ROLL, deathRollAdapter } from "@backroom/game-death-roll";
 import { GREED, greedAdapter, RoomError } from "@backroom/game-greed";
+import { LIARS_DICE, liarsDiceAdapter } from "@backroom/game-liars-dice";
 import { PATHS as PLINKO_PATHS, PLINKO, maxStake as plinkoMaxStake } from "@backroom/game-plinko";
 import { POKER, pokerAdapter } from "@backroom/game-poker";
 import {
@@ -115,7 +122,10 @@ const CATALOGUE = COMING.reduce(
     .add(ROULETTE)
     .add(DEATH_ROLL)
     .add(TWO_UP)
-    .add(SCRIBBLE),
+    .add(CRAPS)
+    .add(SCRIBBLE)
+    .add(BACCARAT)
+    .add(LIARS_DICE),
 );
 
 
@@ -176,8 +186,43 @@ export interface BackRoomServerOptions {
    * the window itself, so a test hurrying a table has to turn this down too.
    */
   lastCallMs?: number;
+  /**
+   * How long the felt is open for bets, how long the dice are in the air, and
+   * how long a finished roll stays up to be read, at a craps table. Named
+   * apart from blackjack's `bettingMs` and friends because craps takes its
+   * own copies of these — `crapsAdapter` already has a `window`, a `rollMs`
+   * and a `settleMs` — and a test that wants a table to deal itself without
+   * sitting through a real fifteen-second window needs to reach all three.
+   */
+  crapsWindow?: number;
+  crapsRollMs?: number;
+  crapsSettleMs?: number;
+  /**
+   * The betting window a baccarat table opens with, when nobody at the door
+   * asked for one of its own.
+   *
+   * The same seam as `bettingMs`, for a table whose window is otherwise
+   * chosen from `WINDOWS` and never shorter than fifteen seconds — a test
+   * hurrying it needs this, and a client asking for one does not get it:
+   * `create` still validates a client's own request against `WINDOWS` first,
+   * and only falls back to this when that request is absent or invalid.
+   */
+  baccaratWindowMs?: number;
   /** How long a dropped player keeps their seat. */
   reconnectGraceMs?: number;
+  /**
+   * What holds a dropped player's seat until that grace is up.
+   *
+   * A timer, in the building. Injected for the same reason as `roll`: a test
+   * about what happens *while* a seat is going needs the going to happen at a
+   * moment it chose, and turning `reconnectGraceMs` down to a hundred
+   * milliseconds cannot give it that. It is a bet that the test gets scheduled
+   * again inside the grace — one a machine running the rest of the suite
+   * alongside it loses, and then the test waits forever on chips that went back
+   * before it was looking. A test hands over its own hold and lets the seat go
+   * when it is ready.
+   */
+  holdSeat?: (letGo: () => void) => void;
   /** How long an abandoned table survives. */
   emptyRoomTtlMs?: number;
   /** Where the browser client is served from, for CORS. */
@@ -326,7 +371,12 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     settleMs,
     turnMs,
     lastCallMs,
+    crapsWindow,
+    crapsRollMs,
+    crapsSettleMs,
+    baccaratWindowMs,
     reconnectGraceMs = 90_000,
+    holdSeat,
     emptyRoomTtlMs = 5 * 60 * 1000,
     clientOrigin = "http://localhost:5173",
     serveClient = true,
@@ -961,6 +1011,16 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     add: (amount: number) => store.bankAdd("two-up", amount),
     take: (amount: number) => store.bankTake("two-up", amount),
   };
+  const crapsBank = {
+    holds: () => store.bank("craps"),
+    add: (amount: number) => store.bankAdd("craps", amount),
+    take: (amount: number) => store.bankTake("craps", amount),
+  };
+  const baccaratBank = {
+    holds: () => store.bank("baccarat"),
+    add: (amount: number) => store.bankAdd("baccarat", amount),
+    take: (amount: number) => store.bankTake("baccarat", amount),
+  };
 
   /** Every game this server can host, by id. */
   const ADAPTERS = new Map<string, GameAdapter<PlayTable>>([
@@ -1033,6 +1093,23 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       }) as GameAdapter<PlayTable>,
     ],
     [
+      LIARS_DICE.id,
+      liarsDiceAdapter({
+        /*
+         * The dice, from the same source the reels and the shoe come from. A
+         * reveal hands every player at the table thirty faces in one message,
+         * which over an evening is exactly the run of observations needed to
+         * recover Math.random's state — and somebody who knew the next deal
+         * would know whether to call, which is the whole game.
+         *
+         * `randomInt` rather than scaling a float, because it is
+         * rejection-sampled and so uniform over six, which scaling is not.
+         */
+        roll: () => randomInt(1, 7) as 1 | 2 | 3 | 4 | 5 | 6,
+        ...(turnMs === undefined ? {} : { turnMs }),
+      }) as GameAdapter<PlayTable>,
+    ],
+    [
       TWO_UP.id,
       twoUpAdapter({
         /*
@@ -1046,7 +1123,48 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         bank: twoUpBank,
       }) as GameAdapter<PlayTable>,
     ],
+    [
+      CRAPS.id,
+      crapsAdapter({
+        /*
+         * The dice, from the same source the reels and the shoe come from.
+         * This table hands every watcher its whole result every roll, which
+         * over an evening is exactly the run of observations needed to
+         * recover Math.random's state — and then the next number is not a
+         * question.
+         *
+         * A face at a time rather than a single draw over the eleven sums,
+         * which would make the seven as likely as the two.
+         *
+         * Scaled rather than rejection-sampled, exactly as the wheel scales
+         * its thirty-seven pockets. Six does not divide 2^32, so four of the
+         * faces carry one outcome more than the other two — about a part in a
+         * billion, on a draw that is cryptographic either way.
+         */
+        pick: (faces: number) => Math.floor(spinRandom() * faces),
+        ...(crapsWindow === undefined ? {} : { window: crapsWindow }),
+        ...(crapsRollMs === undefined ? {} : { rollMs: crapsRollMs }),
+        ...(crapsSettleMs === undefined ? {} : { settleMs: crapsSettleMs }),
+        /* Its own bank, kept apart from the wheel's and the machine's. */
+        bank: crapsBank,
+      }) as GameAdapter<PlayTable>,
+    ],
     [SCRIBBLE.id, scribbleAdapter(scribble) as unknown as GameAdapter<PlayTable>],
+    [
+      BACCARAT.id,
+      baccaratAdapter({
+        /*
+         * The shuffle, from the same source the reels and the shoe come from.
+         * This table hands every watcher every card it deals, which over an
+         * evening is exactly the run of observations needed to recover
+         * Math.random's state — and then the next coup is not a question.
+         */
+        random: spinRandom,
+        /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
+        bank: baccaratBank,
+        ...(baccaratWindowMs === undefined ? {} : { window: baccaratWindowMs }),
+      }) as GameAdapter<PlayTable>,
+    ],
   ]);
 
   /**
@@ -1089,6 +1207,10 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return emptyAllButOwed(twoUpBank, "two-up");
       case "plinko":
         return plinko.empty();
+      case "craps":
+        return emptyAllButOwed(crapsBank, "craps");
+      case "baccarat":
+        return emptyAllButOwed(baccaratBank, "baccarat");
     }
   }
 
@@ -1339,6 +1461,23 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
        */
       case "plinko":
         return plinkoMaxStake(bank, "high");
+      /*
+       * The worst a lone chip can do here: a two or a twelve at thirty to
+       * one. A real table is capped far more finely, chip by chip against
+       * the whole cloth as it lands — but this route answers "what could
+       * this bank take at all", and that is the prop.
+       */
+      case "craps":
+        return Math.max(0, Math.floor(Math.max(0, bank) / CRAPS_DIVISOR));
+      /*
+       * The worst a lone chip can do here: the tie, at eight to one. A real
+       * table is capped far more finely — every chip is measured against the
+       * whole cloth as it lands, and matched money on the two sides needs
+       * almost no bank — but this route answers "what could this bank take
+       * at all", and that is the tie.
+       */
+      case "baccarat":
+        return Math.max(0, Math.floor(Math.max(0, bank) / BACCARAT_DIVISOR));
     }
   }
 
@@ -2380,6 +2519,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           buyIn: parsed.data.buyIn,
           window: parsed.data.window,
           ceiling: parsed.data.ceiling,
+          dice: parsed.data.dice,
           scribble: parsed.data.scribble,
         });
         rooms.set(code, { game, table, listed: parsed.data.listed ?? true });
@@ -3129,7 +3269,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       broadcast(seat.code);
 
       // Hold the seat long enough for a page refresh to reclaim it.
-      later(() => {
+      const letGo = () => {
         const still = rooms.get(seat.code);
         if (still === undefined) {
           return;
@@ -3146,7 +3286,12 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         }
         still.table.removeSeat(seatId);
         broadcast(seat.code);
-      }, reconnectGraceMs);
+      };
+      if (holdSeat === undefined) {
+        later(letGo, reconnectGraceMs);
+      } else {
+        holdSeat(letGo);
+      }
 
       reapWhenEmpty(seat.code);
     });

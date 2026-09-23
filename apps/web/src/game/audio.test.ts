@@ -1,7 +1,8 @@
+// @vitest-environment jsdom
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import { onset, pitchShift, preferring } from "./audio.js";
+import { describe, expect, it, vi } from "vitest";
+import { onset, pitchShift, play, preferring, setMuted, setVolume, unlock } from "./audio.js";
 
 /**
  * The sound files themselves, read where they are dropped.
@@ -314,5 +315,82 @@ describe("pitching a sample up", () => {
     // the alternative is an exception on a sound effect.
     expect(() => pitchShift(new Float32Array(16), RATE, 12)).not.toThrow();
     expect(() => pitchShift(new Float32Array(0), RATE, 12)).not.toThrow();
+  });
+});
+
+/*
+ * The dice table's two calls, which are the same moment from opposite
+ * directions and must not share a voice.
+ *
+ * jsdom has no AudioContext of its own, so this drives `play()` against a
+ * fake one that only counts oscillators — the same trick tossCoins.test.ts
+ * uses for the coin toss. A cue that falls through the switch unhandled is a
+ * silent no-op rather than a thrown error, so counting is the only thing
+ * that catches it.
+ */
+describe("the dice table's calls", () => {
+  let oscillators = 0;
+
+  class FakeContext {
+    currentTime = 0;
+    destination = {};
+    resume = async () => {};
+    decodeAudioData = async () => ({}) as AudioBuffer;
+
+    createGain() {
+      return {
+        gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect: (destination: unknown) => destination,
+      };
+    }
+    createOscillator() {
+      oscillators += 1;
+      return {
+        type: "sine",
+        frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect: (destination: unknown) => destination,
+        start() {},
+        stop() {},
+      };
+    }
+    createBufferSource() {
+      return {
+        buffer: null,
+        playbackRate: { value: 0 },
+        connect: (destination: unknown) => destination,
+        start() {},
+        stop() {},
+      };
+    }
+    createBuffer(_channels: number, length: number) {
+      return { getChannelData: () => new Float32Array(length) };
+    }
+    createBiquadFilter() {
+      return {
+        type: "",
+        frequency: { value: 0 },
+        Q: { value: 0 },
+        connect: (destination: unknown) => destination,
+      };
+    }
+  }
+
+  it("gives sayExact a two-tone voice, apart from sayCall's single flat one", () => {
+    vi.stubGlobal("AudioContext", FakeContext);
+    vi.stubGlobal("fetch", async () => ({ ok: false, json: async () => ({}) }) as unknown as Response);
+    unlock();
+    setMuted(false);
+    setVolume(0.7);
+
+    oscillators = 0;
+    play("sayCall");
+    expect(oscillators).toBe(1);
+
+    oscillators = 0;
+    play("sayExact");
+    // Two tones rising, not one — the whole point of giving it its own voice.
+    expect(oscillators).toBe(2);
+
+    vi.unstubAllGlobals();
   });
 });

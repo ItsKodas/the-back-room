@@ -11,7 +11,10 @@
   "dependencies": {
     "@backroom/core": "*",
     "@backroom/economy": "*",
+    "@backroom/game-baccarat": "*",
+    "@backroom/game-craps": "*",
     "@backroom/game-greed": "*",
+    "@backroom/game-liars-dice": "*",
     "@backroom/game-poker": "*",
     "@backroom/game-scribble": "*",
     "@backroom/rules": "*",

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { CRAPS } from "@backroom/game-craps";
 import { OPENING } from "@backroom/game-death-roll";
 import { POCKETS, WHEEL, colourOf } from "@backroom/game-roulette";
 import { FACES } from "@backroom/game-slots";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CoinsArt, DuelArt, ReelsArt, TileArt, WheelArt } from "./TileArt.js";
+import { BaccaratArt, CoinsArt, DuelArt, ReelsArt, TileArt, WheelArt } from "./TileArt.js";
 
 describe("the furniture in a tile's corner", () => {
   it("gives the slot machine as many reels as the machine has", () => {
@@ -388,6 +389,78 @@ describe("the napkin in scribble's corner", () => {
   });
 });
 
+describe("the cup in Liar's Dice's corner", () => {
+  it("gives Liar's Dice a cup", () => {
+    const { container } = render(<TileArt game="liars-dice" />);
+    expect(container.querySelector(".art__cup")).not.toBe(null);
+  });
+});
+
+/*
+ * Baccarat's corner, in the same idiom as the shared link card: two hands
+ * facing each other rather than one hand held at an angle, which is what
+ * tells the two card games apart at a glance — the only pair in the building
+ * dealing from the same deck. `og.ts` draws the same silhouette for the link
+ * card, and this pins the room tile to it.
+ */
+describe("the two hands in baccarat's corner", () => {
+  it("draws two hands facing each other rather than the chips", () => {
+    const { container } = render(<TileArt game="baccarat" />);
+    const hands = container.querySelectorAll(".art__piece");
+    expect(hands).toHaveLength(2);
+    for (const hand of hands) {
+      expect(hand.querySelectorAll(".art__bc-card")).toHaveLength(2);
+    }
+  });
+
+  it("leaves real daylight between the innermost cards, not just between the hands' centres", () => {
+    /*
+     * A hand's own two cards overlap on purpose — that is what makes it read
+     * as a hand rather than two cards left lying apart. So the mean centre of
+     * each hand is the wrong thing to check a gap against: it stays wide even
+     * when the actual inner edges are a couple of units apart and the whole
+     * drawing reads as one cluster of four cards. What has to be measured is
+     * the true edge of the card closest to the middle on each side, rotation
+     * included — a tilted card's bounding box is wider than its own width,
+     * which is exactly what closed the gap this test used to pass on.
+     */
+    const { container } = render(<BaccaratArt />);
+    const centerX = (card: Element) =>
+      Number(/translate\(([-\d.]+)/.exec(card.getAttribute("transform") ?? "")?.[1] ?? 0);
+    const innerHalfSpan = (card: Element): number => {
+      const degrees = Number(/rotate\(([-\d.]+)/.exec(card.getAttribute("transform") ?? "")?.[1] ?? 0);
+      const rect = card.querySelector("rect") as SVGRectElement;
+      const halfWidth = Number(rect.getAttribute("width")) / 2;
+      const halfHeight = Number(rect.getAttribute("height")) / 2;
+      const radians = (degrees * Math.PI) / 180;
+      // A rectangle turned by `degrees` reaches further along the x axis than
+      // its own width — each side contributes the slice of the other
+      // dimension its tilt swings into that axis.
+      return halfWidth * Math.abs(Math.cos(radians)) + halfHeight * Math.abs(Math.sin(radians));
+    };
+
+    const [leftHand, rightHand] = [...container.querySelectorAll(".art__piece")];
+    const innermost = (hand: Element, pick: (a: number, b: number) => number) => {
+      const cards = [...hand.querySelectorAll(".art__bc-card")];
+      const x = cards.map(centerX);
+      const at = x[0] === pick(x[0] as number, x[1] as number) ? 0 : 1;
+      return cards[at] as Element;
+    };
+    // The left hand's inner card is its rightmost; the right hand's is its
+    // leftmost — "inner" means closest to the gap, not closest to zero.
+    const leftInner = innermost(leftHand as Element, Math.max);
+    const rightInner = innermost(rightHand as Element, Math.min);
+
+    const gap = (centerX(rightInner) - innerHalfSpan(rightInner)) - (centerX(leftInner) + innerHalfSpan(leftInner));
+    // og.ts's own motif leaves about a card's width of daylight between its
+    // inner pair (roughly 70 of a 78-unit card, tilt included) — this floor
+    // sits comfortably below that and comfortably above the few units the
+    // gap used to be, so it fails on the old cluster and passes on the shape
+    // this tile is meant to draw.
+    expect(gap).toBeGreaterThan(20);
+  });
+});
+
 describe("the pennies in two-up's corner", () => {
   it("tosses two coins, each with both faces", () => {
     const { container } = render(<TileArt game="two-up" />);
@@ -433,6 +506,41 @@ describe("the pennies in two-up's corner", () => {
     for (const part of ["art__coin-toss", "art__coin-flip", "art__coin-tails"]) {
       expect(always).toContain(`.tile:hover .${part}`);
       expect(stilled.some((block) => block.includes(`.tile:hover .${part}`))).toBe(true);
+    }
+  });
+});
+
+/*
+ * The dice in craps' corner.
+ *
+ * Two of them and not one — a single die is greed's tile, and the whole of
+ * craps is what the pair adds up to. They already have the throw the pieces
+ * in every other corner get, from the generic .art__piece rules, so what is
+ * worth pinning here is what makes this pair *craps'*: two dice, and pips lit
+ * in this table's own gold rather than greed's black.
+ */
+describe("the dice in craps' corner", () => {
+  it("throws two dice, not one", () => {
+    const { container } = render(<TileArt game="craps" />);
+    expect(container.querySelectorAll(".art__piece")).toHaveLength(2);
+  });
+
+  it("colours every pip in the table's own accent, not another game's ink", () => {
+    const { container } = render(<TileArt game="craps" />);
+    const pips = container.querySelectorAll("circle");
+    expect(pips.length).toBeGreaterThan(0);
+    for (const pip of pips) {
+      expect(pip.getAttribute("fill")).toBe(CRAPS.theme.accent);
+    }
+  });
+
+  it("never puts a transform attribute on a piece the stylesheet moves", () => {
+    // The same trap the reels and the coins fell into: a CSS transform
+    // replaces an element's transform rather than composing with it, so the
+    // throw has to land on a wrapper and never on the piece it moves.
+    const { container } = render(<TileArt game="craps" />);
+    for (const piece of container.querySelectorAll(".art__piece")) {
+      expect(piece.getAttribute("transform")).toBeNull();
     }
   });
 });

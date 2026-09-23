@@ -11,64 +11,21 @@ import type { GameListing } from "./catalogue.js";
  * They live here rather than in `games/` because there is nothing to put in
  * `games/` yet. A package holding a name and a colour is a package pretending
  * to be a game; when one of these grows rules it gets its own, and its listing
- * moves in there beside them, the way the three real ones already have.
+ * moves in there beside them, the way the others already have.
  *
- * Most of them will have to earn the same things Slots and Blackjack did
- * before they can take a chip: a bank players fill, a cap derived from its own
- * worst outcome, and a cryptographic source for whatever it turns over.
- * Roulette and Baccarat and Craps are house games, so none of those can be
- * built without that argument being made again. Liar's Dice is not — the stake
- * goes into a pot and one of the players takes it, so the chips never leave
- * the table and there is nothing for a bank to do.
+ * Anything that lands here will have to earn the same things Slots and
+ * Blackjack did before it can take a chip: a bank players fill, a cap derived
+ * from its own worst outcome, and a cryptographic source for whatever it
+ * turns over.
  *
- * Poker, Death Rolling and Two-up were on this list and have been built. Two-up
- * had to make the bank argument twice over — once for a casino school paying
- * from its own bank, and once for a traditional school that needs no bank
- * because the chips never leave the ring. Their listings live in their own
- * packages now, beside the rules, the way the others do.
+ * Nothing is on the list today. Poker, Death Rolling, Two-up, Craps, Baccarat
+ * and Liar's Dice were all on it and have all been built. Two-up had to make
+ * the bank argument twice over — once for a casino school paying from its own
+ * bank, and once for a traditional school that needs no bank because the chips
+ * never leave the ring. Baccarat made it the way the wheel did, with one extra
+ * condition: it is dealt from a deck, so it reshuffles every coup. Liar's Dice
+ * needed no bank at all — the stake goes into a pot and one of the players
+ * takes it, so the chips never leave the table. Their listings live in their
+ * own packages now, beside the rules, the way the others do.
  */
-export const COMING: readonly GameListing[] = [
-  {
-    id: "liars-dice",
-    name: "Liar's Dice",
-    blurb: "Everybody's dice are hidden. Raise the bid, or call the lie.",
-    shape: "table",
-    /*
-     * Two at the very least, because the game is the lie: a bid nobody can
-     * doubt is just a number said out loud.
-     */
-    minSeats: 2,
-    maxSeats: 6,
-    /*
-     * The other one here that needs no bank. Players stake against each other
-     * and one of them takes it, so the chips never leave the table — which
-     * puts it beside Poker and Death Rolling as the cheap half of this list to
-     * make honest.
-     */
-    open: false,
-    mark: { text: "LIAR'S DICE", accentAt: 0 },
-    theme: { wall: "#13181a", felt: "#1d3336", accent: "#2f8f92", accentHi: "#7fdde0" },
-  },
-  {
-    id: "baccarat",
-    name: "Baccarat",
-    blurb: "Player or banker. Bet on which side gets closer to nine.",
-    shape: "table",
-    minSeats: 1,
-    maxSeats: 8,
-    open: false,
-    mark: { text: "BACCARAT", accentAt: 0 },
-    theme: { wall: "#12161c", felt: "#1b2a3d", accent: "#3d7ab8", accentHi: "#86c2ff" },
-  },
-  {
-    id: "craps",
-    name: "Craps",
-    blurb: "Two dice, a point to make, and a rail of people shouting.",
-    shape: "table",
-    minSeats: 1,
-    maxSeats: 8,
-    open: false,
-    mark: { text: "CRAPS", accentAt: 0 },
-    theme: { wall: "#1a1610", felt: "#33280f", accent: "#c08a1e", accentHi: "#ffd166" },
-  },
-];
+export const COMING: readonly GameListing[] = [];

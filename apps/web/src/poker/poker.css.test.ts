@@ -89,7 +89,7 @@ describe("one screen", () => {
   });
 
   it("sizes the cards against the felt's height as well as its width", () => {
-    expect(ruleIn(css, ".pk__cards .bj-card")).toMatch(/min\([^)]*cqi[^)]*cqh[^)]*\)/);
+    expect(ruleIn(css, ".pk__cards .card")).toMatch(/min\([^)]*cqi[^)]*cqh[^)]*\)/);
   });
 
   /*

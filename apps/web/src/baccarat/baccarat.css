@@ -1,0 +1,799 @@
+/*
+ * The baccarat felt: two hands, three targets, on a phone first.
+ *
+ * There is nowhere to aim here the way there is on roulette's cloth, and no
+ * decision to make the way there is at blackjack's — three spots is the whole
+ * of it, which is exactly what makes a phone genuinely easier at this table
+ * than at the other two. So the layout leads with that: the coup at the top,
+ * the three spots under it as a row of big targets, the chip tray a thumb
+ * away below that, the two boards, and the seats last — everybody's stake and
+ * everybody's cards before anybody's name.
+ *
+ * `.bc` is a single grid with named areas rather than a document the browser
+ * lays out in source order, because the areas that order wants are not the
+ * areas the markup arrives in: Baccarat.tsx renders the boards before the
+ * chip tray (`.bc__boards` groups naturally with `.bc__table` in the JSX),
+ * but CLAUDE.md's own layout puts the tray first. Grid areas place a child by
+ * name wherever the layout wants it, so the visual order is set once here
+ * rather than by reshuffling components that have their own reasons for the
+ * order they are written in.
+ *
+ * Imported by Baccarat.tsx alone. The card itself is drawn once for the
+ * building in cards/cards.css, and the room's colours live in
+ * games/baccarat/src/theme.css, loaded by the same page.
+ */
+
+/* ------------------------------------------------------------- the table */
+
+.bc {
+  container: bc / inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "standing" "table" "tray" "boards" "seats" "bots";
+  gap: var(--gr-space-3);
+  /* The felt itself never has to widen past its column — a phone that is
+     handed a table 1600px on paper is the sideways scroll CLAUDE.md rules out. */
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------- the standing */
+
+.bc__standing {
+  grid-area: standing;
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-base);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--gr-color-ink);
+  min-height: 1.6em;
+}
+
+/* The room's own light for "look at this", never the money colour — nothing
+   has actually happened to anybody's chips yet. */
+.bc__standing--last {
+  color: var(--gr-color-neon-hi);
+}
+
+.bc__standing--shut {
+  color: var(--gr-color-ink-dim);
+  text-transform: uppercase;
+}
+
+.bc__watching {
+  grid-area: tray;
+  margin: 0;
+  text-align: center;
+  color: var(--gr-color-ink-dim);
+  font-size: var(--gr-text-sm);
+}
+
+/* ------------------------------------------------------- the felt itself */
+
+/*
+ * The one navy panel that carries both the coup and the cloth — a high-limit
+ * room's whole reason for being blue rather than green (see theme.css): there
+ * is no decision to read a felt for here, only two hands turned over, so the
+ * coup and the three spots share a single quiet surface instead of the
+ * dealer-then-seats stack a card game needs.
+ */
+.bc__table {
+  grid-area: table;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gr-space-3);
+  padding: var(--gr-space-3);
+  border-radius: var(--gr-radius-cab);
+  background:
+    radial-gradient(120% 70% at 50% 0%, var(--gr-color-felt-lit), transparent 75%),
+    var(--gr-color-felt);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.5),
+    inset 0 8px 30px rgb(0 0 0 / 0.45);
+}
+
+/* -------------------------------------------------------------- the coup */
+
+.bc__coup {
+  display: flex;
+  justify-content: center;
+  gap: var(--gr-space-5);
+  padding: var(--gr-space-2) 0 var(--gr-space-3);
+  /* Capped rather than left to stretch across a wide desk felt: two small
+     hands spread across nine hundred pixels would read as adrift on the
+     table, not as the thing you sit down to look at. */
+  max-width: 480px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+/*
+ * Both hands share the row equally, and can shrink below their own content's
+ * width — the default `min-width: auto` on a flex item is exactly what let a
+ * three-card hand overflow the felt instead of respecting it, because a row
+ * of fixed-width cards has nothing smaller to shrink to on its own. `flex: 1
+ * 1 0` also means a hand's width comes from the row, not from how many cards
+ * it happens to hold, so Player drawing a third card while Banker draws none
+ * still leaves both boxes the same width.
+ */
+.bc__hand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.bc__hand-label {
+  font-family: var(--gr-font-display);
+  font-size: var(--gr-text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gr-color-ink-dim);
+}
+
+.bc__hand-cards {
+  /* Its own query container, and stretched to the full width `.bc__hand`'s
+     single column gives it — see the overlap rule below, which reads that
+     width back as 100cqi and needs it to be the row's fair share rather
+     than whatever the cards alone would ask for. */
+  container-type: inline-size;
+  display: flex;
+  justify-content: center;
+  justify-self: stretch;
+  gap: 0;
+  min-width: 0;
+  /*
+   * Sized off the table's own inline size, the container `.bc` declares, so
+   * one number covers a phone and a desk without a second breakpoint for the
+   * cards alone. The height guess (aspect 5:7) is what keeps the coup from
+   * jumping taller the instant the first card lands.
+   */
+  --card-w: clamp(42px, 15cqi, 84px);
+  min-height: calc(var(--card-w) * 1.4);
+  align-items: flex-start;
+}
+
+.bc__hand-cards .card + .card {
+  margin-left: 4px;
+}
+
+/*
+ * The worst case this table can deal: both hands draw a third card. That is
+ * an ordinary outcome, not an edge one — games/baccarat/src/schedule.test.ts
+ * covers it as one of four normal shapes — so it has to fit, not merely
+ * usually fit.
+ *
+ * The arithmetic at 375px, the width CLAUDE.md says to check: `.play`'s own
+ * 22px of padding each side (--gr-space-5) leaves `.bc` a 331px container.
+ * `.bc__table`'s 12px each side (--gr-space-3) leaves it 307px. `.bc__coup`'s
+ * 22px gap (--gr-space-5) between the two hands splits the rest into two
+ * 142.5px hands — and because `.bc__hand-cards` is stretched to fill that
+ * column rather than sized by its own cards (see above), 142.5px is also
+ * what 100cqi resolves to here, since this element is the query container.
+ * `--card-w` clamps to 15% of `.bc`'s 331px, about 49.7px. Three of those
+ * with a plain 4px gap would ask for about 157px against the 142.5px on
+ * offer — the sideways scroll this rule exists to rule out.
+ *
+ * Overlapped instead, the same way blackjack.css overlaps a dealt hand: the
+ * margin shrinks to exactly what the row actually has room for — solving
+ * (100cqi - card-w) / (places - 1) - card-w for two gaps at three
+ * places — floored at blackjack's own -0.82 * card-w so a narrower phone
+ * still shows a sliver of every card rather than stacking them flush, and
+ * ceilinged at the ordinary 4px gap so a hand with room to spare does not
+ * overlap when it does not need to. The corner index is what keeps an
+ * overlapped hand legible — see cards.css, and blackjack.css's own comment
+ * on the same point.
+ */
+.bc__hand-cards:has(> :nth-child(3)) .card + .card {
+  margin-left: clamp(calc(var(--card-w) * -0.82), calc((100cqi - var(--card-w)) / 2 - var(--card-w)), 4px);
+}
+
+.bc__hand-total {
+  min-height: 1.2em;
+  font-family: var(--gr-font-data);
+  font-size: var(--gr-text-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--gr-color-ink-lit);
+}
+
+/* The side the coup actually paid — a fact the table has already settled,
+   so it is gold the way a paid seat is everywhere else in the building. */
+.bc__hand--won .bc__hand-total {
+  color: var(--gr-color-chip-hi);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--gr-color-chip) 50%, transparent);
+}
+
+/* A total that has just changed, because a card arrived. */
+.bc__hand-total--ticked {
+  animation: bc-tick 320ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+/* ------------------------------------------------------------- the cloth */
+
+/*
+ * Three spots, side by side, is the whole cloth. Roulette needs a geometry
+ * file to turn a tap into one of a hundred and fifty-odd bets; this table
+ * needs nothing cleverer than three equal columns, which is also, for free,
+ * the shape that gives each one a target far bigger than a thumb at 375px.
+ */
+.bc__cloth {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gr-space-2);
+}
+
+.bc__spot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  /* Comfortably past CLAUDE.md's thumb-target floor — these are pressed
+     often, the one control every seat shares, so they are the biggest
+     buttons at the table rather than merely tall enough. */
+  min-height: 88px;
+  padding: var(--gr-space-2);
+  border: none;
+  border-radius: var(--gr-radius-md);
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.09);
+  color: var(--gr-color-ink);
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+/* Capped by the bank, or betting is shut outright — greyed rather than
+   removed, so a player sees the cap before they find it by being refused. */
+.bc__spot--shut {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * The side the coup paid. Gold, the same rule as everywhere else in the
+ * building: a seat, a spot, a hand — whatever just turned money over is lit
+ * the colour of the money, once, on the way in.
+ */
+.bc__spot--won {
+  animation: bc-won 900ms ease-out;
+}
+
+/* A tie: Player and Banker money comes home, having neither won nor lost —
+   a fact worth marking, but not a payout, so it gets no gold. */
+.bc__spot--pushed {
+  box-shadow: inset 0 0 0 2px var(--gr-color-ink-dim);
+}
+
+.bc__spot-label {
+  font-family: var(--gr-font-display);
+  font-size: var(--gr-text-base);
+  letter-spacing: 0.02em;
+}
+
+.bc__spot-pays {
+  font-size: 11px;
+  color: var(--gr-color-ink-dim);
+}
+
+.bc__spot-pile {
+  position: absolute;
+  bottom: 6px;
+}
+
+/* Yours, picked out of everybody else's the way a stake is everywhere else
+   at this table — a glow of the money colour, not a second shape. */
+.bc__spot-pile--yours .stack {
+  filter: drop-shadow(0 0 4px var(--gr-color-chip));
+}
+
+.bc__spot-pile .stack {
+  /* Grows with the spot rather than staying the fixed size Cloth.tsx passes
+     ChipStack, the same reasoning roulette's own pile scaling gives: a stake
+     on a wide desk spot read as a speck otherwise. */
+  width: clamp(22px, 6cqi, 34px);
+  height: auto;
+}
+
+/* -------------------------------------------------------------- the tray */
+
+.bc__controls {
+  grid-area: tray;
+  display: grid;
+  gap: var(--gr-space-2);
+  justify-items: center;
+}
+
+.bc__tray {
+  display: flex;
+  justify-content: center;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  width: 100%;
+  padding: var(--gr-space-2);
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.25);
+  box-shadow: inset 0 4px 10px rgb(0 0 0 / 0.4);
+}
+
+/*
+ * The chip is drawn, not styled — see Chip.tsx. What is left here is how it
+ * behaves under a finger: a round hit area at least a thumb wide.
+ */
+.bc__chip {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  transition:
+    transform 120ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    filter 120ms ease;
+}
+
+.bc__chip .chip {
+  display: block;
+  width: 100%;
+  max-width: 48px;
+  height: auto;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+}
+
+/* Picked up between finger and thumb, not merely nudged. */
+.bc__chip:hover:not(:disabled) {
+  transform: translateY(-5px) rotate(-4deg) scale(1.06);
+}
+
+/* And put down under the finger, rather than a round trip later. */
+.bc__chip:active:not(:disabled) {
+  transform: translateY(2px) scale(0.97);
+}
+
+.bc__chip:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 3px;
+}
+
+.bc__chip--picked {
+  box-shadow: 0 0 0 2px var(--gr-color-chip-dim);
+  border-radius: 50%;
+}
+
+.bc__chip:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+}
+
+/*
+ * Same again, undo, clear: three equal weights, roulette's own reasoning
+ * carried whole. "Same again" spends money, and lighting it the way a
+ * primary action usually is would be the felt leaning on the player.
+ */
+.bc__acts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gr-space-2);
+  width: 100%;
+}
+
+.bc__act {
+  min-height: 52px;
+  padding: var(--gr-space-1) var(--gr-space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--gr-radius-sm);
+  border: var(--gr-edge-soft);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--gr-color-ink);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.bc__act:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.bc__act:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.bc__act-name {
+  font-size: var(--gr-text-sm);
+  line-height: 1.1;
+}
+
+.bc__act-note {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gr-color-ink-faint);
+}
+
+.bc__note {
+  margin: 0;
+  text-align: center;
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+.bc__note-figure {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ the boards */
+
+/*
+ * The bead plate and the winners' board, stacked: what the shoe has been
+ * doing, and what that has been worth to the table, read together the same
+ * way roulette's own pair of boards is.
+ */
+.bc__boards {
+  grid-area: boards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gr-space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/*
+ * A run of coups is unbounded and a phone is not, so the plate scrolls
+ * inside its own box rather than the page — the same rule CLAUDE.md gives
+ * roulette's history strip and blackjack's felt. Down only would clip a
+ * column; sideways is right here because new columns are what a long run
+ * actually adds.
+ */
+.bc__bead-plate {
+  display: flex;
+  gap: 3px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+}
+
+.bc__bead-col {
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  gap: 3px;
+  flex: none;
+}
+
+.bc__bead {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-family: var(--gr-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gr-color-ink-lit);
+  background: rgb(255 255 255 / 0.08);
+}
+
+/*
+ * Coloured apart the way a bead plate has to be read at a glance, but never
+ * in the building's good/bad pair — nobody's chips have won or lost by
+ * merely being a result on the board, only by being bet on one.
+ */
+.bc__bead--player {
+  background: var(--gr-color-neon);
+}
+
+.bc__bead--banker {
+  background: color-mix(in srgb, var(--gr-color-chip) 55%, var(--gr-color-shadow));
+}
+
+.bc__bead--tie {
+  background: var(--gr-color-ink-faint);
+}
+
+.bc__bead--latest {
+  animation: bc-bead-in 260ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+
+.bc__winners {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+.bc__won {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 3px;
+  border-radius: 999px;
+  background: var(--gr-color-shadow);
+  border: 1px solid color-mix(in srgb, var(--gr-color-neon) 30%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.bc__won-outcome {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  padding: 1px 3px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gr-color-ink-lit);
+  flex: none;
+}
+
+.bc__won-outcome--player {
+  background: var(--gr-color-neon);
+}
+
+.bc__won-outcome--banker {
+  background: color-mix(in srgb, var(--gr-color-chip) 55%, var(--gr-color-shadow));
+}
+
+.bc__won-outcome--tie {
+  background: var(--gr-color-ink-faint);
+}
+
+/* A name is somebody else's text — see roulette's own Winners for why this
+   never fires against a real one, and is here anyway for the case it might. */
+.bc__won-name {
+  color: var(--gr-color-ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 20ch;
+}
+
+.bc__won-up {
+  font-family: var(--gr-font-data);
+  font-weight: 700;
+  color: var(--gr-color-chip);
+  flex: none;
+}
+
+/* Arrives from below, where the coup that just paid it sits on the felt. */
+.bc__won--latest {
+  animation: bc-won-in 420ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  border-color: color-mix(in srgb, var(--gr-color-neon-hi) 55%, transparent);
+}
+
+/* -------------------------------------------------------------- the seats */
+
+.bc__seats {
+  grid-area: seats;
+  display: flex;
+  gap: var(--gr-space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bc__seat {
+  display: flex;
+  align-items: center;
+  gap: var(--gr-space-1);
+  padding: 4px var(--gr-space-2);
+  border-radius: var(--gr-radius-sm);
+  background: rgb(0 0 0 / 0.25);
+  border: var(--gr-edge-soft);
+  font-size: var(--gr-text-sm);
+}
+
+.bc__seat--you {
+  border-color: var(--gr-color-neon);
+}
+
+.bc__seat--away {
+  opacity: 0.45;
+}
+
+.bc__seat-name {
+  color: var(--gr-color-ink);
+}
+
+.bc__seat-down {
+  color: var(--gr-color-chip);
+  font-variant-numeric: tabular-nums;
+}
+
+.bc__seat-up {
+  color: var(--gr-color-good);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bc__seat-up--down {
+  color: var(--gr-color-bad);
+}
+
+/*
+ * Somebody to play, under the seats it fills. Its own row rather than
+ * anything among the controls: it is a thing you do to the table, not a bet
+ * on it, and the same reasoning death-roll's own `.dr__bots` uses.
+ */
+.bc__bots {
+  grid-area: bots;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gr-space-2);
+}
+
+.bc__bots-label {
+  font-size: var(--gr-text-xs);
+  color: var(--gr-color-ink-dim);
+}
+
+.bc__bot {
+  /* Thumb-sized, like every other control on a felt played on a phone. */
+  min-height: 44px;
+  padding: var(--gr-space-2) var(--gr-space-4);
+  border-radius: 999px;
+  border: var(--gr-edge-soft);
+  background: rgb(0 0 0 / 0.28);
+  color: var(--gr-color-ink-dim);
+  font: inherit;
+  font-size: var(--gr-text-sm);
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.bc__bot:hover:not(:disabled) {
+  border-color: var(--gr-color-neon-dim);
+  color: var(--gr-color-ink);
+}
+
+.bc__bot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bc__bot:focus-visible {
+  outline: 2px solid var(--gr-color-neon-hi);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------- the desk */
+
+/*
+ * 760px of table, the same threshold blackjack's card room uses, so the
+ * building's two blue-and-navy felts agree on when a table stops being a
+ * phone laid flat and starts being a desk. Past it the boards move beside
+ * the felt, which is the one thing this brief actually asks the desk to do —
+ * three spots are already a big target at any width, so nothing about the
+ * cloth itself needs to change.
+ */
+@container bc (min-width: 760px) {
+  .bc {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-areas: "standing standing" "table tray" "table boards" "seats seats" "bots bots";
+    gap: var(--gr-space-4) var(--gr-space-5);
+  }
+
+  .bc__hand-cards {
+    --card-w: clamp(56px, 11cqi, 116px);
+  }
+
+  .bc__spot {
+    min-height: 120px;
+  }
+
+  .bc__spot-label {
+    font-size: var(--gr-text-lg);
+  }
+}
+
+/* ============================================================ the motion */
+
+/* A total that just changed, because a card arrived — the same tick every
+   count in the building uses. */
+@keyframes bc-tick {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* The spot the coup paid, lighting up gold once on the way in. */
+@keyframes bc-won {
+  0% {
+    box-shadow:
+      inset 0 0 0 1px var(--gr-color-chip),
+      0 0 0 0 rgb(224 176 72 / 0);
+  }
+  35% {
+    box-shadow:
+      inset 0 0 0 1.5px var(--gr-color-chip-hi),
+      0 0 26px 4px rgb(224 176 72 / 0.42);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.09),
+      0 0 0 0 rgb(224 176 72 / 0);
+  }
+}
+
+@keyframes bc-bead-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes bc-won-in {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+}
+
+/* ------------------------------------------------------------ off switch */
+
+/*
+ * Every selector that moves, repeated exactly, so each is switched off by
+ * name. baccarat.css.test.ts fails if one is missing. Without the motion
+ * every state still reads: the winning spot is still lit, the plate still
+ * has its mark.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .bc__spot,
+  .bc__hand-total--ticked,
+  .bc__spot--won,
+  .bc__chip,
+  .bc__chip:hover:not(:disabled),
+  .bc__chip:active:not(:disabled),
+  .bc__act,
+  .bc__bead--latest,
+  .bc__won--latest {
+    animation: none;
+    transition: none;
+  }
+
+  .bc__chip:hover:not(:disabled),
+  .bc__chip:active:not(:disabled) {
+    transform: none;
+  }
+}

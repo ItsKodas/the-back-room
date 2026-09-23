@@ -5,8 +5,8 @@ import { useState } from "react";
  * two low, ace high, no soft ace — but a card is a rank and a suit either way,
  * and this is what the felt will be built on.
  */
-import type { Card as CardData } from "@backroom/game-blackjack";
-import { Card, FaceDown } from "../blackjack/Cards.js";
+import { Card, FaceDown } from "../cards/Cards.js";
+import type { Card as CardData } from "../cards/deck.js";
 import { ChipStack } from "../chips/ChipStack.js";
 // The felt's own stylesheet, which the real table shares: see poker.css.
 import "../poker/poker.css";

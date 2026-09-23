@@ -1,5 +1,5 @@
-import type { Card as CardData } from "@backroom/game-blackjack";
-import { Card } from "../blackjack/Cards.js";
+import { Card } from "../cards/Cards.js";
+import type { Card as CardData } from "../cards/deck.js";
 
 /**
  * What beats what, as the chart on the wall beside a table.

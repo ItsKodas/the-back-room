@@ -1,5 +1,5 @@
 import type { SeatView, TableView } from "@backroom/game-poker";
-import { Card, FaceDown } from "../blackjack/Cards.js";
+import { Card, FaceDown } from "../cards/Cards.js";
 import { ChipStack } from "../chips/ChipStack.js";
 import { Avatar } from "../game/Avatar.js";
 import { TurnRing } from "../game/TurnRing.js";

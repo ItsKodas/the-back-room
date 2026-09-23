@@ -1,25 +1,32 @@
 import type { RefObject } from "react";
 import { useEffect } from "react";
 
-export interface TableKeys {
-  /** Which key presses which button, by the name the button declares. */
-  shortcuts: Readonly<Record<string, string>>;
-  /** What a pointer going down inside hands its keys to the table. Omit where the table has no such piece. */
-  holds?: string;
-}
-
 /**
- * Space for the lit slab; whatever else `keys.shortcuts` maps.
- *
  * Presses the button on screen rather than calling what it calls, so a key can
  * never do what the button would refuse: a disabled or busy button is a key
  * that does nothing. Bound once; the buttons are looked up through the table's
  * ref at the moment the key goes down, so nothing here goes stale.
+ *
+ * `shortcuts` maps a lowercased key to the name a button declares in its
+ * aria-keyshortcuts. It is held by identity, so pass a module constant or a
+ * `useMemo` — an object written inline at the call is a new object every
+ * render, which tears down all three window listeners and builds them again on
+ * every tick of a table's countdown.
+ *
+ * `handsOverSpace`, when given, is a selector for pieces that hand Space to
+ * the table once clicked — Blackjack's chips, stacked with Space pressed
+ * after, are the rhythm this exists for.
  */
-export function useTableKeys(root: RefObject<HTMLElement | null>, keys: TableKeys): void {
+export function useTableKeys(
+  root: RefObject<HTMLElement | null>,
+  shortcuts: Readonly<Record<string, string>>,
+  options?: { readonly handsOverSpace?: string },
+): void {
+  const hands = options?.handsOverSpace;
+
   useEffect(() => {
     /*
-     * The piece a pointer last went down on. Remembered here rather than asked
+     * The chip a pointer last went down on. Remembered here rather than asked
      * of the browser: Chrome reports a clicked button as :focus-visible the
      * moment any key goes down on it, which is exactly when this needs to know.
      * Focus arriving anywhere else, a Tab included, forgets it.
@@ -31,7 +38,7 @@ export function useTableKeys(root: RefObject<HTMLElement | null>, keys: TableKey
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
         return;
       }
-      const name = keys.shortcuts[event.key.toLowerCase()];
+      const name = shortcuts[event.key.toLowerCase()];
       if (name === undefined) {
         return;
       }
@@ -40,15 +47,15 @@ export function useTableKeys(root: RefObject<HTMLElement | null>, keys: TableKey
       if ((target?.closest("input, textarea, select, [contenteditable], [role='dialog']") ?? null) !== null) {
         return;
       }
-      if (name === "Space" && target !== null) {
-        const held = keys.holds === undefined ? null : target.closest(keys.holds);
+      if (name === "Space" && target !== null && hands !== undefined) {
+        const piece = target.closest(hands);
         /*
-         * A piece somebody clicked hands Space to the table: stack chips, press
-         * Space, is the rhythm of a bet. A piece reached by keyboard keeps its
-         * own Space, since that is how a keyboard presses it at all, and any
-         * other focused button or link presses itself.
+         * A chip somebody clicked hands Space to the table: stack chips, press
+         * Space, is the rhythm of a bet. A chip reached by keyboard keeps its
+         * own Space, since that is how a keyboard adds one at all, and any other
+         * focused button or link presses itself.
          */
-        if (held !== null ? held !== clicked : target.closest("a, button") !== null) {
+        if (piece !== null ? piece !== clicked : target.closest("a, button") !== null) {
           return;
         }
       }
@@ -62,9 +69,7 @@ export function useTableKeys(root: RefObject<HTMLElement | null>, keys: TableKey
     };
     const onPointer = (event: Event) => {
       clicked =
-        keys.holds === undefined || !(event.target instanceof Element)
-          ? null
-          : event.target.closest(keys.holds);
+        hands === undefined || !(event.target instanceof Element) ? null : event.target.closest(hands);
     };
     const onFocus = (event: Event) => {
       if (event.target !== clicked) {
@@ -80,5 +85,5 @@ export function useTableKeys(root: RefObject<HTMLElement | null>, keys: TableKey
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("focusin", onFocus);
     };
-  }, [root, keys.shortcuts, keys.holds]);
+  }, [root, shortcuts, hands]);
 }
