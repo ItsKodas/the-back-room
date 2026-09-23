@@ -32,6 +32,7 @@ COPY games/two-up/package.json games/two-up/
 COPY games/tips/package.json games/tips/
 COPY games/scribble/package.json games/scribble/
 COPY games/plinko/package.json games/plinko/
+COPY games/baccarat/package.json games/baccarat/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN npm ci
@@ -67,6 +68,7 @@ COPY games/two-up/package.json games/two-up/
 COPY games/tips/package.json games/tips/
 COPY games/scribble/package.json games/scribble/
 COPY games/plinko/package.json games/plinko/
+COPY games/baccarat/package.json games/baccarat/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev

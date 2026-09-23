@@ -486,6 +486,24 @@ export const MOTIFS: Record<string, () => string> = {
   slots: cabinet,
   tips: jar,
   plinko: pegs,
+  /*
+   * Two hands facing each other, not one — which is the whole game: nobody
+   * holds these cards or decides anything, two hands are turned over and the
+   * higher one wins. That shape is what tells this card from blackjack's own
+   * single hand even before any glyph is in focus, the same way the board
+   * above tells poker from blackjack — a silhouette apart, not just a
+   * different rank on the same two angled cards. Built from `board`, the
+   * small card poker's own hand already draws with: a hand at this table is
+   * a size down from one somebody would actually hold. Each pair fans away
+   * from the gap between them rather than into it — the outer card turned
+   * hardest — so the two sides read as two hands laid out opposite each other
+   * rather than as one fanned pair split down the middle.
+   */
+  baccarat: () => `
+      ${board(900, 308, -10, "9", true)}
+      ${board(934, 322, -3, "4", false)}
+      ${board(1122, 308, 10, "9", false)}
+      ${board(1088, 322, 3, "2", true)}`,
   craps: () => dice(1028, 318, 120),
 };
 

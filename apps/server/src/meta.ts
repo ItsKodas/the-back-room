@@ -202,7 +202,7 @@ ${forScript({ "@context": "https://schema.org", "@graph": graph })}
 /** How the chips work, which every indexed page says, because it is the question. */
 const CHIPS = `<h2>How the chips work</h2>
       <p>Chips are free. A new account starts with ten thousand of them, and there is no way to pay for more: nothing here takes money, and nothing here pays out anything but chips.</p>
-      <p>A chip you win came from another player. A table playing for chips only deals while at least two real people are sitting at it, and a table that loses its second player pauses rather than carrying on. The games played against the house, such as blackjack, roulette, two-up, craps and the slot machine, each pay from a bank of their own that only players' stakes fill, so a win there still comes from everybody who played before you.</p>
+      <p>A chip you win came from another player. A table playing for chips only deals while at least two real people are sitting at it, and a table that loses its second player pauses rather than carrying on. The games played against the house, such as blackjack, roulette, two-up, craps, baccarat and the slot machine, each pay from a bank of their own that only players' stakes fill, so a win there still comes from everybody who played before you.</p>
       <p>Bots only ever sit at tables played for fun, where the chips belong to the table and are gone when it closes.</p>`;
 
 type Listed = readonly (GameFacts & { id: string })[];

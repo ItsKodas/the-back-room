@@ -1483,7 +1483,7 @@
   gap: 3px;
 }
 
-.pk__rank-cards .bj-card {
+.pk__rank-cards .card {
   width: 34px;
   /* Still, in a list of fifty of them. The deal is an animation about a card
      arriving, and nothing here is arriving. */
@@ -1708,7 +1708,7 @@
   border: 1px dashed rgb(255 255 255 / 0.1);
 }
 
-.pk__board .bj-card {
+.pk__board .card {
   width: clamp(44px, 6.2cqw, 104px);
   height: auto;
 }
@@ -1743,7 +1743,7 @@
   filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.55));
 }
 
-.pk__cards .bj-card {
+.pk__cards .card {
   width: clamp(30px, 4.2cqw, 70px);
   height: auto;
 }
@@ -1756,7 +1756,7 @@
  * drawn a suit is a guess. It is also the seat you look at most, so it is the
  * one worth the room.
  */
-.pk__seat--you .pk__cards .bj-card {
+.pk__seat--you .pk__cards .card {
   width: clamp(44px, 7cqw, 118px);
 }
 
@@ -1889,13 +1889,13 @@
     display: flex;
   }
 
-  .pk__cards .bj-card {
+  .pk__cards .card {
     width: 30px;
   }
 
   /* Still the biggest thing on the table, because it is still the only hand
      anybody has to read. */
-  .pk__seat--you .pk__cards .bj-card {
+  .pk__seat--you .pk__cards .card {
     width: 44px;
   }
 
@@ -1904,7 +1904,7 @@
     font-size: var(--gr-text-sm);
   }
 
-  .pk__board .bj-card,
+  .pk__board .card,
   .pk__gap {
     width: 36px;
   }
@@ -2004,7 +2004,7 @@
   display: contents;
 }
 
-.pk__using .bj-card {
+.pk__using .card {
   /* Lifted and lit. Both, because a lift alone is lost among cards that
      overlap and a glow alone is lost against a lit felt. */
   transform: translateY(-6px);
@@ -2020,18 +2020,18 @@
  * the five read as a hand rather than as five cards that happen to be brighter
  * — it is the difference between pointing and shouting.
  */
-.pk__spare .bj-card {
+.pk__spare .card {
   opacity: 0.62;
   transition: opacity 220ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pk__using .bj-card,
-  .pk__spare .bj-card {
+  .pk__using .card,
+  .pk__spare .card {
     transition: none;
   }
 
-  .pk__using .bj-card {
+  .pk__using .card {
     transform: none;
   }
 }

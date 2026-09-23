@@ -16,16 +16,17 @@ import type { GameListing } from "./catalogue.js";
  * Most of them will have to earn the same things Slots and Blackjack did
  * before they can take a chip: a bank players fill, a cap derived from its own
  * worst outcome, and a cryptographic source for whatever it turns over.
- * Roulette and Baccarat are house games, so neither can be built without that
- * argument being made again. Liar's Dice is not — the stake goes into a pot
- * and one of the players takes it, so the chips never leave the table and
- * there is nothing for a bank to do.
+ * What is left on this list is Liar's Dice, which needs none of it — the stake
+ * goes into a pot and one of the players takes it, so the chips never leave
+ * the table and there is nothing for a bank to do.
  *
- * Poker, Death Rolling, Two-up and Craps were on this list and have been
- * built. Two-up had to make the bank argument twice over — once for a casino
- * school paying from its own bank, and once for a traditional school that
- * needs no bank because the chips never leave the ring. Their listings live in
- * their own packages now, beside the rules, the way the others do.
+ * Poker, Death Rolling, Two-up, Craps and Baccarat were on this list and have
+ * been built. Two-up had to make the bank argument twice over — once for a
+ * casino school paying from its own bank, and once for a traditional school
+ * that needs no bank because the chips never leave the ring. Baccarat made it
+ * the way the wheel did, with one extra condition: it is dealt from a deck, so
+ * it reshuffles every coup. Their listings live in their own packages now,
+ * beside the rules, the way the others do.
  */
 export const COMING: readonly GameListing[] = [
   {
@@ -40,7 +41,7 @@ export const COMING: readonly GameListing[] = [
     minSeats: 2,
     maxSeats: 6,
     /*
-     * The other one here that needs no bank. Players stake against each other
+     * The one left here that needs no bank. Players stake against each other
      * and one of them takes it, so the chips never leave the table — which
      * puts it beside Poker and Death Rolling as the cheap half of this list to
      * make honest.
@@ -48,16 +49,5 @@ export const COMING: readonly GameListing[] = [
     open: false,
     mark: { text: "LIAR'S DICE", accentAt: 0 },
     theme: { wall: "#13181a", felt: "#1d3336", accent: "#2f8f92", accentHi: "#7fdde0" },
-  },
-  {
-    id: "baccarat",
-    name: "Baccarat",
-    blurb: "Player or banker. Bet on which side gets closer to nine.",
-    shape: "table",
-    minSeats: 1,
-    maxSeats: 8,
-    open: false,
-    mark: { text: "BACCARAT", accentAt: 0 },
-    theme: { wall: "#12161c", felt: "#1b2a3d", accent: "#3d7ab8", accentHi: "#86c2ff" },
   },
 ];
