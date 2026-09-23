@@ -24,8 +24,15 @@ services:
   backroom:
     build: .
     restart: unless-stopped
+    # Loopback by default, because the usual way to run this is behind something
+    # that terminates TLS (see TRUST_PROXY): the proxy reaches the container on
+    # localhost, and nothing else should. Publishing on every interface, which
+    # is what an address-less mapping does, also puts the site on the LAN on a
+    # plain port, reachable around the proxy and around whatever that proxy is
+    # doing about TLS, sessions and access. Set BIND_ADDR=0.0.0.0 to ask for
+    # that deliberately.
     ports:
-      - "${PORT:-3001}:${PORT:-3001}"
+      - "${BIND_ADDR:-127.0.0.1}:${PORT:-3001}:${PORT:-3001}"
     # Named one by one rather than handing the whole file over, so that
     # `--env-file` switches every one of them together. A service that both
     # interpolates from one file and env_file's another reads half its
