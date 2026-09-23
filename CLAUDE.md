@@ -67,16 +67,15 @@ are cards that can be counted, and a counted shoe pays the player more than it
 takes — out of a bank everybody else filled.
 
 On those terms a win still comes from real people: everybody who played there
-before you. Slots, blackjack, roulette, two-up, plinko and craps are the six
-games in the building on this footing, and each keeps **its own bank**. A
-shared one would be whichever game holds back the most quietly paying for the
-one that holds back the least — the machine keeps a tenth of what goes through
-it and a blackjack table about a two-hundredth, with the wheel, the coin and
-the board each keeping a hold of their own in between and craps holding back
-about a seventieth on the line and a good deal more in the middle, sitting it
-between the card table and the wheel — so one bank would be the machine quietly
-funding the rest of the floor. A seventh game would have to earn all of this
-the same way.
+before you. Slots, blackjack, roulette, two-up, plinko, craps and baccarat are
+the seven games in the building on this footing, and each keeps **its own
+bank**. A shared one would be whichever game holds back the most quietly paying
+for the one that holds back the least — the machine keeps a tenth of what goes
+through it and a blackjack table about a two-hundredth, with the wheel, the
+coin, the board and the baccarat cloth each keeping a hold of their own in
+between, and craps holding back about a seventieth on the line and a good deal
+more in the middle — so one bank would be the machine quietly funding the rest
+of the floor. An eighth game would have to earn all of this the same way.
 
 ### The server is the only authority
 
@@ -174,6 +173,7 @@ games/plinko       twelve rows of pegs, one board for the floor, its own bank
 games/roulette     one wheel, thirty-seven pockets, its own bank
 games/two-up       two coins in the air, heads or tails, its own bank
 games/craps        two dice, a point to make, its own bank
+games/baccarat     player or banker, whichever lands closer to nine, its own bank
 games/poker        up to ten to a table, the pot is everybody's chips
 games/death-roll   halve the number or pay, roll a one and you're out
 games/liars-dice   five under a cup, bid it up or call it

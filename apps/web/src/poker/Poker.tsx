@@ -3,7 +3,7 @@ import { blindsFor, BUY_IN, STAKES } from "@backroom/game-poker";
 import { CODE_ALPHABET, CODE_LENGTH } from "@backroom/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, FaceDown } from "../blackjack/Cards.js";
+import { Card, FaceDown } from "../cards/Cards.js";
 import { Avatar } from "../game/Avatar.js";
 import { ChipStack } from "../chips/ChipStack.js";
 import { Chat } from "../game/Chat.js";

@@ -198,9 +198,10 @@ export interface GameRecord {
  * most quietly paying for the one that holds back the least — the machine
  * keeps a tenth of what goes through it, a blackjack table about a
  * two-hundredth, a single-zero wheel about a thirty-seventh, the coins
- * about a thirty-second, the peg board about a thirty-third, and a craps
- * table about a seventieth on the line and a great deal more in the middle,
- * so one pot would be the machine funding the felt.
+ * about a thirty-second, the peg board about a thirty-third, a craps table
+ * about a seventieth on the line and a great deal more in the middle, and a
+ * baccarat cloth about a hundredth, so one pot would be the machine funding
+ * the felt.
  *
  * A list rather than only a type, because a type cannot be counted. Every
  * bank needs a float before its game will take a stake at all, so the admin
@@ -210,7 +211,15 @@ export interface GameRecord {
  * so a typo is a build error rather than a bank nobody can find that quietly
  * holds somebody's chips.
  */
-export const BANKS = ["slots", "blackjack", "roulette", "two-up", "plinko", "craps"] as const;
+export const BANKS = [
+  "slots",
+  "blackjack",
+  "roulette",
+  "two-up",
+  "plinko",
+  "craps",
+  "baccarat",
+] as const;
 
 export type BankName = (typeof BANKS)[number];
 

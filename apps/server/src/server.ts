@@ -9,6 +9,11 @@ import { BankLedger, Catalogue, COMING, ledgerOf, Taunts } from "@backroom/core"
 import type { AdminTarget, BankName, Store } from "@backroom/economy";
 import { BANKS, MemoryStore } from "@backroom/economy";
 import {
+  BACCARAT,
+  baccaratAdapter,
+  STAKE_DIVISOR as BACCARAT_DIVISOR,
+} from "@backroom/game-baccarat";
+import {
   BLACKJACK,
   blackjackAdapter,
   maxStake as blackjackMaxStake,
@@ -119,6 +124,7 @@ const CATALOGUE = COMING.reduce(
     .add(TWO_UP)
     .add(CRAPS)
     .add(SCRIBBLE)
+    .add(BACCARAT)
     .add(LIARS_DICE),
 );
 
@@ -191,6 +197,17 @@ export interface BackRoomServerOptions {
   crapsWindow?: number;
   crapsRollMs?: number;
   crapsSettleMs?: number;
+  /**
+   * The betting window a baccarat table opens with, when nobody at the door
+   * asked for one of its own.
+   *
+   * The same seam as `bettingMs`, for a table whose window is otherwise
+   * chosen from `WINDOWS` and never shorter than fifteen seconds — a test
+   * hurrying it needs this, and a client asking for one does not get it:
+   * `create` still validates a client's own request against `WINDOWS` first,
+   * and only falls back to this when that request is absent or invalid.
+   */
+  baccaratWindowMs?: number;
   /** How long a dropped player keeps their seat. */
   reconnectGraceMs?: number;
   /**
@@ -357,6 +374,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     crapsWindow,
     crapsRollMs,
     crapsSettleMs,
+    baccaratWindowMs,
     reconnectGraceMs = 90_000,
     holdSeat,
     emptyRoomTtlMs = 5 * 60 * 1000,
@@ -998,6 +1016,11 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     add: (amount: number) => store.bankAdd("craps", amount),
     take: (amount: number) => store.bankTake("craps", amount),
   };
+  const baccaratBank = {
+    holds: () => store.bank("baccarat"),
+    add: (amount: number) => store.bankAdd("baccarat", amount),
+    take: (amount: number) => store.bankTake("baccarat", amount),
+  };
 
   /** Every game this server can host, by id. */
   const ADAPTERS = new Map<string, GameAdapter<PlayTable>>([
@@ -1127,6 +1150,21 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       }) as GameAdapter<PlayTable>,
     ],
     [SCRIBBLE.id, scribbleAdapter(scribble) as unknown as GameAdapter<PlayTable>],
+    [
+      BACCARAT.id,
+      baccaratAdapter({
+        /*
+         * The shuffle, from the same source the reels and the shoe come from.
+         * This table hands every watcher every card it deals, which over an
+         * evening is exactly the run of observations needed to recover
+         * Math.random's state — and then the next coup is not a question.
+         */
+        random: spinRandom,
+        /* Its own bank, kept apart from the machine's, the felt's and the wheel's. */
+        bank: baccaratBank,
+        ...(baccaratWindowMs === undefined ? {} : { window: baccaratWindowMs }),
+      }) as GameAdapter<PlayTable>,
+    ],
   ]);
 
   /**
@@ -1171,6 +1209,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
         return plinko.empty();
       case "craps":
         return emptyAllButOwed(crapsBank, "craps");
+      case "baccarat":
+        return emptyAllButOwed(baccaratBank, "baccarat");
     }
   }
 
@@ -1429,6 +1469,15 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
        */
       case "craps":
         return Math.max(0, Math.floor(Math.max(0, bank) / CRAPS_DIVISOR));
+      /*
+       * The worst a lone chip can do here: the tie, at eight to one. A real
+       * table is capped far more finely — every chip is measured against the
+       * whole cloth as it lands, and matched money on the two sides needs
+       * almost no bank — but this route answers "what could this bank take
+       * at all", and that is the tie.
+       */
+      case "baccarat":
+        return Math.max(0, Math.floor(Math.max(0, bank) / BACCARAT_DIVISOR));
     }
   }
 
