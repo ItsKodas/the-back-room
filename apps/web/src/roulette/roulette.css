@@ -9,17 +9,24 @@
  */
 
 /*
- * The width this room takes is the building's, which it did not used to be.
+ * The width this room takes, which is not the building's.
  *
  * A roulette cloth is fourteen squares across carrying thirty-seven numbers
- * and it is the thing you aim at, so every pixel of width was a bigger target
- * — and this page spread to 1560 to get them. That argument was about a page
- * that scrolled. The table is the window now (`play--fit`, in table/table.css),
- * and what decides how big a square is at a desk is how the stage divides its
- * room up, not how wide the document was allowed to grow. So the page is the
- * thousand pixels every other table in the building gets, and the cloth is
- * handed about two thirds of it — see the desk's container query at the end.
+ * and it is the thing you aim at, so every pixel of width is a bigger target.
+ * This page had 1560 for that reason, gave it up when the table became a
+ * window, and has it back: the stage divides the room it is given, and at the
+ * building's thousand a 1600px monitor was a third margin with a cloth two
+ * hundred and thirty pixels tall inside it.
+ *
+ * Chained to `.play` for the same reason scribble's is — `.play--roulette`
+ * alone is exactly `.play`'s own specificity, a tie decided by whichever
+ * sheet the page happened to inject first. The bar widens with it; see
+ * `.shell__bar:has(+ .play--roulette)` in game.css.
  */
+.play.play--roulette {
+  max-width: 1560px;
+}
+
 .rl {
   /* Named, so a query about the table cannot be answered by the stage. */
   container: rl / inline-size;
@@ -357,6 +364,42 @@
 
 /* ---------------------------------------------------------------- the cloth */
 
+/*
+ * The room the cloth is drawn in, and the three boxes this takes.
+ *
+ * The box is the room: it does not move, it clips a cloth that has been
+ * pushed about inside it, and — because its width is the same whichever way
+ * round the cloth went — it is the thing Cloth.tsx measures to decide the
+ * orientation. `.rl__roam` carries the pan and the zoom and nothing else.
+ * `.rl__cloth` is the surface. See the comment on the refs in Cloth.tsx.
+ */
+.rl__cloth-box {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /*
+   * pan-y here, none on the felt — see `.rl__in .rl__cloth-box` in the layout.
+   * The style gallery is an ordinary page that scrolls, so a vertical drag
+   * over its cloth has to stay the page's. At the table the cloth is the
+   * thing being dragged and the page does not scroll at all.
+   */
+  touch-action: pan-y;
+}
+
+.rl__roam {
+  width: 100%;
+  transform-origin: 0 0;
+}
+
+/* Only the way back to the whole board travels. A pinch and a drag are the
+   finger's own, and an eased finger is a laggy one. */
+.rl__roam--easing {
+  transition: transform 280ms var(--gr-settle);
+}
+
 .rl__cloth {
   position: relative;
   width: 100%;
@@ -364,33 +407,52 @@
   border: 2px solid var(--rl-brass);
   border-radius: var(--gr-radius-sm);
   box-shadow: inset 0 0 40px rgb(0 0 0 / 0.4);
-  /*
-   * pan-y, not none. A phone cloth taller than the screen sits in a scrolling
-   * box of its own (see Cloth's portrait height), and none here would take the
-   * drag away from that box — the bottom of the cloth would be unreachable.
-   * pan-y hands a vertical drag to the browser as a scroll instead, which
-   * fires pointercancel on whatever press was under the finger. A cancelled
-   * press is exactly the outcome a scroll should have: nothing was aimed at
-   * for long enough to mean it, so the gesture already treats it as no bet.
-   * What is given up is sliding to re-aim vertically on touch; press-to-name,
-   * lift-to-place and hold-to-take-back are unaffected, and a horizontal or
-   * diagonal drag still aims, because only a vertical one is a scroll.
-   */
-  touch-action: pan-y;
   cursor: crosshair;
   user-select: none;
 }
 
 /*
- * A turned cloth is sized by height rather than width.
+ * The way back out of a cloth somebody has gone into.
  *
- * Fourteen squares tall against a phone's full width comes out over a thousand
- * pixels, and a cloth you have to scroll is a cloth where your own chips are
- * off screen while the ball is dropping. Bounded by the viewport instead, so
- * the whole table is in front of you and the width falls out of that — which
- * also leaves room beside it for the wheel.
+ * Drawn only while there is board off screen — Cloth.tsx does not render it
+ * otherwise — and in the corner of the frame rather than of the cloth, so it
+ * stays where it was put however far the board has been pushed. Seven: over
+ * the chips and the aim marker, under a reach button wearing the keyboard's
+ * ring and under the payout sheet. See `.rl__pays`.
  */
-.rl__cloth--portrait {
+.rl__whole {
+  position: absolute;
+  right: var(--gr-space-2);
+  bottom: var(--gr-space-2);
+  z-index: 7;
+  min-height: 36px;
+  padding: 0 var(--gr-space-3);
+  border: 1px solid var(--rl-brass);
+  border-radius: var(--gr-radius-key);
+  background: color-mix(in srgb, var(--gr-color-shadow) 78%, transparent);
+  color: var(--rl-brass-lit);
+  font-size: var(--gr-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  animation: rl-whole-in 200ms var(--gr-settle) both;
+}
+
+@keyframes rl-whole-in {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+
+/*
+ * The gallery's turned cloth, which is on a page that scrolls and so is
+ * bounded by the window rather than by a box.
+ *
+ * The felt's own is not: there the cloth is handed the room it has and fills
+ * it, and is pushed about inside it rather than run off the bottom. See
+ * `.rl__in .rl__roam` in the layout.
+ */
+.rl__table .rl__cloth--portrait {
   height: min(78dvh, 680px);
   width: auto;
   max-width: 100%;
@@ -573,19 +635,23 @@
  * heap that grew sideways would get thinner chips as it grew, which is the
  * trap ChipStack's own comment describes.
  *
- * Half a square, which is what a chip covers on a phone and is the figure both
- * rules are derived from. It cannot be written once, because the two layouts
- * give the cloth different shares of the container the query measures: stacked
- * it is the whole of it, and with the wheel beside it about seven tenths. One
- * value would be right for one of them and wrong for the other by half again.
+ * Half a square, and now one figure rather than two. The container the query
+ * measures is the cloth's own room (`.rl__in .rl__cloth-holds`), so a
+ * fourteenth of it is a square wherever the layout has put the cloth — which
+ * it was not while the query was answered by the whole stage, and which is
+ * why the desk used to need a second value.
  *
- * The floor is the size these were before, so nothing on a phone or a turned
- * cloth moves — below about 630 the cloth is sized by its height and the
- * container's width stops describing it at all.
+ * Turned, the same half-square is a fifth of the room rather than a
+ * twenty-eighth, hence the second rule. A pinch changes neither: the chips
+ * are inside the cloth and grow with it.
  */
 .rl__pile .stack {
   width: clamp(22px, 3.5cqw, 40px);
   height: auto;
+}
+
+.rl__cloth-box--portrait .rl__pile .stack {
+  width: clamp(22px, 10cqw, 40px);
 }
 
 .rl__pile--yours {
@@ -879,12 +945,26 @@
   }
 }
 
-/* The tray of chips you are betting with. */
+/*
+ * The tray of chips you are betting with.
+ *
+ * Seven of them, and they have to make one row at 375px or they take a second
+ * one off the board: at 44px apiece that is 308, and the smallest gap the
+ * tokens have puts the row at 332 in the 351 a phone leaves. The ordinary gap
+ * comes back on the band, where the width is not the thing in short supply.
+ */
 .rl__tray {
   display: flex;
-  gap: var(--gr-space-2);
+  gap: var(--gr-space-1);
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
+}
+
+@container (min-width: 720px) {
+  .rl__tray {
+    gap: var(--gr-space-2);
+  }
 }
 
 /*
@@ -894,7 +974,13 @@
  * dimming that says which one is not affordable right now.
  */
 .key.rl__chip {
-  width: clamp(38px, 5cqw, 62px);
+  /*
+   * A thumb at the bottom and a row that fits at the top. Sixty-two was what
+   * the query allowed at a desk, and seven of those were wider than the band
+   * they now stand in — a tray that wrapped to two rows under a cloth that
+   * wanted the height.
+   */
+  width: clamp(44px, 5cqw, 48px);
   min-height: 0;
   padding: 2px;
   border-radius: 50%;
@@ -903,7 +989,16 @@
   transition: opacity 120ms ease, transform 120ms ease;
 }
 
-.rl__chip svg {
+/*
+ * The drawing fills the key, which it has not been doing.
+ *
+ * `.key svg { width: 1.15em }` in the fittings is an icon rule, and it ties
+ * with a bare `.rl__chip svg` on specificity — so the tray's own rule lost on
+ * source order and every chip in it was drawn at seventeen pixels inside a
+ * forty-eight pixel cap. Chained to `.key`, which is what this is actually
+ * overriding.
+ */
+.key.rl__chip svg {
   width: 100%;
   height: auto;
   display: block;
@@ -975,37 +1070,68 @@
 /* ------------------------------------------------------------- the controls */
 
 /*
- * The tray and the three buttons, side by side where there is room; the
- * custom box, the figures, and the said line each get a row of their own
- * underneath, full width, whatever order they happen to sit in the markup.
+ * One band, not a column of rows.
  *
  * They are one thing — what you are betting with, and what you can do about
- * what you have already bet — and stacking them put a column of controls under
- * a table that was mostly empty either side.
+ * what you have already bet — and four stacked rows of it took 293 of a
+ * phone's 644 pixels: forty-five per cent of the table, paid for out of the
+ * board you are betting on. So a phone gets three short rows and one line of
+ * figures, and a desk gets the whole lot on one line with the figures under
+ * it.
  *
  * Named areas rather than relying on source order: `.rl__own` sits between
- * the tray and the acts in the markup, and auto-placement would have put it
- * in the acts' column and pushed the acts to a row of their own — this pins
- * tray and acts to row one regardless of what else the markup grows between
- * them.
+ * the tray and the acts in the markup, and auto-placement would put it
+ * wherever the markup happens to grow next.
  */
 .rl__controls {
   display: grid;
-  gap: var(--gr-space-3);
+  gap: var(--gr-space-2);
   justify-items: center;
+}
+
+/* The three acts share a phone's width evenly rather than wrapping to two
+   rows: three of them at 116px each is 364, and a 375px phone has 351. */
+.rl__controls .rl__acts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.rl__controls .rl__own {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.rl__controls .rl__own input {
+  flex: 1;
+  width: auto;
 }
 
 @container (min-width: 720px) {
   .rl__controls {
-    grid-template-columns: auto auto;
+    grid-template-columns: auto auto auto;
     grid-template-areas:
-      "tray acts"
-      "own own"
-      "note note"
-      "said said";
+      "tray own acts"
+      "note note note"
+      "said said said";
     justify-content: center;
     align-items: center;
-    gap: var(--gr-space-5);
+    gap: var(--gr-space-2) var(--gr-space-5);
+  }
+
+  /* On one line there is room to stop stretching: each takes what it needs. */
+  .rl__controls .rl__acts {
+    display: flex;
+    width: auto;
+  }
+
+  .rl__controls .rl__own {
+    width: auto;
+  }
+
+  .rl__controls .rl__own input {
+    flex: none;
+    width: 9ch;
   }
   /* Scoped to the panel that declares the areas: this stylesheet is in the one
      bundle the whole site loads, and the style gallery has an `.rl__tray` of
@@ -1050,10 +1176,18 @@
 .key.rl__act {
   /* Big enough for a thumb: these are pressed against a closing window. */
   min-height: 52px;
-  min-width: 116px;
-  padding: var(--gr-space-2) var(--gr-space-3);
+  min-width: 0;
+  padding: var(--gr-space-2) var(--gr-space-2);
   flex-direction: column;
   gap: 2px;
+}
+
+/* On one line they size to their words rather than to a third of the phone. */
+@container (min-width: 720px) {
+  .key.rl__act {
+    min-width: 116px;
+    padding: var(--gr-space-2) var(--gr-space-3);
+  }
 }
 
 .rl__act-name {
@@ -1412,22 +1546,79 @@
 }
 
 /*
- * The cloth's box, and the one thing on this page allowed to scroll.
+ * The cloth's box, which is the room and nothing else.
  *
- * Turned on its side a cloth is five squares across by fourteen down, so
- * squares big enough for a thumb need more height than a 375x560 phone has.
- * The page still does not scroll; this box does, which is what L6 allows in as
- * many words, and `.table-scroll` gives it the room's own bar rather than the
- * system's.
+ * It used to scroll, because a turned cloth was pinned to 680px and a phone
+ * has not got 680px of stage — so a third of the board was below the fold
+ * while the ball was dropping, in a 200px strip with empty felt either side.
+ * Now the cloth is handed exactly this box and fills it, and going in for a
+ * closer look is a pinch rather than a scroll.
+ *
+ * A size container, so the box inside can be told to be exactly this big:
+ * `cqw` and `cqh` below are this element's. It is also the one measurement
+ * that does not change when the cloth turns, which is why Cloth.tsx reads the
+ * orientation off it. Nothing queries it by name, so it has none.
  */
-.rl__cloth-holds {
+.rl__in .rl__cloth-holds {
   grid-area: cloth;
-  max-height: 100cqh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  display: flex;
-  justify-content: center;
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  place-items: center;
   transition: filter 380ms ease;
+}
+
+/* At the table the cloth is the thing a finger drags, so no part of the
+   gesture belongs to the browser. The page cannot scroll here in any case. */
+.rl__in .rl__cloth-box {
+  width: 100cqw;
+  height: 100cqh;
+  touch-action: none;
+}
+
+/*
+ * As wide as the room, and as tall as the room will allow.
+ *
+ * The squares are not square, and that is the point: a roulette cloth is
+ * fourteen by five, and holding it to that ratio in a box of any other shape
+ * leaves the difference as a void — 250 empty pixels under the cloth on a
+ * desk, which is what this table was shipping. So the cloth takes the width
+ * and then as much of the height as it is offered.
+ *
+ * The bound is on how far a square may stretch, not on the cloth. 51.8% of
+ * the width over five rows against a fourteenth of it across is a square half
+ * again as tall as it is wide, which is roughly what a printed cloth already
+ * is; past that a number starts to look like a column. Under the bound
+ * nothing is wasted, over it the cloth stops growing and centres.
+ */
+.rl__in .rl__roam {
+  width: 100cqw;
+  height: min(100cqh, 51.8cqw);
+}
+
+/*
+ * Turned, the same bargain the other way up: the full height, and the width
+ * to go with it.
+ *
+ * The bound is looser this way round, and deliberately. A turned cloth is
+ * fourteen rows deep against five across, so its squares are wide and short
+ * whatever you do — that is what the turn is — and holding them near square
+ * would mean leaving a third of a phone's width empty either side of a board
+ * that is already short of room. Three and a bit to one is where they stop
+ * reading as rows at all. A 390px phone comes out at about 64 by 25 and never
+ * meets it; a short one at 375x667 takes the full width at 60 by 19, which is
+ * the whole board on screen and a pinch away from a thumb-sized one.
+ */
+.rl__in .rl__cloth-box--portrait .rl__roam {
+  height: 100cqh;
+  width: min(100cqw, 114.3cqh);
+}
+
+.rl__in .rl__cloth {
+  width: 100%;
+  height: 100%;
 }
 
 /*
@@ -1688,13 +1879,6 @@
     filter: none;
   }
 
-  /* The cloth is about seven tenths of the container here rather than all of
-     it, so the same half-a-square works out to a smaller share of the query.
-     See the rule this overrides. */
-  .rl__pile .stack {
-    width: clamp(22px, 2.5cqw, 40px);
-  }
-
   /* The gallery's table, at the same width, unchanged. */
   .rl__table {
     grid-template-columns: minmax(200px, 1fr) 2.4fr;
@@ -1719,6 +1903,16 @@
 
   .rl__cloth-holds {
     transition: none;
+  }
+
+  /* The way back to the whole board arrives rather than travels, and the
+     board is already there when it does. */
+  .rl__roam--easing {
+    transition: none;
+  }
+
+  .rl__whole {
+    animation: none;
   }
 
   .rl__pays {

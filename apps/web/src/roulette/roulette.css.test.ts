@@ -88,7 +88,12 @@ describe("the Roulette table's stylesheet", () => {
 
     const sheet = depth(".rl__pays");
     expect(sheet, "what it pays declares no z-index at all").not.toBeNaN();
-    for (const selector of [".rl__pile", ".rl__aim", ".rl__reach button:focus-visible"]) {
+    for (const selector of [
+      ".rl__pile",
+      ".rl__aim",
+      ".rl__whole",
+      ".rl__reach button:focus-visible",
+    ]) {
       const layer = depth(selector);
       expect(layer, `${selector} declares no z-index at all`).not.toBeNaN();
       expect(sheet, `${selector} stacks over the payout sheet`).toBeGreaterThan(layer);
@@ -125,9 +130,21 @@ describe("the Roulette table's stylesheet", () => {
 
   it("sizes the stage from the space it has, not from the viewport (L3)", () => {
     expect(rule(".rl__stage")).toMatch(/container:\s*rl-stage\s*\/\s*size/);
-    // The cloth's box is bounded by the stage's own height, which is what lets
-    // a short phone shrink the cloth rather than push the keys off the screen.
-    expect(rule(".rl__cloth-holds")).toContain("100cqh");
+    /*
+     * And the cloth from the space the stage handed it, in both directions.
+     *
+     * The room is a size container of its own so the cloth can be told to be
+     * exactly it — a `dvh` figure here is the bug this replaced: a cloth
+     * pinned to 680px overflowed a 268px stage and put two thirds of the
+     * board below the fold on a phone.
+     */
+    expect(rule(".rl__in .rl__cloth-holds")).toMatch(/container-type:\s*size/);
+    const roam = rule(".rl__in .rl__roam");
+    expect(roam).toContain("100cqw");
+    expect(roam).toContain("100cqh");
+    // And the room does not scroll. A board you have to scroll is a board
+    // where your own chips are off screen while the ball is dropping.
+    expect(rule(".rl__in .rl__cloth-holds")).not.toContain("overflow");
   });
 
   it("arranges the desk with a container query, not a media query (L5)", () => {

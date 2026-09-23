@@ -44,10 +44,13 @@ describe("RouletteMockup", () => {
 
   it("lets the cloth turn itself sideways on a narrow box when Auto is picked", () => {
     stubNarrowResizeObserver();
-    render(<RouletteMockup />);
+    const { container } = render(<RouletteMockup />);
     // Auto is the default: an explicit `portrait={false}` here would defeat
     // the cloth's own narrow detection and keep it landscape regardless.
-    const cloth = screen.getByRole("group", { name: "The betting cloth" });
-    expect(cloth.className).toContain("rl__cloth--portrait");
+    //
+    // The felt itself, not the room around it: the room is the named group
+    // and it wears a turn of its own, so reading the class off that would
+    // pass whether or not the cloth inside had turned with it.
+    expect(container.querySelector(".rl__cloth")?.className).toContain("rl__cloth--portrait");
   });
 });
