@@ -8,6 +8,7 @@ import { POKER } from "@backroom/game-poker";
 import { POCKETS, ROULETTE } from "@backroom/game-roulette";
 import { SLOTS } from "@backroom/game-slots";
 import { TIPS } from "@backroom/game-tips";
+import { UNO } from "@backroom/game-uno";
 import { describe, expect, it } from "vitest";
 import type { CardSpec } from "./og.js";
 import { Avatars, Cards, cardSvg, fit, Kept, MOTIFS } from "./og.js";
@@ -108,7 +109,7 @@ describe("the card a link unfurls into", () => {
  * four of the six were doing exactly that — a card still rendered, and still
  * had the right words on it.
  */
-const DEALT: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS, CRAPS];
+const DEALT: readonly GameListing[] = [GREED, BLACKJACK, SLOTS, POKER, ROULETTE, TIPS, CRAPS, UNO];
 
 /** One card for a whole game, which is the shape a link to /roulette unfurls into. */
 const banner = (game: GameListing): string =>

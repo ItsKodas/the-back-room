@@ -50,6 +50,7 @@ export default defineConfig({
       "@backroom/game-scribble",
       "@backroom/game-slots",
       "@backroom/game-two-up",
+      "@backroom/game-uno",
     ],
   },
 });

@@ -706,10 +706,54 @@ export function CupArt() {
   );
 }
 
+/**
+ * Uno's corner: three cards fanned out of a hand, red, yellow and a Wild, in
+ * the box's own colours rather than the room's — the cards are the furniture.
+ */
+function UnoArt() {
+  const cards = [
+    { turn: -18, x: 62, fill: "#e2323a", mark: "7" },
+    { turn: 0, x: 86, fill: "#f5c21b", mark: "+2" },
+    { turn: 18, x: 110, fill: "#141414", mark: "W" },
+  ];
+  return (
+    <svg viewBox="0 0 200 160" role="img" aria-hidden="true" focusable="false">
+      {cards.map((card) => (
+        <g key={card.mark} className="art__uno-card" transform={`rotate(${card.turn} ${card.x + 20} 140)`}>
+          <rect x={card.x} y="40" width="40" height="60" rx="5" fill="#fbf7f0" />
+          <rect x={card.x + 3} y="43" width="34" height="54" rx="3.5" fill={card.fill} />
+          <ellipse
+            cx={card.x + 20}
+            cy="70"
+            rx="12"
+            ry="23"
+            transform={`rotate(28 ${card.x + 20} 70)`}
+            fill="#fbf7f0"
+          />
+          <text
+            x={card.x + 20}
+            y="77"
+            textAnchor="middle"
+            fontSize="18"
+            fontWeight="900"
+            fontStyle="italic"
+            fill={card.mark === "W" ? "#141414" : card.fill}
+          >
+            {card.mark}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 /** The furniture a game keeps, by which game it is. */
 export function TileArt({ game }: { game: string }) {
   if (game === "liars-dice") {
     return <CupArt />;
+  }
+  if (game === "uno") {
+    return <UnoArt />;
   }
   if (game === "death-roll") {
     return <DuelArt />;

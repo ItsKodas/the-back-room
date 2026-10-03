@@ -19,7 +19,7 @@ export const UNO: GameListing = {
    * The same values theme.css sets, repeated because the link cards are drawn
    * on the server where there is no stylesheet to read. They have to agree.
    */
-  theme: { wall: "#160c0c", felt: "#7a1414", accent: "#f5c518", accentHi: "#ffe066" },
+  theme: { wall: "#1d1410", felt: "#17703f", accent: "#f5c21b", accentHi: "#ffe06b" },
   open: true,
 };
 

@@ -6,35 +6,36 @@
  * carries meaning — chip stays gold, good and bad stay what they are
  * everywhere else.
  *
- * The box's own red, deepened to a felt you can read white cards on, under a
- * yellow sign. Nothing else on the floor is lit yellow, and the four card
- * colours sit on it without any of them disappearing into it.
+ * The tabletop's own colours, brought in whole: a green baize under a warm
+ * brown room and the box's yellow for the light. Green is the one felt the
+ * four card colours all read on — the red one this started as swallowed the
+ * reds.
  */
 :root[data-game="uno"],
 [data-game="uno"] {
-  --gr-color-night: #160c0c;
-  --gr-color-slate: #221313;
-  --gr-color-shadow: #0a0505;
-  --gr-color-smoke: #2b1717;
-  --gr-color-smoke-lit: #3a2020;
+  --gr-color-night: #1d1410;
+  --gr-color-slate: #2a1d16;
+  --gr-color-shadow: #0d0907;
+  --gr-color-smoke: #33241b;
+  --gr-color-smoke-lit: #443026;
 
-  /* The felt the cards go down on. */
-  --gr-color-felt: #7a1414;
-  --gr-color-felt-lit: #8f1c1c;
-  --gr-color-felt-deep: #4f0c0c;
+  /* The baize the cards go down on. */
+  --gr-color-felt: #17703f;
+  --gr-color-felt-lit: #1f8a4e;
+  --gr-color-felt-deep: #0d4a29;
 
-  /* The sign. */
+  /* The box's yellow. */
   --gr-color-neon-core: #fffbe6;
-  --gr-color-neon-hi: #ffe066;
-  --gr-color-neon: #f5c518;
+  --gr-color-neon-hi: #ffe06b;
+  --gr-color-neon: #f5c21b;
   --gr-color-neon-dim: #8a6d0a;
   --gr-color-neon-deep: #b8920f;
 
   --gr-color-air: var(--gr-color-neon);
   --gr-color-air-hi: var(--gr-color-neon-hi);
 
-  --gr-color-ink: #fbefe6;
+  --gr-color-ink: #fbf3ea;
   --gr-color-ink-lit: #fffaf5;
-  --gr-color-ink-dim: #c9aea5;
-  --gr-color-ink-faint: #8e726a;
+  --gr-color-ink-dim: #c8b8aa;
+  --gr-color-ink-faint: #8a7d72;
 }

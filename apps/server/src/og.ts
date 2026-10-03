@@ -505,6 +505,27 @@ export const MOTIFS: Record<string, () => string> = {
       ${board(1122, 308, 10, "9", false)}
       ${board(1088, 322, 3, "2", true)}`,
   craps: () => dice(1028, 318, 120),
+  /*
+   * Three cards fanned from one hand in the box's own colours — red, yellow
+   * and a Wild — rather than the room's, because the four colours are the
+   * thing nobody mistakes Uno for anything else by.
+   */
+  uno: () =>
+    [
+      { turn: -16, x: 930, fill: "#e2323a", mark: "7" },
+      { turn: 0, x: 1000, fill: "#f5c21b", mark: "+2" },
+      { turn: 16, x: 1070, fill: "#141414", mark: "W" },
+    ]
+      .map(
+        (card) => `
+      <g transform="rotate(${card.turn} ${card.x + 56} 520)">
+        <rect x="${card.x}" y="220" width="112" height="168" rx="14" fill="#fbf7f0"/>
+        <rect x="${card.x + 8}" y="228" width="96" height="152" rx="10" fill="${card.fill}"/>
+        <ellipse cx="${card.x + 56}" cy="304" rx="34" ry="64" transform="rotate(28 ${card.x + 56} 304)" fill="#fbf7f0"/>
+        <text x="${card.x + 56}" y="324" text-anchor="middle" font-family="Bevan" font-size="52" font-style="italic" fill="${card.mark === "W" ? "#141414" : card.fill}">${card.mark}</text>
+      </g>`,
+      )
+      .join(""),
 };
 
 /**
