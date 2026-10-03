@@ -7,13 +7,12 @@ export const UNO: GameListing = {
   blurb: "Match the colour or the number, and shout when you are down to one.",
   shape: "table",
   /*
-   * Two to ten. Two is the official floor, and ten is the building's ceiling
-   * on a felt — a deck of 108 still deals ten hands of seven with a pile left
-   * to draw from. Never one: a chips game does not run for one player, and
+   * Two to eight, as the tabletop dealt it: its oval seats eight round the
+   * rim and no more. Never one: a chips game does not run for one player, and
    * this one has no bank to play against.
    */
   minSeats: 2,
-  maxSeats: 10,
+  maxSeats: 8,
   mark: { text: "UNO", accentAt: 0 },
   /*
    * The same values theme.css sets, repeated because the link cards are drawn
@@ -69,4 +68,17 @@ export function anteFor(asked: unknown): number {
     }
   }
   return best;
+}
+
+/**
+ * How quickly bots move, the tabletop's own setting: a multiplier on how long
+ * one looks like it is thinking. The host picks it with the rules, because it
+ * is everybody's evening that waits on them.
+ */
+export const BOT_SPEEDS = { slow: 1.6, normal: 1, fast: 0.55, turbo: 0.2 } as const;
+export type BotSpeed = keyof typeof BOT_SPEEDS;
+
+/** A speed the host asked for, or normal for anything that is not one. */
+export function botSpeedOf(asked: unknown): BotSpeed {
+  return typeof asked === "string" && Object.hasOwn(BOT_SPEEDS, asked) ? (asked as BotSpeed) : "normal";
 }

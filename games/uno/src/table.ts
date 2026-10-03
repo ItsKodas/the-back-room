@@ -4,6 +4,7 @@ import type { Card, Color } from "./cards.js";
 import { compare } from "./cards.js";
 import type { Effect, EnginePhase, RoundResult } from "./engine.js";
 import { Game } from "./engine.js";
+import type { BotSpeed } from "./listing.js";
 import { COUNTDOWN_MS, FUN_PURSE, TURN_MS } from "./listing.js";
 import type { Badge, Input, Rules } from "./rules.js";
 import { rulesetName } from "./rules.js";
@@ -33,6 +34,8 @@ export interface SeatView {
   /** Sat down while a game was running, and waiting for the next one. */
   waiting: boolean;
   isBot: boolean;
+  /** How well a bot plays, shown on its plate as the tabletop did. */
+  skill: BotSkill | null;
   signedIn: boolean;
   avatar: string | null;
   accentColor: number | null;
@@ -110,8 +113,18 @@ export interface TableView {
   rules: Rules;
   /** The preset they match, or "House rules". */
   ruleset: string;
+  botSpeed: BotSpeed;
   round: number;
+  /** Who dealt this round. */
+  dealer: string | null;
   top: Card | null;
+  /**
+   * The last few cards on the discard pile, oldest first, so the pile can be
+   * drawn as the scatter it is. All of them were face up on the felt.
+   */
+  recent: readonly Card[];
+  /** The colour that was in play under a Draw Four being challenged. */
+  challengeColor: Color | null;
   /** The colour in play, which a Wild sets apart from its own. */
   color: Color | null;
   direction: 1 | -1;
@@ -162,6 +175,8 @@ export class Table implements PlayTable {
   readonly code: string;
   readonly ante: number;
   readonly rules: Rules;
+  /** How quickly bots move, set by the host with the rules. */
+  readonly botSpeed: BotSpeed;
   readonly readiness: Readiness;
 
   forFun = false;
@@ -197,12 +212,14 @@ export class Table implements PlayTable {
       rng: () => number;
       turnMs?: number;
       countdownMs?: number;
+      botSpeed?: BotSpeed;
     },
   ) {
     this.code = code;
     this.seating = new Seating(maxSeats);
     this.ante = options.ante;
     this.rules = options.rules;
+    this.botSpeed = options.botSpeed ?? "normal";
     this.rng = options.rng;
     this.turnMs = options.turnMs ?? TURN_MS;
     this.clockMs = this.turnMs;
@@ -576,6 +593,7 @@ export class Table implements PlayTable {
       connected: seat.connected,
       waiting: seat.waiting,
       isBot: seat.isBot,
+      skill: seat.isBot ? (seat.skill ?? "normal") : null,
       signedIn: seat.userId !== null,
       avatar: seat.avatar,
       accentColor: seat.accentColor,
@@ -666,8 +684,12 @@ export class Table implements PlayTable {
       pot: this.pot,
       rules: this.rules,
       ruleset: this.rulesetName,
+      botSpeed: this.botSpeed,
       round: game?.round ?? 0,
+      dealer: game === null ? null : this.seatAt(game.dealer),
       top: game?.top() ?? null,
+      recent: game?.discardPile.slice(-5) ?? [],
+      challengeColor: game?.phase === "challenge" ? (game.wd4?.color ?? null) : null,
       color: game?.currentColor ?? null,
       direction: game?.direction ?? 1,
       drawPile: game?.drawPile.length ?? 0,

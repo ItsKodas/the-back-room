@@ -554,18 +554,12 @@ export const RULES: readonly RuleDef[] = [
     id: "hurrySeconds",
     category: "themes",
     type: "number",
-    default: 5,
-    min: 3,
+    default: 3,
+    min: 2,
     max: 15,
     step: 1,
     name: "Hurry Up! time limit",
-    /*
-     * The tabletop default was Ubisoft's three seconds, from a game played on
-     * one screen. Here every move is a round trip, and three seconds on a bad
-     * connection is a turn lost before the card arrives — so the floor is three
-     * and the default five.
-     */
-    desc: "Seconds per turn while Hurry Up! is active.",
+    desc: "Seconds per turn while Hurry Up! is active (Ubisoft uses 3).",
     enabledIf: (rules) => rules.rabbids,
   },
 

@@ -30,6 +30,8 @@ export { decide, neutralMove, PROFILES, thinkingTime } from "./bot.js";
 export {
   ANTE,
   anteFor,
+  BOT_SPEEDS,
+  botSpeedOf,
   COUNTDOWN_MS,
   FUN_PURSE,
   RESULT_MS,
@@ -38,6 +40,7 @@ export {
   TURN_MS,
   UNO,
 } from "./listing.js";
+export type { BotSpeed } from "./listing.js";
 export type {
   EffectView,
   PeekView,

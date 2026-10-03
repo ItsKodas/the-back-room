@@ -5,7 +5,7 @@ import { act as botAct, decide, neutralMove, PROFILES, thinkingTime } from "./bo
 import { isColor } from "./cards.js";
 import type { Game } from "./engine.js";
 import { UnoError } from "./engine.js";
-import { anteFor, RESULT_MS, ROUND_MS, TURN_MS, UNO } from "./listing.js";
+import { anteFor, BOT_SPEEDS, botSpeedOf, RESULT_MS, ROUND_MS, TURN_MS, UNO } from "./listing.js";
 import { sanitize } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -309,7 +309,11 @@ export function unoAdapter(
     }
     return {
       seat: self,
-      delayMs: thinkingTime(self.skill ?? "normal", rng, game.turnTimeLimit !== null),
+      delayMs: thinkingTime(self.skill ?? "normal", rng, {
+        speed: BOT_SPEEDS[table.botSpeed],
+        hurrySeconds: game.turnTimeLimit,
+        challenge: game.phase === "challenge",
+      }),
       run: () => botAct(game, player, decision),
     };
   };
@@ -321,6 +325,7 @@ export function unoAdapter(
       const table = new Table(code, seatLimit(made?.["maxSeats"], UNO.maxSeats), {
         ante: anteFor(made?.["buyIn"]),
         rules: sanitize(made?.["uno"]),
+        botSpeed: botSpeedOf((made?.["uno"] as Record<string, unknown> | undefined)?.["botSpeed"]),
         rng,
         turnMs,
         ...(options.countdownMs === undefined ? {} : { countdownMs: options.countdownMs }),
