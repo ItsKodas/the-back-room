@@ -1,10 +1,12 @@
 /*
- * The Uno table.
+ * The Uno table, drawn as the tabletop drew it.
  *
- * A hand of a dozen cards on a 375px phone is what this sheet is for: the
- * seats become plates with a fan of backs, the piles size themselves off the
- * felt that is left, and your hand is one row that scrolls inside itself
- * rather than pushing the page sideways.
+ * Everything here is the uploaded tabletop's own design carried over whole:
+ * an oval of baize in a wooden rim with the seats round it, the two piles in
+ * the middle, your hand fanned along the bottom, cream panels for the rules
+ * and the pickers, and big round toasts for what just happened. Only the
+ * layout is the building's — the table is the window, and on a phone the
+ * seats pull in so nothing hangs off the side.
  *
  * Imported by Uno.tsx. Everything is `uno`-prefixed because game.css is global.
  */
@@ -30,7 +32,7 @@
   width: var(--uno-cw, 64px);
   height: calc(var(--uno-cw, 64px) * 1.5);
   border-radius: calc(var(--uno-cw, 64px) * 0.1);
-  background: #fbf7f0;
+  background: #fff;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
   user-select: none;
   vertical-align: middle;
@@ -52,7 +54,7 @@
   width: 72%;
   height: 94%;
   border-radius: 50%;
-  background: #fbf7f0;
+  background: #fff;
   transform: translate(-50%, -50%) rotate(28deg);
 }
 
@@ -63,7 +65,7 @@
   place-items: center;
   font-weight: 900;
   font-style: italic;
-  font-size: calc(var(--uno-cw, 64px) * 0.5);
+  font-size: calc(var(--uno-cw, 64px) * 0.55);
   line-height: 1;
   color: var(--uno-c);
   text-shadow: calc(var(--uno-cw, 64px) * -0.025) calc(var(--uno-cw, 64px) * 0.025) 0 var(--uno-ink);
@@ -199,397 +201,533 @@
 
 .uno-card--back .uno-card__mid {
   color: var(--uno-yellow);
-  font-size: calc(var(--uno-cw, 64px) * 0.28);
+  font-size: calc(var(--uno-cw, 64px) * 0.3);
   transform: rotate(-22deg);
+  text-shadow: calc(var(--uno-cw, 64px) * -0.02) calc(var(--uno-cw, 64px) * 0.02) 0 var(--uno-ink);
 }
 
 .uno-card--mini {
-  --uno-cw: 12px;
+  --uno-cw: 20px;
+  margin-left: -12px;
+  transform-origin: 50% 120%;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
-.uno-card--mini .uno-card__mid {
+.uno-card--mini:first-child {
+  margin-left: 0;
+}
+
+.uno-card--mini .uno-card__mid,
+.uno-card--mini .uno-card__corner {
   display: none;
 }
 
 .uno-card--tiny {
-  --uno-cw: 22px;
+  --uno-cw: 26px;
+  margin: 1px;
 }
 
-.uno-card--tiny .uno-card__corner,
-.uno-card--small .uno-card__corner {
+.uno-card--tiny .uno-card__corner {
   display: none;
 }
 
 .uno-card--small {
-  --uno-cw: 44px;
+  --uno-cw: 62px;
 }
 
-/* ---------------------------------------------------------------- the window */
-
-.uno {
-  container: uno / inline-size;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
+/* ------------------------------------------------------------ the palette */
 
 /*
- * Four rows and only the felt flexes: seats, felt, hand, controls. The hand
- * and the controls are the bottom two so both sit under a thumb.
+ * The tabletop's own tokens, scoped to its own pages rather than the room's:
+ * the cream of its panels and the wood of its rim are Uno's, and a sheet that
+ * repainted the building's tokens would repaint the nav too.
  */
-.uno__in {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
-  gap: 0.5rem;
-  flex: 1;
-  min-height: 0;
-  padding: 0.5rem 0.75rem;
+.uno-game,
+.uno-setup,
+.uno-backdrop {
+  --uno-red: #e2323a;
+  --uno-yellow: #f5c21b;
+  --uno-green: #2fa252;
+  --uno-blue: #1f6fd6;
+  --uno-ink: #141414;
+  --uno-panel: #fbf7f0;
+  --uno-panel-ink: #2a221d;
+  --uno-muted: #8a7d72;
+  --uno-rule: #ece4d8;
+  --uno-field: #ddd2c4;
+  --uno-house: #b5481c;
+  --uno-house-bg: #fde3d4;
+  --uno-felt: #17703f;
+  --uno-felt-dark: #0d4a29;
+  --uno-accent: #f5c21b;
+  --uno-font: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--uno-font);
 }
 
-/* ------------------------------------------------------------------ the rail */
+/* ------------------------------------------------------------- buttons */
 
-.uno__rail {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.35rem 0.45rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.uno__seat {
-  display: grid;
-  grid-template-columns: auto auto;
-  grid-template-areas: "face name" "face hand";
-  align-items: center;
-  gap: 0 0.35rem;
-  padding: 0.2rem 0.5rem 0.2rem 0.2rem;
-  border: 1px solid var(--gr-color-smoke);
-  border-radius: 999px;
-  background: var(--gr-color-slate);
-  transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
-}
-
-.uno__face {
-  grid-area: face;
-  width: 26px;
-  height: 26px;
-  overflow: hidden;
-  border-radius: 50%;
-}
-
-.uno__seat-name {
-  grid-area: name;
-  max-width: 8ch;
-  overflow: hidden;
-  font-size: 0.68rem;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--gr-color-ink-dim);
-}
-
-.uno__seat-hand {
-  grid-area: hand;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.66rem;
-  color: var(--gr-color-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.uno__fan {
-  display: inline-flex;
-}
-
-.uno__fan .uno-card + .uno-card {
-  margin-inline-start: -8px;
-}
-
-.uno__seat-score {
-  display: none;
-}
-
-.uno__uno-tag {
-  background: var(--gr-color-neon);
-  color: #1a1206;
-  font-weight: 800;
-  animation: uno-shout 360ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
-}
-
-/* What a plate is waiting on is read out, not drawn, on a phone. */
-.uno__seat-state {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.uno__seat.is-turn {
-  border-color: var(--gr-color-neon);
-  box-shadow: 0 0 0 1px var(--gr-color-neon), 0 0 14px -2px var(--gr-color-neon);
-}
-
-.uno__seat.is-you {
-  border-color: var(--gr-color-chip-dim);
-}
-
-.uno__seat.is-gone,
-.uno__seat.is-waiting,
-.uno__seat.is-short {
-  opacity: 0.45;
-}
-
-.uno__seat.is-ready {
-  border-color: var(--gr-color-good);
-}
-
-.uno__seat.is-bot .uno__face {
-  opacity: 0.8;
-  filter: saturate(0.6);
-}
-
-/* ------------------------------------------------------------------ the felt */
-
-.uno__play {
-  container: uno-felt / size;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 0;
-  padding: 0.5rem;
-  border-radius: 14px;
-  background:
-    radial-gradient(120% 90% at 50% 0%, var(--gr-color-felt-lit), var(--gr-color-felt) 60%),
-    var(--gr-color-felt-deep);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), var(--gr-sink);
-  /* The pile's card, sized from the felt both ways so a short phone still fits it. */
-  --uno-pile: clamp(52px, min(20cqi, 24cqh), 104px);
-}
-
-.uno__head {
-  position: absolute;
-  /* Along the bottom edge: the top-left corner is the talk key's. */
-  inset-block-end: 0.4rem;
-  inset-inline: 0.6rem;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.25rem 0.75rem;
-  font-size: 0.7rem;
-  color: var(--gr-color-ink-dim);
-}
-
-.uno__chips {
-  color: var(--gr-color-chip);
-  font-variant-numeric: tabular-nums;
-}
-
-.uno__quiet {
-  margin: 0;
-  text-align: center;
-}
-
-.uno__centre {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 0.4rem;
-}
-
-.uno__direction {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: calc(var(--uno-pile) * 3.1);
-  height: calc(var(--uno-pile) * 3.1);
-  color: rgb(255 255 255 / 0.14);
-  transform: translate(-50%, -58%);
-  pointer-events: none;
-  transition: transform 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.uno__direction svg {
-  width: 100%;
-  height: 100%;
-}
-
-.uno__direction.is-back {
-  transform: translate(-50%, -58%) scaleX(-1);
-}
-
-.uno__piles {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: calc(var(--uno-pile) * 0.35);
-}
-
-.uno__pile {
-  position: relative;
-  width: var(--uno-pile);
-  height: calc(var(--uno-pile) * 1.5);
-  --uno-cw: var(--uno-pile);
-}
-
-.uno-card--pile {
-  position: absolute;
-  inset: 0;
-}
-
-.uno-card--under {
-  transform: translate(3px, 3px);
-}
-
-.uno__draw {
-  padding: 0;
+.uno-btn {
+  min-height: 40px;
+  padding: 10px 20px;
   border: 0;
-  border-radius: calc(var(--uno-pile) * 0.1);
-  background: none;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--uno-ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s,
+    opacity 0.2s,
+    background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .uno-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+.uno-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.25);
+}
+
+.uno-btn:disabled {
+  opacity: 0.4;
   cursor: default;
 }
 
-.uno__draw.is-live {
-  cursor: pointer;
-  box-shadow: 0 0 0 3px var(--gr-color-neon), 0 0 18px -2px var(--gr-color-neon);
-  animation: uno-ask 1.6s ease-in-out infinite;
+.uno-btn:focus-visible {
+  outline: 3px solid var(--uno-accent);
+  outline-offset: 2px;
 }
 
-.uno__pile-count {
-  position: absolute;
-  inset: auto -0.4rem -0.4rem auto;
-  min-width: 1.6rem;
-  padding: 0.05rem 0.3rem;
+.uno-btn--primary {
+  background: var(--uno-accent);
+}
+
+.uno-btn--danger {
+  background: var(--uno-red);
+  color: #fff;
+}
+
+.uno-btn--ghost {
+  background: rgb(255 255 255 / 0.1);
+  color: inherit;
+  box-shadow: none;
+}
+
+.uno-btn--ghost:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.18);
+}
+
+.uno-btn--sm {
+  min-height: 34px;
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.uno-btn--big {
+  padding: 14px 34px;
+  font-size: 20px;
+}
+
+/* A press waiting on the table: held down, not greyed, because it was taken. */
+.uno-btn.is-busy {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.25);
+}
+
+.uno-btn--uno {
+  background: var(--uno-red);
+  color: var(--uno-yellow);
+  font-style: italic;
+  text-shadow: -1px 1px 0 var(--uno-ink);
+}
+
+.uno-btn--uno.is-armed {
+  animation: uno-pulse 1s ease-in-out infinite;
+}
+
+/* -------------------------------------------------------------- avatars */
+
+.uno-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  border-radius: 50%;
+  background: hsl(var(--hue, 200) 55% 45%);
+  color: #fff;
+  font-weight: 900;
+}
+
+.uno-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.uno-avatar--sm {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.uno-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
   border-radius: 999px;
-  background: var(--gr-color-shadow);
-  color: var(--gr-color-ink);
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
+  background: rgb(0 0 0 / 0.08);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: 2px;
+  text-transform: lowercase;
+}
+
+/* ------------------------------------------------------------ the window */
+
+/*
+ * Topbar, table, hand: the tabletop's three rows, and only the table flexes.
+ * The page around it is the building's, which is already the window.
+ */
+.uno-game {
+  container: unog / inline-size;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+  color: #fff;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 30%, #3a271c 0%, #1d1410 70%);
+}
+
+.uno-topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgb(0 0 0 / 0.25);
+}
+
+.uno-topbar__left {
+  min-width: 0;
+  font-weight: 900;
+}
+
+.uno-topbar__left .uno-muted {
+  color: var(--uno-muted);
+}
+
+.uno-topbar__pot {
+  margin-left: 8px;
+  color: var(--uno-accent);
+}
+
+.uno-topbar__right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.uno-status {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
   text-align: center;
 }
 
-/* The ring round the pile is the colour in play, which a Wild can set apart from its own. */
-.uno__discard::after {
-  content: "";
+@container unog (max-width: 640px) {
+  .uno-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px 10px;
+  }
+
+  .uno-status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 15px;
+  }
+}
+
+/* -------------------------------------------------------------- the table */
+
+.uno-table-wrap {
+  container: unow / size;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 16px;
+}
+
+@container unog (max-width: 640px) {
+  .uno-table-wrap {
+    padding: 28px 12px 8px;
+  }
+}
+
+.uno-table {
+  --uno-cw: clamp(40px, min(10.5cqh, 5.6cqw), 92px);
+  position: relative;
+  /* Room either side for the plates of the seats at the ends of the oval. */
+  width: min(max(100cqw - 220px, 72cqw), 100cqh * 1.9);
+  aspect-ratio: 1.9;
+}
+
+@container unow (orientation: portrait) {
+  .uno-table {
+    --uno-cw: clamp(40px, min(12cqw, 9cqh), 72px);
+    width: min(100cqw, 100cqh * 0.8);
+    aspect-ratio: 0.8;
+  }
+}
+
+.uno-felt {
   position: absolute;
-  inset: -6px;
-  border: 3px solid var(--uno-ring, transparent);
-  border-radius: calc(var(--uno-pile) * 0.14);
-  transition: border-color 260ms ease;
+  inset: 6% 7%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 45%, #1f8a4f 0%, var(--uno-felt) 45%, var(--uno-felt-dark) 100%);
+  box-shadow:
+    0 0 0 14px #5a3a24,
+    0 0 0 18px #3b2414,
+    0 20px 50px rgb(0 0 0 / 0.6),
+    inset 0 0 60px rgb(0 0 0 / 0.45);
+}
+
+@container unog (max-width: 640px) {
+  .uno-felt {
+    inset: 4% 10%;
+  }
+}
+
+/* The middle: the piles, the colour in play, and which way round it goes. */
+.uno-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   pointer-events: none;
 }
 
-.uno__discard[data-color="red"] {
-  --uno-ring: #e2323a;
+.uno-center > * {
+  grid-area: 1 / 1;
 }
 
-.uno__discard[data-color="yellow"] {
-  --uno-ring: #f5c21b;
-}
-
-.uno__discard[data-color="green"] {
-  --uno-ring: #2fa252;
-}
-
-.uno__discard[data-color="blue"] {
-  --uno-ring: #1f6fd6;
-}
-
-.uno__pending {
-  position: absolute;
-  inset: -0.6rem -0.8rem auto auto;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: #e2323a;
-  color: #fff;
-  font-weight: 900;
-  font-size: 0.9rem;
-  animation: uno-shout 360ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
-}
-
-/* A card lands where it came from: from your hand below, or from across the table. */
-.uno-card--land.uno-card--from-below {
-  animation: uno-land-up 340ms cubic-bezier(0.2, 0.9, 0.3, 1.25);
-}
-
-.uno-card--land.uno-card--from-above {
-  animation: uno-land-down 340ms cubic-bezier(0.2, 0.9, 0.3, 1.25);
-}
-
-.uno__colour {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  padding: 0.15rem 0.6rem;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.3);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.uno__colour-dot {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  background: var(--uno-dot, var(--gr-color-ink-faint));
-  transition: background-color 260ms ease;
-}
-
-.uno__colour--red {
-  --uno-dot: #e2323a;
-}
-
-.uno__colour--yellow {
-  --uno-dot: #f5c21b;
-}
-
-.uno__colour--green {
-  --uno-dot: #2fa252;
-}
-
-.uno__colour--blue {
-  --uno-dot: #1f6fd6;
-}
-
-.uno__badges {
+.uno-stack {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.3rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 34px;
+  transform: translateY(-4%);
 }
 
-.uno__clock {
+.uno-piles {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--uno-cw) * 0.7);
+  pointer-events: auto;
+}
+
+.uno-pile {
   position: relative;
-  width: min(14rem, 70cqi);
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: rgb(0 0 0 / 0.3);
+  width: var(--uno-cw);
+  height: calc(var(--uno-cw) * 1.5);
 }
 
-/* The turn draining away: one element scaled, so it never touches layout. */
-.uno__clock-bar {
+.uno-pile > .uno-card {
   position: absolute;
   inset: 0;
-  transform-origin: left center;
-  background: linear-gradient(90deg, var(--gr-color-neon), var(--gr-color-neon-hi));
-  animation-name: uno-drain;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
 }
 
-.uno__clock-text {
+.uno-draw-pile {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.uno-draw-pile.is-live {
+  cursor: pointer;
+}
+
+.uno-draw-pile.is-live > .uno-card:last-of-type {
+  animation: uno-pulse 1.4s ease-in-out infinite;
+}
+
+.uno-draw-pile:focus-visible {
+  outline: 3px solid var(--uno-accent);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+
+.uno-draw-pile__count {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgb(255 255 255 / 0.75);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.uno-empty-pile {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgb(255 255 255 / 0.3);
+  border-radius: 10px;
+}
+
+.uno-discard::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 18px;
+  pointer-events: none;
+  opacity: 0.9;
+  box-shadow:
+    0 0 0 4px var(--ring, transparent),
+    0 0 24px 4px var(--ring, transparent);
+  transition: box-shadow 0.3s;
+}
+
+.uno-discard[data-color="red"] {
+  --ring: var(--uno-red);
+}
+
+.uno-discard[data-color="yellow"] {
+  --ring: var(--uno-yellow);
+}
+
+.uno-discard[data-color="green"] {
+  --ring: var(--uno-green);
+}
+
+.uno-discard[data-color="blue"] {
+  --ring: var(--uno-blue);
+}
+
+/* The scatter is set on a wrapper so the landing card's own keyframes never fight it. */
+.uno-pile__slot {
+  position: absolute;
+  inset: 0;
+}
+
+.uno-pile__slot > .uno-card {
+  position: absolute;
+  inset: 0;
+}
+
+.uno-pile__slot.is-enter > .uno-card {
+  animation: uno-land 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+.uno-pending {
+  position: absolute;
+  top: -18px;
+  right: -26px;
+  z-index: 5;
+  padding: 2px 10px;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: var(--uno-ink);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  animation: uno-pop 0.3s;
+}
+
+.uno-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 12px 4px 6px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.35);
+  font-size: 14px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.uno-color-chip__dot {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: conic-gradient(var(--uno-red) 0 25%, var(--uno-yellow) 0 50%, var(--uno-green) 0 75%, var(--uno-blue) 0);
+}
+
+.uno-color-chip--red .uno-color-chip__dot {
+  background: var(--uno-red);
+}
+
+.uno-color-chip--yellow .uno-color-chip__dot {
+  background: var(--uno-yellow);
+}
+
+.uno-color-chip--green .uno-color-chip__dot {
+  background: var(--uno-green);
+}
+
+.uno-color-chip--blue .uno-color-chip__dot {
+  background: var(--uno-blue);
+}
+
+.uno-dir {
+  width: calc(var(--uno-cw) * 4.4);
+  height: calc(var(--uno-cw) * 4.4);
+  color: rgb(255 255 255 / 0.18);
+}
+
+.uno-dir.is-ccw {
+  transform: scaleX(-1);
+}
+
+.uno-dir svg {
+  width: 100%;
+  height: 100%;
+  animation: uno-spin 16s linear infinite;
+}
+
+.uno-timer {
+  position: relative;
+  width: calc(var(--uno-cw) * 2.6);
+  height: 8px;
+  margin-top: -22px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.35);
+}
+
+.uno-timer__bar {
+  display: block;
+  height: 100%;
+  background: var(--uno-yellow);
+  transform-origin: left;
+  animation: uno-drain linear forwards;
+}
+
+/* Read out for a screen reader, and for anybody with the bar's motion off. */
+.uno-timer__text {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -597,314 +735,1065 @@
   clip-path: inset(50%);
 }
 
-/* The newest thing that happened, said big for a moment and then gone. */
-.uno__moment {
-  position: absolute;
-  inset-block-start: 22%;
-  inset-inline: 0.5rem;
-  margin: 0;
-  text-align: center;
-  font-weight: 900;
-  font-size: clamp(1rem, 6cqi, 1.6rem);
-  color: var(--gr-color-ink-lit);
-  text-shadow: 0 2px 0 rgb(0 0 0 / 0.5);
-  pointer-events: none;
-  opacity: 0;
-  animation: uno-moment 1.8s ease-out;
-}
-
-.uno__moment--uno,
-.uno__moment--caught {
-  color: var(--gr-color-neon-hi);
-}
-
-/* -------------------------------------------------------------- the overlays */
-
-.uno__overlay {
-  position: absolute;
-  inset: auto 0.5rem 0.5rem;
-  z-index: 3;
-  display: grid;
-  justify-items: center;
-  gap: 0.5rem;
-  max-height: calc(100% - 1rem);
-  overflow-y: auto;
-  padding: 0.75rem;
-  border: 1px solid var(--gr-color-smoke-lit);
-  border-radius: 12px;
-  background: rgb(13 9 7 / 0.92);
-  animation: uno-rise 280ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.uno__overlay-title {
-  margin: 0;
-  font-weight: 900;
-  font-size: 1.05rem;
-  text-align: center;
-}
-
-.uno__overlay-pot {
-  margin: 0;
-  font-size: 0.85rem;
-}
-
-.uno__shown {
+.uno-badges {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.3rem;
-}
-
-.uno__results {
-  display: grid;
-  gap: 0.25rem;
-  width: 100%;
-  margin: 0;
+  gap: 6px;
+  margin: -22px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.uno__result {
-  display: grid;
-  grid-template-columns: 6ch minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.78rem;
+.uno-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f2f2f2;
+  color: var(--uno-ink);
+  font-size: 13px;
+  font-weight: 900;
+  animation: uno-pop 0.3s;
 }
 
-.uno__result.is-winner .uno__result-name {
-  color: var(--gr-color-neon-hi);
+.uno-waiting {
+  max-width: 52%;
+  margin: 0;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.35);
   font-weight: 800;
+  text-align: center;
 }
 
-.uno__result-name {
+/* ------------------------------------------------------------------ seats */
+
+.uno-seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.uno-seat {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.uno-seat__plate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 240px;
+  padding: 5px 12px 5px 5px;
+  border: 2px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  background: rgb(20 12 8 / 0.82);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.uno-seat.is-current .uno-seat__plate {
+  border-color: var(--uno-accent);
+  box-shadow:
+    0 0 0 3px rgb(245 194 27 / 0.35),
+    0 0 22px rgb(245 194 27 / 0.55);
+}
+
+.uno-seat.is-gone .uno-seat__plate {
+  opacity: 0.55;
+}
+
+.uno-seat__info {
+  display: block;
+  min-width: 0;
+}
+
+.uno-seat__name {
+  display: block;
   overflow: hidden;
+  font-size: 14px;
+  font-weight: 900;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* A long hand scrolls inside its own row rather than widening the page. */
-.uno__result-cards {
+.uno-seat__name .uno-tag {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.uno-seat__name .uno-tag--dealer {
+  background: #fff;
+  color: var(--uno-ink);
+}
+
+.uno-seat__name .uno-tag--ready {
+  background: var(--uno-green);
+}
+
+.uno-seat__meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #d8c8b8;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.uno-seat__fan {
   display: flex;
-  gap: 2px;
-  overflow-x: auto;
+  align-items: flex-end;
+  height: 34px;
 }
 
-.uno__result-pts {
-  font-variant-numeric: tabular-nums;
-  color: var(--gr-color-ink-dim);
+.uno-seat.is-me .uno-seat__fan {
+  display: none;
 }
 
-/* ------------------------------------------------------------------ the hand */
-
-.uno__hand {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-block: 14px 4px;
-  scrollbar-width: thin;
-  --uno-cw: clamp(54px, 15cqi, 76px);
+.uno-seat__uno {
+  position: absolute;
+  top: -6px;
+  right: -18px;
+  padding: 2px 10px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--uno-red);
+  color: var(--uno-yellow);
+  font-style: italic;
+  font-weight: 900;
+  text-shadow: -1px 1px 0 var(--uno-ink);
+  transform: rotate(10deg);
+  animation: uno-pop 0.35s;
 }
 
-.uno__cards {
+.uno-catch {
+  position: absolute;
+  bottom: -34px;
+  z-index: 6;
+  min-height: 34px;
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--uno-yellow);
+  color: var(--uno-ink);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.3);
+  animation: uno-wobble 0.6s ease-in-out infinite;
+}
+
+.uno-catch:disabled {
+  animation: none;
+  transform: translateY(2px);
+}
+
+@container unog (max-width: 640px) {
+  .uno-seat__name .uno-tag:not(.uno-tag--dealer) {
+    display: none;
+  }
+
+  .uno-seat__plate {
+    gap: 5px;
+    max-width: 112px;
+    padding: 3px 9px 3px 3px;
+  }
+
+  .uno-seat .uno-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+  }
+
+  .uno-seat__name {
+    font-size: 12px;
+  }
+
+  .uno-seat__meta {
+    font-size: 11px;
+  }
+
+  .uno-seat__fan {
+    height: 22px;
+  }
+
+  .uno-seat__fan .uno-card--mini {
+    --uno-cw: 13px;
+    margin-left: -9px;
+  }
+
+  .uno-seat__fan .uno-card--mini:first-child {
+    margin-left: 0;
+  }
+
+  .uno-seat__uno {
+    right: -8px;
+    font-size: 12px;
+  }
+}
+
+/* ----------------------------------------------------------------- toasts */
+
+.uno-toasts {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
   display: flex;
-  justify-content: safe center;
-  width: max-content;
-  min-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.uno-toast {
+  max-width: 90%;
   margin: 0;
-  padding: 0 0.25rem;
+  padding: 8px 22px;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.78);
+  color: #fff;
+  font-size: clamp(18px, 3cqw, 30px);
+  font-weight: 900;
+  text-align: center;
+  animation: uno-toast 1.9s ease forwards;
+}
+
+.uno-toast--uno,
+.uno-toast--win {
+  background: var(--uno-red);
+  color: var(--uno-yellow);
+  font-style: italic;
+  text-shadow: -2px 2px 0 var(--uno-ink);
+}
+
+.uno-toast--skip,
+.uno-toast--caught {
+  background: var(--uno-ink);
+  color: var(--uno-yellow);
+}
+
+.uno-toast--draw {
+  background: var(--uno-blue);
+}
+
+.uno-toast--reverse,
+.uno-toast--rotate,
+.uno-toast--swap,
+.uno-toast--shuffle,
+.uno-toast--jumpin {
+  background: var(--uno-green);
+}
+
+.uno-toast--rabbids,
+.uno-toast--explode,
+.uno-toast--timeout {
+  border-color: var(--uno-ink);
+  background: #f2f2f2;
+  color: var(--uno-ink);
+}
+
+.uno-toast--block {
+  background: #3d9be9;
+}
+
+.uno-toast--rayman {
+  background: #8a3ffc;
+}
+
+.uno-toast--jd {
+  background: #ff3fa4;
+}
+
+.uno-toast--error {
+  border-color: #e88;
+  background: #5a1d1d;
+  font-size: 16px;
+}
+
+/* ------------------------------------------------------------------- hand */
+
+.uno-hand-area {
+  min-width: 0;
+  padding: 6px 16px 14px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.35));
+}
+
+.uno-hand-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 1100px;
+  margin: 0 auto 6px;
+}
+
+.uno-hc-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 900;
+}
+
+.uno-your-turn {
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--uno-accent);
+  color: var(--uno-ink);
+  font-size: 13px;
+}
+
+.uno-hc-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.uno-bot-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.uno-bot-pick select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.uno-bot-pick option {
+  color: var(--uno-ink);
+}
+
+.uno-hand {
+  --uno-cw: clamp(62px, min(9cqw, 9dvh), 104px);
+  --gap: 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: safe center;
+  min-height: calc(var(--uno-cw) * 1.5 + 32px);
+  margin: 0;
+  padding: 28px 16px 4px;
+  overflow: auto hidden;
   list-style: none;
+  scrollbar-width: thin;
 }
 
-.uno__in-hand + .uno__in-hand {
-  margin-inline-start: calc(var(--uno-cw) * -0.28);
+.uno-hand__card + .uno-hand__card {
+  margin-left: var(--gap);
 }
 
-.uno__card-key {
+.uno-hand__key {
   display: block;
   padding: 0;
   border: 0;
   border-radius: calc(var(--uno-cw) * 0.1);
   background: none;
+  font: inherit;
   cursor: default;
-  transition: transform 140ms cubic-bezier(0.2, 0.9, 0.3, 1.3), filter 160ms ease;
+  transition:
+    transform 0.15s,
+    filter 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.uno__in-hand:not(.is-playable):not(.is-jump) .uno__card-key {
-  filter: brightness(0.62) saturate(0.75);
+.uno-hand__key:focus-visible {
+  outline: 3px solid var(--uno-accent);
+  outline-offset: 2px;
 }
 
-/* Playable cards stand up — that is how a thumb knows which ones are live. */
-.uno__in-hand.is-playable .uno__card-key,
-.uno__in-hand.is-jump .uno__card-key {
+.uno-hand__card.is-playable .uno-hand__key {
   cursor: pointer;
   transform: translateY(-10px);
 }
 
-.uno__in-hand.is-playable .uno__card-key:not(:disabled):active,
-.uno__in-hand.is-jump .uno__card-key:not(:disabled):active {
-  transform: translateY(-14px) scale(1.04);
+@media (hover: hover) {
+  .uno-hand__card.is-playable .uno-hand__key:hover {
+    position: relative;
+    z-index: 5;
+    transform: translateY(-22px) scale(1.04);
+  }
 }
 
-.uno__card-key:focus-visible {
-  outline: 3px solid var(--gr-color-neon-hi);
+.uno-hand__card.is-jump .uno-card {
+  box-shadow:
+    0 0 0 3px var(--uno-yellow),
+    0 6px 14px rgb(0 0 0 / 0.4);
+}
+
+.uno-hand__card.is-dim .uno-hand__key {
+  filter: brightness(0.55) saturate(0.7);
+}
+
+.uno-hand__card.is-drawn .uno-card {
+  box-shadow:
+    0 0 0 4px #fff,
+    0 0 20px #fff;
+}
+
+.uno-hand__card.is-enter .uno-card {
+  animation: uno-deal 0.35s ease-out;
+}
+
+/* A card that arrived face down while the table was asked, turning over. */
+.uno-hand__card.is-turning .uno-card {
+  animation: uno-turn 0.3s ease-out;
+}
+
+.uno-hand__card.is-shake .uno-card {
+  animation: uno-shake 0.35s;
+}
+
+.uno-hand-msg {
+  align-self: center;
+  margin: 0;
+  color: #d8c8b8;
+  font-weight: 800;
+}
+
+/* -------------------------------------------------------------------- log */
+
+.uno-log {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, 85%);
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgb(15 10 7 / 0.94);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+  animation: uno-rise 0.2s ease-out;
+}
+
+.uno-log__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.uno-log h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.uno-log ol {
+  margin: 0;
+  padding-left: 2.4em;
+  overflow-y: auto;
+  color: #e4d6c8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* ----------------------------------------------------------------- modals */
+
+.uno-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(10 6 4 / 0.6);
+  backdrop-filter: blur(3px);
+  animation: uno-fade 0.2s;
+}
+
+.uno-modal {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow-y: auto;
+  border-radius: 20px;
+  background: var(--uno-panel);
+  color: var(--uno-panel-ink);
+  text-align: center;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+  animation: uno-rise 0.25s ease-out;
+}
+
+.uno-modal--small {
+  width: min(420px, 100%);
+}
+
+.uno-modal--wide {
+  width: min(820px, 100%);
+  text-align: left;
+}
+
+.uno-modal h2 {
+  margin: 0 0 6px;
+  font-weight: 900;
+}
+
+.uno-modal h3 {
+  margin: 18px 0 6px;
+  color: var(--uno-muted);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.uno-modal p {
+  margin: 0.4em 0;
+}
+
+.uno-muted {
+  color: var(--uno-muted);
+}
+
+.uno-modal .uno-btn--ghost {
+  background: rgb(0 0 0 / 0.07);
+  color: var(--uno-panel-ink);
+}
+
+.uno-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.uno-modal--wide .uno-modal-actions {
+  justify-content: flex-end;
+}
+
+.uno-color-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.uno-color-btn {
+  padding: 22px 10px;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  text-shadow: -1px 1px 0 rgb(0 0 0 / 0.4);
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.25);
+  transition: transform 0.1s;
+}
+
+@media (hover: hover) {
+  .uno-color-btn:hover {
+    transform: scale(1.04);
+  }
+}
+
+.uno-color-btn:focus-visible {
+  outline: 3px solid var(--uno-panel-ink);
   outline-offset: 2px;
 }
 
-.uno__in-hand.is-jump .uno-card {
-  box-shadow: 0 0 0 3px var(--gr-color-neon), 0 6px 14px rgb(0 0 0 / 0.4);
+.uno-color-btn--red {
+  background: var(--uno-red);
 }
 
-.uno__in-hand.is-drawn .uno-card {
-  box-shadow: 0 0 0 3px #fff, 0 0 16px #fff;
+.uno-color-btn--yellow {
+  background: var(--uno-yellow);
 }
 
-/* Out of the shoe, above the felt. */
-.uno__in-hand.is-arriving {
-  animation: uno-arrive 320ms cubic-bezier(0.2, 0.9, 0.3, 1.25);
+.uno-color-btn--green {
+  background: var(--uno-green);
 }
 
-/* The face-down card that was already on its way turns over. */
-.uno__in-hand.is-turning .uno-card {
-  animation: uno-turn 300ms ease-out;
+.uno-color-btn--blue {
+  background: var(--uno-blue);
 }
 
-/* -------------------------------------------------------------- the controls */
+.uno-txt-red {
+  color: var(--uno-red);
+}
 
-.uno__controls {
+.uno-txt-yellow {
+  color: #c09000;
+}
+
+.uno-txt-green {
+  color: var(--uno-green);
+}
+
+.uno-txt-blue {
+  color: var(--uno-blue);
+}
+
+.uno-target-list {
   display: grid;
-  align-content: end;
-  gap: 0.45rem;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.uno__line {
+.uno-target-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 14px 8px 8px;
+  border: 1.5px solid var(--uno-field);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--uno-panel-ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.uno-target-btn b {
+  margin-left: auto;
+  color: var(--uno-muted);
+  font-size: 14px;
+}
+
+.uno-target-btn:hover,
+.uno-target-btn:focus-visible {
+  border-color: var(--uno-panel-ink);
+}
+
+.uno-small-list {
+  padding-left: 20px;
+  color: #4b4038;
+  font-size: 14px;
+  text-align: left;
+}
+
+/* The scores: wide, so it scrolls inside itself on a phone. */
+.uno-table-scroll {
+  overflow-x: auto;
+}
+
+.uno-scores {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.uno-scores th {
+  padding: 6px;
+  color: var(--uno-muted);
+  font-size: 12px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.uno-scores td {
+  padding: 6px;
+  border-top: 1px solid var(--uno-rule);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.uno-scores__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.uno-scores__hand {
+  min-width: 140px;
+  white-space: normal !important;
+}
+
+.uno-scores .uno-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.uno-scores .uno-total {
+  font-weight: 900;
+}
+
+.uno-scores tr.is-win td {
+  background: #fff4cf;
+}
+
+.uno-trophy {
   margin: 0;
+  font-size: 56px;
+  line-height: 1;
   text-align: center;
-  font-size: 0.8rem;
-  color: var(--gr-color-ink-dim);
 }
 
-.uno__keys,
-.uno__picker {
+.uno-modal h2:has(> .uno-round-title),
+.uno-modal p.uno-round-title {
+  text-align: center;
+}
+
+.uno-round-title .uno-trophy {
+  display: block;
+}
+
+.uno-rules-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.uno-rules-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--uno-rule);
+  font-size: 14px;
+}
+
+.uno-rules-list li.is-custom .uno-tag {
+  background: var(--uno-house-bg);
+  color: var(--uno-house);
+}
+
+.uno-peek {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0.4rem;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
 }
 
-.uno__keys > .key,
-.uno__keys > .slab,
-.uno__keys .taunt-picker__open,
-.uno__picker > .key {
-  min-height: 52px;
+/* -------------------------------------------------------------- the setup */
+
+/*
+ * The building's door to a table — a code to join by, a panel to open your
+ * own — dressed as the tabletop's setup screen: the logo over cream panels,
+ * pill buttons, and every rule laid out with its switch.
+ */
+.uno-brand {
+  display: block;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
-.uno__go {
-  flex: 1 1 auto;
-  max-width: 62%;
-  margin-inline-start: auto;
+.uno-logo {
+  display: inline-block;
+  padding: 10px 34px 14px;
+  border: 6px solid #fff;
+  border-radius: 50%;
+  background: var(--uno-red);
+  color: var(--uno-yellow);
+  font-size: clamp(44px, 12vw, 64px);
+  font-style: italic;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: -3px 3px 0 var(--uno-ink);
+  transform: rotate(-8deg);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.4);
 }
 
-.uno__picker > .key {
-  flex: 1 1 4.5rem;
+.uno-brand__line {
+  display: block;
+  margin-top: 12px;
+  color: #e8d9c8;
+  font-weight: 600;
 }
 
-.uno__colour-key {
+.uno-setup .join__pitch {
+  text-align: center;
+}
+
+.uno-setup .join .label {
+  color: var(--uno-muted);
+  font-family: var(--uno-font);
   font-weight: 800;
-  color: #fff;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 0.4);
 }
 
-.uno__colour-key--red {
-  background: #e2323a;
+.uno-setup .join .input {
+  border: 1.5px solid var(--uno-field);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--uno-panel-ink);
+  font-family: var(--uno-font);
+  box-shadow: none;
 }
 
-.uno__colour-key--yellow {
-  background: #f5c21b;
-  color: #1a1206;
+.uno-setup .join__split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .uno-setup .join__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.uno-setup .join .housing {
+  border: 0;
+  border-radius: 14px;
+  background: var(--uno-panel);
+  color: var(--uno-panel-ink);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
+}
+
+.uno-setup .join .housing__head {
+  padding: 18px 18px 0;
+  border: 0;
+  background: none;
+}
+
+.uno-setup .join .housing .housing__head .label {
+  color: var(--uno-panel-ink);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.uno-setup .join .housing__foot {
+  justify-content: center;
+  border: 0;
+  background: none;
+}
+
+.uno-setup .join .housing .label {
+  color: var(--uno-muted);
+}
+
+.uno-setup .join .housing .hint,
+.uno-setup .join .housing .panel__note {
+  color: var(--uno-muted);
+}
+
+/* The one press the page is for: the tabletop's big yellow pill. */
+.uno-setup .join .slab {
+  min-height: 48px;
+  margin-bottom: 0;
+  border-radius: 999px;
+  background: var(--uno-accent);
+  color: var(--uno-ink);
+  font-family: var(--uno-font);
+  font-size: 18px;
+  font-weight: 900;
+  text-shadow: none;
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
+  transform: none;
+}
+
+.uno-setup .join .slab::before,
+.uno-setup .join .slab::after {
+  display: none;
+}
+
+.uno-setup .join .slab:disabled:not(.is-busy) {
+  opacity: 0.55;
+}
+
+.uno-setup .join .slab.is-busy {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.25);
+}
+
+.uno-setup .join .housing .key {
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.06);
+  color: var(--uno-panel-ink);
+  font-family: var(--uno-font);
+  font-weight: 800;
+  box-shadow: none;
+  transform: none;
+}
+
+.uno-setup .join .housing .key:disabled {
+  opacity: 0.45;
+}
+
+.uno-setup .join .lcd {
+  border: 1.5px solid var(--uno-field);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.uno-setup .join .lcd__cell {
+  color: var(--uno-panel-ink);
+  font-family: var(--uno-font);
+  font-weight: 900;
   text-shadow: none;
 }
 
-.uno__colour-key--green {
-  background: #2fa252;
+.uno-setup .join .lcd__cell--empty {
+  color: #cfc4b6;
 }
 
-.uno__colour-key--blue {
-  background: #1f6fd6;
+.uno-setup .join .lcd__cell--next::after {
+  background: var(--uno-panel-ink);
+  box-shadow: none;
 }
 
-.uno__uno,
-.uno__catch {
+/* Every choice in a panel is the tabletop's segmented pill. */
+.uno-setup .join .housing .lamps {
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--uno-rule);
+}
+
+.uno-setup .join .housing .lamp {
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--uno-muted);
+  font-family: var(--uno-font);
+  font-weight: 800;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+.uno-setup .join .housing .lamp[aria-checked="true"] {
+  background: var(--uno-panel-ink);
+  color: #fff;
+}
+
+.uno-setup .join .plate {
+  border: 1.5px solid var(--uno-field);
+  background: #fff;
+  color: var(--uno-panel-ink);
+  font-family: var(--uno-font);
+  box-shadow: none;
+}
+
+.uno-setup .join .plate__name {
   font-weight: 900;
-  color: var(--gr-color-neon-hi);
 }
 
-.uno__uno {
-  animation: uno-ask 1.2s ease-in-out infinite;
+.uno-setup .join .plate__note {
+  color: var(--uno-muted);
 }
 
-.uno__keys .is-busy {
-  color: var(--gr-color-neon-core);
-  text-shadow: 0 0 10px rgb(255 255 255 / 0.4), 0 0 22px var(--gr-color-neon-hi);
+.uno-setup .join .plate::before {
+  background: var(--uno-field);
+  box-shadow: none;
 }
 
-/* ------------------------------------------------------------ the setup form */
+.uno-setup .join .plate[aria-checked="true"] {
+  border-color: var(--uno-panel-ink);
+  background: #fff;
+  box-shadow: none;
+}
 
-.uno__pick {
+.uno-setup .join .plate[aria-checked="true"]::before {
+  background: var(--uno-green);
+  box-shadow: none;
+}
+
+.uno-setup .join .plate[aria-checked="true"] .plate__name {
+  color: var(--uno-panel-ink);
+}
+
+/* The rules: the tabletop's own panel, every rule out on the table. */
+.uno-rules {
+  display: grid;
+  gap: 4px;
+}
+
+.uno-rules__head {
   display: flex;
   flex-wrap: wrap;
-}
-
-.uno__pick > .lamp {
-  flex: 1 1 5.5rem;
-}
-
-.uno-rules-form {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.uno-rules-form__mode {
-  margin: 0;
-}
-
-.uno-rules-form__all > summary {
-  min-height: 44px;
-  display: flex;
   align-items: center;
-  cursor: pointer;
-  font-weight: 700;
-  color: var(--gr-color-ink);
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
-.uno-rules-form__group {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0.5rem 0 0;
+.uno-rules__head h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.uno-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.uno-preset {
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.06);
+  color: var(--uno-panel-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.uno-preset:hover {
+  background: rgb(0 0 0 / 0.12);
+}
+
+.uno-preset[aria-checked="true"] {
+  background: var(--uno-panel-ink);
+  color: #fff;
+}
+
+.uno-preset:focus-visible {
+  outline: 3px solid var(--uno-panel-ink);
+  outline-offset: 2px;
+}
+
+.uno-rules__mode {
+  margin: 0;
+  color: var(--uno-muted);
+  font-size: 14px;
+}
+
+.uno-rule-cat {
+  margin: 0;
   padding: 0;
   border: 0;
+  min-width: 0;
 }
 
-.uno-rules-form__group > legend {
+.uno-rule-cat legend {
+  margin: 16px 0 4px;
   padding: 0;
-  margin-block-end: 0.25rem;
-  font-size: 0.7rem;
+  color: var(--uno-muted);
+  font-size: 13px;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--gr-color-ink-faint);
 }
 
 .uno-rule {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 200px);
   align-items: center;
-  gap: 0.5rem 0.75rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--gr-color-smoke);
-}
-
-/* A select is too wide to sit beside its words on a phone, so it goes under them. */
-.uno-rule:has(select) {
-  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--uno-rule);
 }
 
 .uno-rule.is-off {
@@ -912,170 +1801,158 @@
 }
 
 .uno-rule__name {
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: 900;
 }
 
-.uno-rule__tag {
-  margin-inline-start: 0.4rem;
+.uno-rule.is-custom .uno-rule__name {
+  color: var(--uno-house);
+}
+
+.uno-rule.is-custom .uno-tag {
+  background: var(--uno-house-bg);
+  color: var(--uno-house);
 }
 
 .uno-rule__desc {
-  margin: 0.15rem 0 0;
-  font-size: 0.72rem;
-  color: var(--gr-color-ink-dim);
+  margin: 2px 0 0;
+  color: var(--uno-muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
-.uno-switch {
-  width: 28px;
-  height: 28px;
-  accent-color: var(--gr-color-neon);
+.uno-rule__ctl {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
-.uno-select,
-.uno-number {
-  min-height: 44px;
-  max-width: 100%;
-  padding: 0 0.5rem;
-  border: 1px solid var(--gr-color-smoke-lit);
-  border-radius: 8px;
-  background: var(--gr-color-shadow);
-  color: var(--gr-color-ink);
+.uno-rule__ctl select,
+.uno-rule__ctl input[type="number"],
+.uno-field select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--uno-field);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--uno-panel-ink);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 16px;
 }
 
-.uno-number {
-  width: 6rem;
+.uno-rule__ctl select:disabled {
+  opacity: 0.35;
 }
 
-/* --------------------------------------------------------- the rules summary */
+@media (max-width: 560px) {
+  .uno-rule {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-.uno-summary {
-  display: grid;
-  gap: 0.5rem;
-  font-size: 0.8rem;
+  .uno-rule__ctl {
+    justify-content: flex-start;
+  }
 }
 
-.uno-summary__lead,
-.uno-summary__line {
+/* The tabletop's switch: a real checkbox under a drawn track. */
+.uno-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+
+.uno-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
   margin: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
-.uno-summary__list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
+.uno-switch input:disabled {
+  cursor: default;
 }
 
-.uno-summary__row dt {
-  font-weight: 700;
+.uno-switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d7ccbe;
+  transition: 0.2s;
 }
 
-.uno-summary__row dd {
-  margin: 0;
-  color: var(--gr-color-ink-dim);
+.uno-switch span::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  transition: 0.2s;
 }
 
-/* ------------------------------------------------------- the side column */
-
-.uno__side-rules,
-.uno__side-activity {
-  display: none;
+.uno-switch input:checked + span {
+  background: var(--uno-green);
 }
 
-.uno__panel-title {
-  margin: 0 0 0.35rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--gr-color-ink-faint);
+.uno-switch input:checked + span::before {
+  transform: translateX(22px);
 }
 
-@container uno (min-width: 760px) {
-  .uno__in {
-    grid-template-columns: minmax(0, 1fr) 19rem;
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
-    grid-template-areas:
-      "rail     rules"
-      "play     rules"
-      "hand     activity"
-      "controls activity";
-  }
+.uno-switch input:focus-visible + span {
+  outline: 3px solid var(--uno-panel-ink);
+  outline-offset: 2px;
+}
 
-  .uno__rail {
-    grid-area: rail;
-  }
+.uno-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+}
 
-  .uno__play {
-    grid-area: play;
-  }
-
-  .uno__hand {
-    grid-area: hand;
-  }
-
-  .uno__controls {
-    grid-area: controls;
-  }
-
-  /*
-   * The side column scrolls inside whatever the felt leaves it. `contain:
-   * size` is what stops a long rules list or an evening of activity from
-   * sizing the rows it sits beside and squeezing the felt flat.
-   */
-  .uno__side-rules {
-    grid-area: rules;
-    display: block;
-    min-height: 0;
-    overflow-y: auto;
-    contain: size;
-  }
-
-  .uno__side-activity {
-    grid-area: activity;
-    display: block;
-    min-height: 0;
-    overflow-y: auto;
-    contain: size;
-  }
-
-  .uno__seat {
-    grid-template-columns: auto auto auto;
-    grid-template-areas: "face name score" "face hand score";
-  }
-
-  .uno__seat-name {
-    max-width: 12ch;
-  }
-
-  .uno__seat-score {
-    grid-area: score;
-    display: block;
-    font-size: 0.66rem;
-    color: var(--gr-color-ink-dim);
-  }
+.uno-field select {
+  width: auto;
 }
 
 /* ------------------------------------------------------------- the motion */
 
-@keyframes uno-land-up {
-  from {
-    transform: translateY(70%) rotate(-8deg) scale(1.08);
-    opacity: 0.4;
+@keyframes uno-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-@keyframes uno-land-down {
-  from {
-    transform: translateY(-70%) rotate(8deg) scale(1.08);
-    opacity: 0.4;
+@keyframes uno-pulse {
+  50% {
+    transform: scale(1.06);
   }
 }
 
-@keyframes uno-arrive {
+@keyframes uno-pop {
   from {
-    transform: translateY(-60%) scale(0.9);
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes uno-land {
+  from {
+    transform: translateY(-80px) scale(1.25) rotate(-20deg);
+    opacity: 0;
+  }
+}
+
+@keyframes uno-deal {
+  from {
+    transform: translateY(40px);
     opacity: 0;
   }
 }
@@ -1086,103 +1963,103 @@
   }
 }
 
-@keyframes uno-shout {
-  from {
-    transform: scale(0.6);
+@keyframes uno-shake {
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
   }
 }
 
-@keyframes uno-rise {
-  from {
-    transform: translateY(16px);
-    opacity: 0;
-  }
-}
-
-@keyframes uno-moment {
-  0% {
-    transform: scale(0.7);
-    opacity: 0;
-  }
-  15% {
-    transform: scale(1.05);
-    opacity: 1;
-  }
-  25% {
-    transform: scale(1);
-  }
-  75% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
+@keyframes uno-wobble {
+  50% {
+    transform: scale(1.1) rotate(-3deg);
   }
 }
 
 @keyframes uno-drain {
   from {
-    transform: scaleX(var(--uno-from, 1));
+    transform: scaleX(var(--from, 1));
   }
   to {
     transform: scaleX(0);
   }
 }
 
-@keyframes uno-ask {
-  50% {
-    filter: brightness(1.18);
+@keyframes uno-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes uno-rise {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+}
+
+@keyframes uno-toast {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  20%,
+  80% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-30px);
+    opacity: 0;
   }
 }
 
 /* -------------------------------------------------------- the off switches */
 
 /*
- * Every keyframe in this sheet, off. The felt still says everything: a card
- * is on the pile, the colour is the colour, the moment is still said — it is
- * left up rather than faded — and the clock's seconds are read out.
+ * Every keyframe and transition in this sheet, off. The table still says
+ * everything: the card is on the pile, a toast stays up for its time instead
+ * of fading, and the clock reads its seconds out instead of draining.
  */
 @media (prefers-reduced-motion: reduce) {
-  .uno-card--land,
-  .uno__in-hand.is-arriving,
-  .uno__in-hand.is-turning .uno-card,
-  .uno__uno-tag,
-  .uno__pending,
-  .uno__overlay,
-  .uno__draw.is-live,
-  .uno__uno,
-  .uno__clock-bar {
-    animation: none;
+  .uno-game *,
+  .uno-game *::before,
+  .uno-game *::after,
+  .uno-setup *,
+  .uno-setup *::before,
+  .uno-setup *::after,
+  .uno-backdrop,
+  .uno-backdrop * {
+    animation: none !important;
+    transition: none !important;
   }
 
-  .uno__moment {
-    animation: none;
-    opacity: 1;
-  }
-
-  .uno__clock-bar {
-    transform: scaleX(var(--uno-from, 1));
-  }
-
-  .uno__clock {
+  .uno-timer {
+    width: auto;
     height: auto;
-    min-height: 4px;
     overflow: visible;
     background: none;
   }
 
-  .uno__clock-text {
+  .uno-timer__bar {
+    display: none;
+  }
+
+  .uno-timer__text {
     position: static;
     width: auto;
     height: auto;
+    overflow: visible;
     clip-path: none;
-    font-size: 0.7rem;
-  }
-
-  .uno__seat,
-  .uno__card-key,
-  .uno__direction,
-  .uno__discard::after,
-  .uno__colour-dot {
-    transition: none;
+    font-size: 13px;
+    font-weight: 800;
   }
 }

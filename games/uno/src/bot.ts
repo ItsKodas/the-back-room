@@ -284,11 +284,24 @@ export function neutralMove(game: Game, player: number): void {
   }
 }
 
-/** How long a bot looks like it is thinking. */
-export function thinkingTime(skill: BotSkill, rng: () => number, hurried: boolean): number {
-  if (hurried) {
-    return 700 + Math.floor(rng() * 900);
+/**
+ * How long a bot looks like it is thinking, the tabletop's timings: a little
+ * longer over a challenge, scaled by the table's bot speed. Under Hurry Up!
+ * bots rush, and an easy one sometimes fumbles past the clock.
+ */
+export function thinkingTime(
+  skill: BotSkill,
+  rng: () => number,
+  options: { speed?: number; hurrySeconds?: number | null; challenge?: boolean } = {},
+): number {
+  const speed = options.speed ?? 1;
+  const hurry = options.hurrySeconds ?? null;
+  if (hurry !== null) {
+    if (skill === "easy" && rng() < 0.2) {
+      return hurry * 1000 + 500;
+    }
+    return Math.round((350 + rng() * 600) * Math.min(speed, 1));
   }
-  const base = skill === "hard" ? 900 : skill === "easy" ? 1400 : 1100;
-  return base + Math.floor(rng() * 700);
+  const base = options.challenge === true ? 1100 : 800;
+  return Math.round((base + rng() * 500) * speed);
 }

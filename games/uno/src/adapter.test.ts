@@ -2,9 +2,10 @@ import type { FinishedGame, GameDeps, StatBumpLike } from "@backroom/core";
 import { TableError } from "@backroom/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { unoAdapter } from "./adapter.js";
-import { decide } from "./bot.js";
+import { decide, thinkingTime } from "./bot.js";
 import { num, seeded, stage } from "./fixtures.js";
-import { FUN_PURSE } from "./listing.js";
+import { FUN_PURSE, UNO } from "./listing.js";
+import { officialRules, sanitize } from "./rules.js";
 import type { Table } from "./table.js";
 
 type Adapter = ReturnType<typeof unoAdapter>;
@@ -106,6 +107,29 @@ describe("opening a table", () => {
     );
   });
 
+  it("seats two to eight, as the tabletop did, whatever is asked for", () => {
+    const adapter = unoAdapter();
+    expect(UNO.maxSeats).toBe(8);
+    expect((adapter.create("ABCDE", { maxSeats: 10 }) as Table).maxSeats).toBe(8);
+  });
+
+  it("keeps the host's bot speed apart from the rules, and normal for anything that is not one", () => {
+    const adapter = unoAdapter();
+    const quick = adapter.create("ABCDE", { uno: { botSpeed: "turbo", jumpIn: true } }) as Table;
+    expect(quick.botSpeed).toBe("turbo");
+    expect(quick.rules.jumpIn).toBe(true);
+    expect("botSpeed" in quick.rules).toBe(false);
+    expect(quick.view(null).botSpeed).toBe("turbo");
+    expect((adapter.create("ABCDE", { uno: { botSpeed: "warp" } }) as Table).botSpeed).toBe("normal");
+    expect((adapter.create("ABCDE", { uno: { botSpeed: "toString" } }) as Table).botSpeed).toBe("normal");
+  });
+
+  it("gives Hurry Up! the tabletop's three seconds, down to two", () => {
+    expect(officialRules().hurrySeconds).toBe(3);
+    expect(sanitize({ hurrySeconds: 2 }).hurrySeconds).toBe(2);
+    expect(sanitize({ hurrySeconds: 1 }).hurrySeconds).toBe(2);
+  });
+
   it("refuses a bot at a table playing for chips", () => {
     const table = seated(unoAdapter(), ["a"]);
     expect(() => table.addBot("bot", "Bot", "normal")).toThrow(TableError);
@@ -184,6 +208,45 @@ describe("what each seat sees", () => {
       expect(sent).not.toMatch(new RegExp(`"id":${id}[,}]`));
     }
     expect(table.view(null).hand).toBe(null);
+  });
+});
+
+describe("what the table shows everybody", () => {
+  it("names the dealer, the last few cards on the pile, and how well each bot plays", async () => {
+    const bank = store();
+    const adapter = unoAdapter({ rng: seeded(5) });
+    const table = seated(adapter, ["me"], { forFun: true });
+    table.addBot("bot1", "Ava", "hard");
+    await deal(adapter, table, bank.deps, ["me"]);
+    const view = table.view("me");
+    const game = table.game;
+    if (game === null) throw new Error("no game");
+    expect(view.dealer).toBe(table.seatAt(game.dealer));
+    expect(view.recent.length).toBeGreaterThan(0);
+    expect(view.recent.length).toBeLessThanOrEqual(5);
+    expect(view.recent.at(-1)?.id).toBe(view.top?.id);
+    expect(view.seats.find((seat) => seat.id === "bot1")?.skill).toBe("hard");
+    expect(view.seats.find((seat) => seat.id === "me")?.skill).toBe(null);
+    if (view.step !== "challenge") {
+      expect(view.challengeColor).toBe(null);
+    }
+  });
+});
+
+describe("how long a bot thinks", () => {
+  const half = () => 0.5;
+
+  it("takes the tabletop's time, scaled by the table's bot speed", () => {
+    expect(thinkingTime("normal", half)).toBe(1_050);
+    expect(thinkingTime("normal", half, { speed: 0.2 })).toBe(210);
+    expect(thinkingTime("normal", half, { speed: 1.6 })).toBe(1_680);
+    expect(thinkingTime("normal", half, { challenge: true })).toBe(1_350);
+  });
+
+  it("rushes under Hurry Up!, never slower than normal, and an easy bot sometimes fumbles past the clock", () => {
+    expect(thinkingTime("hard", half, { hurrySeconds: 3, speed: 1.6 })).toBe(650);
+    expect(thinkingTime("hard", half, { hurrySeconds: 3, speed: 0.2 })).toBe(130);
+    expect(thinkingTime("easy", () => 0.1, { hurrySeconds: 3 })).toBe(3_500);
   });
 });
 
