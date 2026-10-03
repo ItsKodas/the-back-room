@@ -97,6 +97,18 @@ export const createSchema = z.object({
       onlyCustom: z.boolean().optional(),
     })
     .optional(),
+  /**
+   * An Uno table's rules: the host's preset and every toggle under it.
+   *
+   * Bounded here only in shape — a flat bag of a few dozen short values — and
+   * checked rule by rule against the game's own list by the game, which is
+   * where the real refusal lives. Listing every rule here as well would be a
+   * second copy of that list to drift from the first.
+   */
+  uno: z
+    .record(z.string().max(32), z.union([z.boolean(), z.number().finite(), z.string().max(32)]))
+    .refine((rules) => Object.keys(rules).length <= 40, { message: "too many rules" })
+    .optional(),
 });
 
 export const setListedSchema = z.object({ listed: z.boolean() });

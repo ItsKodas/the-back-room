@@ -1,0 +1,40 @@
+/*
+ * The Uno room.
+ *
+ * Same rule as every other room's: a game owns its materials, the building
+ * owns its interface. This repaints the surfaces and touches nothing that
+ * carries meaning — chip stays gold, good and bad stay what they are
+ * everywhere else.
+ *
+ * The box's own red, deepened to a felt you can read white cards on, under a
+ * yellow sign. Nothing else on the floor is lit yellow, and the four card
+ * colours sit on it without any of them disappearing into it.
+ */
+:root[data-game="uno"],
+[data-game="uno"] {
+  --gr-color-night: #160c0c;
+  --gr-color-slate: #221313;
+  --gr-color-shadow: #0a0505;
+  --gr-color-smoke: #2b1717;
+  --gr-color-smoke-lit: #3a2020;
+
+  /* The felt the cards go down on. */
+  --gr-color-felt: #7a1414;
+  --gr-color-felt-lit: #8f1c1c;
+  --gr-color-felt-deep: #4f0c0c;
+
+  /* The sign. */
+  --gr-color-neon-core: #fffbe6;
+  --gr-color-neon-hi: #ffe066;
+  --gr-color-neon: #f5c518;
+  --gr-color-neon-dim: #8a6d0a;
+  --gr-color-neon-deep: #b8920f;
+
+  --gr-color-air: var(--gr-color-neon);
+  --gr-color-air-hi: var(--gr-color-neon-hi);
+
+  --gr-color-ink: #fbefe6;
+  --gr-color-ink-lit: #fffaf5;
+  --gr-color-ink-dim: #c9aea5;
+  --gr-color-ink-faint: #8e726a;
+}

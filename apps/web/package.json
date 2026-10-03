@@ -21,6 +21,7 @@
     "@backroom/game-scribble": "*",
     "@backroom/game-slots": "*",
     "@backroom/game-tips": "*",
-    "@backroom/game-two-up": "*"
+    "@backroom/game-two-up": "*",
+    "@backroom/game-uno": "*"
   }
 }

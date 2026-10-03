@@ -23,6 +23,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/ui/package.json packages/ui/
 COPY games/greed/package.json games/greed/
 COPY games/liars-dice/package.json games/liars-dice/
+COPY games/uno/package.json games/uno/
 COPY games/blackjack/package.json games/blackjack/
 COPY games/slots/package.json games/slots/
 COPY games/poker/package.json games/poker/
@@ -60,6 +61,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/ui/package.json packages/ui/
 COPY games/greed/package.json games/greed/
 COPY games/liars-dice/package.json games/liars-dice/
+COPY games/uno/package.json games/uno/
 COPY games/blackjack/package.json games/blackjack/
 COPY games/slots/package.json games/slots/
 COPY games/poker/package.json games/poker/

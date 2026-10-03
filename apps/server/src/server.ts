@@ -48,6 +48,7 @@ import {
 import type { Die } from "@backroom/rules";
 import { TIPS } from "@backroom/game-tips";
 import { STAKE_DIVISOR as TWO_UP_DIVISOR, TWO_UP, twoUpAdapter } from "@backroom/game-two-up";
+import { UNO, unoAdapter } from "@backroom/game-uno";
 
 import type {
   Ack,
@@ -125,7 +126,8 @@ const CATALOGUE = COMING.reduce(
     .add(CRAPS)
     .add(SCRIBBLE)
     .add(BACCARAT)
-    .add(LIARS_DICE),
+    .add(LIARS_DICE)
+    .add(UNO),
 );
 
 
@@ -171,6 +173,13 @@ export interface BackRoomServerOptions {
   deathRollRoll?: (ceiling: number) => number;
   /** Scribble's clock and word source, for tests that cannot wait fifteen seconds a phase. */
   scribble?: ScribbleAdapterOptions;
+  /**
+   * Where an Uno table's shuffle comes from. Injected so a test can stack the
+   * deck; the default is `node:crypto`, never Math.random.
+   */
+  unoRandom?: () => number;
+  /** How long a finished Uno round stays face up, for tests that cannot wait six seconds. */
+  unoRoundMs?: number;
   /** How long the busting dice stay on screen before play moves on. */
   farklePauseMs?: number;
   /**
@@ -366,6 +375,8 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
     plinkoDraw = () => randomInt(0, PLINKO_PATHS),
     deathRollRoll,
     scribble,
+    unoRandom = secureRandom,
+    unoRoundMs,
     farklePauseMs = 2200,
     bettingMs,
     settleMs,
@@ -1150,6 +1161,21 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
       }) as GameAdapter<PlayTable>,
     ],
     [SCRIBBLE.id, scribbleAdapter(scribble) as unknown as GameAdapter<PlayTable>],
+    [
+      UNO.id,
+      unoAdapter({
+        /*
+         * The shuffle, from the same source the reels and the shoe come from.
+         * Every round ends with every hand face up, which over an evening is
+         * exactly the run of observations needed to recover Math.random's
+         * state — and somebody who could predict the next shuffle would know
+         * every hand at the table.
+         */
+        rng: unoRandom,
+        ...(turnMs === undefined ? {} : { turnMs }),
+        ...(unoRoundMs === undefined ? {} : { roundMs: unoRoundMs }),
+      }) as GameAdapter<PlayTable>,
+    ],
     [
       BACCARAT.id,
       baccaratAdapter({
@@ -2521,6 +2547,7 @@ export function createBackRoomServer(options: BackRoomServerOptions = {}): BackR
           ceiling: parsed.data.ceiling,
           dice: parsed.data.dice,
           scribble: parsed.data.scribble,
+          uno: parsed.data.uno,
         });
         rooms.set(code, { game, table, listed: parsed.data.listed ?? true });
         table.join(socket.id, seatNameFor(socket, parsed.data.name), socket.data.identity);
