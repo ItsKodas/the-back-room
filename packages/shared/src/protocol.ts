@@ -195,6 +195,8 @@ export interface ClientToServer {
        */
       dice?: number;
       scribble?: ScribbleSetup;
+      /** An Uno table's rules, by rule id. The game checks every one. */
+      uno?: Record<string, boolean | number | string>;
     },
     ack: (result: Ack) => void,
   ) => void;

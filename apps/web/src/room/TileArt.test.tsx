@@ -389,6 +389,13 @@ describe("the napkin in scribble's corner", () => {
   });
 });
 
+describe("the cards in Uno's corner", () => {
+  it("fans three cards rather than the chips", () => {
+    const { container } = render(<TileArt game="uno" />);
+    expect(container.querySelectorAll(".art__uno-card")).toHaveLength(3);
+  });
+});
+
 describe("the cup in Liar's Dice's corner", () => {
   it("gives Liar's Dice a cup", () => {
     const { container } = render(<TileArt game="liars-dice" />);

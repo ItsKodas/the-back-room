@@ -10,6 +10,7 @@ import { POKER } from "@backroom/game-poker";
 import { ROULETTE } from "@backroom/game-roulette";
 import { SLOTS } from "@backroom/game-slots";
 import { TWO_UP } from "@backroom/game-two-up";
+import { UNO } from "@backroom/game-uno";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -36,6 +37,7 @@ const BUILT = [
   CRAPS,
   BACCARAT,
   LIARS_DICE,
+  UNO,
 ];
 
 describe("the room's catalogue", () => {

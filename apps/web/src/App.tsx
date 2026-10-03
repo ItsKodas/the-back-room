@@ -22,6 +22,7 @@ import { TableLink } from "./room/TableLink.js";
 import { Gallery } from "./style/Gallery.js";
 import Tips from "./tips/Tips.js";
 import { TwoUp } from "./twoup/TwoUp.js";
+import { Uno } from "./uno/Uno.js";
 
 export default function App() {
   // Every press on the site, from one listener. Mounted here because it
@@ -70,6 +71,8 @@ export default function App() {
           <Route path="/tips" element={<Tips />} />
           <Route path="/two-up" element={<TwoUp />} />
           <Route path="/two-up/:code" element={<TwoUp />} />
+          <Route path="/uno" element={<Uno />} />
+          <Route path="/uno/:code" element={<Uno />} />
           {/*
             * A bare code at the root, so a link that was shared before there
             * were several games still works and no share link ever has to

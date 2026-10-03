@@ -17,6 +17,7 @@ import "@backroom/game-slots/theme.css";
 import "@backroom/game-plinko/theme.css";
 import "@backroom/game-tips/theme.css";
 import "@backroom/game-two-up/theme.css";
+import "@backroom/game-uno/theme.css";
 import "@backroom/game-scribble/theme.css";
 
 interface GameOnOffer {
